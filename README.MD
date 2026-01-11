@@ -1,6 +1,13 @@
 # OpenControls
 
-OpenControls is a lightweight UI logic library designed to keep control behavior separate from rendering. It provides a small set of primitives and controls that can be hosted by any renderer (MonoGame, tooling, or custom engines).
+OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps control behavior separate from rendering so host apps (MonoGame, tooling, or custom engines) can share the same UI logic.
+
+## Quick Links
+- `README.MD`: this overview.
+- `Quickstart.MD`: getting started guide.
+- `API.MD`: core types and controls reference.
+- `Samples.MD`: small usage examples.
+- `LICENSE.MD`: MIT license.
 
 ## Goals
 - Keep UI behavior and input handling independent from rendering APIs.
@@ -8,14 +15,30 @@ OpenControls is a lightweight UI logic library designed to keep control behavior
 - Provide a small, predictable control set for editor and runtime use.
 - Keep layout explicit (manual bounds) so host apps stay in control.
 
-## Contents
-- `Quickstart.MD`: getting started guide.
-- `API.MD`: core types and controls reference.
-- `Samples.MD`: small usage examples.
+## Screenshots
+Add images to `assets/screenshots/` and update the links below.
+
+### Editor Layout
+![Editor layout](assets/screenshots/editor_layout.png)
+
+### Examples Overview
+![Examples overview](assets/screenshots/examples_overview.png)
+
+### Widgets Panel
+![Widgets panel](assets/screenshots/widgets_panel.png)
+
+## Projects
 - `OpenControls.Examples`: runnable demo project exercising all controls.
 
 ## Renderers
-OpenControls is renderer-agnostic; hosts provide an `IUiRenderer` implementation. The current renderer adapters live in the MonoGame DesktopGL examples and editor projects. The plan is to keep adding host adapters as needed (SDL/OpenGL, other native renderers, and headless test harnesses) without changing control logic.
+OpenControls is renderer-agnostic; hosts provide an `IUiRenderer` implementation.
+
+Current adapters:
+- MonoGame DesktopGL (examples and editor).
+
+Planned expansion:
+- SDL/OpenGL or other native renderers.
+- Headless test harnesses.
 
 ## Status
 - Core element tree, focus management, and basic controls are implemented.
