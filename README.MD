@@ -18,8 +18,8 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 ## Screenshots
 Add images to `assets/screenshots/` and update the links below.
 
-### Editor Layout
-![Editor layout](assets/screenshots/editor_layout.png)
+### Docked Layout
+![Docked layout](assets/screenshots/docked_layout.png)
 
 ### Examples Overview
 ![Examples overview](assets/screenshots/examples_overview.png)
@@ -31,7 +31,7 @@ Add images to `assets/screenshots/` and update the links below.
 OpenControls is renderer-agnostic; hosts provide an `IUiRenderer` implementation.
 
 Current adapters:
-- MonoGame DesktopGL (examples and editor).
+- MonoGame DesktopGL (examples).
 
 Planned expansion:
 - SDL/OpenGL or other native renderers.
@@ -60,5 +60,5 @@ Planned expansion:
 - OpenControls.Examples renders a live UI using MonoGame DesktopGL.
 - OpenControls.Examples includes an Examples menu to open feature windows as dockable panels.
 - OpenControls.Examples widgets window groups controls into categorized tree nodes (collapsed by default, with header spacing).
-- The editor uses OpenControls via a MonoGame renderer adapter.
+- A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).
