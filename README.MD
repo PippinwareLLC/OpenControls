@@ -24,9 +24,6 @@ Add images to `assets/screenshots/` and update the links below.
 ### Examples Overview
 ![Examples overview](assets/screenshots/examples_overview.png)
 
-### Widgets Panel
-![Widgets panel](assets/screenshots/widgets_panel.png)
-
 ## Projects
 - `OpenControls.Examples`: runnable demo project exercising all controls.
 
