@@ -16,7 +16,6 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - Keep layout explicit (manual bounds) so host apps stay in control.
 
 ## Screenshots
-Add images to `assets/screenshots/` and update the links below.
 
 ### Docked Layout
 ![Docked layout](assets/screenshots/docked_layout.png)
