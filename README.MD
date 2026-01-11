@@ -29,6 +29,7 @@ OpenControls is a lightweight UI logic library designed to keep control behavior
 - Dock workspaces support drag previews, drop targets, and floating windows.
 - Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, and embedded content.
 - Tree nodes, collapsing headers, tooltips, popups, and modals are available.
+- Splitter control provides draggable horizontal/vertical splits for manual layouts.
 - Arrow glyph helper (`UiArrow`) keeps tree/combo/menu indicators consistent.
 - Common controls support rounded corners and masking for clipped children via `CornerRadius` and `UiRenderHelpers` helpers.
 - Panels and windows support child clipping and resize grips.

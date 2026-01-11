@@ -43,6 +43,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiColorPicker`: hue/saturation/value picker with a gradient SV area, hue bar, and optional alpha bar.
 - `UiColorButton`: clickable color swatch with optional alpha checkerboard.
 - `UiSeparator`: horizontal or vertical line separator.
+- `UiSplitter`: draggable horizontal/vertical splitter for manual layouts.
 - `UiScrollPanel`: scrollable panel with auto/always scrollbars and clipped content.
 - `UiTextField`: editable text field with caret, text input, navigation handling, and text clipping to its bounds.
 - `UiWindow`: window container with optional title bar, clipping to content bounds, resize grip, and optional scroll panel support.

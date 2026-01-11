@@ -13,6 +13,7 @@ public sealed class ExamplesGame : Game
 {
     private const int FontScale = 2;
     private const int Padding = 12;
+    private const int SplitterSize = 6;
 
     private static readonly Encoding Latin1Encoding = Encoding.Latin1;
     private static readonly Encoding Cp437Encoding;
@@ -155,6 +156,15 @@ public sealed class ExamplesGame : Game
     private UiButton? _canvasNodeA;
     private UiButton? _canvasNodeB;
     private UiButton? _canvasNodeC;
+    private UiLabel? _splitterLabel;
+    private UiPanel? _splitterVerticalLeftPanel;
+    private UiPanel? _splitterVerticalRightPanel;
+    private UiSplitter? _splitterVertical;
+    private UiPanel? _splitterHorizontalTopPanel;
+    private UiPanel? _splitterHorizontalBottomPanel;
+    private UiSplitter? _splitterHorizontal;
+    private int _splitterVerticalLeftWidth = 140;
+    private int _splitterHorizontalTopHeight = 50;
     private UiScrollPanel? _scrollPanel;
     private readonly List<UiLabel> _scrollPanelItems = new();
     private UiButton? _popupButton;
@@ -1066,6 +1076,59 @@ public sealed class ExamplesGame : Game
         _grid.AddChild(_gridInfoLabel, 1, 0);
         _grid.AddChild(_gridStatusLabel, 1, 1);
 
+        _splitterLabel = new UiLabel
+        {
+            Text = "Splitter",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        UiColor splitterPanelA = new UiColor(26, 30, 42);
+        UiColor splitterPanelB = new UiColor(20, 24, 34);
+        UiColor splitterBorder = new UiColor(60, 70, 90);
+
+        _splitterVerticalLeftPanel = new UiPanel
+        {
+            Background = splitterPanelA,
+            Border = splitterBorder
+        };
+
+        _splitterVerticalRightPanel = new UiPanel
+        {
+            Background = splitterPanelB,
+            Border = splitterBorder
+        };
+
+        _splitterVertical = new UiSplitter
+        {
+            Orientation = UiSplitterOrientation.Vertical,
+            Color = new UiColor(30, 36, 48),
+            HoverColor = new UiColor(44, 54, 72),
+            ActiveColor = new UiColor(70, 86, 112)
+        };
+        _splitterVertical.Dragged += delta => _splitterVerticalLeftWidth += delta;
+
+        _splitterHorizontalTopPanel = new UiPanel
+        {
+            Background = splitterPanelA,
+            Border = splitterBorder
+        };
+
+        _splitterHorizontalBottomPanel = new UiPanel
+        {
+            Background = splitterPanelB,
+            Border = splitterBorder
+        };
+
+        _splitterHorizontal = new UiSplitter
+        {
+            Orientation = UiSplitterOrientation.Horizontal,
+            Color = new UiColor(30, 36, 48),
+            HoverColor = new UiColor(44, 54, 72),
+            ActiveColor = new UiColor(70, 86, 112)
+        };
+        _splitterHorizontal.Dragged += delta => _splitterHorizontalTopHeight += delta;
+
         string[] scrollItems =
         {
             "Entry 01: Boot sequence complete",
@@ -1574,6 +1637,13 @@ public sealed class ExamplesGame : Game
         _widgetsLayoutTree.AddChild(_canvas);
         _widgetsLayoutTree.AddChild(_gridLabel);
         _widgetsLayoutTree.AddChild(_grid);
+        _widgetsLayoutTree.AddChild(_splitterLabel);
+        _widgetsLayoutTree.AddChild(_splitterVerticalLeftPanel);
+        _widgetsLayoutTree.AddChild(_splitterVertical);
+        _widgetsLayoutTree.AddChild(_splitterVerticalRightPanel);
+        _widgetsLayoutTree.AddChild(_splitterHorizontalTopPanel);
+        _widgetsLayoutTree.AddChild(_splitterHorizontal);
+        _widgetsLayoutTree.AddChild(_splitterHorizontalBottomPanel);
         _widgetsLayoutTree.AddChild(_scrollPanelLabel);
         foreach (UiLabel item in _scrollPanelItems)
         {
@@ -1954,6 +2024,8 @@ public sealed class ExamplesGame : Game
             && _selectableLighting != null && _selectableNavigation != null && _selectableAudio != null && _scrollPanelLabel != null
             && _gridLabel != null && _grid != null && _gridPrimaryButton != null && _gridSecondaryButton != null && _gridInfoLabel != null && _gridStatusLabel != null
             && _canvasLabel != null && _canvas != null && _canvasNodeA != null && _canvasNodeB != null && _canvasNodeC != null
+            && _splitterLabel != null && _splitterVerticalLeftPanel != null && _splitterVertical != null && _splitterVerticalRightPanel != null
+            && _splitterHorizontalTopPanel != null && _splitterHorizontal != null && _splitterHorizontalBottomPanel != null
             && _scrollPanel != null && _menuPopupLabel != null && _menuPopupButton != null && _menuPopupStatus != null
             && _menuPopup != null && _menuPopupTable != null && _menuPopupContentItem != null
             && _popupButton != null && _modalButton != null && _tooltipLabel != null && _tooltipRegion != null
@@ -2261,6 +2333,32 @@ public sealed class ExamplesGame : Game
             int gridHeight = Math.Max(80, Math.Min(140, layoutContentWidth / 2));
             _grid.Bounds = new UiRect(0, layoutY, layoutContentWidth, gridHeight);
             layoutY += gridHeight + 8;
+
+            _splitterLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
+            layoutY += labelHeight + 6;
+
+            int splitterWidth = Math.Max(0, layoutContentWidth);
+            int splitterSampleHeight = Math.Max(70, Math.Min(120, layoutContentWidth / 3));
+            int splitterMinPane = 60;
+            int maxLeft = Math.Max(0, splitterWidth - SplitterSize - splitterMinPane);
+            int minLeft = Math.Min(splitterMinPane, maxLeft);
+            _splitterVerticalLeftWidth = Math.Clamp(_splitterVerticalLeftWidth, minLeft, maxLeft);
+            int rightWidth = Math.Max(0, splitterWidth - SplitterSize - _splitterVerticalLeftWidth);
+
+            _splitterVerticalLeftPanel.Bounds = new UiRect(0, layoutY, _splitterVerticalLeftWidth, splitterSampleHeight);
+            _splitterVertical.Bounds = new UiRect(_splitterVerticalLeftPanel.Bounds.Right, layoutY, SplitterSize, splitterSampleHeight);
+            _splitterVerticalRightPanel.Bounds = new UiRect(_splitterVertical.Bounds.Right, layoutY, rightWidth, splitterSampleHeight);
+            layoutY += splitterSampleHeight + 6;
+
+            int maxTop = Math.Max(0, splitterSampleHeight - SplitterSize - splitterMinPane);
+            int minTop = Math.Min(splitterMinPane, maxTop);
+            _splitterHorizontalTopHeight = Math.Clamp(_splitterHorizontalTopHeight, minTop, maxTop);
+            int bottomHeight = Math.Max(0, splitterSampleHeight - SplitterSize - _splitterHorizontalTopHeight);
+
+            _splitterHorizontalTopPanel.Bounds = new UiRect(0, layoutY, splitterWidth, _splitterHorizontalTopHeight);
+            _splitterHorizontal.Bounds = new UiRect(0, _splitterHorizontalTopPanel.Bounds.Bottom, splitterWidth, SplitterSize);
+            _splitterHorizontalBottomPanel.Bounds = new UiRect(0, _splitterHorizontal.Bounds.Bottom, splitterWidth, bottomHeight);
+            layoutY += splitterSampleHeight + 8;
 
             _scrollPanelLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;

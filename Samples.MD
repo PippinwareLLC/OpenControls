@@ -292,6 +292,24 @@ grid.AddChild(info, 1, 0);
 grid.AddChild(status, 1, 1);
 ```
 
+## Splitter
+Use `UiSplitter` to drag a manual split between panels.
+
+```csharp
+int leftWidth = 220;
+UiSplitter splitter = new UiSplitter
+{
+    Bounds = new UiRect(leftWidth, 20, 6, 240),
+    Orientation = UiSplitterOrientation.Vertical
+};
+
+splitter.Dragged += delta =>
+{
+    leftWidth = Math.Clamp(leftWidth + delta, 160, 360);
+    splitter.Bounds = new UiRect(leftWidth, 20, 6, 240);
+};
+```
+
 ## Canvas
 Use `UiCanvas` for a pannable/zoomable area with a grid and world-space children.
 
