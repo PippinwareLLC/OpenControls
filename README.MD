@@ -14,6 +14,9 @@ OpenControls is a lightweight UI logic library designed to keep control behavior
 - `Samples.MD`: small usage examples.
 - `OpenControls.Examples`: runnable demo project exercising all controls.
 
+## Renderers
+OpenControls is renderer-agnostic; hosts provide an `IUiRenderer` implementation. The current renderer adapters live in the MonoGame DesktopGL examples and editor projects. The plan is to keep adding host adapters as needed (SDL/OpenGL, other native renderers, and headless test harnesses) without changing control logic.
+
 ## Status
 - Core element tree, focus management, and basic controls are implemented.
 - Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar, list box, combo box, selectable, color button, and separator controls are available.
