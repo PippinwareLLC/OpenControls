@@ -16,9 +16,11 @@ This is a brief overview of the current OpenControls surface area.
 - `UiSelectionModel`: manages multi-selection state (ctrl/shift range behavior) for list/selectable controls.
 - `UiArrowDirection`: direction enum for shared arrow glyphs.
 - `UiArrow`: helper for drawing consistent arrow indicators in custom controls.
+- `UiProgressBarFillDirection`: progress bar fill direction (left/right/top/bottom).
 - `UiDragFlags`: drag widget behavior flags (clamping, log scaling, and speed modifiers).
 - `UiTableColumn`, `UiTableRow`: column/row data objects for `UiTable`.
 - `UiPlotPoint`, `UiPlotSeries`: data objects for `UiPlotPanel` plotting series.
+- `UiWaveformRenderMode`: waveform rendering modes for `UiWaveform` (min/max columns or line plots).
 - `UiGridDefinition`: row/column sizing data for `UiGrid`.
 
 ## Controls
@@ -31,12 +33,13 @@ This is a brief overview of the current OpenControls surface area.
 - `UiDragFloat`, `UiDragInt`: drag-to-adjust value fields with optional clamping and speed modifiers.
 - `UiDragFloat2/3/4`, `UiDragInt2/3/4`: multi-component drag widgets for vector values.
 - `UiDragFloatRange`, `UiDragIntRange`: two-value drag controls for min/max ranges.
-- `UiProgressBar`: value bar with optional overlay text.
+- `UiProgressBar`: value bar with optional overlay text (horizontal/vertical, segmented).
 - `UiListBox`: list selector with hover/selected states.
 - `UiSelectable`: selectable row with hover/selected states.
 - `UiComboBox`: dropdown selector with an overlay list.
 - `UiTable`: grid/table control with column headers and selectable rows.
 - `UiPlotPanel`: plotting panel with axes, tick labels, grid lines, and zoom/pan input.
+- `UiWaveform`: waveform panel for rendering sample data with optional zero line.
 - `UiGrid`: grid layout container that assigns children to row/column cells.
 - `UiCanvas`: pannable/zoomable canvas that renders child elements with an optional grid and origin.
 - `UiColorEdit`: RGB(A) editor with per-channel sliders and a preview swatch.
@@ -98,6 +101,11 @@ This is a brief overview of the current OpenControls surface area.
 - `UiDragFlags.Logarithmic` enables log-scaled drags when `Min`/`Max` are both greater than zero.
 - Ctrl and Shift adjust drag speed unless `UiDragFlags.NoSlowFast` is set.
 
+## Progress Bar Notes
+- `UiProgressBar.FillDirection` controls fill direction (left/right/top/bottom).
+- Set `SegmentCount` >= 2 to render segmented fills; `SegmentGap` controls spacing.
+- `SegmentFillColors` maps colors from the fill start to end; falls back to `Fill` when unset.
+
 ## List Box Notes
 - `UiListBox.Items`: assign items to display in the list.
 - `UiListBox.SelectedIndex`: set or read the active selection.
@@ -124,6 +132,12 @@ This is a brief overview of the current OpenControls surface area.
 - `EnablePan` (drag) and `EnableZoom` (mouse wheel) adjust the view range; `ZoomToCursor` keeps the mouse anchor fixed.
 - Use `XTickCount`/`YTickCount`, `FormatXTick`/`FormatYTick`, and `TextScale` to tune ticks and labels.
 - Provide `MeasureTextWidth`/`MeasureTextHeight` for accurate label sizing with custom renderers.
+
+## Waveform Notes
+- `UiWaveform.Samples`: assign a sample buffer (typically normalized -1 to 1).
+- `UiWaveform.RenderMode`: choose `MinMax` for peak/valley columns or `Line` for connected samples.
+- `UiWaveform.AutoScale`: derive the display range from the visible samples.
+- `UiWaveform.StartIndex`/`SampleCount`: window into the sample data without copying.
 
 ## Grid Notes
 - `UiGrid.Columns`/`UiGrid.Rows`: define fixed sizes (`Size`) or weighted sizing (`Weight`) for each axis.

@@ -99,6 +99,47 @@ menu.Items.Add(file);
 root.AddChild(menu);
 ```
 
+## 2d) Progress bars
+Use `FillDirection` for vertical bars and `SegmentCount` for segmented VU-style meters.
+
+```csharp
+UiProgressBar vertical = new UiProgressBar
+{
+    Bounds = new UiRect(20, 160, 20, 80),
+    Min = 0f,
+    Max = 1f,
+    Value = 0.65f,
+    FillDirection = UiProgressBarFillDirection.BottomToTop,
+    ShowText = false
+};
+
+UiColor[] vuColors =
+{
+    new UiColor(64, 180, 96),
+    new UiColor(64, 180, 96),
+    new UiColor(64, 180, 96),
+    new UiColor(64, 180, 96),
+    new UiColor(200, 180, 80),
+    new UiColor(210, 90, 80)
+};
+
+UiProgressBar vu = new UiProgressBar
+{
+    Bounds = new UiRect(50, 160, 20, 80),
+    Min = 0f,
+    Max = 1f,
+    Value = 0.65f,
+    FillDirection = UiProgressBarFillDirection.BottomToTop,
+    SegmentCount = vuColors.Length,
+    SegmentGap = 2,
+    SegmentFillColors = vuColors,
+    ShowText = false
+};
+
+root.AddChild(vertical);
+root.AddChild(vu);
+```
+
 ## 3) Update input and render each frame
 Map your host input to `UiInputState` and call `Update`/`Render`.
 
@@ -128,7 +169,7 @@ ui.Render(renderer);
 
 ## Notes
 - `UiTextField` and `UiTextEditor` expect `TextInput` and `Navigation` for editing.
-- Additional controls include `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiProgressBar`, `UiListBox`, `UiComboBox`, `UiTable`, `UiPlotPanel`, `UiGrid`, `UiCanvas`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiSelectable`, `UiSeparator`, `UiSplitter`, `UiScrollPanel`, `UiTextEditor`, `UiTreeNode`, `UiCollapsingHeader`, `UiPopup`, `UiModal`, `UiModalHost`, and `UiTooltip`.
+- Additional controls include `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiProgressBar`, `UiListBox`, `UiComboBox`, `UiTable`, `UiPlotPanel`, `UiWaveform`, `UiGrid`, `UiCanvas`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiSelectable`, `UiSeparator`, `UiSplitter`, `UiScrollPanel`, `UiTextEditor`, `UiTreeNode`, `UiCollapsingHeader`, `UiPopup`, `UiModal`, `UiModalHost`, and `UiTooltip`.
 - Use `UiArrow.DrawTriangle` when you want arrow indicators that match built-in controls.
 - Use `UiWindow.EnsureScrollPanel()` plus `AddContentChild` when window content needs scrollbars.
 - `UiScrollPanel` uses panel-local child bounds and applies scroll offsets when rendering.

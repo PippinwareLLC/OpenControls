@@ -167,6 +167,43 @@ foreach (string entry in entries)
 }
 ```
 
+## Vertical and Segmented Progress
+Use `FillDirection` for vertical bars and segmented fills for VU meters.
+
+```csharp
+UiProgressBar vertical = new UiProgressBar
+{
+    Bounds = new UiRect(20, 520, 20, 80),
+    Min = 0f,
+    Max = 1f,
+    Value = 0.4f,
+    FillDirection = UiProgressBarFillDirection.BottomToTop,
+    ShowText = false
+};
+
+UiColor[] vuColors =
+{
+    new UiColor(64, 180, 96),
+    new UiColor(64, 180, 96),
+    new UiColor(64, 180, 96),
+    new UiColor(200, 180, 80),
+    new UiColor(210, 90, 80)
+};
+
+UiProgressBar vuMeter = new UiProgressBar
+{
+    Bounds = new UiRect(60, 520, 20, 80),
+    Min = 0f,
+    Max = 1f,
+    Value = 0.6f,
+    FillDirection = UiProgressBarFillDirection.BottomToTop,
+    SegmentCount = vuColors.Length,
+    SegmentGap = 2,
+    SegmentFillColors = vuColors,
+    ShowText = false
+};
+```
+
 ## Drag Widgets
 Use drag widgets to tweak values with horizontal mouse drags.
 
@@ -264,6 +301,27 @@ plot.Series.Add(new UiPlotSeries
     Points = series
 });
 plot.AutoFit();
+```
+
+## Waveform
+Use `UiWaveform` to render waveform samples with min/max or line modes.
+
+```csharp
+float[] samples = new float[1024];
+for (int i = 0; i < samples.Length; i++)
+{
+    float t = i / (float)(samples.Length - 1);
+    samples[i] = MathF.Sin(t * MathF.PI * 4f);
+}
+
+UiWaveform waveform = new UiWaveform
+{
+    Bounds = new UiRect(20, 240, 360, 140),
+    Samples = samples,
+    AutoScale = true,
+    RenderMode = UiWaveformRenderMode.MinMax,
+    ShowZeroLine = true
+};
 ```
 
 ## Grid Layout

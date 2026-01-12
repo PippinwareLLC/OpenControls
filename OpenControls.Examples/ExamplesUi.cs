@@ -39,6 +39,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     }
 }";
     private static readonly string SampleEditorTextLarge = BuildSampleEditorTextLarge();
+    private static readonly float[] WaveformSamples = BuildWaveformSamples();
 
     private static string BuildSampleEditorTextLarge()
     {
@@ -56,6 +57,21 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         }
 
         return builder.ToString().TrimEnd('\r', '\n');
+    }
+
+    private static float[] BuildWaveformSamples()
+    {
+        const int sampleCount = 1024;
+        float[] samples = new float[sampleCount];
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = i / (float)(sampleCount - 1);
+            float phase = t * MathF.PI * 4f;
+            float value = MathF.Sin(phase) * 0.75f + MathF.Sin(phase * 2f) * 0.25f;
+            samples[i] = value;
+        }
+
+        return samples;
     }
 
     private readonly IUiRenderer _renderer;
@@ -90,6 +106,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiTreeNode? _widgetsComboTree;
     private UiTreeNode? _widgetsTableTree;
     private UiTreeNode? _widgetsPlotTree;
+    private UiTreeNode? _widgetsWaveformTree;
     private UiTreeNode? _widgetsColorTree;
     private UiTreeNode? _widgetsAsciiTree;
     private UiTreeNode? _widgetsSelectableTree;
@@ -105,6 +122,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiRadioButton? _qualityHigh;
     private UiSlider? _volumeSlider;
     private UiProgressBar? _volumeProgress;
+    private UiLabel? _verticalProgressLabel;
+    private UiProgressBar? _verticalProgress;
+    private UiLabel? _vuMeterLabel;
+    private UiProgressBar? _vuMeter;
     private UiLabel? _roundingLabel;
     private UiSlider? _roundingSlider;
     private UiLabel? _roundingPreviewLabel;
@@ -148,6 +169,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private readonly List<UiTableRow> _tableRows = new();
     private UiLabel? _plotLabel;
     private UiPlotPanel? _plotPanel;
+    private UiLabel? _waveformLabel;
+    private UiWaveform? _waveform;
     private UiLabel? _colorEditLabel;
     private UiColorEdit? _colorEdit;
     private UiLabel? _colorPickerLabel;
@@ -454,6 +477,55 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Max = 1f,
             Value = _volumeSlider.Value,
             TextScale = FontScale
+        };
+
+        _verticalProgressLabel = new UiLabel
+        {
+            Text = "Vertical Progress",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _verticalProgress = new UiProgressBar
+        {
+            Min = 0f,
+            Max = 1f,
+            Value = _volumeSlider.Value,
+            FillDirection = UiProgressBarFillDirection.BottomToTop,
+            ShowText = false
+        };
+
+        _vuMeterLabel = new UiLabel
+        {
+            Text = "Segmented VU Meter",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        UiColor[] vuColors =
+        {
+            new UiColor(64, 180, 96),
+            new UiColor(64, 180, 96),
+            new UiColor(64, 180, 96),
+            new UiColor(64, 180, 96),
+            new UiColor(64, 180, 96),
+            new UiColor(64, 180, 96),
+            new UiColor(200, 180, 80),
+            new UiColor(200, 180, 80),
+            new UiColor(210, 90, 80),
+            new UiColor(210, 90, 80)
+        };
+
+        _vuMeter = new UiProgressBar
+        {
+            Min = 0f,
+            Max = 1f,
+            Value = _volumeSlider.Value,
+            FillDirection = UiProgressBarFillDirection.BottomToTop,
+            SegmentCount = vuColors.Length,
+            SegmentGap = 2,
+            SegmentFillColors = vuColors,
+            ShowText = false
         };
 
         _roundingLabel = new UiLabel
@@ -838,6 +910,24 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Points = gpuSeries
         });
         _plotPanel.AutoFit();
+
+        _waveformLabel = new UiLabel
+        {
+            Text = "Waveform: Min/Max render",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _waveform = new UiWaveform
+        {
+            Samples = WaveformSamples,
+            AutoScale = true,
+            RenderMode = UiWaveformRenderMode.MinMax,
+            ShowZeroLine = true,
+            Padding = 4,
+            LineThickness = 1,
+            ZeroLineThickness = 1
+        };
 
         _colorEditLabel = new UiLabel
         {
@@ -1527,6 +1617,15 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             IsOpen = false
         };
 
+        _widgetsWaveformTree = new UiTreeNode
+        {
+            Text = "Waveforms",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
         _widgetsColorTree = new UiTreeNode
         {
             Text = "Color and Picker Widgets",
@@ -1599,6 +1698,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _widgetsSliderTree.AddChild(_volumeSlider);
         _widgetsSliderTree.AddChild(_volumeProgress);
+        _widgetsSliderTree.AddChild(_verticalProgressLabel);
+        _widgetsSliderTree.AddChild(_verticalProgress);
+        _widgetsSliderTree.AddChild(_vuMeterLabel);
+        _widgetsSliderTree.AddChild(_vuMeter);
 
         _widgetsStyleTree.AddChild(_roundingLabel);
         _widgetsStyleTree.AddChild(_roundingSlider);
@@ -1647,6 +1750,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _widgetsPlotTree.AddChild(_plotLabel);
         _widgetsPlotTree.AddChild(_plotPanel);
+
+        _widgetsWaveformTree.AddChild(_waveformLabel);
+        _widgetsWaveformTree.AddChild(_waveform);
 
         _widgetsColorTree.AddChild(_colorEditLabel);
         _widgetsColorTree.AddChild(_colorEdit);
@@ -1712,6 +1818,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsTree.AddChild(_widgetsComboTree);
         _widgetsTree.AddChild(_widgetsTableTree);
         _widgetsTree.AddChild(_widgetsPlotTree);
+        _widgetsTree.AddChild(_widgetsWaveformTree);
         _widgetsTree.AddChild(_widgetsColorTree);
         _widgetsTree.AddChild(_widgetsAsciiTree);
         _widgetsTree.AddChild(_widgetsSelectableTree);
@@ -2059,10 +2166,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         if (_widgetsWindow != null && _widgetsTitleLabel != null && _widgetsTree != null && _widgetsBasicTree != null && _widgetsSliderTree != null
             && _widgetsStyleTree != null && _widgetsDragTree != null && _widgetsListTree != null && _widgetsMultiSelectTree != null && _widgetsComboTree != null && _widgetsTableTree != null
-            && _widgetsPlotTree != null && _widgetsColorTree != null && _widgetsAsciiTree != null && _widgetsSelectableTree != null && _widgetsLayoutTree != null && _widgetsTooltipTree != null
+            && _widgetsPlotTree != null && _widgetsWaveformTree != null && _widgetsColorTree != null && _widgetsAsciiTree != null && _widgetsSelectableTree != null && _widgetsLayoutTree != null && _widgetsTooltipTree != null
             && _widgetsPopupTree != null && _widgetsTreeHeaderTree != null && _snapCheckbox != null && _gizmoCheckbox != null
             && _widgetsSeparator != null
             && _qualityLow != null && _qualityMedium != null && _qualityHigh != null && _volumeSlider != null && _volumeProgress != null
+            && _verticalProgressLabel != null && _verticalProgress != null && _vuMeterLabel != null && _vuMeter != null
             && _roundingLabel != null && _roundingSlider != null && _roundingPreviewLabel != null && _roundingButton != null
             && _roundingField != null && _roundingPanel != null
             && _dragFloatLabel != null && _dragFloat != null && _dragIntLabel != null && _dragInt != null && _dragRangeLabel != null
@@ -2073,7 +2181,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _sceneLabel != null && _sceneList != null && _sceneSelectionLabel != null && _multiSelectLabel != null
             && _multiSelectHintLabel != null && _multiSelectList != null && _multiSelectSelectionLabel != null && _comboLabel != null
             && _sceneComboBox != null && _comboSelectionLabel != null && _tableLabel != null && _sceneTable != null
-            && _tableSelectionLabel != null && _plotLabel != null && _plotPanel != null && _colorEditLabel != null && _colorEdit != null && _colorPickerLabel != null
+            && _tableSelectionLabel != null && _plotLabel != null && _plotPanel != null && _waveformLabel != null && _waveform != null && _colorEditLabel != null && _colorEdit != null && _colorPickerLabel != null
             && _colorPicker != null && _colorSelectionLabel != null && _colorButtonLabel != null && _asciiLabel != null && _asciiPageLabel != null && _asciiPageCombo != null
             && _asciiTable != null && _selectablesLabel != null && _selectablesHintLabel != null
             && _selectableLighting != null && _selectableNavigation != null && _selectableAudio != null && _scrollPanelLabel != null
@@ -2132,6 +2240,16 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             sliderY += 32;
             _volumeProgress.Bounds = new UiRect(0, sliderY, sliderContentWidth, 20);
             sliderY += 30;
+            _verticalProgressLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 6;
+            int meterWidth = Math.Max(0, Math.Min(24, sliderContentWidth));
+            int meterHeight = Math.Max(72, labelHeight * 6);
+            _verticalProgress.Bounds = new UiRect(0, sliderY, meterWidth, meterHeight);
+            sliderY += meterHeight + 8;
+            _vuMeterLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 6;
+            _vuMeter.Bounds = new UiRect(0, sliderY, meterWidth, meterHeight);
+            sliderY += meterHeight + 4;
             int sliderHeight = treeHeaderHeight + (_widgetsSliderTree.IsOpen ? sliderPadding + sliderY : 0);
             _widgetsSliderTree.HeaderHeight = treeHeaderHeight;
             _widgetsSliderTree.Bounds = new UiRect(0, categoryY, rootContentWidth, sliderHeight);
@@ -2294,6 +2412,19 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _widgetsPlotTree.HeaderHeight = treeHeaderHeight;
             _widgetsPlotTree.Bounds = new UiRect(0, categoryY, rootContentWidth, plotTreeHeight);
             categoryY += plotTreeHeight + categorySpacing;
+
+            int waveformContentWidth = Math.Max(0, rootContentWidth - _widgetsWaveformTree.Indent);
+            int waveformPadding = Math.Max(0, _widgetsWaveformTree.ContentPadding);
+            int waveformY = 0;
+            _waveformLabel.Bounds = new UiRect(0, waveformY, waveformContentWidth, labelHeight);
+            waveformY += labelHeight + 6;
+            int waveformHeight = Math.Max(100, Math.Min(200, waveformContentWidth / 2));
+            _waveform.Bounds = new UiRect(0, waveformY, waveformContentWidth, waveformHeight);
+            waveformY += waveformHeight + 4;
+            int waveformTreeHeight = treeHeaderHeight + (_widgetsWaveformTree.IsOpen ? waveformPadding + waveformY : 0);
+            _widgetsWaveformTree.HeaderHeight = treeHeaderHeight;
+            _widgetsWaveformTree.Bounds = new UiRect(0, categoryY, rootContentWidth, waveformTreeHeight);
+            categoryY += waveformTreeHeight + categorySpacing;
 
             int colorContentWidth = Math.Max(0, rootContentWidth - _widgetsColorTree.Indent);
             int colorPadding = Math.Max(0, _widgetsColorTree.ContentPadding);
@@ -2636,8 +2767,18 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     {
         if (_volumeSlider != null && _volumeProgress != null)
         {
-            _volumeProgress.Value = _volumeSlider.Value;
-            _volumeProgress.Text = $"Volume {(int)Math.Round(_volumeSlider.Value * 100f)}%";
+            float value = _volumeSlider.Value;
+            _volumeProgress.Value = value;
+            _volumeProgress.Text = $"Volume {(int)Math.Round(value * 100f)}%";
+            if (_verticalProgress != null)
+            {
+                _verticalProgress.Value = value;
+            }
+
+            if (_vuMeter != null)
+            {
+                _vuMeter.Value = value;
+            }
         }
 
         if (_sceneSelectionLabel != null && _sceneList != null)
