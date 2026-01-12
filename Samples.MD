@@ -555,6 +555,12 @@ dotnet run --project OpenControls.SdlNet.Examples
 This launches an SDL window (requires the SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable). It uses the shared SDL2 renderer adapter from `OpenControls.SdlNet`.
 
 OpenControls also ships an OpenGL renderer adapter in `OpenControls.OpenGL` for hosts that provide a compatibility-profile OpenGL context.
+
+Run the OpenGL examples host:
+
+```powershell
+dotnet run --project OpenControls.OpenGL.Examples
+```
 It mirrors the OpenControls.Examples UI to exercise the same controls.
 
 ## Custom Control

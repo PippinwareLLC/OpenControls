@@ -141,5 +141,6 @@ ui.Render(renderer);
 - TinyBitmapFont lives in OpenControls and renderers can switch `CodePage` between Latin-1 and CP437; the Widgets demo includes an ASCII table.
 - Run `dotnet run --project OpenControls.MonoGame.Examples` to launch the MonoGame examples app.
 - Run `dotnet run --project OpenControls.SdlNet.Examples` to launch the SDL2-CS example (requires SDL2 native; on Windows place `SDL2.dll` on PATH or beside the executable).
+- Run `dotnet run --project OpenControls.OpenGL.Examples` to launch the OpenGL examples app.
 - For MonoGame `SpriteBatch`, use `SpriteSortMode.Immediate` plus a `RasterizerState` with `ScissorTestEnable = true` so `PushClip`/`PopClip` take effect.
 - For OpenGL, use a compatibility profile with an orthographic top-left projection, enable blending, and keep `GL_SCISSOR_TEST` available for clipping.
