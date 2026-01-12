@@ -16,7 +16,10 @@ public sealed class OpenGlExamplesWindow : GameWindow
     private TinyBitmapFont? _font;
     private ExamplesUi? _ui;
     private KeyboardState? _previousKeyboard;
-    private MouseState? _previousMouse;
+    private bool _leftDown;
+    private bool _leftClicked;
+    private bool _leftReleased;
+    private int _scrollDelta;
 
     public OpenGlExamplesWindow(GameWindowSettings gameSettings, NativeWindowSettings windowSettings)
         : base(gameSettings, windowSettings)
@@ -64,16 +67,17 @@ public sealed class OpenGlExamplesWindow : GameWindow
         KeyboardState keyboard = KeyboardState;
         MouseState mouse = MouseState;
         KeyboardState previousKeyboard = _previousKeyboard ?? keyboard;
-        MouseState previousMouse = _previousMouse ?? mouse;
 
         bool saveRequested = IsPressed(keyboard, previousKeyboard, Keys.F5);
         bool loadRequested = IsPressed(keyboard, previousKeyboard, Keys.F9);
 
-        UiInputState input = BuildInputState(keyboard, previousKeyboard, mouse, previousMouse);
+        UiInputState input = BuildInputState(keyboard, previousKeyboard, mouse);
         _ui.Update(input, (float)args.Time, Size.X, Size.Y, saveRequested, loadRequested);
 
         _previousKeyboard = keyboard;
-        _previousMouse = mouse;
+        _leftClicked = false;
+        _leftReleased = false;
+        _scrollDelta = 0;
     }
 
     protected override void OnRenderFrame(FrameEventArgs args)
@@ -117,16 +121,39 @@ public sealed class OpenGlExamplesWindow : GameWindow
         GL.LoadIdentity();
     }
 
+    protected override void OnMouseDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseDown(e);
+
+        if (e.Button == MouseButton.Left)
+        {
+            _leftDown = true;
+            _leftClicked = true;
+        }
+    }
+
+    protected override void OnMouseUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseUp(e);
+
+        if (e.Button == MouseButton.Left)
+        {
+            _leftDown = false;
+            _leftReleased = true;
+        }
+    }
+
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        _scrollDelta += (int)Math.Round(e.OffsetY * 120f);
+    }
+
     private UiInputState BuildInputState(
         KeyboardState currentKeyboard,
         KeyboardState previousKeyboard,
-        MouseState currentMouse,
-        MouseState previousMouse)
+        MouseState currentMouse)
     {
-        bool leftDown = currentMouse.IsButtonDown(MouseButton.Left);
-        bool leftClicked = leftDown && !previousMouse.IsButtonDown(MouseButton.Left);
-        bool leftReleased = !leftDown && previousMouse.IsButtonDown(MouseButton.Left);
-
         Vector2 mousePosition = currentMouse.Position;
         UiPoint mousePoint = new UiPoint((int)Math.Round(mousePosition.X), (int)Math.Round(mousePosition.Y));
 
@@ -134,12 +161,12 @@ public sealed class OpenGlExamplesWindow : GameWindow
         {
             MousePosition = mousePoint,
             ScreenMousePosition = mousePoint,
-            LeftDown = leftDown,
-            LeftClicked = leftClicked,
-            LeftReleased = leftReleased,
+            LeftDown = _leftDown,
+            LeftClicked = _leftClicked,
+            LeftReleased = _leftReleased,
             ShiftDown = currentKeyboard.IsKeyDown(Keys.LeftShift) || currentKeyboard.IsKeyDown(Keys.RightShift),
             CtrlDown = currentKeyboard.IsKeyDown(Keys.LeftControl) || currentKeyboard.IsKeyDown(Keys.RightControl),
-            ScrollDelta = (int)Math.Round(currentMouse.ScrollDelta.Y * 120f),
+            ScrollDelta = _scrollDelta,
             TextInput = ConsumeTextInput(),
             Navigation = new UiNavigationInput
             {
