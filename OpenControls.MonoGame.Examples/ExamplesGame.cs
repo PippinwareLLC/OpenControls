@@ -2,9 +2,11 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using OpenControls;
+using OpenControls.Examples;
+using OpenControls.MonoGame;
 using OpenControls.State;
 
-namespace OpenControls.Examples;
+namespace OpenControls.MonoGame.Examples;
 
 public sealed class ExamplesGame : Game
 {

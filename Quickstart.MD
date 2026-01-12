@@ -1,6 +1,6 @@
 # Quickstart
 
-This guide shows how to host OpenControls in a game loop. OpenControls does not provide a renderer, so you implement `IUiRenderer` in your host (MonoGame, SDL, etc).
+This guide shows how to host OpenControls in a game loop. OpenControls ships a MonoGame renderer adapter in `OpenControls.MonoGame`, and you can implement `IUiRenderer` for other hosts (SDL, custom engines, etc).
 
 ## 1) Create a renderer adapter
 Implement `IUiRenderer` with your drawing API (sprite batch, canvas, etc).
@@ -139,6 +139,6 @@ ui.Render(renderer);
 - Use `UiFocusManager` (via `UiContext.Focus`) to drive focus if needed.
 - Set `UiMenuBar.DisplayMode = Popup` and call `OpenPopup` to build context menus anchored to the menu `Bounds`.
 - TinyBitmapFont lives in OpenControls and renderers can switch `CodePage` between Latin-1 and CP437; the Widgets demo includes an ASCII table.
-- Run `dotnet run --project OpenControls.Examples` to launch the MonoGame examples app.
+- Run `dotnet run --project OpenControls.MonoGame.Examples` to launch the MonoGame examples app.
 - Run `dotnet run --project OpenControls.SdlNet.Examples` to launch the SDL2-CS example (requires SDL2 native; on Windows place `SDL2.dll` on PATH or beside the executable).
 - For MonoGame `SpriteBatch`, use `SpriteSortMode.Immediate` plus a `RasterizerState` with `ScissorTestEnable = true` so `PushClip`/`PopClip` take effect.

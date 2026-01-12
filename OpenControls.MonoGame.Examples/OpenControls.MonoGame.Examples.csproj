@@ -1,10 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\OpenControls\OpenControls.csproj" />
+    <ProjectReference Include="..\OpenControls.Examples\OpenControls.Examples.csproj" />
+    <ProjectReference Include="..\OpenControls.MonoGame\OpenControls.MonoGame.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

@@ -537,13 +537,13 @@ header.AddChild(headerItem);
 ```
 
 ## Examples Project
-Run the dedicated examples project to exercise all controls:
+Run the dedicated examples host to exercise all controls:
 
 ```powershell
-dotnet run --project OpenControls.Examples
+dotnet run --project OpenControls.MonoGame.Examples
 ```
 
-This launches a MonoGame DesktopGL window that renders the controls.
+This launches a MonoGame DesktopGL window that renders the shared examples UI (via `OpenControls.MonoGame` and `OpenControls.Examples`).
 The Widgets window organizes controls into categorized tree nodes for easier browsing (collapsed by default).
 
 Run the SDL2-CS renderer example:

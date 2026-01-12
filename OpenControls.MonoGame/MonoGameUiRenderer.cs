@@ -2,7 +2,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using OpenControls;
 
-namespace OpenControls.Editor;
+namespace OpenControls.MonoGame;
 
 public sealed class MonoGameUiRenderer : IUiRenderer
 {

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenControls\OpenControls.csproj" />
+    <ProjectReference Include="..\OpenControls.MonoGame\OpenControls.MonoGame.csproj" />
   </ItemGroup>
 
   <ItemGroup>

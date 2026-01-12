@@ -1,4 +1,4 @@
-namespace OpenControls.Examples;
+namespace OpenControls.MonoGame.Examples;
 
 public static class Program
 {

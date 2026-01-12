@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using OpenControls;
 using OpenControls.Controls;
+using OpenControls.MonoGame;
 
 namespace OpenControls.Editor;
 

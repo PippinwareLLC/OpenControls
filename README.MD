@@ -24,14 +24,16 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 ![Examples overview](assets/screenshots/examples_overview.png)
 
 ## Projects
-- `OpenControls.Examples`: runnable demo project exercising all controls.
+- `OpenControls.Examples`: shared examples UI library (renderer-agnostic).
+- `OpenControls.MonoGame`: MonoGame DesktopGL renderer adapter library.
+- `OpenControls.MonoGame.Examples`: runnable MonoGame host for the shared examples UI.
 - `OpenControls.SdlNet.Examples`: SDL2-CS renderer example that mirrors the OpenControls.Examples UI (requires SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable).
 
 ## Renderers
 OpenControls is renderer-agnostic; hosts provide an `IUiRenderer` implementation.
 
 Current adapters:
-- MonoGame DesktopGL (OpenControls.Examples).
+- MonoGame DesktopGL (OpenControls.MonoGame).
 - SDL2-CS (OpenControls.SdlNet.Examples).
 
 Planned expansion:
@@ -58,8 +60,8 @@ Planned expansion:
 - Common controls support rounded corners and masking for clipped children via `CornerRadius` and `UiRenderHelpers` helpers.
 - Panels and windows support child clipping and resize grips.
 - UI state serialization is available for layout persistence.
-- OpenControls.Examples renders a live UI using MonoGame DesktopGL.
-- OpenControls.SdlNet.Examples renders the same examples UI using SDL2-CS.
+- OpenControls.MonoGame.Examples renders the shared examples UI using MonoGame DesktopGL (via OpenControls.MonoGame).
+- OpenControls.SdlNet.Examples renders the shared examples UI using SDL2-CS.
 - OpenControls.Examples includes an Examples menu to open feature windows as dockable panels.
 - OpenControls.Examples widgets window groups controls into categorized tree nodes (collapsed by default, with header spacing).
 - A dedicated UI editor is planned and will be documented once available.
