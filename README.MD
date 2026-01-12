@@ -25,15 +25,17 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 
 ## Projects
 - `OpenControls.Examples`: runnable demo project exercising all controls.
+- `OpenControls.SdlNet.Examples`: SDL2-CS renderer example that mirrors the OpenControls.Examples UI (requires SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable).
 
 ## Renderers
 OpenControls is renderer-agnostic; hosts provide an `IUiRenderer` implementation.
 
 Current adapters:
-- MonoGame DesktopGL (examples).
+- MonoGame DesktopGL (OpenControls.Examples).
+- SDL2-CS (OpenControls.SdlNet.Examples).
 
 Planned expansion:
-- SDL/OpenGL or other native renderers.
+- OpenGL or other native renderers.
 - Headless test harnesses.
 
 ## Status
@@ -57,6 +59,7 @@ Planned expansion:
 - Panels and windows support child clipping and resize grips.
 - UI state serialization is available for layout persistence.
 - OpenControls.Examples renders a live UI using MonoGame DesktopGL.
+- OpenControls.SdlNet.Examples renders the same examples UI using SDL2-CS.
 - OpenControls.Examples includes an Examples menu to open feature windows as dockable panels.
 - OpenControls.Examples widgets window groups controls into categorized tree nodes (collapsed by default, with header spacing).
 - A dedicated UI editor is planned and will be documented once available.

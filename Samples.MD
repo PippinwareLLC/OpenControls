@@ -546,6 +546,15 @@ dotnet run --project OpenControls.Examples
 This launches a MonoGame DesktopGL window that renders the controls.
 The Widgets window organizes controls into categorized tree nodes for easier browsing (collapsed by default).
 
+Run the SDL2-CS renderer example:
+
+```powershell
+dotnet run --project OpenControls.SdlNet.Examples
+```
+
+This launches an SDL window (requires the SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable).
+It mirrors the OpenControls.Examples UI to exercise the same controls.
+
 ## Custom Control
 Extend `UiElement` if you need custom input or rendering.
 Use `UiArrow.DrawTriangle` if you want arrow glyphs consistent with built-in controls.

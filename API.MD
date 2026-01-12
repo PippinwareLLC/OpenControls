@@ -61,7 +61,7 @@ This is a brief overview of the current OpenControls surface area.
 ## Notes
 - All bounds are absolute (`UiRect`), so layout is explicit.
 - Controls are renderer-agnostic; rendering is done by the host adapter.
-- `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame adapters (Latin-1/CP437).
+- `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame and SDL2-CS adapters (Latin-1/CP437).
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.
 - `UiContext.Render` performs an overlay pass; `UiMenuBar` dropdowns draw there so they render above other controls.
@@ -175,7 +175,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiInputState.ScrollDelta` uses mouse wheel delta (positive values scroll up by default).
 - `UiInputState.ScreenMousePosition` preserves the screen-space cursor position for overlay UI like tooltips.
 - `UiInputState.ShiftDown`/`CtrlDown` drive range/toggle selection for multi-select.
-- Prefer platform text input events (for example MonoGame `GameWindow.TextInput`) for `UiInputState.TextInput`; use key mapping as a fallback.
+- Prefer platform text input events (for example MonoGame `GameWindow.TextInput` or SDL `SDL_TEXTINPUT`) for `UiInputState.TextInput`; use key mapping as a fallback.
 
 ## Serialization Notes
 - Assign stable `UiElement.Id` values for controls you want to persist.
