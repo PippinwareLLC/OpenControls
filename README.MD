@@ -35,6 +35,26 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - `OpenControls.OpenGL.Examples`: runnable OpenGL host for the shared examples UI.
 - `OpenControls.SdlNet.Examples`: SDL2-CS renderer example that mirrors the OpenControls.Examples UI (requires SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable).
 
+## Project Status Matrix
+| Project | Type | Status | Notes |
+| --- | --- | --- | --- |
+| `OpenControls` | Core UI library | Active | Renderer-agnostic UI logic. |
+| `OpenControls.Examples` | Shared UI | Active | Shared examples UI used by hosts. |
+| `OpenControls.MonoGame` | Renderer adapter | Active | MonoGame DesktopGL adapter. |
+| `OpenControls.MonoGame.Examples` | Host app | Active | MonoGame examples host. |
+| `OpenControls.SdlNet` | Renderer adapter | Active | SDL2-CS adapter. |
+| `OpenControls.SdlNet.Examples` | Host app | Active | Requires `SDL2.dll` at runtime. |
+| `OpenControls.OpenGL` | Renderer adapter | Active | OpenTK compatibility-profile adapter. |
+| `OpenControls.OpenGL.Examples` | Host app | Active | OpenTK OpenGL host. |
+
+## Supported Widgets
+- Core: `UiPanel`, `UiLabel`, `UiButton`, `UiSeparator`.
+- Inputs: `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiTextField`, `UiTextEditor`.
+- Lists and tables: `UiListBox`, `UiSelectable`, `UiComboBox`, `UiTable`.
+- Data display: `UiProgressBar`, `UiPlotPanel`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`.
+- Layout: `UiGrid`, `UiSplitter`, `UiScrollPanel`, `UiCanvas`, `UiWindow`, `UiDockHost`, `UiDockWorkspace`.
+- Overlays: `UiMenuBar`, `UiTreeNode`, `UiCollapsingHeader`, `UiTooltip`, `UiTooltipRegion`, `UiPopup`, `UiModal`, `UiModalHost`.
+
 ## Renderers
 OpenControls is renderer-agnostic; hosts provide an `IUiRenderer` implementation.
 
