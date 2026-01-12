@@ -126,6 +126,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiProgressBar? _verticalProgress;
     private UiLabel? _vuMeterLabel;
     private UiProgressBar? _vuMeter;
+    private UiLabel? _radialProgressLabel;
+    private UiProgressBar? _radialProgress;
     private UiLabel? _roundingLabel;
     private UiSlider? _roundingSlider;
     private UiLabel? _roundingPreviewLabel;
@@ -525,6 +527,23 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             SegmentCount = vuColors.Length,
             SegmentGap = 2,
             SegmentFillColors = vuColors,
+            ShowText = false
+        };
+
+        _radialProgressLabel = new UiLabel
+        {
+            Text = "Radial Progress",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _radialProgress = new UiProgressBar
+        {
+            Min = 0f,
+            Max = 1f,
+            Value = _volumeSlider.Value,
+            Style = UiProgressBarStyle.Radial,
+            RadialThickness = 6,
             ShowText = false
         };
 
@@ -1702,6 +1721,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsSliderTree.AddChild(_verticalProgress);
         _widgetsSliderTree.AddChild(_vuMeterLabel);
         _widgetsSliderTree.AddChild(_vuMeter);
+        _widgetsSliderTree.AddChild(_radialProgressLabel);
+        _widgetsSliderTree.AddChild(_radialProgress);
 
         _widgetsStyleTree.AddChild(_roundingLabel);
         _widgetsStyleTree.AddChild(_roundingSlider);
@@ -2171,6 +2192,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _widgetsSeparator != null
             && _qualityLow != null && _qualityMedium != null && _qualityHigh != null && _volumeSlider != null && _volumeProgress != null
             && _verticalProgressLabel != null && _verticalProgress != null && _vuMeterLabel != null && _vuMeter != null
+            && _radialProgressLabel != null && _radialProgress != null
             && _roundingLabel != null && _roundingSlider != null && _roundingPreviewLabel != null && _roundingButton != null
             && _roundingField != null && _roundingPanel != null
             && _dragFloatLabel != null && _dragFloat != null && _dragIntLabel != null && _dragInt != null && _dragRangeLabel != null
@@ -2250,6 +2272,14 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             sliderY += labelHeight + 6;
             _vuMeter.Bounds = new UiRect(0, sliderY, meterWidth, meterHeight);
             sliderY += meterHeight + 4;
+            _radialProgressLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 6;
+            int radialSize = Math.Max(72, labelHeight * 6);
+            radialSize = Math.Max(0, Math.Min(sliderContentWidth, radialSize));
+            _radialProgress.Bounds = new UiRect(0, sliderY, radialSize, radialSize);
+            _radialProgress.CornerRadius = radialSize / 2;
+            _radialProgress.RadialThickness = Math.Max(4, radialSize / 5);
+            sliderY += radialSize + 4;
             int sliderHeight = treeHeaderHeight + (_widgetsSliderTree.IsOpen ? sliderPadding + sliderY : 0);
             _widgetsSliderTree.HeaderHeight = treeHeaderHeight;
             _widgetsSliderTree.Bounds = new UiRect(0, categoryY, rootContentWidth, sliderHeight);
@@ -2778,6 +2808,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             if (_vuMeter != null)
             {
                 _vuMeter.Value = value;
+            }
+
+            if (_radialProgress != null)
+            {
+                _radialProgress.Value = value;
             }
         }
 

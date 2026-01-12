@@ -1,5 +1,11 @@
 namespace OpenControls.Controls;
 
+public enum UiProgressBarStyle
+{
+    Linear,
+    Radial
+}
+
 public enum UiProgressBarFillDirection
 {
     LeftToRight,
@@ -40,10 +46,14 @@ public sealed class UiProgressBar : UiElement
         set => _value = ClampValue(value);
     }
 
+    public UiProgressBarStyle Style { get; set; } = UiProgressBarStyle.Linear;
     public UiProgressBarFillDirection FillDirection { get; set; } = UiProgressBarFillDirection.LeftToRight;
     public int SegmentCount { get; set; }
     public int SegmentGap { get; set; } = 2;
     public IReadOnlyList<UiColor>? SegmentFillColors { get; set; }
+    public float RadialStartAngleDegrees { get; set; } = -90f;
+    public bool RadialClockwise { get; set; } = true;
+    public int RadialThickness { get; set; }
     public bool ShowText { get; set; } = true;
     public string? Text { get; set; }
     public int TextScale { get; set; } = 1;
@@ -63,7 +73,11 @@ public sealed class UiProgressBar : UiElement
         UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, Background);
 
         float normalized = GetNormalizedValue();
-        if (SegmentCount > 1)
+        if (Style == UiProgressBarStyle.Radial)
+        {
+            RenderRadialFill(context, normalized);
+        }
+        else if (SegmentCount > 1)
         {
             RenderSegments(context, normalized);
         }
@@ -208,6 +222,90 @@ public sealed class UiProgressBar : UiElement
         }
 
         return SegmentFillColors[SegmentFillColors.Count - 1];
+    }
+
+    private void RenderRadialFill(UiRenderContext context, float normalized)
+    {
+        if (normalized <= 0f)
+        {
+            return;
+        }
+
+        int size = Math.Min(Bounds.Width, Bounds.Height);
+        if (size <= 0)
+        {
+            return;
+        }
+
+        float radius = size / 2f;
+        float centerX = Bounds.X + Bounds.Width / 2f;
+        float centerY = Bounds.Y + Bounds.Height / 2f;
+        float outerRadiusSquared = radius * radius;
+        int thickness = Math.Max(0, RadialThickness);
+        float innerRadius = thickness == 0 ? 0f : Math.Max(0f, radius - thickness);
+        float innerRadiusSquared = innerRadius * innerRadius;
+
+        float sweep = normalized >= 1f ? 360f : normalized * 360f;
+        if (!RadialClockwise)
+        {
+            sweep = -sweep;
+        }
+
+        bool full = Math.Abs(sweep) >= 359.999f;
+        int minX = (int)Math.Floor(centerX - radius);
+        int maxX = (int)Math.Ceiling(centerX + radius);
+        int minY = (int)Math.Floor(centerY - radius);
+        int maxY = (int)Math.Ceiling(centerY + radius);
+
+        for (int y = minY; y < maxY; y++)
+        {
+            float dy = (y + 0.5f) - centerY;
+            for (int x = minX; x < maxX; x++)
+            {
+                float dx = (x + 0.5f) - centerX;
+                float distanceSquared = dx * dx + dy * dy;
+                if (distanceSquared > outerRadiusSquared || distanceSquared < innerRadiusSquared)
+                {
+                    continue;
+                }
+
+                if (!full)
+                {
+                    float angle = MathF.Atan2(dy, dx) * (180f / MathF.PI);
+                    if (!IsAngleWithinSweep(angle, RadialStartAngleDegrees, sweep))
+                    {
+                        continue;
+                    }
+                }
+
+                context.Renderer.FillRect(new UiRect(x, y, 1, 1), Fill);
+            }
+        }
+    }
+
+    private static bool IsAngleWithinSweep(float angle, float start, float sweep)
+    {
+        float normalizedAngle = NormalizeAngle(angle);
+        float normalizedStart = NormalizeAngle(start);
+        float delta = NormalizeAngle(normalizedAngle - normalizedStart);
+
+        if (sweep >= 0f)
+        {
+            return delta <= sweep;
+        }
+
+        return delta >= 360f + sweep;
+    }
+
+    private static float NormalizeAngle(float degrees)
+    {
+        float value = degrees % 360f;
+        if (value < 0f)
+        {
+            value += 360f;
+        }
+
+        return value;
     }
 
     private float GetNormalizedValue()

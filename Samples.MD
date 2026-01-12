@@ -167,8 +167,8 @@ foreach (string entry in entries)
 }
 ```
 
-## Vertical and Segmented Progress
-Use `FillDirection` for vertical bars and segmented fills for VU meters.
+## Vertical, Segmented, and Radial Progress
+Use `FillDirection` for vertical bars and segmented fills for VU meters. Use `Style = UiProgressBarStyle.Radial` for radial meters.
 
 ```csharp
 UiProgressBar vertical = new UiProgressBar
@@ -201,6 +201,18 @@ UiProgressBar vuMeter = new UiProgressBar
     SegmentGap = 2,
     SegmentFillColors = vuColors,
     ShowText = false
+};
+
+UiProgressBar radial = new UiProgressBar
+{
+    Bounds = new UiRect(100, 512, 72, 72),
+    Min = 0f,
+    Max = 1f,
+    Value = 0.6f,
+    Style = UiProgressBarStyle.Radial,
+    RadialThickness = 10,
+    ShowText = false,
+    CornerRadius = 36
 };
 ```
 

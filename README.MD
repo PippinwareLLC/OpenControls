@@ -51,7 +51,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - Core: `UiPanel`, `UiLabel`, `UiButton`, `UiSeparator`.
 - Inputs: `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiTextField`, `UiTextEditor`.
 - Lists and tables: `UiListBox`, `UiSelectable`, `UiComboBox`, `UiTable`.
-- Data display: `UiProgressBar` (horizontal/vertical, segmented), `UiPlotPanel`, `UiWaveform`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`.
+- Data display: `UiProgressBar` (horizontal/vertical, segmented, radial), `UiPlotPanel`, `UiWaveform`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`.
 - Layout: `UiGrid`, `UiSplitter`, `UiScrollPanel`, `UiCanvas`, `UiWindow`, `UiDockHost`, `UiDockWorkspace`.
 - Overlays: `UiMenuBar`, `UiTreeNode`, `UiCollapsingHeader`, `UiTooltip`, `UiTooltipRegion`, `UiPopup`, `UiModal`, `UiModalHost`.
 
@@ -69,7 +69,7 @@ Planned expansion:
 
 ## Status
 - Core element tree, focus management, and basic controls are implemented.
-- Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented), list box, combo box, selectable, color button, and separator controls are available.
+- Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented, radial), list box, combo box, selectable, color button, and separator controls are available.
 - Table controls with column headers and selectable rows are available.
 - Plotting panel control supports axes, tick labels, grid lines, and zoom/pan input.
 - Waveform control renders sample buffers with min/max or line modes and an optional zero line.

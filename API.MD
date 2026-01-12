@@ -16,6 +16,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiSelectionModel`: manages multi-selection state (ctrl/shift range behavior) for list/selectable controls.
 - `UiArrowDirection`: direction enum for shared arrow glyphs.
 - `UiArrow`: helper for drawing consistent arrow indicators in custom controls.
+- `UiProgressBarStyle`: progress bar style (linear or radial).
 - `UiProgressBarFillDirection`: progress bar fill direction (left/right/top/bottom).
 - `UiDragFlags`: drag widget behavior flags (clamping, log scaling, and speed modifiers).
 - `UiTableColumn`, `UiTableRow`: column/row data objects for `UiTable`.
@@ -33,7 +34,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiDragFloat`, `UiDragInt`: drag-to-adjust value fields with optional clamping and speed modifiers.
 - `UiDragFloat2/3/4`, `UiDragInt2/3/4`: multi-component drag widgets for vector values.
 - `UiDragFloatRange`, `UiDragIntRange`: two-value drag controls for min/max ranges.
-- `UiProgressBar`: value bar with optional overlay text (horizontal/vertical, segmented).
+- `UiProgressBar`: value bar with optional overlay text (horizontal/vertical, segmented, radial).
 - `UiListBox`: list selector with hover/selected states.
 - `UiSelectable`: selectable row with hover/selected states.
 - `UiComboBox`: dropdown selector with an overlay list.
@@ -102,9 +103,12 @@ This is a brief overview of the current OpenControls surface area.
 - Ctrl and Shift adjust drag speed unless `UiDragFlags.NoSlowFast` is set.
 
 ## Progress Bar Notes
+- `UiProgressBar.Style` selects `Linear` or `Radial` rendering.
 - `UiProgressBar.FillDirection` controls fill direction (left/right/top/bottom).
 - Set `SegmentCount` >= 2 to render segmented fills; `SegmentGap` controls spacing.
 - `SegmentFillColors` maps colors from the fill start to end; falls back to `Fill` when unset.
+- `RadialStartAngleDegrees` and `RadialClockwise` control the radial sweep; set `RadialThickness` > 0 for a ring.
+- Segmented fills apply to linear bars.
 
 ## List Box Notes
 - `UiListBox.Items`: assign items to display in the list.

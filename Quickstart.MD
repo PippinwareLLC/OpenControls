@@ -138,6 +138,20 @@ UiProgressBar vu = new UiProgressBar
 
 root.AddChild(vertical);
 root.AddChild(vu);
+
+UiProgressBar radial = new UiProgressBar
+{
+    Bounds = new UiRect(90, 148, 64, 64),
+    Min = 0f,
+    Max = 1f,
+    Value = 0.65f,
+    Style = UiProgressBarStyle.Radial,
+    RadialThickness = 8,
+    ShowText = false,
+    CornerRadius = 32
+};
+
+root.AddChild(radial);
 ```
 
 ## 3) Update input and render each frame
