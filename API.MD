@@ -46,6 +46,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiSplitter`: draggable horizontal/vertical splitter for manual layouts.
 - `UiScrollPanel`: scrollable panel with auto/always scrollbars and clipped content.
 - `UiTextField`: editable text field with caret, text input, navigation handling, and text clipping to its bounds.
+- `UiTextEditor`: multi-line text editor with line numbers, scrolling, and optional syntax highlighting.
 - `UiWindow`: window container with optional title bar, clipping to content bounds, resize grip, and optional scroll panel support.
 - `UiDockHost`: hosts `UiWindow` instances in a tabbed dock area, with optional drag reordering/detach.
 - `UiDockWorkspace`: manages dock hosts, drag previews, drop targets, floating windows, and empty-host collapse.
@@ -157,6 +158,12 @@ This is a brief overview of the current OpenControls surface area.
 ## Scroll Panel Notes
 - `UiScrollPanel` expects child bounds in panel-local coordinates; scroll offset is applied when rendering and hit testing.
 - `HorizontalScrollbar`/`VerticalScrollbar` control auto or always-on scrollbars.
+
+## Text Editor Notes
+- `UiTextEditor.Text` holds the full document; `LineCount`, `CaretLine`, and `CaretColumn` expose current state.
+- `SyntaxMode` toggles highlighting (`None` or `CSharp`).
+- `ShowLineNumbers` and `MinLineNumberDigits` control the line gutter.
+- `HorizontalScrollbar`/`VerticalScrollbar` mirror `UiScrollPanel` behavior for large files.
 
 ## Tooltip Notes
 - `UiTooltipRegion` uses `UiInputState.ScreenMousePosition` to place tooltips in screen space.

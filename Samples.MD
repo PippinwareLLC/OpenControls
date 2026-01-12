@@ -448,6 +448,22 @@ foreach (string line in logEntries)
 }
 ```
 
+## Text Editor
+Use `UiTextEditor` for large, scrollable documents with line numbers and syntax highlighting.
+
+```csharp
+UiTextEditor editor = new UiTextEditor
+{
+    Bounds = new UiRect(20, 40, 480, 280),
+    TextScale = 2,
+    ShowLineNumbers = true,
+    SyntaxMode = UiTextEditorSyntaxMode.CSharp,
+    HorizontalScrollbar = UiScrollbarVisibility.Auto,
+    VerticalScrollbar = UiScrollbarVisibility.Always
+};
+editor.SetText("namespace Demo;\n\npublic sealed class Program\n{\n}\n");
+```
+
 ## Tooltips and Popups
 Use tooltip regions to show hover hints and popups for lightweight overlays.
 

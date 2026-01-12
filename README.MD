@@ -23,6 +23,9 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 ### Examples Overview
 ![Examples overview](assets/screenshots/examples_overview.png)
 
+### Text Editor
+![Text editor](assets/screenshots/text_editor.png)
+
 ## Projects
 - `OpenControls.Examples`: shared examples UI library (renderer-agnostic).
 - `OpenControls.MonoGame`: MonoGame DesktopGL renderer adapter library.
@@ -59,6 +62,7 @@ Planned expansion:
 - Dock workspaces support drag previews, drop targets, and floating windows.
 - Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, and embedded content.
 - Tree nodes, collapsing headers, tooltips, popups, and modals are available.
+- Text editor control supports line numbers, scrolling, and syntax highlighting.
 - Splitter control provides draggable horizontal/vertical splits for manual layouts.
 - Arrow glyph helper (`UiArrow`) keeps tree/combo/menu indicators consistent.
 - Common controls support rounded corners and masking for clipped children via `CornerRadius` and `UiRenderHelpers` helpers.
@@ -69,6 +73,7 @@ Planned expansion:
 - OpenControls.OpenGL provides an OpenTK-based renderer adapter (compatibility profile).
 - OpenControls.OpenGL.Examples renders the shared examples UI using OpenGL (via OpenControls.OpenGL).
 - OpenControls.Examples includes an Examples menu to open feature windows as dockable panels.
+- OpenControls.Examples includes a dedicated Text Editor demo window.
 - OpenControls.Examples widgets window groups controls into categorized tree nodes (collapsed by default, with header spacing).
 - A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).

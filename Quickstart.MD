@@ -127,8 +127,8 @@ ui.Render(renderer);
 ```
 
 ## Notes
-- `UiTextField` expects `TextInput` and `Navigation` for editing.
-- Additional controls include `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiProgressBar`, `UiListBox`, `UiComboBox`, `UiTable`, `UiPlotPanel`, `UiGrid`, `UiCanvas`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiSelectable`, `UiSeparator`, `UiSplitter`, `UiScrollPanel`, `UiTreeNode`, `UiCollapsingHeader`, `UiPopup`, `UiModal`, `UiModalHost`, and `UiTooltip`.
+- `UiTextField` and `UiTextEditor` expect `TextInput` and `Navigation` for editing.
+- Additional controls include `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiProgressBar`, `UiListBox`, `UiComboBox`, `UiTable`, `UiPlotPanel`, `UiGrid`, `UiCanvas`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiSelectable`, `UiSeparator`, `UiSplitter`, `UiScrollPanel`, `UiTextEditor`, `UiTreeNode`, `UiCollapsingHeader`, `UiPopup`, `UiModal`, `UiModalHost`, and `UiTooltip`.
 - Use `UiArrow.DrawTriangle` when you want arrow indicators that match built-in controls.
 - Use `UiWindow.EnsureScrollPanel()` plus `AddContentChild` when window content needs scrollbars.
 - `UiScrollPanel` uses panel-local child bounds and applies scroll offsets when rendering.

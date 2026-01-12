@@ -21,6 +21,42 @@ public sealed class ExamplesUi
         "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB",
         "CAN", "EM", "SUB", "ESC", "FS", "GS", "RS", "US"
     };
+    private static readonly string SampleEditorText =
+@"namespace OpenControls;
+
+public sealed class HeadlessUiRenderer : IUiRenderer
+{
+    private readonly TinyBitmapFont _font;
+
+    public HeadlessUiRenderer(int width, int height, TinyBitmapFont? font = null)
+    {
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width));
+        }
+
+        _font = font ?? new TinyBitmapFont();
+    }
+}";
+    private static readonly string SampleEditorTextLarge = BuildSampleEditorTextLarge();
+
+    private static string BuildSampleEditorTextLarge()
+    {
+        StringBuilder builder = new StringBuilder();
+        builder.AppendLine(SampleEditorText);
+        builder.AppendLine();
+        builder.AppendLine("// Large file preview");
+        for (int i = 0; i < 120; i++)
+        {
+            builder.Append("int value");
+            builder.Append(i.ToString("D3"));
+            builder.Append(" = ");
+            builder.Append(i * 3);
+            builder.AppendLine(";");
+        }
+
+        return builder.ToString().TrimEnd('\r', '\n');
+    }
 
     private readonly IUiRenderer _renderer;
     private readonly TinyBitmapFont _font;
@@ -139,6 +175,10 @@ public sealed class ExamplesUi
     private UiSelectable? _selectableNavigation;
     private UiSelectable? _selectableAudio;
     private UiLabel? _scrollPanelLabel;
+    private UiLabel? _textEditorLabel;
+    private UiTextEditor? _textEditor;
+    private UiWindow? _textEditorWindow;
+    private UiTextEditor? _textEditorDemo;
     private UiLabel? _gridLabel;
     private UiGrid? _grid;
     private UiButton? _gridPrimaryButton;
@@ -187,6 +227,7 @@ public sealed class ExamplesUi
     private UiMenuBar.MenuItem? _examplesMenuAllItem;
     private UiMenuBar.MenuItem? _examplesMenuBasicsItem;
     private UiMenuBar.MenuItem? _examplesMenuWidgetsItem;
+    private UiMenuBar.MenuItem? _examplesMenuTextEditorItem;
     private UiMenuBar.MenuItem? _examplesMenuDockingItem;
     private UiMenuBar.MenuItem? _examplesMenuClippingItem;
     private UiMenuBar.MenuItem? _examplesMenuSerializationItem;
@@ -223,6 +264,7 @@ public sealed class ExamplesUi
         All,
         Basics,
         Widgets,
+        TextEditor,
         Docking,
         Clipping,
         Serialization,
@@ -942,6 +984,38 @@ public sealed class ExamplesUi
             Scale = FontScale
         };
 
+        _textEditorLabel = new UiLabel
+        {
+            Text = "Text Editor",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _textEditor = new UiTextEditor
+        {
+            TextScale = FontScale,
+            ShowLineNumbers = true,
+            VerticalScrollbar = UiScrollbarVisibility.Always,
+            HorizontalScrollbar = UiScrollbarVisibility.Auto,
+            Background = new UiColor(20, 22, 28),
+            Border = new UiColor(60, 70, 90),
+            LineNumberBackground = new UiColor(16, 18, 24)
+        };
+        _textEditor.SetText(SampleEditorText);
+
+        _textEditorDemo = new UiTextEditor
+        {
+            Id = "text-editor-demo",
+            TextScale = FontScale,
+            ShowLineNumbers = true,
+            VerticalScrollbar = UiScrollbarVisibility.Always,
+            HorizontalScrollbar = UiScrollbarVisibility.Auto,
+            Background = new UiColor(20, 22, 28),
+            Border = new UiColor(60, 70, 90),
+            LineNumberBackground = new UiColor(16, 18, 24)
+        };
+        _textEditorDemo.SetText(SampleEditorTextLarge);
+
         _gridLabel = new UiLabel
         {
             Text = "Grid Layout",
@@ -1607,6 +1681,8 @@ public sealed class ExamplesUi
         _widgetsLayoutTree.AddChild(_splitterHorizontalTopPanel);
         _widgetsLayoutTree.AddChild(_splitterHorizontal);
         _widgetsLayoutTree.AddChild(_splitterHorizontalBottomPanel);
+        _widgetsLayoutTree.AddChild(_textEditorLabel);
+        _widgetsLayoutTree.AddChild(_textEditor);
         _widgetsLayoutTree.AddChild(_scrollPanelLabel);
         foreach (UiLabel item in _scrollPanelItems)
         {
@@ -1723,6 +1799,7 @@ public sealed class ExamplesUi
         _examplesMenuAllItem = new UiMenuBar.MenuItem { Text = "All", IsCheckable = true, Checked = true };
         _examplesMenuBasicsItem = new UiMenuBar.MenuItem { Text = "Basics", IsCheckable = true };
         _examplesMenuWidgetsItem = new UiMenuBar.MenuItem { Text = "Widgets", IsCheckable = true };
+        _examplesMenuTextEditorItem = new UiMenuBar.MenuItem { Text = "Text Editor", IsCheckable = true };
         _examplesMenuDockingItem = new UiMenuBar.MenuItem { Text = "Docking", IsCheckable = true };
         _examplesMenuClippingItem = new UiMenuBar.MenuItem { Text = "Clipping", IsCheckable = true };
         _examplesMenuSerializationItem = new UiMenuBar.MenuItem { Text = "Serialization", IsCheckable = true };
@@ -1730,6 +1807,7 @@ public sealed class ExamplesUi
         _examplesMenuAllItem.Clicked = _ => SetActiveExample(ExamplePanel.All);
         _examplesMenuBasicsItem.Clicked = _ => SetActiveExample(ExamplePanel.Basics);
         _examplesMenuWidgetsItem.Clicked = _ => SetActiveExample(ExamplePanel.Widgets);
+        _examplesMenuTextEditorItem.Clicked = _ => SetActiveExample(ExamplePanel.TextEditor);
         _examplesMenuDockingItem.Clicked = _ => SetActiveExample(ExamplePanel.Docking);
         _examplesMenuClippingItem.Clicked = _ => SetActiveExample(ExamplePanel.Clipping);
         _examplesMenuSerializationItem.Clicked = _ => SetActiveExample(ExamplePanel.Serialization);
@@ -1738,6 +1816,7 @@ public sealed class ExamplesUi
         examplesMenu.Items.Add(UiMenuBar.MenuItem.Separator());
         examplesMenu.Items.Add(_examplesMenuBasicsItem);
         examplesMenu.Items.Add(_examplesMenuWidgetsItem);
+        examplesMenu.Items.Add(_examplesMenuTextEditorItem);
         examplesMenu.Items.Add(_examplesMenuDockingItem);
         examplesMenu.Items.Add(_examplesMenuClippingItem);
         examplesMenu.Items.Add(_examplesMenuSerializationItem);
@@ -1811,6 +1890,19 @@ public sealed class ExamplesUi
             ShowResizeGrip = true
         };
         _serializationWindow.AddChild(_serializationPanel);
+
+        _textEditorWindow = new UiWindow
+        {
+            Id = "window-text-editor",
+            Title = "Text Editor",
+            TitleTextScale = FontScale,
+            AllowResize = true,
+            ShowResizeGrip = true
+        };
+        if (_textEditorDemo != null)
+        {
+            _textEditorWindow.AddChild(_textEditorDemo);
+        }
 
         _standaloneWindow = new UiWindow
         {
@@ -1985,6 +2077,7 @@ public sealed class ExamplesUi
             && _colorPicker != null && _colorSelectionLabel != null && _colorButtonLabel != null && _asciiLabel != null && _asciiPageLabel != null && _asciiPageCombo != null
             && _asciiTable != null && _selectablesLabel != null && _selectablesHintLabel != null
             && _selectableLighting != null && _selectableNavigation != null && _selectableAudio != null && _scrollPanelLabel != null
+            && _textEditorLabel != null && _textEditor != null
             && _gridLabel != null && _grid != null && _gridPrimaryButton != null && _gridSecondaryButton != null && _gridInfoLabel != null && _gridStatusLabel != null
             && _canvasLabel != null && _canvas != null && _canvasNodeA != null && _canvasNodeB != null && _canvasNodeC != null
             && _splitterLabel != null && _splitterVerticalLeftPanel != null && _splitterVertical != null && _splitterVerticalRightPanel != null
@@ -2323,6 +2416,13 @@ public sealed class ExamplesUi
             _splitterHorizontalBottomPanel.Bounds = new UiRect(0, _splitterHorizontal.Bounds.Bottom, splitterWidth, bottomHeight);
             layoutY += splitterSampleHeight + 8;
 
+            _textEditorLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
+            layoutY += labelHeight + 6;
+
+            int textEditorHeight = Math.Max(160, Math.Min(260, layoutContentWidth / 2));
+            _textEditor.Bounds = new UiRect(0, layoutY, layoutContentWidth, textEditorHeight);
+            layoutY += textEditorHeight + 8;
+
             _scrollPanelLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;
 
@@ -2472,6 +2572,17 @@ public sealed class ExamplesUi
             int panelHeight = Math.Max(0, content.Height - Padding * 2);
             _serializationPanel.Bounds = new UiRect(content.X + Padding, content.Y + Padding, panelWidth, panelHeight);
             _serializationLabel.Bounds = new UiRect(_serializationPanel.Bounds.X + Padding, _serializationPanel.Bounds.Y + Padding / 2, Math.Max(0, panelWidth - Padding * 2), labelHeight);
+        }
+
+        if (_textEditorWindow != null && _textEditorDemo != null)
+        {
+            UiRect content = _textEditorWindow.ContentBounds;
+            int padding = Padding;
+            _textEditorDemo.Bounds = new UiRect(
+                content.X + padding,
+                content.Y + padding,
+                Math.Max(0, content.Width - padding * 2),
+                Math.Max(0, content.Height - padding * 2));
         }
 
         if (_standaloneWindow != null && _standaloneScrollPanel != null)
@@ -2844,6 +2955,7 @@ public sealed class ExamplesUi
                 UiDockHost allDockHost = CreateDockRightHost();
                 DockBasics(_dockLeft);
                 DockWidgets(_dockLeft);
+                DockTextEditor(_dockLeft);
                 DockClipping(_dockLeft);
                 DockSerialization(_dockLeft);
                 DockDockingWindows(allDockHost, allDockHost, includeFloating: true);
@@ -2853,6 +2965,9 @@ public sealed class ExamplesUi
                 break;
             case ExamplePanel.Widgets:
                 DockWidgets(_dockLeft);
+                break;
+            case ExamplePanel.TextEditor:
+                DockTextEditor(_dockLeft);
                 break;
             case ExamplePanel.Docking:
                 UiDockHost dockRight = CreateDockRightHost();
@@ -2900,6 +3015,14 @@ public sealed class ExamplesUi
         }
     }
 
+    private void DockTextEditor(UiDockHost host)
+    {
+        if (_textEditorWindow != null)
+        {
+            host.DockWindow(_textEditorWindow);
+        }
+    }
+
     private void DockClipping(UiDockHost host)
     {
         if (_clippingWindow != null)
@@ -2943,33 +3066,38 @@ public sealed class ExamplesUi
     {
         bool basics = IsWindowInLayout(_basicsWindow);
         bool widgets = IsWindowInLayout(_widgetsWindow);
+        bool textEditor = IsWindowInLayout(_textEditorWindow);
         bool docking = IsWindowInLayout(_assetsWindow) || IsWindowInLayout(_consoleWindow) || IsWindowInLayout(_inspectorWindow);
         bool clipping = IsWindowInLayout(_clippingWindow);
         bool serialization = IsWindowInLayout(_serializationWindow);
 
-        if (basics && widgets && docking && clipping && serialization)
+        if (basics && widgets && textEditor && docking && clipping && serialization)
         {
             _activeExample = ExamplePanel.All;
         }
-        else if (basics && !widgets && !docking && !clipping && !serialization)
+        else if (basics && !widgets && !textEditor && !docking && !clipping && !serialization)
         {
             _activeExample = ExamplePanel.Basics;
         }
-        else if (!basics && widgets && !docking && !clipping && !serialization)
+        else if (!basics && widgets && !textEditor && !docking && !clipping && !serialization)
         {
             _activeExample = ExamplePanel.Widgets;
         }
-        else if (!basics && !widgets && docking && !clipping && !serialization)
+        else if (!basics && !widgets && !textEditor && docking && !clipping && !serialization)
         {
             _activeExample = ExamplePanel.Docking;
         }
-        else if (!basics && !widgets && !docking && clipping && !serialization)
+        else if (!basics && !widgets && !textEditor && !docking && clipping && !serialization)
         {
             _activeExample = ExamplePanel.Clipping;
         }
-        else if (!basics && !widgets && !docking && !clipping && serialization)
+        else if (!basics && !widgets && !textEditor && !docking && !clipping && serialization)
         {
             _activeExample = ExamplePanel.Serialization;
+        }
+        else if (!basics && !widgets && textEditor && !docking && !clipping && !serialization)
+        {
+            _activeExample = ExamplePanel.TextEditor;
         }
         else
         {
@@ -2986,7 +3114,7 @@ public sealed class ExamplesUi
 
     private void UpdateExampleMenuChecks()
     {
-        if (_examplesMenuAllItem == null || _examplesMenuBasicsItem == null || _examplesMenuWidgetsItem == null || _examplesMenuDockingItem == null || _examplesMenuClippingItem == null || _examplesMenuSerializationItem == null)
+        if (_examplesMenuAllItem == null || _examplesMenuBasicsItem == null || _examplesMenuWidgetsItem == null || _examplesMenuTextEditorItem == null || _examplesMenuDockingItem == null || _examplesMenuClippingItem == null || _examplesMenuSerializationItem == null)
         {
             return;
         }
@@ -2994,6 +3122,7 @@ public sealed class ExamplesUi
         _examplesMenuAllItem.Checked = _activeExample == ExamplePanel.All;
         _examplesMenuBasicsItem.Checked = _activeExample == ExamplePanel.Basics;
         _examplesMenuWidgetsItem.Checked = _activeExample == ExamplePanel.Widgets;
+        _examplesMenuTextEditorItem.Checked = _activeExample == ExamplePanel.TextEditor;
         _examplesMenuDockingItem.Checked = _activeExample == ExamplePanel.Docking;
         _examplesMenuClippingItem.Checked = _activeExample == ExamplePanel.Clipping;
         _examplesMenuSerializationItem.Checked = _activeExample == ExamplePanel.Serialization;
