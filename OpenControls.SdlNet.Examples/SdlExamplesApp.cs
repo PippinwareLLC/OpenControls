@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using OpenControls;
 using OpenControls.Examples;
+using OpenControls.SdlNet;
 using OpenControls.State;
 using SDL2;
 

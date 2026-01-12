@@ -1,7 +1,7 @@
 using OpenControls;
 using SDL2;
 
-namespace OpenControls.SdlNet.Examples;
+namespace OpenControls.SdlNet;
 
 public sealed class SdlUiRenderer : IUiRenderer
 {

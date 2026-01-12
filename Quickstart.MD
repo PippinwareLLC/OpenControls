@@ -1,6 +1,6 @@
 # Quickstart
 
-This guide shows how to host OpenControls in a game loop. OpenControls ships a MonoGame renderer adapter in `OpenControls.MonoGame`, and you can implement `IUiRenderer` for other hosts (SDL, custom engines, etc).
+This guide shows how to host OpenControls in a game loop. OpenControls ships MonoGame and SDL2 renderer adapters in `OpenControls.MonoGame` and `OpenControls.SdlNet`, and you can implement `IUiRenderer` for other hosts (custom engines, etc).
 
 ## 1) Create a renderer adapter
 Implement `IUiRenderer` with your drawing API (sprite batch, canvas, etc).

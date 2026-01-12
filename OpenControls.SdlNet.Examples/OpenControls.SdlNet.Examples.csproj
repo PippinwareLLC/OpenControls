@@ -3,19 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\OpenControls\OpenControls.csproj" />
     <ProjectReference Include="..\OpenControls.Examples\OpenControls.Examples.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="SDL2-CS" Version="2.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="$(NuGetPackageRoot)sdl2-cs/2.0.0/content/net20/SDL2-CS/SDL2.cs" Link="ThirdParty/SDL2.cs">
-      <Nullable>disable</Nullable>
-    </Compile>
-    <Compile Include="$(NuGetPackageRoot)sdl2-cs/2.0.0/content/net20/SDL2-CS/LPUtf8StrMarshaler.cs" Link="ThirdParty/LPUtf8StrMarshaler.cs">
-      <Nullable>disable</Nullable>
-    </Compile>
+    <ProjectReference Include="..\OpenControls.SdlNet\OpenControls.SdlNet.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
