@@ -61,7 +61,7 @@ This is a brief overview of the current OpenControls surface area.
 ## Notes
 - All bounds are absolute (`UiRect`), so layout is explicit.
 - Controls are renderer-agnostic; rendering is done by the host adapter.
-- `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame and SDL2-CS adapters (Latin-1/CP437).
+- `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame, SDL2-CS, and OpenGL adapters (Latin-1/CP437).
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.
 - `UiContext.Render` performs an overlay pass; `UiMenuBar` dropdowns draw there so they render above other controls.
