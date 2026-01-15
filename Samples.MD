@@ -49,6 +49,10 @@ dialog.AddChild(ok);
 dialog.AddChild(cancel);
 ```
 
+## Keyboard Navigation
+Use `Tab` or `Shift+Tab` to move focus between focusable controls (text fields, buttons, list boxes, etc.).
+Press `Enter` to activate the focused control (for example, click a focused `UiButton`).
+
 ## Rounded Corners
 Set `CornerRadius` on common controls to round backgrounds and borders.
 
@@ -165,6 +169,41 @@ foreach (string entry in entries)
     logPanel.AddChild(logEntry);
     logY += 20;
 }
+```
+
+## Invisible Button
+Use `UiInvisibleButton` when you need a clickable region without built-in rendering.
+
+```csharp
+UiPanel preview = new UiPanel
+{
+    Bounds = new UiRect(20, 40, 140, 40),
+    Background = new UiColor(18, 22, 32),
+    Border = new UiColor(70, 80, 100)
+};
+
+UiInvisibleButton hit = new UiInvisibleButton
+{
+    Bounds = preview.Bounds
+};
+hit.Clicked += () => Console.WriteLine("Invisible button clicked");
+preview.AddChild(hit);
+```
+
+## Angle Slider
+Use `UiSliderAngle` for radians-backed angles with a degree display.
+
+```csharp
+UiSliderAngle angle = new UiSliderAngle
+{
+    Bounds = new UiRect(20, 100, 240, 24),
+    MinDegrees = -180f,
+    MaxDegrees = 180f,
+    Value = 0f,
+    TextScale = 2,
+    ValueFormat = "0 deg"
+};
+angle.ValueChanged += radians => Console.WriteLine($"Angle: {radians:0.00} rad");
 ```
 
 ## Vertical, Segmented, and Radial Progress
@@ -516,6 +555,38 @@ foreach (string line in logEntries)
     logWindow.AddContentChild(label);
     y += 20;
 }
+```
+
+## Tab Bar
+Use `UiTabBar` and `UiTabItem` for simple tabbed layouts.
+
+```csharp
+UiTabBar tabs = new UiTabBar
+{
+    Bounds = new UiRect(20, 260, 360, 120),
+    TabTextScale = 2
+};
+
+UiTabItem overview = new UiTabItem { Text = "Overview" };
+overview.AddChild(new UiLabel
+{
+    Bounds = new UiRect(30, 300, 320, 16),
+    Text = "Overview content",
+    Color = UiColor.White,
+    Scale = 2
+});
+
+UiTabItem details = new UiTabItem { Text = "Details" };
+details.AddChild(new UiLabel
+{
+    Bounds = new UiRect(30, 300, 320, 16),
+    Text = "Details content",
+    Color = UiColor.White,
+    Scale = 2
+});
+
+tabs.AddChild(overview);
+tabs.AddChild(details);
 ```
 
 ## Text Editor

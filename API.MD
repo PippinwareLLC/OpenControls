@@ -7,7 +7,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiElement`: base class for all UI elements; handles visibility, enablement, child hierarchy, hit tests, IDs, child clipping, and overlay rendering.
 - `UiFocusManager`: tracks focused element and handles focus transitions.
 - `UiInputState`: host-provided input snapshot (mouse, clicks, scroll delta, text input, navigation).
-- `UiNavigationInput`: directional/navigation key flags (arrows, Home/End, Backspace/Delete, etc).
+- `UiNavigationInput`: directional/navigation key flags (arrows, Home/End, Backspace/Delete, Tab, Enter/KeypadEnter, Space).
 - `IUiRenderer`: rendering abstraction; hosts implement this for their graphics API (includes clip stack, gradient, and checkerboard fills).
 - `UiRect`, `UiPoint`, `UiColor`: lightweight geometry and color structs.
 - `UiRenderHelpers`: helper methods for gradients, checkerboard fills, and rounded rectangles.
@@ -28,9 +28,11 @@ This is a brief overview of the current OpenControls surface area.
 - `UiPanel`: background and border drawing; acts as a container with optional clipping and resize grip.
 - `UiLabel`: draws text at its bounds origin.
 - `UiButton`: clickable button with hover/pressed feedback; exposes `Clicked` event.
+- `UiInvisibleButton`: invisible hit target for custom-drawn widgets; exposes hover/pressed state and `Clicked`.
 - `UiCheckbox`: boolean toggle with label; exposes `CheckedChanged`.
 - `UiRadioButton`: grouped option selector (use `GroupId`); exposes `CheckedChanged`.
 - `UiSlider`: draggable value control with optional step/whole-number snapping.
+- `UiSliderAngle`: angle slider that stores radians while displaying degrees.
 - `UiDragFloat`, `UiDragInt`: drag-to-adjust value fields with optional clamping and speed modifiers.
 - `UiDragFloat2/3/4`, `UiDragInt2/3/4`: multi-component drag widgets for vector values.
 - `UiDragFloatRange`, `UiDragIntRange`: two-value drag controls for min/max ranges.
@@ -52,6 +54,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiTextField`: editable text field with caret, text input, navigation handling, and text clipping to its bounds.
 - `UiTextEditor`: multi-line text editor with line numbers, scrolling, and optional syntax highlighting.
 - `UiWindow`: window container with optional title bar, clipping to content bounds, resize grip, and optional scroll panel support.
+- `UiTabBar`, `UiTabItem`: tab strip container and tab content items for retained-mode tabbed layouts.
 - `UiDockHost`: hosts `UiWindow` instances in a tabbed dock area, with optional drag reordering/detach.
 - `UiDockWorkspace`: manages dock hosts, drag previews, drop targets, floating windows, and empty-host collapse.
 - `UiMenuBar`: top-level menu control with dropdowns, separators, checkable items, nested submenus, and popup mode support.
@@ -101,6 +104,10 @@ This is a brief overview of the current OpenControls surface area.
 - `UiDragFloatRange`/`UiDragIntRange`: `ValueMin`/`ValueMax` hold the active range; `EnsureOrder` prevents the values from crossing.
 - `UiDragFlags.Logarithmic` enables log-scaled drags when `Min`/`Max` are both greater than zero.
 - Ctrl and Shift adjust drag speed unless `UiDragFlags.NoSlowFast` is set.
+
+## Angle Slider Notes
+- `UiSliderAngle.Value` is stored in radians while the slider display uses degrees.
+- Use `MinDegrees`/`MaxDegrees` and `ValueDegrees` for degree-based ranges.
 
 ## Progress Bar Notes
 - `UiProgressBar.Style` selects `Linear` or `Radial` rendering.
@@ -177,11 +184,18 @@ This is a brief overview of the current OpenControls surface area.
 - `UiScrollPanel` expects child bounds in panel-local coordinates; scroll offset is applied when rendering and hit testing.
 - `HorizontalScrollbar`/`VerticalScrollbar` control auto or always-on scrollbars.
 
+## Tab Bar Notes
+- `UiTabBar.ContentBounds` returns the tab content region below the strip.
+- `ActiveTabChanged` fires when a new `UiTabItem` becomes active.
+- Inactive tab items do not update or render their children.
+- Inactive tab items are skipped during focus traversal.
+
 ## Text Editor Notes
 - `UiTextEditor.Text` holds the full document; `LineCount`, `CaretLine`, and `CaretColumn` expose current state.
 - `SyntaxMode` toggles highlighting (`None` or `CSharp`).
 - `ShowLineNumbers` and `MinLineNumberDigits` control the line gutter.
 - `HorizontalScrollbar`/`VerticalScrollbar` mirror `UiScrollPanel` behavior for large files.
+- `AllowTabInput` lets Tab insert spaces instead of moving focus.
 
 ## Tooltip Notes
 - `UiTooltipRegion` uses `UiInputState.ScreenMousePosition` to place tooltips in screen space.
@@ -201,6 +215,9 @@ This is a brief overview of the current OpenControls surface area.
 - `UiInputState.ScreenMousePosition` preserves the screen-space cursor position for overlay UI like tooltips.
 - `UiInputState.ShiftDown`/`CtrlDown` drive range/toggle selection for multi-select.
 - Prefer platform text input events (for example MonoGame `GameWindow.TextInput` or SDL `SDL_TEXTINPUT`) for `UiInputState.TextInput`; use key mapping as a fallback.
+- `UiContext` skips Tab traversal when the focused element reports `HandlesTabInput` (used by `UiTextEditor.AllowTabInput`).
+- When `UiContext` moves focus via Tab, it consumes the Tab input so the newly focused element does not receive a tab insert.
+- `UiNavigationInput.Activate` is true for Enter, Keypad Enter, or Space.
 
 ## Serialization Notes
 - Assign stable `UiElement.Id` values for controls you want to persist.

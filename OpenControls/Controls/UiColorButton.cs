@@ -4,6 +4,7 @@ public sealed class UiColorButton : UiElement
 {
     private bool _pressed;
     private bool _hovered;
+    private bool _focused;
 
     public UiColor Color { get; set; } = UiColor.White;
     public bool ShowAlpha { get; set; }
@@ -36,6 +37,11 @@ public sealed class UiColorButton : UiElement
         {
             _pressed = true;
             context.Focus.RequestFocus(this);
+        }
+
+        if (_focused && input.Navigation.Activate)
+        {
+            Clicked?.Invoke();
         }
 
         if (input.LeftReleased)
@@ -83,5 +89,16 @@ public sealed class UiColorButton : UiElement
         }
 
         base.Render(context);
+    }
+
+    protected internal override void OnFocusGained()
+    {
+        _focused = true;
+    }
+
+    protected internal override void OnFocusLost()
+    {
+        _focused = false;
+        _pressed = false;
     }
 }

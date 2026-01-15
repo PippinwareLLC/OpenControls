@@ -12,5 +12,9 @@ public readonly struct UiNavigationInput
     public bool Delete { get; init; }
     public bool Tab { get; init; }
     public bool Enter { get; init; }
+    public bool KeypadEnter { get; init; }
+    public bool Space { get; init; }
     public bool Escape { get; init; }
+
+    public bool Activate => Enter || KeypadEnter || Space;
 }

@@ -120,6 +120,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiRadioButton? _qualityLow;
     private UiRadioButton? _qualityMedium;
     private UiRadioButton? _qualityHigh;
+    private UiLabel? _invisibleButtonLabel;
+    private UiPanel? _invisibleButtonPanel;
+    private UiInvisibleButton? _invisibleButton;
+    private UiLabel? _invisibleButtonStatus;
+    private int _invisibleButtonClicks;
     private UiSlider? _volumeSlider;
     private UiProgressBar? _volumeProgress;
     private UiLabel? _verticalProgressLabel;
@@ -128,6 +133,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiProgressBar? _vuMeter;
     private UiLabel? _radialProgressLabel;
     private UiProgressBar? _radialProgress;
+    private UiLabel? _angleSliderLabel;
+    private UiSliderAngle? _angleSlider;
+    private UiLabel? _angleSliderValueLabel;
     private UiLabel? _roundingLabel;
     private UiSlider? _roundingSlider;
     private UiLabel? _roundingPreviewLabel;
@@ -210,6 +218,14 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiButton? _gridSecondaryButton;
     private UiLabel? _gridInfoLabel;
     private UiLabel? _gridStatusLabel;
+    private UiLabel? _tabBarLabel;
+    private UiTabBar? _tabBar;
+    private UiTabItem? _tabOverview;
+    private UiTabItem? _tabDetails;
+    private UiTabItem? _tabSettings;
+    private UiLabel? _tabOverviewLabel;
+    private UiLabel? _tabDetailsLabel;
+    private UiLabel? _tabSettingsLabel;
     private UiLabel? _canvasLabel;
     private UiCanvas? _canvas;
     private UiButton? _canvasNodeA;
@@ -373,7 +389,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _helpLabel = new UiLabel
         {
-            Text = "Drag tabs to reorder; drag outside to float; use targets to dock/split; drag windows by title bar.",
+            Text = "Drag tabs to reorder; drag outside to float; use targets to dock/split; drag windows by title bar; Tab to move focus; Enter/Space to activate.",
             Color = new UiColor(170, 180, 200),
             Scale = FontScale
         };
@@ -463,6 +479,31 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             GroupId = "quality"
         };
 
+        _invisibleButtonLabel = new UiLabel
+        {
+            Text = "Invisible Button",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _invisibleButtonPanel = new UiPanel
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            BorderThickness = 1
+        };
+
+        _invisibleButtonStatus = new UiLabel
+        {
+            Text = "Invisible: Idle",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _invisibleButton = new UiInvisibleButton();
+        _invisibleButton.Clicked += () => _invisibleButtonClicks++;
+        _invisibleButtonPanel.AddChild(_invisibleButton);
+
         _volumeSlider = new UiSlider
         {
             Min = 0f,
@@ -545,6 +586,30 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Style = UiProgressBarStyle.Radial,
             RadialThickness = 6,
             ShowText = false
+        };
+
+        _angleSliderLabel = new UiLabel
+        {
+            Text = "Angle Slider",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _angleSlider = new UiSliderAngle
+        {
+            MinDegrees = -180f,
+            MaxDegrees = 180f,
+            Value = 0f,
+            TextScale = FontScale,
+            ValueFormat = "0 deg",
+            ShowValue = true
+        };
+
+        _angleSliderValueLabel = new UiLabel
+        {
+            Text = "Angle: 0 deg (0.00 rad)",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
         };
 
         _roundingLabel = new UiLabel
@@ -1222,6 +1287,53 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _grid.AddChild(_gridInfoLabel, 1, 0);
         _grid.AddChild(_gridStatusLabel, 1, 1);
 
+        _tabBarLabel = new UiLabel
+        {
+            Text = "Tab Bar",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _tabBar = new UiTabBar
+        {
+            TabTextScale = FontScale,
+            TabPadding = 8,
+            TabSpacing = 4
+        };
+
+        _tabOverview = new UiTabItem { Text = "Overview" };
+        _tabDetails = new UiTabItem { Text = "Details" };
+        _tabSettings = new UiTabItem { Text = "Settings" };
+
+        _tabOverviewLabel = new UiLabel
+        {
+            Text = "Overview: system status and summary.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _tabDetailsLabel = new UiLabel
+        {
+            Text = "Details: metrics, logs, and diagnostics.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _tabSettingsLabel = new UiLabel
+        {
+            Text = "Settings: tweak sliders and toggles.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _tabOverview.AddChild(_tabOverviewLabel);
+        _tabDetails.AddChild(_tabDetailsLabel);
+        _tabSettings.AddChild(_tabSettingsLabel);
+
+        _tabBar.AddChild(_tabOverview);
+        _tabBar.AddChild(_tabDetails);
+        _tabBar.AddChild(_tabSettings);
+
         _splitterLabel = new UiLabel
         {
             Text = "Splitter",
@@ -1714,6 +1826,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsBasicTree.AddChild(_qualityLow);
         _widgetsBasicTree.AddChild(_qualityMedium);
         _widgetsBasicTree.AddChild(_qualityHigh);
+        _widgetsBasicTree.AddChild(_invisibleButtonLabel);
+        _widgetsBasicTree.AddChild(_invisibleButtonPanel);
+        _widgetsBasicTree.AddChild(_invisibleButtonStatus);
 
         _widgetsSliderTree.AddChild(_volumeSlider);
         _widgetsSliderTree.AddChild(_volumeProgress);
@@ -1723,6 +1838,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsSliderTree.AddChild(_vuMeter);
         _widgetsSliderTree.AddChild(_radialProgressLabel);
         _widgetsSliderTree.AddChild(_radialProgress);
+        _widgetsSliderTree.AddChild(_angleSliderLabel);
+        _widgetsSliderTree.AddChild(_angleSlider);
+        _widgetsSliderTree.AddChild(_angleSliderValueLabel);
 
         _widgetsStyleTree.AddChild(_roundingLabel);
         _widgetsStyleTree.AddChild(_roundingSlider);
@@ -1801,6 +1919,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsLayoutTree.AddChild(_canvas);
         _widgetsLayoutTree.AddChild(_gridLabel);
         _widgetsLayoutTree.AddChild(_grid);
+        _widgetsLayoutTree.AddChild(_tabBarLabel);
+        _widgetsLayoutTree.AddChild(_tabBar);
         _widgetsLayoutTree.AddChild(_splitterLabel);
         _widgetsLayoutTree.AddChild(_splitterVerticalLeftPanel);
         _widgetsLayoutTree.AddChild(_splitterVertical);
@@ -2190,9 +2310,12 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _widgetsPlotTree != null && _widgetsWaveformTree != null && _widgetsColorTree != null && _widgetsAsciiTree != null && _widgetsSelectableTree != null && _widgetsLayoutTree != null && _widgetsTooltipTree != null
             && _widgetsPopupTree != null && _widgetsTreeHeaderTree != null && _snapCheckbox != null && _gizmoCheckbox != null
             && _widgetsSeparator != null
-            && _qualityLow != null && _qualityMedium != null && _qualityHigh != null && _volumeSlider != null && _volumeProgress != null
+            && _qualityLow != null && _qualityMedium != null && _qualityHigh != null
+            && _invisibleButtonLabel != null && _invisibleButtonPanel != null && _invisibleButton != null && _invisibleButtonStatus != null
+            && _volumeSlider != null && _volumeProgress != null
             && _verticalProgressLabel != null && _verticalProgress != null && _vuMeterLabel != null && _vuMeter != null
             && _radialProgressLabel != null && _radialProgress != null
+            && _angleSliderLabel != null && _angleSlider != null && _angleSliderValueLabel != null
             && _roundingLabel != null && _roundingSlider != null && _roundingPreviewLabel != null && _roundingButton != null
             && _roundingField != null && _roundingPanel != null
             && _dragFloatLabel != null && _dragFloat != null && _dragIntLabel != null && _dragInt != null && _dragRangeLabel != null
@@ -2209,6 +2332,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _selectableLighting != null && _selectableNavigation != null && _selectableAudio != null && _scrollPanelLabel != null
             && _textEditorLabel != null && _textEditor != null
             && _gridLabel != null && _grid != null && _gridPrimaryButton != null && _gridSecondaryButton != null && _gridInfoLabel != null && _gridStatusLabel != null
+            && _tabBarLabel != null && _tabBar != null && _tabOverview != null && _tabDetails != null && _tabSettings != null
+            && _tabOverviewLabel != null && _tabDetailsLabel != null && _tabSettingsLabel != null
             && _canvasLabel != null && _canvas != null && _canvasNodeA != null && _canvasNodeB != null && _canvasNodeC != null
             && _splitterLabel != null && _splitterVerticalLeftPanel != null && _splitterVertical != null && _splitterVerticalRightPanel != null
             && _splitterHorizontalTopPanel != null && _splitterHorizontal != null && _splitterHorizontalBottomPanel != null
@@ -2250,6 +2375,15 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             basicY += rowHeight + 4;
             _qualityHigh.Bounds = new UiRect(0, basicY, basicContentWidth, rowHeight);
             basicY += rowHeight + 4;
+            _invisibleButtonLabel.Bounds = new UiRect(0, basicY, basicContentWidth, labelHeight);
+            basicY += labelHeight + 6;
+            int invisibleWidth = Math.Min(220, basicContentWidth);
+            int invisibleHeight = Math.Max(32, rowHeight + 6);
+            _invisibleButtonPanel.Bounds = new UiRect(0, basicY, Math.Max(0, invisibleWidth), invisibleHeight);
+            _invisibleButton.Bounds = _invisibleButtonPanel.Bounds;
+            basicY += _invisibleButtonPanel.Bounds.Height + 4;
+            _invisibleButtonStatus.Bounds = new UiRect(0, basicY, basicContentWidth, labelHeight);
+            basicY += labelHeight + 4;
             int basicHeight = treeHeaderHeight + (_widgetsBasicTree.IsOpen ? basicPadding + basicY : 0);
             _widgetsBasicTree.HeaderHeight = treeHeaderHeight;
             _widgetsBasicTree.Bounds = new UiRect(0, categoryY, rootContentWidth, basicHeight);
@@ -2280,6 +2414,12 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _radialProgress.CornerRadius = radialSize / 2;
             _radialProgress.RadialThickness = Math.Max(4, radialSize / 5);
             sliderY += radialSize + 4;
+            _angleSliderLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 6;
+            _angleSlider.Bounds = new UiRect(0, sliderY, sliderContentWidth, 24);
+            sliderY += 30;
+            _angleSliderValueLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 4;
             int sliderHeight = treeHeaderHeight + (_widgetsSliderTree.IsOpen ? sliderPadding + sliderY : 0);
             _widgetsSliderTree.HeaderHeight = treeHeaderHeight;
             _widgetsSliderTree.Bounds = new UiRect(0, categoryY, rootContentWidth, sliderHeight);
@@ -2551,6 +2691,23 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _grid.Bounds = new UiRect(0, layoutY, layoutContentWidth, gridHeight);
             layoutY += gridHeight + 8;
 
+            _tabBarLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
+            layoutY += labelHeight + 6;
+
+            int tabBarHeight = Math.Max(22, labelHeight + 6);
+            int tabContentHeight = Math.Max(64, labelHeight * 3);
+            _tabBar.TabBarHeight = tabBarHeight;
+            _tabBar.Bounds = new UiRect(0, layoutY, layoutContentWidth, tabBarHeight + tabContentHeight);
+
+            UiRect tabContent = _tabBar.ContentBounds;
+            int tabContentPadding = 8;
+            int tabTextWidth = Math.Max(0, tabContent.Width - tabContentPadding * 2);
+            _tabOverviewLabel.Bounds = new UiRect(tabContent.X + tabContentPadding, tabContent.Y + tabContentPadding, tabTextWidth, labelHeight);
+            _tabDetailsLabel.Bounds = new UiRect(tabContent.X + tabContentPadding, tabContent.Y + tabContentPadding, tabTextWidth, labelHeight);
+            _tabSettingsLabel.Bounds = new UiRect(tabContent.X + tabContentPadding, tabContent.Y + tabContentPadding, tabTextWidth, labelHeight);
+
+            layoutY += _tabBar.Bounds.Height + 8;
+
             _splitterLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;
 
@@ -2813,6 +2970,25 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             if (_radialProgress != null)
             {
                 _radialProgress.Value = value;
+            }
+        }
+
+        if (_angleSlider != null && _angleSliderValueLabel != null)
+        {
+            float degrees = _angleSlider.ValueDegrees;
+            float radians = _angleSlider.Value;
+            _angleSliderValueLabel.Text = $"Angle: {degrees:0} deg ({radians:0.00} rad)";
+        }
+
+        if (_invisibleButton != null && _invisibleButtonStatus != null)
+        {
+            string state = _invisibleButton.IsPressed ? "Pressed" : (_invisibleButton.IsHovered ? "Hover" : "Idle");
+            _invisibleButtonStatus.Text = $"Invisible: {state} (Clicks: {_invisibleButtonClicks})";
+            if (_invisibleButtonPanel != null)
+            {
+                _invisibleButtonPanel.Border = _invisibleButton.IsPressed
+                    ? new UiColor(120, 140, 200)
+                    : _invisibleButton.IsHovered ? new UiColor(90, 100, 120) : new UiColor(70, 80, 100);
             }
         }
 

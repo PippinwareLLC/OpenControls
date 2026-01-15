@@ -8,6 +8,7 @@ public abstract class UiElement
     public bool Visible { get; set; } = true;
     public bool Enabled { get; set; } = true;
     public virtual bool IsFocusable => false;
+    public virtual bool HandlesTabInput => false;
     public virtual bool ClipChildren { get; set; }
     public string Id { get; set; } = string.Empty;
     public UiElement? Parent { get; private set; }

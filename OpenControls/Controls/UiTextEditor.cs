@@ -20,6 +20,7 @@ public sealed class UiTextEditor : UiElement
         }
 
         public override bool IsFocusable => true;
+        public override bool HandlesTabInput => _owner.AllowTabInput;
 
         public override void Update(UiUpdateContext context)
         {
@@ -142,6 +143,7 @@ public sealed class UiTextEditor : UiElement
     public int LineNumberPadding { get; set; } = 8;
     public int LineSpacing { get; set; } = 2;
     public int TabSize { get; set; } = 4;
+    public bool AllowTabInput { get; set; } = true;
     public int MinLineNumberDigits { get; set; } = 3;
     public UiTextEditorSyntaxMode SyntaxMode { get; set; } = UiTextEditorSyntaxMode.CSharp;
 
@@ -267,7 +269,7 @@ public sealed class UiTextEditor : UiElement
     {
         bool textChanged = false;
 
-        if (input.Navigation.Enter)
+        if (input.Navigation.Enter || input.Navigation.KeypadEnter)
         {
             InsertText("\n");
             textChanged = true;

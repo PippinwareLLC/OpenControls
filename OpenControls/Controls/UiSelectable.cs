@@ -103,7 +103,7 @@ public sealed class UiSelectable : UiElement
             context.Focus.RequestFocus(this);
         }
 
-        if (_focused && input.Navigation.Enter)
+        if (_focused && input.Navigation.Activate)
         {
             ApplySelection(input);
         }

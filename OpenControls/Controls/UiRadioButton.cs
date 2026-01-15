@@ -45,7 +45,7 @@ public sealed class UiRadioButton : UiElement
             context.Focus.RequestFocus(this);
         }
 
-        if (_focused && input.Navigation.Enter)
+        if (_focused && input.Navigation.Activate)
         {
             SetChecked(true, true);
         }

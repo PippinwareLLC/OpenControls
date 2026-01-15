@@ -44,7 +44,7 @@ public sealed class UiCheckbox : UiElement
             context.Focus.RequestFocus(this);
         }
 
-        if (_focused && input.Navigation.Enter)
+        if (_focused && input.Navigation.Activate)
         {
             Toggle();
         }

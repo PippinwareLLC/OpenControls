@@ -1488,6 +1488,8 @@ public sealed class EditorGame : Game
                 Delete = IsPressed(currentKeyboard, previousKeyboard, Keys.Delete),
                 Tab = IsPressed(currentKeyboard, previousKeyboard, Keys.Tab),
                 Enter = IsPressed(currentKeyboard, previousKeyboard, Keys.Enter),
+                KeypadEnter = IsPressed(currentKeyboard, previousKeyboard, Keys.Enter),
+                Space = IsPressed(currentKeyboard, previousKeyboard, Keys.Space),
                 Escape = IsPressed(currentKeyboard, previousKeyboard, Keys.Escape)
             }
         };

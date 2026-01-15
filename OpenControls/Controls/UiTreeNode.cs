@@ -130,7 +130,7 @@ public sealed class UiTreeNode : UiElement
             context.Focus.RequestFocus(this);
         }
 
-        if (_focused && input.Navigation.Enter)
+        if (_focused && input.Navigation.Activate)
         {
             SetOpen(!_isOpen);
         }

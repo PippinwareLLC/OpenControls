@@ -173,7 +173,11 @@ UiInputState input = new UiInputState
     {
         MoveLeft = leftPressed,
         MoveRight = rightPressed,
-        Backspace = backspacePressed
+        Backspace = backspacePressed,
+        Tab = tabPressed,
+        Enter = enterPressed,
+        KeypadEnter = keypadEnterPressed,
+        Space = spacePressed
     }
 };
 

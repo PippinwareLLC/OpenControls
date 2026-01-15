@@ -4,6 +4,7 @@ public sealed class UiButton : UiElement
 {
     private bool _pressed;
     private bool _hovered;
+    private bool _focused;
 
     public string Text { get; set; } = string.Empty;
     public UiColor Background { get; set; } = new UiColor(52, 60, 78);
@@ -32,6 +33,11 @@ public sealed class UiButton : UiElement
         {
             _pressed = true;
             context.Focus.RequestFocus(this);
+        }
+
+        if (_focused && input.Navigation.Activate)
+        {
+            Clicked?.Invoke();
         }
 
         if (input.LeftReleased)
@@ -65,5 +71,16 @@ public sealed class UiButton : UiElement
         context.Renderer.DrawText(Text, new UiPoint(textX, textY), TextColor, TextScale);
 
         base.Render(context);
+    }
+
+    protected internal override void OnFocusGained()
+    {
+        _focused = true;
+    }
+
+    protected internal override void OnFocusLost()
+    {
+        _focused = false;
+        _pressed = false;
     }
 }

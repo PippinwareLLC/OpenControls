@@ -180,6 +180,8 @@ public sealed class OpenGlExamplesWindow : GameWindow
                 Delete = IsPressed(currentKeyboard, previousKeyboard, Keys.Delete),
                 Tab = IsPressed(currentKeyboard, previousKeyboard, Keys.Tab),
                 Enter = IsPressed(currentKeyboard, previousKeyboard, Keys.Enter),
+                KeypadEnter = IsPressed(currentKeyboard, previousKeyboard, Keys.KeyPadEnter),
+                Space = IsPressed(currentKeyboard, previousKeyboard, Keys.Space),
                 Escape = IsPressed(currentKeyboard, previousKeyboard, Keys.Escape)
             }
         };

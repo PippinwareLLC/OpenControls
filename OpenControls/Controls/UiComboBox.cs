@@ -126,7 +126,7 @@ public sealed class UiComboBox : UiElement
                     SetHighlight(Items.Count - 1);
                 }
 
-                if (input.Navigation.Enter && _highlightIndex >= 0)
+                if (input.Navigation.Activate && _highlightIndex >= 0)
                 {
                     SetSelectedIndex(_highlightIndex);
                     if (CloseOnSelection)
@@ -146,7 +146,7 @@ public sealed class UiComboBox : UiElement
             _hoverIndex = -1;
             _highlightIndex = -1;
 
-            if (_focused && input.Navigation.Enter)
+            if (_focused && input.Navigation.Activate)
             {
                 Open(context.Focus);
             }

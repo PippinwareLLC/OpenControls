@@ -261,6 +261,8 @@ public sealed class SdlExamplesApp : IDisposable
                 Delete = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_DELETE),
                 Tab = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_TAB),
                 Enter = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_RETURN),
+                KeypadEnter = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_KP_ENTER),
+                Space = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_SPACE),
                 Escape = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_ESCAPE)
             }
         };

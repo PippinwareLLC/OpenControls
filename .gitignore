@@ -4,3 +4,5 @@ ReferenceAssets/**
 bin/
 obj/
 .vs/
+.conductor/
+jobs/
