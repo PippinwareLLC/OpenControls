@@ -23,10 +23,12 @@ public sealed class UiTextField : UiElement
     public int MaxLength { get; set; } = 200;
     public int Padding { get; set; } = 4;
     public int TextScale { get; set; } = 1;
+    public string Placeholder { get; set; } = string.Empty;
     public UiColor Background { get; set; } = new UiColor(28, 32, 44);
     public UiColor Border { get; set; } = new UiColor(60, 70, 90);
     public UiColor FocusBorder { get; set; } = new UiColor(120, 140, 200);
     public UiColor TextColor { get; set; } = UiColor.White;
+    public UiColor PlaceholderColor { get; set; } = new UiColor(120, 130, 150);
     public UiColor CaretColor { get; set; } = UiColor.White;
     public int CornerRadius { get; set; }
     public Func<char, bool>? CharacterFilter { get; set; }
@@ -87,7 +89,15 @@ public sealed class UiTextField : UiElement
         int clipHeight = Math.Max(0, Bounds.Height - Padding * 2);
         UiRect clip = new UiRect(textX, textY, clipWidth, clipHeight);
         context.Renderer.PushClip(clip);
-        context.Renderer.DrawText(Text, new UiPoint(textX, textY), TextColor, TextScale);
+        string displayText = Text;
+        UiColor displayColor = TextColor;
+        if (string.IsNullOrEmpty(displayText) && !string.IsNullOrEmpty(Placeholder))
+        {
+            displayText = Placeholder;
+            displayColor = PlaceholderColor;
+        }
+
+        context.Renderer.DrawText(displayText, new UiPoint(textX, textY), displayColor, TextScale);
 
         if (_focused && _caretVisible)
         {

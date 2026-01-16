@@ -23,7 +23,8 @@ UiTextField nameField = new UiTextField
 {
     Bounds = new UiRect(212, 186, 220, 22),
     TextScale = 2,
-    MaxLength = 24
+    MaxLength = 24,
+    Placeholder = "Enter name"
 };
 
 UiButton ok = new UiButton

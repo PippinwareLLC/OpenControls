@@ -35,6 +35,12 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - `OpenControls.OpenGL.Examples`: runnable OpenGL host for the shared examples UI.
 - `OpenControls.SdlNet.Examples`: SDL2-CS renderer example that mirrors the OpenControls.Examples UI (requires SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable).
 
+## Usage
+- Build the core library: `dotnet build OpenControls/OpenControls.csproj`
+- Run the MonoGame examples: `dotnet run --project OpenControls.MonoGame.Examples/OpenControls.MonoGame.Examples.csproj`
+- Run the OpenGL examples: `dotnet run --project OpenControls.OpenGL.Examples/OpenControls.OpenGL.Examples.csproj`
+- Run verify checks: `dotnet run --project tests/OpenControls.Verify/OpenControls.Verify.csproj`
+
 ## Project Status Matrix
 | Project | Type | Status | Notes |
 | --- | --- | --- | --- |
@@ -84,6 +90,7 @@ Planned expansion:
 - Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, and embedded content.
 - Tree nodes, collapsing headers, tooltips, popups, and modals are available.
 - Text editor control supports line numbers, scrolling, and syntax highlighting.
+- Text fields support placeholder text via `UiTextField.Placeholder` and `UiTextField.PlaceholderColor`.
 - Splitter control provides draggable horizontal/vertical splits for manual layouts.
 - Arrow glyph helper (`UiArrow`) keeps tree/combo/menu indicators consistent.
 - Common controls support rounded corners and masking for clipped children via `CornerRadius` and `UiRenderHelpers` helpers.

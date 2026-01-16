@@ -427,6 +427,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Id = "text-field",
             TextScale = FontScale,
             MaxLength = 24,
+            Placeholder = "Enter text",
             CaretIndexFromPoint = GetCaretIndexFromPoint
         };
 
