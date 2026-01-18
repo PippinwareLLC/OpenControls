@@ -76,6 +76,7 @@ public sealed class UiTreeNode : UiElement
 
     public string Text { get; set; } = string.Empty;
     public int TextScale { get; set; } = 1;
+    public bool TextBold { get; set; }
     public int Padding { get; set; } = 4;
     public int ArrowSize { get; set; } = 6;
     public int ArrowPadding { get; set; } = 4;
@@ -180,7 +181,15 @@ public sealed class UiTreeNode : UiElement
         int textHeight = context.Renderer.MeasureTextHeight(TextScale);
         int textY = header.Y + (header.Height - textHeight) / 2;
         int textX = header.X + Padding + Math.Max(4, ArrowSize) + ArrowPadding;
-        context.Renderer.DrawText(Text, new UiPoint(textX, textY), TextColor, TextScale);
+        UiPoint textPoint = new UiPoint(textX, textY);
+        if (TextBold)
+        {
+            UiRenderHelpers.DrawTextBold(context.Renderer, Text, textPoint, TextColor, TextScale);
+        }
+        else
+        {
+            context.Renderer.DrawText(Text, textPoint, TextColor, TextScale);
+        }
 
         if (_isOpen)
         {

@@ -31,6 +31,7 @@ public sealed class UiTabBar : UiElement
     public int TabPadding { get; set; } = 6;
     public int TabSpacing { get; set; } = 2;
     public int TabTextScale { get; set; } = 1;
+    public bool TabTextBold { get; set; }
     public bool AutoSizeTabs { get; set; } = true;
     public int TabWidth { get; set; }
     public int TabMaxWidth { get; set; }
@@ -218,7 +219,14 @@ public sealed class UiTabBar : UiElement
                 UiColor textColor = i == _activeIndex ? TabActiveTextColor : TabTextColor;
                 int textY = tabRect.Y + (tabRect.Height - textHeight) / 2;
                 int textX = tabRect.X + Math.Max(0, TabPadding);
-                context.Renderer.DrawText(tab.Text, new UiPoint(textX, textY), textColor, TabTextScale);
+                if (TabTextBold)
+                {
+                    UiRenderHelpers.DrawTextBold(context.Renderer, tab.Text, new UiPoint(textX, textY), textColor, TabTextScale);
+                }
+                else
+                {
+                    context.Renderer.DrawText(tab.Text, new UiPoint(textX, textY), textColor, TabTextScale);
+                }
 
                 if (ShowCloseButtons && tab.AllowClose)
                 {
@@ -572,6 +580,10 @@ public sealed class UiTabBar : UiElement
         if (AutoSizeTabs)
         {
             int textWidth = MeasureTextWidth(tab.Text, TabTextScale);
+            if (TabTextBold && textWidth > 0)
+            {
+                textWidth += 1;
+            }
             int padding = Math.Max(0, TabPadding);
             width = textWidth + padding * 2;
             if (ShowCloseButtons && tab.AllowClose)

@@ -19,6 +19,7 @@ public sealed class UiWindow : UiElement
     public bool ShowTitleBar { get; set; } = true;
     public int TitleBarHeight { get; set; } = 24;
     public int TitleTextScale { get; set; } = 1;
+    public bool TitleTextBold { get; set; }
     public int TitlePadding { get; set; } = 4;
     public UiColor Background { get; set; } = new(24, 28, 38);
     public UiColor Border { get; set; } = new(90, 100, 120);
@@ -187,7 +188,15 @@ public sealed class UiWindow : UiElement
 
             int textHeight = context.Renderer.MeasureTextHeight(TitleTextScale);
             int textY = titleBar.Y + (TitleBarHeight - textHeight) / 2;
-            context.Renderer.DrawText(Title, new UiPoint(titleBar.X + TitlePadding, textY), TitleTextColor, TitleTextScale);
+            UiPoint textPoint = new UiPoint(titleBar.X + TitlePadding, textY);
+            if (TitleTextBold)
+            {
+                UiRenderHelpers.DrawTextBold(context.Renderer, Title, textPoint, TitleTextColor, TitleTextScale);
+            }
+            else
+            {
+                context.Renderer.DrawText(Title, textPoint, TitleTextColor, TitleTextScale);
+            }
         }
 
         if (Border.A > 0)

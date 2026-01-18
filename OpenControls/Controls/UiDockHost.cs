@@ -34,6 +34,7 @@ public sealed class UiDockHost : UiElement
     public int TabWidth { get; set; } = 120;
     public int TabPadding { get; set; } = 6;
     public int TabTextScale { get; set; } = 1;
+    public bool TabTextBold { get; set; }
     public bool ShowCloseButtons { get; set; } = true;
     public int CloseButtonPadding { get; set; } = 4;
     public int ScrollButtonWidth { get; set; } = 18;
@@ -361,7 +362,15 @@ public sealed class UiDockHost : UiElement
 
             UiWindow window = _windows[i];
             int textY = tabRect.Y + (tabRect.Height - textHeight) / 2;
-            context.Renderer.DrawText(window.Title, new UiPoint(tabRect.X + TabPadding, textY), TabTextColor, TabTextScale);
+            UiPoint textPoint = new UiPoint(tabRect.X + TabPadding, textY);
+            if (TabTextBold)
+            {
+                UiRenderHelpers.DrawTextBold(context.Renderer, window.Title, textPoint, TabTextColor, TabTextScale);
+            }
+            else
+            {
+                context.Renderer.DrawText(window.Title, textPoint, TabTextColor, TabTextScale);
+            }
 
             if (ShowCloseButtons && CanCloseWindow(i))
             {

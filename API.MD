@@ -10,7 +10,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiNavigationInput`: directional/navigation key flags (arrows, Home/End, Backspace/Delete, Tab, Enter/KeypadEnter, Space).
 - `IUiRenderer`: rendering abstraction; hosts implement this for their graphics API (includes clip stack, gradient, and checkerboard fills).
 - `UiRect`, `UiPoint`, `UiColor`: lightweight geometry and color structs.
-- `UiRenderHelpers`: helper methods for gradients, checkerboard fills, and rounded rectangles.
+- `UiRenderHelpers`: helper methods for gradients, checkerboard fills, rounded rectangles, and bold text.
 - `UiStateSnapshot`, `UiStateSerializer`: serialize/restore UI state to JSON for persistence.
 - `UiScrollbarVisibility`: scrollbar visibility options for scroll panels.
 - `UiSelectionModel`: manages multi-selection state (ctrl/shift range behavior) for list/selectable controls.
@@ -26,7 +26,7 @@ This is a brief overview of the current OpenControls surface area.
 
 ## Controls
 - `UiPanel`: background and border drawing; acts as a container with optional clipping and resize grip.
-- `UiLabel`: draws text at its bounds origin.
+- `UiLabel`: draws text at its bounds origin (supports `Bold`).
 - `UiButton`: clickable button with hover/pressed feedback; exposes `Clicked` event.
 - `UiInvisibleButton`: invisible hit target for custom-drawn widgets; exposes hover/pressed state and `Clicked`.
 - `UiCheckbox`: boolean toggle with label; exposes `CheckedChanged`.
@@ -40,7 +40,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiListBox`: list selector with hover/selected states.
 - `UiSelectable`: selectable row with hover/selected states.
 - `UiComboBox`: dropdown selector with an overlay list.
-- `UiTable`: grid/table control with column headers and selectable rows.
+- `UiTable`: grid/table control with column headers and selectable rows (headers can be bold).
 - `UiPlotPanel`: plotting panel with axes, tick labels, grid lines, and zoom/pan input.
 - `UiWaveform`: waveform panel for rendering sample data with optional zero line.
 - `UiGrid`: grid layout container that assigns children to row/column cells.
@@ -53,12 +53,12 @@ This is a brief overview of the current OpenControls surface area.
 - `UiScrollPanel`: scrollable panel with auto/always scrollbars and clipped content.
 - `UiTextField`: editable text field with caret, text input, navigation handling, and text clipping to its bounds.
 - `UiTextEditor`: multi-line text editor with line numbers, scrolling, and optional syntax highlighting.
-- `UiWindow`: window container with optional title bar, clipping to content bounds, resize grip, and optional scroll panel support.
-- `UiTabBar`, `UiTabItem`: tab strip container and tab content items for retained-mode tabbed layouts.
-- `UiDockHost`: hosts `UiWindow` instances in a tabbed dock area, with optional drag reordering/detach.
+- `UiWindow`: window container with optional title bar, clipping to content bounds, resize grip, and optional scroll panel support (title text can be bold).
+- `UiTabBar`, `UiTabItem`: tab strip container and tab content items for retained-mode tabbed layouts (tab text can be bold).
+- `UiDockHost`: hosts `UiWindow` instances in a tabbed dock area, with optional drag reordering/detach (tab text can be bold).
 - `UiDockWorkspace`: manages dock hosts, drag previews, drop targets, floating windows, and empty-host collapse.
 - `UiMenuBar`: top-level menu control with dropdowns, separators, checkable items, nested submenus, and popup mode support.
-- `UiTreeNode`: expandable tree node with indented child content.
+- `UiTreeNode`: expandable tree node with indented child content (header text can be bold).
 - `UiCollapsingHeader`: expandable header for grouping child content.
 - `UiTooltip`: overlay tooltip panel for hover hints.
 - `UiTooltipRegion`: invisible hover region that triggers a tooltip.

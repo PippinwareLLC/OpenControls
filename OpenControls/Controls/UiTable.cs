@@ -51,6 +51,7 @@ public sealed class UiTable : UiElement
     public int CellPadding { get; set; } = 6;
     public int TextScale { get; set; } = 1;
     public int HeaderTextScale { get; set; } = 1;
+    public bool HeaderTextBold { get; set; }
     public bool ShowHeader { get; set; } = true;
     public bool ShowGrid { get; set; } = true;
     public bool AlternatingRowBackgrounds { get; set; } = true;
@@ -292,7 +293,15 @@ public sealed class UiTable : UiElement
                 UiTableColumn column = Columns[col];
                 UiRect cellRect = new UiRect(x, Bounds.Y, columnWidths[col], headerHeight);
                 context.Renderer.PushClip(cellRect);
-                context.Renderer.DrawText(column.Header, new UiPoint(x + CellPadding, headerY), HeaderTextColor, HeaderTextScale);
+                UiPoint textPoint = new UiPoint(x + CellPadding, headerY);
+                if (HeaderTextBold)
+                {
+                    UiRenderHelpers.DrawTextBold(context.Renderer, column.Header, textPoint, HeaderTextColor, HeaderTextScale);
+                }
+                else
+                {
+                    context.Renderer.DrawText(column.Header, textPoint, HeaderTextColor, HeaderTextScale);
+                }
                 context.Renderer.PopClip();
                 x += columnWidths[col];
             }
