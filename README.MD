@@ -85,7 +85,7 @@ Planned expansion:
 - Multi-select selection model for list boxes and selectables (Ctrl/Shift range) is available.
 - Scroll panels support auto/always scrollbars for overflowing content.
 - Windows can host optional scroll panels for overflow content (shown in docked/floating examples).
-- Window and dock host controls support tabbed layouts.
+- Window and dock host controls support tabbed layouts with close buttons and overflow scrolling.
 - Dock workspaces support drag previews, drop targets, and floating windows.
 - Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, and embedded content.
 - Tree nodes, collapsing headers, tooltips, popups, and modals are available.

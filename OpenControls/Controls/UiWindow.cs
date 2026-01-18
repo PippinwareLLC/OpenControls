@@ -15,6 +15,7 @@ public sealed class UiWindow : UiElement
     }
 
     public string Title { get; set; } = string.Empty;
+    public bool AllowClose { get; set; } = true;
     public bool ShowTitleBar { get; set; } = true;
     public int TitleBarHeight { get; set; } = 24;
     public int TitleTextScale { get; set; } = 1;

@@ -622,12 +622,17 @@ public sealed class UiDockWorkspace : UiElement
         destination.Border = source.Border;
         destination.TabBarColor = source.TabBarColor;
         destination.TabActiveColor = source.TabActiveColor;
+        destination.TabHoverColor = source.TabHoverColor;
         destination.TabTextColor = source.TabTextColor;
         destination.TabBorderColor = source.TabBorderColor;
         destination.TabBarHeight = source.TabBarHeight;
         destination.TabWidth = source.TabWidth;
         destination.TabPadding = source.TabPadding;
         destination.TabTextScale = source.TabTextScale;
+        destination.ShowCloseButtons = source.ShowCloseButtons;
+        destination.CloseButtonPadding = source.CloseButtonPadding;
+        destination.ScrollButtonWidth = source.ScrollButtonWidth;
+        destination.ScrollStep = source.ScrollStep;
         destination.HideDockedTitleBars = source.HideDockedTitleBars;
         destination.AllowReorder = source.AllowReorder;
         destination.DragThreshold = source.DragThreshold;

@@ -10,10 +10,12 @@ public sealed class UiTabItem : UiElement
     }
 
     public string Text { get; set; } = string.Empty;
+    public bool AllowClose { get; set; } = true;
 
     public bool IsActive => _isActive;
 
     internal UiRect TabBounds { get; set; }
+    internal UiRect CloseBounds { get; set; }
 
     internal void SetActive(bool active)
     {

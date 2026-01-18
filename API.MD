@@ -81,12 +81,18 @@ This is a brief overview of the current OpenControls surface area.
 
 ## Dock Host Events
 - `UiDockHost.TabDetached`: raised when a tab is dragged outside the host bounds.
+- `UiDockHost.TabClosed`: raised when a tab close button is clicked and the window is removed.
+
+## Dock Host Notes
+- `UiDockHost.ShowCloseButtons` toggles close buttons; `UiWindow.AllowClose` controls per-window visibility.
+- Dock hosts show scroll arrows when tabs exceed the available width; use `ScrollStep` and `ScrollButtonWidth` to tune behavior.
 
 ## Dock Workspace Notes
 - `UiDockWorkspace.ResetLayout`: clears dock hosts and floating windows back to a single root host.
 
 ## Window Dragging
 - `UiWindow.AllowDrag`: enables title-bar dragging (use for floating windows).
+- `UiWindow.AllowClose`: enables dock tab close buttons for the window when hosted in a `UiDockHost`.
 - `UiWindow.IsDragging`: true while a drag is in progress.
 - `UiWindow.EnsureScrollPanel`: creates a child scroll panel sized to the window content bounds.
 - `UiWindow.AddContentChild`: adds to the scroll panel if present, otherwise adds directly to the window.
@@ -187,6 +193,9 @@ This is a brief overview of the current OpenControls surface area.
 ## Tab Bar Notes
 - `UiTabBar.ContentBounds` returns the tab content region below the strip.
 - `ActiveTabChanged` fires when a new `UiTabItem` becomes active.
+- `UiTabBar.TabClosed` fires when a close button is clicked; set `UiTabItem.AllowClose` or `UiTabBar.ShowCloseButtons` to control visibility.
+- `UiTabBar.GetTabBounds` and `UiTabBar.GetTabCloseBounds` expose the current tab and close-button rectangles.
+- Tab bars show left/right scroll arrows when tabs exceed the available width; use `ScrollStep` and `ScrollButtonWidth` to tune behavior.
 - Inactive tab items do not update or render their children.
 - Inactive tab items are skipped during focus traversal.
 

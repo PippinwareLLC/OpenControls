@@ -590,6 +590,9 @@ tabs.AddChild(overview);
 tabs.AddChild(details);
 ```
 
+Set `UiTabItem.AllowClose = false` to hide the close button on a specific tab.
+Tab bars automatically show scroll arrows when tabs exceed the available width; use `ScrollStep` to control the scroll amount.
+
 ## Text Editor
 Use `UiTextEditor` for large, scrollable documents with line numbers and syntax highlighting.
 
