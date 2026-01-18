@@ -290,7 +290,10 @@ public sealed class UiTable : UiElement
             for (int col = 0; col < columnCount; col++)
             {
                 UiTableColumn column = Columns[col];
+                UiRect cellRect = new UiRect(x, Bounds.Y, columnWidths[col], headerHeight);
+                context.Renderer.PushClip(cellRect);
                 context.Renderer.DrawText(column.Header, new UiPoint(x + CellPadding, headerY), HeaderTextColor, HeaderTextScale);
+                context.Renderer.PopClip();
                 x += columnWidths[col];
             }
         }
@@ -307,7 +310,10 @@ public sealed class UiTable : UiElement
             for (int col = 0; col < columnCount; col++)
             {
                 string cellText = col < cells.Count ? cells[col] : string.Empty;
+                UiRect cellRect = new UiRect(x, rowY, columnWidths[col], rowHeight);
+                context.Renderer.PushClip(cellRect);
                 context.Renderer.DrawText(cellText, new UiPoint(x + CellPadding, textY), rowTextColor, TextScale);
+                context.Renderer.PopClip();
                 x += columnWidths[col];
             }
 
