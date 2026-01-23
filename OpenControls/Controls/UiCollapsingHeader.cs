@@ -146,7 +146,7 @@ public sealed class UiCollapsingHeader : UiElement
         if (_isOpen)
         {
             UiInputState childInput = BuildChildInput(input);
-            UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DeltaSeconds);
+            UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds);
             foreach (UiElement child in Children)
             {
                 child.Update(childContext);

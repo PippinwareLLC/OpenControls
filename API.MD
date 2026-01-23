@@ -27,11 +27,18 @@ This is a brief overview of the current OpenControls surface area.
 ## Controls
 - `UiPanel`: background and border drawing; acts as a container with optional clipping and resize grip.
 - `UiLabel`: draws text at its bounds origin (supports `Bold`).
+- `UiTextBlock`: multi-line text rendering with optional word wrapping and padding.
+- `UiTextLink`: hyperlink-style text button with hover/pressed feedback (optional URL launch).
+- `UiBullet`: draws a bullet glyph.
+- `UiBulletText`: draws a bullet with adjacent text.
+- `UiArrowButton`: arrow-only button for compact navigation controls.
+- `UiSpacer`: empty element used to reserve layout space.
 - `UiButton`: clickable button with hover/pressed feedback; exposes `Clicked` event.
 - `UiInvisibleButton`: invisible hit target for custom-drawn widgets; exposes hover/pressed state and `Clicked`.
 - `UiCheckbox`: boolean toggle with label; exposes `CheckedChanged`.
 - `UiRadioButton`: grouped option selector (use `GroupId`); exposes `CheckedChanged`.
 - `UiSlider`: draggable value control with optional step/whole-number snapping.
+- `UiVSlider`: vertical slider variant with the same value behavior.
 - `UiSliderAngle`: angle slider that stores radians while displaying degrees.
 - `UiDragFloat`, `UiDragInt`: drag-to-adjust value fields with optional clamping and speed modifiers.
 - `UiDragFloat2/3/4`, `UiDragInt2/3/4`: multi-component drag widgets for vector values.
@@ -49,8 +56,10 @@ This is a brief overview of the current OpenControls surface area.
 - `UiColorPicker`: hue/saturation/value picker with a gradient SV area, hue bar, and optional alpha bar.
 - `UiColorButton`: clickable color swatch with optional alpha checkerboard.
 - `UiSeparator`: horizontal or vertical line separator.
+- `UiSeparatorText`: separator line with centered label text.
 - `UiSplitter`: draggable horizontal/vertical splitter for manual layouts.
 - `UiScrollPanel`: scrollable panel with auto/always scrollbars and clipped content.
+- `UiDisabledGroup`: container that disables interaction for its children and optionally draws a dimming overlay.
 - `UiTextField`: editable text field with caret, text input, navigation handling, and text clipping to its bounds.
 - `UiTextEditor`: multi-line text editor with line numbers, scrolling, and optional syntax highlighting.
 - `UiWindow`: window container with optional title bar, clipping to content bounds, resize grip, and optional scroll panel support (title text can be bold).

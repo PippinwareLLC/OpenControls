@@ -17,6 +17,9 @@ public sealed class UiTableColumn
     public int Width { get; set; }
     public int MinWidth { get; set; } = 40;
     public float Weight { get; set; } = 1f;
+    public bool AllowSort { get; set; } = true;
+    public UiTableSortDirection DefaultSortDirection { get; set; } = UiTableSortDirection.Ascending;
+    public int UserId { get; set; } = -1;
 }
 
 public sealed class UiTableRow
@@ -42,6 +45,7 @@ public sealed class UiTable : UiElement
     private bool _focused;
     private readonly int[] _singleSelection = new int[1];
     private UiSelectionModel? _selectionModel;
+    private readonly List<UiTableSortSpec> _sortSpecs = new();
 
     public List<UiTableColumn> Columns { get; } = new();
     public IReadOnlyList<UiTableRow> Rows { get; set; } = Array.Empty<UiTableRow>();
@@ -56,6 +60,13 @@ public sealed class UiTable : UiElement
     public bool ShowGrid { get; set; } = true;
     public bool AlternatingRowBackgrounds { get; set; } = true;
     public bool AllowDeselect { get; set; }
+    public bool AllowSorting { get; set; } = true;
+    public bool AllowMultiSort { get; set; }
+    public bool AllowNoSort { get; set; }
+    public int SortIndicatorPadding { get; set; } = 4;
+    public bool UseAngledHeaders { get; set; }
+    public int AngledHeaderHeight { get; set; } = 48;
+    public int AngledHeaderStep { get; set; }
 
     public UiColor Background { get; set; } = new UiColor(24, 28, 38);
     public UiColor Border { get; set; } = new UiColor(60, 70, 90);
@@ -138,7 +149,10 @@ public sealed class UiTable : UiElement
         }
     }
 
+    public IReadOnlyList<UiTableSortSpec> SortSpecs => _sortSpecs;
+
     public event Action<int>? SelectionChanged;
+    public event Action? SortSpecsChanged;
 
     public override bool IsFocusable => true;
 
@@ -150,6 +164,7 @@ public sealed class UiTable : UiElement
         }
 
         _selectionModel?.SetItemCount(Rows.Count);
+        ValidateSortSpecs();
 
         UiInputState input = context.Input;
         bool shift = input.ShiftDown;
@@ -157,10 +172,18 @@ public sealed class UiTable : UiElement
 
         _hoverIndex = GetRowIndexAtPoint(input.MousePosition);
 
-        if (input.LeftClicked && Bounds.Contains(input.MousePosition))
+        bool clicked = input.LeftClicked && Bounds.Contains(input.MousePosition);
+        int headerHeight = ShowHeader ? GetHeaderHeight() : 0;
+        bool clickedHeader = clicked && ShowHeader && input.MousePosition.Y < Bounds.Y + headerHeight;
+
+        if (clicked)
         {
             context.Focus.RequestFocus(this);
-            if (_hoverIndex >= 0 && _hoverIndex < Rows.Count)
+            if (clickedHeader)
+            {
+                HandleHeaderClick(input.MousePosition, shift || ctrl);
+            }
+            else if (_hoverIndex >= 0 && _hoverIndex < Rows.Count)
             {
                 ApplySelection(_hoverIndex, shift, ctrl);
             }
@@ -293,14 +316,27 @@ public sealed class UiTable : UiElement
                 UiTableColumn column = Columns[col];
                 UiRect cellRect = new UiRect(x, Bounds.Y, columnWidths[col], headerHeight);
                 context.Renderer.PushClip(cellRect);
-                UiPoint textPoint = new UiPoint(x + CellPadding, headerY);
-                if (HeaderTextBold)
+                if (UseAngledHeaders)
                 {
-                    UiRenderHelpers.DrawTextBold(context.Renderer, column.Header, textPoint, HeaderTextColor, HeaderTextScale);
+                    DrawAngledHeaderText(context.Renderer, column.Header, cellRect, HeaderTextColor, HeaderTextScale);
                 }
                 else
                 {
-                    context.Renderer.DrawText(column.Header, textPoint, HeaderTextColor, HeaderTextScale);
+                    UiPoint textPoint = new UiPoint(x + CellPadding, headerY);
+                    if (HeaderTextBold)
+                    {
+                        UiRenderHelpers.DrawTextBold(context.Renderer, column.Header, textPoint, HeaderTextColor, HeaderTextScale);
+                    }
+                    else
+                    {
+                        context.Renderer.DrawText(column.Header, textPoint, HeaderTextColor, HeaderTextScale);
+                    }
+                }
+
+                UiTableSortSpec? sortSpec = GetSortSpec(col);
+                if (sortSpec != null)
+                {
+                    DrawSortIndicator(context, cellRect, sortSpec);
                 }
                 context.Renderer.PopClip();
                 x += columnWidths[col];
@@ -345,7 +381,13 @@ public sealed class UiTable : UiElement
 
     private int GetHeaderHeight()
     {
-        return Math.Max(1, HeaderHeight);
+        int height = Math.Max(1, HeaderHeight);
+        if (UseAngledHeaders)
+        {
+            height = Math.Max(height, Math.Max(1, AngledHeaderHeight));
+        }
+
+        return height;
     }
 
     private UiColor GetRowFill(int rowIndex, UiTableRow row)
@@ -439,6 +481,201 @@ public sealed class UiTable : UiElement
         }
 
         return widths;
+    }
+
+    private void HandleHeaderClick(UiPoint point, bool multiSortRequested)
+    {
+        if (!AllowSorting || Columns.Count == 0)
+        {
+            return;
+        }
+
+        int[] columnWidths = BuildColumnWidths();
+        int columnIndex = GetColumnIndexAtPoint(point, columnWidths);
+        if (columnIndex < 0 || columnIndex >= Columns.Count)
+        {
+            return;
+        }
+
+        UiTableColumn column = Columns[columnIndex];
+        if (!column.AllowSort)
+        {
+            return;
+        }
+
+        UpdateSortSpecs(columnIndex, multiSortRequested && AllowMultiSort);
+    }
+
+    private int GetColumnIndexAtPoint(UiPoint point, int[] columnWidths)
+    {
+        int x = Bounds.X;
+        for (int i = 0; i < columnWidths.Length; i++)
+        {
+            int width = columnWidths[i];
+            if (point.X >= x && point.X < x + width)
+            {
+                return i;
+            }
+
+            x += width;
+        }
+
+        return -1;
+    }
+
+    private void UpdateSortSpecs(int columnIndex, bool multiSort)
+    {
+        UiTableSortSpec? existing = GetSortSpec(columnIndex);
+        if (!multiSort)
+        {
+            _sortSpecs.Clear();
+        }
+
+        if (existing != null)
+        {
+            bool remove = ToggleSortSpec(existing);
+            if (remove)
+            {
+                _sortSpecs.Remove(existing);
+            }
+            else if (!_sortSpecs.Contains(existing))
+            {
+                _sortSpecs.Add(existing);
+            }
+        }
+        else
+        {
+            UiTableColumn column = Columns[columnIndex];
+            UiTableSortSpec spec = new UiTableSortSpec(columnIndex, 0, column.DefaultSortDirection, column.UserId);
+            _sortSpecs.Add(spec);
+        }
+
+        RefreshSortOrder();
+        SortSpecsChanged?.Invoke();
+    }
+
+    private bool ToggleSortSpec(UiTableSortSpec spec)
+    {
+        if (spec.Direction == UiTableSortDirection.Ascending)
+        {
+            spec.Direction = UiTableSortDirection.Descending;
+            return false;
+        }
+
+        if (AllowNoSort)
+        {
+            return true;
+        }
+
+        spec.Direction = UiTableSortDirection.Ascending;
+        return false;
+    }
+
+    private void RefreshSortOrder()
+    {
+        for (int i = 0; i < _sortSpecs.Count; i++)
+        {
+            _sortSpecs[i].SortOrder = i;
+            int index = _sortSpecs[i].ColumnIndex;
+            if (index >= 0 && index < Columns.Count)
+            {
+                _sortSpecs[i].ColumnUserId = Columns[index].UserId;
+            }
+        }
+    }
+
+    private void ValidateSortSpecs()
+    {
+        if (_sortSpecs.Count == 0)
+        {
+            return;
+        }
+
+        bool changed = false;
+        for (int i = _sortSpecs.Count - 1; i >= 0; i--)
+        {
+            UiTableSortSpec spec = _sortSpecs[i];
+            if (spec.ColumnIndex < 0 || spec.ColumnIndex >= Columns.Count)
+            {
+                _sortSpecs.RemoveAt(i);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            RefreshSortOrder();
+            SortSpecsChanged?.Invoke();
+        }
+    }
+
+    private UiTableSortSpec? GetSortSpec(int columnIndex)
+    {
+        for (int i = 0; i < _sortSpecs.Count; i++)
+        {
+            if (_sortSpecs[i].ColumnIndex == columnIndex)
+            {
+                return _sortSpecs[i];
+            }
+        }
+
+        return null;
+    }
+
+    private void DrawSortIndicator(UiRenderContext context, UiRect cellRect, UiTableSortSpec spec)
+    {
+        int padding = Math.Max(0, SortIndicatorPadding);
+        int textHeight = context.Renderer.MeasureTextHeight(HeaderTextScale);
+        int size = Math.Min(cellRect.Width, cellRect.Height);
+        size = Math.Min(size, Math.Max(4, textHeight));
+        if (size <= 0)
+        {
+            return;
+        }
+
+        UiRect arrowRect = new UiRect(
+            cellRect.Right - padding - size,
+            cellRect.Y + (cellRect.Height - size) / 2,
+            size,
+            size);
+        UiArrowDirection direction = spec.Direction == UiTableSortDirection.Ascending ? UiArrowDirection.Up : UiArrowDirection.Down;
+        UiArrow.DrawTriangle(context.Renderer, arrowRect, direction, HeaderTextColor);
+    }
+
+    private void DrawAngledHeaderText(IUiRenderer renderer, string text, UiRect cellRect, UiColor color, int scale)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        int safeScale = Math.Max(1, scale);
+        int glyphWidth = (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * safeScale;
+        int glyphHeight = TinyBitmapFont.GlyphHeight * safeScale;
+        int step = AngledHeaderStep > 0 ? AngledHeaderStep : Math.Max(1, glyphWidth / 2);
+
+        int padding = Math.Max(0, CellPadding);
+        int x = cellRect.X + padding;
+        int y = cellRect.Bottom - padding - glyphHeight;
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            char ch = text[i];
+            if (!char.IsWhiteSpace(ch))
+            {
+                if (HeaderTextBold)
+                {
+                    UiRenderHelpers.DrawTextBold(renderer, ch.ToString(), new UiPoint(x, y), color, safeScale);
+                }
+                else
+                {
+                    renderer.DrawText(ch.ToString(), new UiPoint(x, y), color, safeScale);
+                }
+            }
+
+            x += step;
+            y -= step;
+        }
     }
 
     private int GetRowIndexAtPoint(UiPoint point)

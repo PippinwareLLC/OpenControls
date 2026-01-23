@@ -20,6 +20,10 @@ public sealed class UiTabBar : UiElement
     private int _closePressedIndex = -1;
     private bool _scrollLeftHover;
     private bool _scrollRightHover;
+    private UiTabItemButton? _hoverButton;
+    private UiTabItemButton? _pressedButton;
+    private readonly List<UiTabItemButton> _leadingButtons = new();
+    private readonly List<UiTabItemButton> _trailingButtons = new();
 
     public UiColor TabBarColor { get; set; } = new(22, 26, 36);
     public UiColor TabActiveColor { get; set; } = new(45, 52, 70);
@@ -99,11 +103,13 @@ public sealed class UiTabBar : UiElement
         }
 
         List<UiTabItem> tabs = CollectTabs();
-        UpdateTabLayout(tabs);
+        CollectButtons(_leadingButtons, _trailingButtons);
+        UpdateTabLayout(tabs, _leadingButtons, _trailingButtons);
 
         UiInputState input = context.Input;
         _hoverIndex = GetTabIndexAt(input.MousePosition, tabs);
         _closeHoverIndex = GetCloseIndexAt(input.MousePosition, tabs);
+        _hoverButton = GetButtonAt(input.MousePosition, _leadingButtons, _trailingButtons);
         _scrollLeftHover = _tabsOverflow && _scrollLeftBounds.Contains(input.MousePosition);
         _scrollRightHover = _tabsOverflow && _scrollRightBounds.Contains(input.MousePosition);
 
@@ -121,6 +127,13 @@ public sealed class UiTabBar : UiElement
             {
                 ScrollTabs(1);
                 layoutDirty = true;
+            }
+            else if (_hoverButton != null && _hoverButton.Enabled)
+            {
+                _pressedButton = _hoverButton;
+                _pressedIndex = -1;
+                _closePressedIndex = -1;
+                context.Focus.RequestFocus(this);
             }
             else if (_closeHoverIndex >= 0 && IsTabClosable(tabs, _closeHoverIndex))
             {
@@ -150,7 +163,18 @@ public sealed class UiTabBar : UiElement
 
         if (input.LeftReleased)
         {
-            if (_closePressedIndex >= 0)
+            if (_pressedButton != null)
+            {
+                if (_pressedButton == _hoverButton && _pressedButton.Enabled)
+                {
+                    _pressedButton.RaiseClicked();
+                }
+
+                _pressedButton = null;
+                _pressedIndex = -1;
+                _closePressedIndex = -1;
+            }
+            else if (_closePressedIndex >= 0)
             {
                 if (_closePressedIndex == _closeHoverIndex && IsTabClosable(tabs, _closePressedIndex))
                 {
@@ -175,7 +199,8 @@ public sealed class UiTabBar : UiElement
         if (layoutDirty || startingActive != _activeIndex)
         {
             tabs = CollectTabs();
-            UpdateTabLayout(tabs);
+            CollectButtons(_leadingButtons, _trailingButtons);
+            UpdateTabLayout(tabs, _leadingButtons, _trailingButtons);
         }
 
         UiRect content = ContentBounds;
@@ -199,8 +224,14 @@ public sealed class UiTabBar : UiElement
         }
 
         List<UiTabItem> tabs = CollectTabs();
+        CollectButtons(_leadingButtons, _trailingButtons);
         UiRect tabBar = new(Bounds.X, Bounds.Y, Bounds.Width, TabBarHeight);
         context.Renderer.FillRect(tabBar, TabBarColor);
+
+        if (_leadingButtons.Count > 0)
+        {
+            RenderButtons(context, _leadingButtons);
+        }
 
         if (tabs.Count > 0)
         {
@@ -240,6 +271,11 @@ public sealed class UiTabBar : UiElement
             context.Renderer.PopClip();
         }
 
+        if (_trailingButtons.Count > 0)
+        {
+            RenderButtons(context, _trailingButtons);
+        }
+
         if (_tabsOverflow)
         {
             bool canScrollLeft = _scrollOffset > 0;
@@ -274,6 +310,7 @@ public sealed class UiTabBar : UiElement
         _focused = false;
         _pressedIndex = -1;
         _closePressedIndex = -1;
+        _pressedButton = null;
     }
 
     private List<UiTabItem> CollectTabs()
@@ -290,6 +327,27 @@ public sealed class UiTabBar : UiElement
         return tabs;
     }
 
+    private void CollectButtons(List<UiTabItemButton> leading, List<UiTabItemButton> trailing)
+    {
+        leading.Clear();
+        trailing.Clear();
+
+        foreach (UiElement child in Children)
+        {
+            if (child is UiTabItemButton button && button.Visible)
+            {
+                if (button.Placement == UiTabItemButtonPlacement.Trailing)
+                {
+                    trailing.Add(button);
+                }
+                else
+                {
+                    leading.Add(button);
+                }
+            }
+        }
+    }
+
     private int GetTotalTabWidth(List<UiTabItem> tabs, int spacing)
     {
         int total = 0;
@@ -301,6 +359,22 @@ public sealed class UiTabBar : UiElement
             }
 
             total += GetTabWidth(tabs[i]);
+        }
+
+        return total;
+    }
+
+    private int GetTotalButtonWidth(List<UiTabItemButton> buttons, int spacing)
+    {
+        int total = 0;
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            if (i > 0)
+            {
+                total += spacing;
+            }
+
+            total += GetButtonWidth(buttons[i]);
         }
 
         return total;
@@ -324,6 +398,31 @@ public sealed class UiTabBar : UiElement
             }
 
             x += width + spacing;
+        }
+    }
+
+    private void LayoutLeadingButtons(List<UiTabItemButton> buttons, int startX, int tabHeight, int spacing)
+    {
+        int x = startX;
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            UiTabItemButton button = buttons[i];
+            int width = GetButtonWidth(button);
+            button.TabBounds = new UiRect(x, Bounds.Y, width, tabHeight);
+            x += width + spacing;
+        }
+    }
+
+    private void LayoutTrailingButtons(List<UiTabItemButton> buttons, int startRight, int tabHeight, int spacing)
+    {
+        int x = startRight;
+        for (int i = buttons.Count - 1; i >= 0; i--)
+        {
+            UiTabItemButton button = buttons[i];
+            int width = GetButtonWidth(button);
+            x -= width;
+            button.TabBounds = new UiRect(x, Bounds.Y, width, tabHeight);
+            x -= spacing;
         }
     }
 
@@ -461,44 +560,108 @@ public sealed class UiTabBar : UiElement
         UiArrow.DrawTriangle(context.Renderer, arrowBounds, direction, arrowColor);
     }
 
-    private void UpdateTabLayout(List<UiTabItem> tabs)
+    private void RenderButtons(UiRenderContext context, List<UiTabItemButton> buttons)
     {
-        if (tabs.Count == 0)
+        if (buttons.Count == 0)
+        {
+            return;
+        }
+
+        int textHeight = context.Renderer.MeasureTextHeight(TabTextScale);
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            UiTabItemButton button = buttons[i];
+            UiRect rect = button.TabBounds;
+            bool hovered = button == _hoverButton;
+            bool pressed = button == _pressedButton;
+            UiColor fill = button.Enabled
+                ? (pressed ? TabActiveColor : (hovered ? TabHoverColor : TabBarColor))
+                : TabBarColor;
+            UiColor textColor = button.Enabled
+                ? (pressed ? TabActiveTextColor : TabTextColor)
+                : TabBorderColor;
+
+            context.Renderer.FillRect(rect, fill);
+            context.Renderer.DrawRect(rect, TabBorderColor, 1);
+
+            int textX = rect.X + Math.Max(0, TabPadding);
+            int textY = rect.Y + (rect.Height - textHeight) / 2;
+            if (TabTextBold)
+            {
+                UiRenderHelpers.DrawTextBold(context.Renderer, button.Text, new UiPoint(textX, textY), textColor, TabTextScale);
+            }
+            else
+            {
+                context.Renderer.DrawText(button.Text, new UiPoint(textX, textY), textColor, TabTextScale);
+            }
+        }
+    }
+
+    private void UpdateTabLayout(
+        List<UiTabItem> tabs,
+        List<UiTabItemButton> leadingButtons,
+        List<UiTabItemButton> trailingButtons)
+    {
+        if (tabs.Count == 0 && leadingButtons.Count == 0 && trailingButtons.Count == 0)
         {
             _activeIndex = -1;
             _scrollOffset = 0;
             _maxScroll = 0;
             _tabsOverflow = false;
             _tabAreaBounds = new UiRect(Bounds.X, Bounds.Y, Bounds.Width, Math.Max(0, TabBarHeight));
+            _scrollLeftBounds = default;
+            _scrollRightBounds = default;
             return;
         }
 
-        if (_activeIndex < 0 || _activeIndex >= tabs.Count)
+        if (tabs.Count == 0)
+        {
+            _activeIndex = -1;
+        }
+        else if (_activeIndex < 0 || _activeIndex >= tabs.Count)
         {
             SetActiveIndex(0, tabs);
         }
 
         int tabHeight = Math.Max(0, TabBarHeight);
         int spacing = Math.Max(0, TabSpacing);
+        int leadingWidth = GetTotalButtonWidth(leadingButtons, spacing);
+        int trailingWidth = GetTotalButtonWidth(trailingButtons, spacing);
+        int leadingGap = leadingButtons.Count > 0 && tabs.Count > 0 ? spacing : 0;
+        int trailingGap = trailingButtons.Count > 0 && tabs.Count > 0 ? spacing : 0;
+        int reserved = leadingWidth + trailingWidth + leadingGap + trailingGap;
+        int availableWidth = Math.Max(0, Bounds.Width - reserved);
+
         int totalWidth = GetTotalTabWidth(tabs, spacing);
-        _tabsOverflow = totalWidth > Bounds.Width;
+        _tabsOverflow = tabs.Count > 0 && totalWidth > availableWidth;
 
         int scrollButtonWidth = _tabsOverflow ? Math.Max(0, ScrollButtonWidth) : 0;
         if (_tabsOverflow)
         {
-            scrollButtonWidth = Math.Min(scrollButtonWidth, Math.Max(0, Bounds.Width / 2));
+            scrollButtonWidth = Math.Min(scrollButtonWidth, Math.Max(0, availableWidth / 2));
         }
 
-        int tabAreaWidth = Math.Max(0, Bounds.Width - scrollButtonWidth * 2);
-        _tabAreaBounds = new UiRect(Bounds.X + scrollButtonWidth, Bounds.Y, tabAreaWidth, tabHeight);
-        _scrollLeftBounds = new UiRect(Bounds.X, Bounds.Y, scrollButtonWidth, tabHeight);
-        _scrollRightBounds = new UiRect(Bounds.Right - scrollButtonWidth, Bounds.Y, scrollButtonWidth, tabHeight);
+        int tabAreaWidth = Math.Max(0, availableWidth - scrollButtonWidth * 2);
+        int tabAreaX = Bounds.X + leadingWidth + leadingGap + scrollButtonWidth;
+        _tabAreaBounds = new UiRect(tabAreaX, Bounds.Y, tabAreaWidth, tabHeight);
+        _scrollLeftBounds = new UiRect(Bounds.X + leadingWidth + leadingGap, Bounds.Y, scrollButtonWidth, tabHeight);
+        _scrollRightBounds = new UiRect(_tabAreaBounds.Right, Bounds.Y, scrollButtonWidth, tabHeight);
 
         _maxScroll = Math.Max(0, totalWidth - tabAreaWidth);
         _scrollOffset = Math.Clamp(_scrollOffset, 0, _maxScroll);
 
         int closeAreaWidth = GetCloseAreaWidth();
         LayoutTabs(tabs, _tabAreaBounds.X - _scrollOffset, tabHeight, spacing, closeAreaWidth);
+
+        if (leadingButtons.Count > 0)
+        {
+            LayoutLeadingButtons(leadingButtons, Bounds.X, tabHeight, spacing);
+        }
+
+        if (trailingButtons.Count > 0)
+        {
+            LayoutTrailingButtons(trailingButtons, Bounds.Right, tabHeight, spacing);
+        }
 
         if (_tabsOverflow && _activeIndex >= 0 && _activeIndex < tabs.Count)
         {
@@ -530,6 +693,27 @@ public sealed class UiTabBar : UiElement
         }
 
         return -1;
+    }
+
+    private UiTabItemButton? GetButtonAt(UiPoint point, List<UiTabItemButton> leading, List<UiTabItemButton> trailing)
+    {
+        for (int i = 0; i < leading.Count; i++)
+        {
+            if (leading[i].TabBounds.Contains(point))
+            {
+                return leading[i];
+            }
+        }
+
+        for (int i = 0; i < trailing.Count; i++)
+        {
+            if (trailing[i].TabBounds.Contains(point))
+            {
+                return trailing[i];
+            }
+        }
+
+        return null;
     }
 
     private void SetActiveIndex(int index, List<UiTabItem>? tabs = null)
@@ -572,6 +756,33 @@ public sealed class UiTabBar : UiElement
     private bool IsTabEnabled(List<UiTabItem> tabs, int index)
     {
         return index >= 0 && index < tabs.Count && tabs[index].Enabled;
+    }
+
+    private int GetButtonWidth(UiTabItemButton button)
+    {
+        int width = Math.Max(0, button.Width);
+        if (button.AutoSize)
+        {
+            int textWidth = MeasureTextWidth(button.Text, TabTextScale);
+            if (TabTextBold && textWidth > 0)
+            {
+                textWidth += 1;
+            }
+            int padding = Math.Max(0, TabPadding);
+            width = textWidth + padding * 2;
+            if (button.Width > 0)
+            {
+                width = Math.Max(width, button.Width);
+            }
+        }
+
+        int maxWidth = button.MaxWidth > 0 ? button.MaxWidth : TabMaxWidth;
+        if (maxWidth > 0)
+        {
+            width = Math.Min(width, maxWidth);
+        }
+
+        return Math.Max(0, width);
     }
 
     private int GetTabWidth(UiTabItem tab)

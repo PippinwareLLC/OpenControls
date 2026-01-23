@@ -11,6 +11,7 @@ public sealed class UiContext
 
     public UiElement Root { get; }
     public UiFocusManager Focus { get; } = new();
+    public UiDragDropContext DragDrop { get; } = new();
 
     public void Update(UiInputState input, float deltaSeconds = 0f)
     {
@@ -26,7 +27,9 @@ public sealed class UiContext
             Focus.ClearFocus();
         }
 
-        Root.Update(new UiUpdateContext(effectiveInput, Focus, deltaSeconds));
+        DragDrop.BeginFrame(effectiveInput);
+        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds));
+        DragDrop.EndFrame();
     }
 
     private bool IsTabHandled()

@@ -21,6 +21,17 @@ public sealed class ExamplesUi
         "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB",
         "CAN", "EM", "SUB", "ESC", "FS", "GS", "RS", "US"
     };
+    private static readonly string[] CompletionHints =
+    {
+        "help",
+        "hello",
+        "helium",
+        "heap",
+        "load",
+        "log",
+        "layout",
+        "license"
+    };
     private static readonly string SampleEditorText =
 @"namespace OpenControls;
 
@@ -114,6 +125,20 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiTreeNode? _widgetsTooltipTree;
     private UiTreeNode? _widgetsPopupTree;
     private UiTreeNode? _widgetsTreeHeaderTree;
+    private UiTreeNode? _widgetsConfigTree;
+    private UiTreeNode? _widgetsMenuTree;
+    private UiTreeNode? _widgetsTextTree;
+    private UiTreeNode? _widgetsTextFilterTree;
+    private UiTreeNode? _widgetsTextInputTree;
+    private UiTreeNode? _widgetsBulletsTree;
+    private UiTreeNode? _widgetsImagesTree;
+    private UiTreeNode? _widgetsMultiComponentTree;
+    private UiTreeNode? _widgetsDisableTree;
+    private UiTreeNode? _widgetsDragDropTree;
+    private UiTreeNode? _widgetsStatusTree;
+    private UiTreeNode? _widgetsInputFocusTree;
+    private UiTreeNode? _widgetsToolsTree;
+    private UiTreeNode? _widgetsExamplesTree;
     private UiCheckbox? _snapCheckbox;
     private UiCheckbox? _gizmoCheckbox;
     private UiSeparator? _widgetsSeparator;
@@ -125,6 +150,19 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiInvisibleButton? _invisibleButton;
     private UiLabel? _invisibleButtonStatus;
     private int _invisibleButtonClicks;
+    private UiLabel? _basicButtonsLabel;
+    private UiButton? _basicPrimaryButton;
+    private UiButton? _basicDangerButton;
+    private UiButton? _basicRepeatButton;
+    private UiLabel? _basicRepeatStatusLabel;
+    private int _basicRepeatTicks;
+    private float _basicRepeatAccumulator;
+    private UiLabel? _basicInputLabel;
+    private UiTextField? _basicInputText;
+    private UiLabel? _basicInputIntLabel;
+    private UiInputInt? _basicInputInt;
+    private UiLabel? _basicInputFloatLabel;
+    private UiInputFloat? _basicInputFloat;
     private UiSlider? _volumeSlider;
     private UiProgressBar? _volumeProgress;
     private UiLabel? _verticalProgressLabel;
@@ -136,6 +174,15 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiLabel? _angleSliderLabel;
     private UiSliderAngle? _angleSlider;
     private UiLabel? _angleSliderValueLabel;
+    private UiLabel? _verticalSliderLabel;
+    private UiVSlider? _verticalSlider;
+    private UiLabel? _verticalSliderValueLabel;
+    private UiLabel? _sliderFlagsLabel;
+    private UiCheckbox? _sliderWholeNumbersCheckbox;
+    private UiCheckbox? _sliderStepCheckbox;
+    private UiLabel? _enumSliderLabel;
+    private UiSlider? _enumSlider;
+    private UiLabel? _enumSliderValueLabel;
     private UiLabel? _roundingLabel;
     private UiSlider? _roundingSlider;
     private UiLabel? _roundingPreviewLabel;
@@ -226,6 +273,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiLabel? _tabOverviewLabel;
     private UiLabel? _tabDetailsLabel;
     private UiLabel? _tabSettingsLabel;
+    private UiTabItemButton? _tabLeadingButton;
+    private UiTabItemButton? _tabTrailingButton;
+    private UiLabel? _tabButtonStatusLabel;
     private UiLabel? _canvasLabel;
     private UiCanvas? _canvas;
     private UiButton? _canvasNodeA;
@@ -242,6 +292,14 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private int _splitterHorizontalTopHeight = 50;
     private UiScrollPanel? _scrollPanel;
     private readonly List<UiLabel> _scrollPanelItems = new();
+    private UiLabel? _layoutHorizontalLabel;
+    private UiButton? _layoutButtonLeft;
+    private UiButton? _layoutButtonCenter;
+    private UiButton? _layoutButtonRight;
+    private UiLabel? _layoutDummyLabel;
+    private UiPanel? _layoutDummyPanel;
+    private UiLabel? _layoutWrapLabel;
+    private UiTextBlock? _layoutWrapBlock;
     private UiButton? _popupButton;
     private UiButton? _modalButton;
     private UiLabel? _menuPopupLabel;
@@ -264,6 +322,118 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private readonly List<UiLabel> _treeNodeItems = new();
     private UiCollapsingHeader? _collapsingHeader;
     private readonly List<UiLabel> _collapsingItems = new();
+    private UiLabel? _configHelpLabel;
+    private UiTextBlock? _configHelpText;
+    private UiLabel? _configBackendLabel;
+    private UiCheckbox? _configDockingCheckbox;
+    private UiCheckbox? _configViewportCheckbox;
+    private UiLabel? _configStyleLabel;
+    private UiCheckbox? _configLargeFontCheckbox;
+    private UiLabel? _configCaptureLabel;
+    private UiCheckbox? _configCaptureKeyboardCheckbox;
+    private UiCheckbox? _configCaptureMouseCheckbox;
+    private UiLabel? _windowOptionsLabel;
+    private UiCheckbox? _windowAllowResizeCheckbox;
+    private UiCheckbox? _windowShowTitleCheckbox;
+    private UiCheckbox? _windowAllowDragCheckbox;
+    private UiCheckbox? _windowShowGripCheckbox;
+    private UiMenuBar? _demoMenuBar;
+    private UiLabel? _demoMenuStatusLabel;
+    private UiLabel? _textHeaderLabel;
+    private UiLabel? _textColoredLabel;
+    private UiLabel? _textColoredSample;
+    private UiLabel? _textFontSizeLabel;
+    private UiLabel? _textFontSizeSmall;
+    private UiLabel? _textFontSizeLarge;
+    private UiTextBlock? _textWrappedBlock;
+    private UiLabel? _textUtf8Label;
+    private UiTextLink? _textLink;
+    private UiLabel? _textFilterLabel;
+    private UiTextField? _textFilterField;
+    private UiListBox? _textFilterList;
+    private UiLabel? _textFilterStatusLabel;
+    private readonly List<string> _textFilterItems = new();
+    private readonly List<string> _textFilterFilteredItems = new();
+    private string _lastTextFilter = string.Empty;
+    private UiLabel? _textInputLabel;
+    private UiTextEditor? _multiLineInput;
+    private UiLabel? _filteredInputLabel;
+    private UiTextField? _filteredInputField;
+    private UiLabel? _passwordInputLabel;
+    private UiTextField? _passwordField;
+    private UiLabel? _passwordMaskLabel;
+    private UiLabel? _passwordHintLabel;
+    private UiLabel? _completionInputLabel;
+    private UiTextField? _completionField;
+    private UiLabel? _completionHintLabel;
+    private UiLabel? _completionHistoryLabel;
+    private readonly List<string> _completionHistory = new();
+    private UiLabel? _resizeInputLabel;
+    private UiTextField? _resizeInputField;
+    private UiLabel? _elidingInputLabel;
+    private UiTextField? _elidingInputField;
+    private UiLabel? _elidingResultLabel;
+    private UiLabel? _miscInputLabel;
+    private UiTextField? _miscInputField;
+    private UiLabel? _bulletsLabel;
+    private readonly List<UiBulletText> _bulletItems = new();
+    private UiLabel? _imagesLabel;
+    private UiImage? _imagePreview;
+    private UiImageButton? _imageButton;
+    private UiLabel? _imageButtonStatus;
+    private int _imageButtonClicks;
+    private UiLabel? _multiComponentLabel;
+    private UiInputFloat2? _inputFloat2;
+    private UiInputFloat3? _inputFloat3;
+    private UiInputFloat4? _inputFloat4;
+    private UiInputInt2? _inputInt2;
+    private UiInputInt3? _inputInt3;
+    private UiInputInt4? _inputInt4;
+    private UiSliderFloat2? _sliderFloat2;
+    private UiSliderFloat3? _sliderFloat3;
+    private UiSliderFloat4? _sliderFloat4;
+    private UiSliderInt2? _sliderInt2;
+    private UiSliderInt3? _sliderInt3;
+    private UiSliderInt4? _sliderInt4;
+    private UiLabel? _multiComponentStatusLabel;
+    private UiLabel? _disableLabel;
+    private UiCheckbox? _disableToggle;
+    private UiDisabledGroup? _disabledGroup;
+    private UiButton? _disabledButton;
+    private UiSlider? _disabledSlider;
+    private UiTextField? _disabledField;
+    private UiLabel? _dragDropLabel;
+    private UiDragDropSource? _dragDropSource;
+    private UiDragDropTarget? _dragDropTarget;
+    private UiPanel? _dragDropSourcePanel;
+    private UiPanel? _dragDropTargetPanel;
+    private UiLabel? _dragDropSourceLabel;
+    private UiLabel? _dragDropTargetLabel;
+    private UiLabel? _dragDropStatusLabel;
+    private UiTooltip? _dragDropTooltip;
+    private UiTooltipRegion? _dragDropTooltipRegion;
+    private readonly List<string> _dragDropItems = new();
+    private readonly List<UiDragDropSource> _dragDropItemSources = new();
+    private readonly List<UiDragDropTarget> _dragDropItemTargets = new();
+    private readonly List<UiPanel> _dragDropItemPanels = new();
+    private readonly List<UiLabel> _dragDropItemLabels = new();
+    private UiLabel? _itemStatusLabel;
+    private UiLabel? _windowStatusLabel;
+    private UiLabel? _focusStatusLabel;
+    private UiPoint _lastMousePosition;
+    private UiLabel? _inputInfoLabel;
+    private UiLabel? _shortcutLabel;
+    private UiTextField? _focusInputField;
+    private UiButton? _focusButton;
+    private UiLabel? _focusResultLabel;
+    private string _lastShortcutText = "none";
+    private UiLabel? _toolsLabel;
+    private UiTextLink? _toolsLink;
+    private UiButton? _aboutButton;
+    private UiButton? _themeDarkButton;
+    private UiButton? _themeLightButton;
+    private UiLabel? _examplesLabel;
+    private UiLabel? _examplesHintLabel;
 
     private UiMenuBar.MenuItem? _examplesMenuAllItem;
     private UiMenuBar.MenuItem? _examplesMenuBasicsItem;
@@ -298,6 +468,13 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         "Courtyard",
         "Library",
         "Catacombs"
+    };
+    private readonly List<string> _enumSliderItems = new()
+    {
+        "Default",
+        "Fast",
+        "Accurate",
+        "Ultra"
     };
 
     private enum ExamplePanel
@@ -336,6 +513,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             return;
         }
 
+        _lastMousePosition = input.MousePosition;
+
         if (saveRequested)
         {
             SaveUiState();
@@ -351,6 +530,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         UpdateWindowContent();
         UpdateStatusLabel();
         UpdateWidgetPanel();
+        UpdateInputPanels(input, deltaSeconds);
     }
 
     public void Render()
@@ -505,6 +685,92 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _invisibleButton.Clicked += () => _invisibleButtonClicks++;
         _invisibleButtonPanel.AddChild(_invisibleButton);
 
+        _basicButtonsLabel = new UiLabel
+        {
+            Text = "Buttons",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _basicPrimaryButton = new UiButton
+        {
+            Text = "Primary",
+            TextScale = FontScale
+        };
+
+        _basicDangerButton = new UiButton
+        {
+            Text = "Danger",
+            TextScale = FontScale,
+            Background = new UiColor(120, 60, 70),
+            HoverBackground = new UiColor(150, 80, 90),
+            PressedBackground = new UiColor(100, 50, 60),
+            Border = new UiColor(170, 90, 100)
+        };
+
+        _basicRepeatButton = new UiButton
+        {
+            Text = "Repeat (hold)",
+            TextScale = FontScale
+        };
+        _basicRepeatButton.Clicked += () => _basicRepeatTicks++;
+
+        _basicRepeatStatusLabel = new UiLabel
+        {
+            Text = "Repeats: 0",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _basicInputLabel = new UiLabel
+        {
+            Text = "Input Text",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _basicInputText = new UiTextField
+        {
+            TextScale = FontScale,
+            MaxLength = 48,
+            Placeholder = "Type here",
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _basicInputIntLabel = new UiLabel
+        {
+            Text = "Input Int",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _basicInputInt = new UiInputInt
+        {
+            Value = 42,
+            Min = 0,
+            Max = 100,
+            Clamp = true,
+            TextScale = FontScale
+        };
+
+        _basicInputFloatLabel = new UiLabel
+        {
+            Text = "Input Float",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _basicInputFloat = new UiInputFloat
+        {
+            Value = 0.5f,
+            Min = 0,
+            Max = 1,
+            Clamp = true,
+            TextScale = FontScale
+        };
+
         _volumeSlider = new UiSlider
         {
             Min = 0f,
@@ -609,6 +875,75 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _angleSliderValueLabel = new UiLabel
         {
             Text = "Angle: 0 deg (0.00 rad)",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _verticalSliderLabel = new UiLabel
+        {
+            Text = "Vertical Slider",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _verticalSlider = new UiVSlider
+        {
+            Min = 0f,
+            Max = 1f,
+            Value = 0.35f,
+            TextScale = FontScale,
+            ShowValue = false
+        };
+
+        _verticalSliderValueLabel = new UiLabel
+        {
+            Text = "Vertical: 35%",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _sliderFlagsLabel = new UiLabel
+        {
+            Text = "Slider Flags",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _sliderWholeNumbersCheckbox = new UiCheckbox
+        {
+            Text = "Whole Numbers",
+            TextScale = FontScale
+        };
+        _sliderWholeNumbersCheckbox.CheckedChanged += _ => UpdateSliderFlags();
+
+        _sliderStepCheckbox = new UiCheckbox
+        {
+            Text = "Snap to 0.1",
+            TextScale = FontScale
+        };
+        _sliderStepCheckbox.CheckedChanged += _ => UpdateSliderFlags();
+        UpdateSliderFlags();
+
+        _enumSliderLabel = new UiLabel
+        {
+            Text = "Enum Slider",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _enumSlider = new UiSlider
+        {
+            Min = 0,
+            Max = Math.Max(0, _enumSliderItems.Count - 1),
+            Value = 1,
+            WholeNumbers = true,
+            TextScale = FontScale,
+            ShowValue = true
+        };
+
+        _enumSliderValueLabel = new UiLabel
+        {
+            Text = "Enum: Fast",
             Color = new UiColor(200, 210, 230),
             Scale = FontScale
         };
@@ -1327,10 +1662,36 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Scale = FontScale
         };
 
+        _tabLeadingButton = new UiTabItemButton
+        {
+            Text = "+",
+            Placement = UiTabItemButtonPlacement.Leading,
+            AutoSize = true
+        };
+
+        _tabTrailingButton = new UiTabItemButton
+        {
+            Text = "...",
+            Placement = UiTabItemButtonPlacement.Trailing,
+            AutoSize = true
+        };
+
+        _tabButtonStatusLabel = new UiLabel
+        {
+            Text = "Tab buttons: idle",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _tabLeadingButton.Clicked += _ => _tabButtonStatusLabel.Text = "Tab buttons: add";
+        _tabTrailingButton.Clicked += _ => _tabButtonStatusLabel.Text = "Tab buttons: menu";
+
         _tabOverview.AddChild(_tabOverviewLabel);
         _tabDetails.AddChild(_tabDetailsLabel);
         _tabSettings.AddChild(_tabSettingsLabel);
 
+        _tabBar.AddChild(_tabLeadingButton);
+        _tabBar.AddChild(_tabTrailingButton);
         _tabBar.AddChild(_tabOverview);
         _tabBar.AddChild(_tabDetails);
         _tabBar.AddChild(_tabSettings);
@@ -1410,6 +1771,61 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             };
             _scrollPanelItems.Add(item);
         }
+
+        _layoutHorizontalLabel = new UiLabel
+        {
+            Text = "Basic Horizontal Layout",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _layoutButtonLeft = new UiButton
+        {
+            Text = "Left",
+            TextScale = FontScale
+        };
+
+        _layoutButtonCenter = new UiButton
+        {
+            Text = "Center",
+            TextScale = FontScale
+        };
+
+        _layoutButtonRight = new UiButton
+        {
+            Text = "Right",
+            TextScale = FontScale
+        };
+
+        _layoutDummyLabel = new UiLabel
+        {
+            Text = "Dummy Spacer",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _layoutDummyPanel = new UiPanel
+        {
+            Background = new UiColor(24, 28, 38),
+            Border = new UiColor(70, 80, 100)
+        };
+
+        _layoutWrapLabel = new UiLabel
+        {
+            Text = "Manual Wrapping",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _layoutWrapBlock = new UiTextBlock
+        {
+            Text = "Wrap this line manually by constraining the width. The block should break across multiple lines.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2
+        };
 
         _popupButton = new UiButton
         {
@@ -1659,6 +2075,869 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _collapsingItems.Add(label);
         }
 
+        _configHelpLabel = new UiLabel
+        {
+            Text = "Help",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _configHelpText = new UiTextBlock
+        {
+            Text = "Use Tab to move focus, Enter/Space to activate, and drag window title bars to move.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2
+        };
+
+        _configBackendLabel = new UiLabel
+        {
+            Text = "Configuration / Backend Flags",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _configDockingCheckbox = new UiCheckbox
+        {
+            Text = "Enable Docking (simulated)",
+            TextScale = FontScale,
+            Checked = true
+        };
+
+        _configViewportCheckbox = new UiCheckbox
+        {
+            Text = "Enable Multi-Viewport (simulated)",
+            TextScale = FontScale
+        };
+
+        _configStyleLabel = new UiLabel
+        {
+            Text = "Configuration / Style & Fonts",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _configLargeFontCheckbox = new UiCheckbox
+        {
+            Text = "Large help text",
+            TextScale = FontScale
+        };
+
+        _configCaptureLabel = new UiLabel
+        {
+            Text = "Configuration / Capture & Logging",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _configCaptureKeyboardCheckbox = new UiCheckbox
+        {
+            Text = "Capture Keyboard",
+            TextScale = FontScale,
+            Checked = true
+        };
+
+        _configCaptureMouseCheckbox = new UiCheckbox
+        {
+            Text = "Capture Mouse",
+            TextScale = FontScale,
+            Checked = true
+        };
+
+        _windowOptionsLabel = new UiLabel
+        {
+            Text = "Window options",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _windowAllowResizeCheckbox = new UiCheckbox
+        {
+            Text = "Allow Resize",
+            TextScale = FontScale,
+            Checked = true
+        };
+
+        _windowShowTitleCheckbox = new UiCheckbox
+        {
+            Text = "Show Title Bar",
+            TextScale = FontScale,
+            Checked = true
+        };
+
+        _windowAllowDragCheckbox = new UiCheckbox
+        {
+            Text = "Allow Drag",
+            TextScale = FontScale,
+            Checked = true
+        };
+
+        _windowShowGripCheckbox = new UiCheckbox
+        {
+            Text = "Show Resize Grip",
+            TextScale = FontScale,
+            Checked = true
+        };
+
+        _demoMenuStatusLabel = new UiLabel
+        {
+            Text = "Menu: Ready",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _demoMenuBar = new UiMenuBar
+        {
+            TextScale = FontScale,
+            BarHeight = 24,
+            MeasureTextWidth = (text, scale) => _renderer?.MeasureTextWidth(text, scale) ?? text.Length * 6 * scale,
+            MeasureTextHeight = scale => _renderer?.MeasureTextHeight(scale) ?? 7 * scale
+        };
+
+        void DemoMenuStatus(UiMenuBar.MenuItem item)
+        {
+            if (_demoMenuStatusLabel != null)
+            {
+                _demoMenuStatusLabel.Text = $"Menu: {item.Text}";
+            }
+        }
+
+        UiMenuBar.MenuItem demoFileMenu = new() { Text = "File" };
+        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "New", Clicked = DemoMenuStatus });
+        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Open", Clicked = DemoMenuStatus });
+        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Save", Clicked = DemoMenuStatus });
+        demoFileMenu.Items.Add(UiMenuBar.MenuItem.Separator());
+        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Close", Clicked = DemoMenuStatus });
+
+        UiMenuBar.MenuItem demoEditMenu = new() { Text = "Edit" };
+        demoEditMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Undo", Shortcut = "Ctrl+Z", Clicked = DemoMenuStatus });
+        demoEditMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Redo", Shortcut = "Ctrl+Y", Clicked = DemoMenuStatus });
+        demoEditMenu.Items.Add(UiMenuBar.MenuItem.Separator());
+        demoEditMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Copy", Shortcut = "Ctrl+C", Clicked = DemoMenuStatus });
+        demoEditMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Paste", Shortcut = "Ctrl+V", Clicked = DemoMenuStatus });
+
+        UiMenuBar.MenuItem demoViewMenu = new() { Text = "View" };
+        UiMenuBar.MenuItem demoGridToggle = new() { Text = "Show Grid", IsCheckable = true, Checked = true };
+        demoGridToggle.Clicked = DemoMenuStatus;
+        demoViewMenu.Items.Add(demoGridToggle);
+
+        _demoMenuBar.Items.Add(demoFileMenu);
+        _demoMenuBar.Items.Add(demoEditMenu);
+        _demoMenuBar.Items.Add(demoViewMenu);
+
+        _textHeaderLabel = new UiLabel
+        {
+            Text = "Text Samples",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _textColoredLabel = new UiLabel
+        {
+            Text = "Colored Text",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _textColoredSample = new UiLabel
+        {
+            Text = "Success: build completed",
+            Color = new UiColor(120, 200, 120),
+            Scale = FontScale
+        };
+
+        _textFontSizeLabel = new UiLabel
+        {
+            Text = "Font Size",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _textFontSizeSmall = new UiLabel
+        {
+            Text = "Scale 1",
+            Color = new UiColor(180, 190, 210),
+            Scale = 1
+        };
+
+        _textFontSizeLarge = new UiLabel
+        {
+            Text = "Scale 3",
+            Color = new UiColor(220, 230, 240),
+            Scale = 3
+        };
+
+        _textWrappedBlock = new UiTextBlock
+        {
+            Text = "Wrapping text demo: OpenControls keeps layout explicit, but long strings can still wrap inside text blocks with custom padding and line spacing.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2
+        };
+
+        _textUtf8Label = new UiLabel
+        {
+            Text = "UTF-8: caf\u00E9, na\u00EFve, \u6771\u4EAC",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _textLink = new UiTextLink
+        {
+            Text = "OpenControls manual",
+            Url = "https://github.com/PippinwareLLC/OpenControls/blob/main/README.MD",
+            OpenUrlOnClick = true,
+            TextScale = FontScale
+        };
+
+        _textFilterLabel = new UiLabel
+        {
+            Text = "Text Filter",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _textFilterField = new UiTextField
+        {
+            TextScale = FontScale,
+            Placeholder = "Filter list",
+            MaxLength = 48,
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _textFilterList = new UiListBox
+        {
+            Items = _textFilterFilteredItems,
+            TextScale = FontScale,
+            AllowDeselect = true
+        };
+
+        _textFilterStatusLabel = new UiLabel
+        {
+            Text = "Filter: All",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _textFilterItems.AddRange(new[]
+        {
+            "Engine/Renderer",
+            "Engine/Input",
+            "Gameplay/Camera",
+            "Gameplay/Inventory",
+            "UI/HUD",
+            "UI/Menu",
+            "Audio/Mixer",
+            "Tools/Console",
+            "Tools/Profiler",
+            "World/Lighting"
+        });
+
+        _textInputLabel = new UiLabel
+        {
+            Text = "Text Input",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _multiLineInput = new UiTextEditor
+        {
+            TextScale = FontScale,
+            ShowLineNumbers = true,
+            SyntaxMode = UiTextEditorSyntaxMode.CSharp
+        };
+        _multiLineInput.SetText("Line 1: multi-line input\nLine 2: supports scrolling\nLine 3: editable text");
+
+        _filteredInputLabel = new UiLabel
+        {
+            Text = "Filtered Input (digits only)",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _filteredInputField = new UiTextField
+        {
+            TextScale = FontScale,
+            Placeholder = "1234",
+            MaxLength = 8,
+            CharacterFilter = char.IsDigit,
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _passwordInputLabel = new UiLabel
+        {
+            Text = "Password Input (masked)",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _passwordField = new UiTextField
+        {
+            TextScale = FontScale,
+            Placeholder = "Enter password",
+            MaxLength = 24,
+            TextColor = UiColor.Transparent,
+            CaretColor = UiColor.White,
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _passwordMaskLabel = new UiLabel
+        {
+            Text = string.Empty,
+            Color = new UiColor(220, 220, 230),
+            Scale = FontScale
+        };
+
+        _passwordHintLabel = new UiLabel
+        {
+            Text = "Mask overlay is shown above the input field.",
+            Color = new UiColor(160, 170, 190),
+            Scale = FontScale
+        };
+
+        _completionInputLabel = new UiLabel
+        {
+            Text = "Completion + History",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _completionField = new UiTextField
+        {
+            TextScale = FontScale,
+            Placeholder = "Type 'he' or 'lo'",
+            MaxLength = 32,
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _completionHintLabel = new UiLabel
+        {
+            Text = "Suggestions: (none)",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _completionHistoryLabel = new UiLabel
+        {
+            Text = "History: (empty)",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale
+        };
+
+        _resizeInputLabel = new UiLabel
+        {
+            Text = "Resize Callback (auto width)",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _resizeInputField = new UiTextField
+        {
+            Text = "Auto width",
+            TextScale = FontScale,
+            MaxLength = 48,
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _elidingInputLabel = new UiLabel
+        {
+            Text = "Eliding + Alignment",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _elidingInputField = new UiTextField
+        {
+            Text = "This text is intentionally too long for its field.",
+            TextScale = FontScale,
+            MaxLength = 80,
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _elidingResultLabel = new UiLabel
+        {
+            Text = string.Empty,
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _miscInputLabel = new UiLabel
+        {
+            Text = "Miscellaneous",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _miscInputField = new UiTextField
+        {
+            TextScale = FontScale,
+            Placeholder = "Hinted input field",
+            MaxLength = 40,
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _bulletsLabel = new UiLabel
+        {
+            Text = "Bullets",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        string[] bulletTexts =
+        {
+            "Bullet list entry one",
+            "Bullet list entry two",
+            "Bullet list entry three"
+        };
+        foreach (string bulletText in bulletTexts)
+        {
+            UiBulletText bullet = new UiBulletText
+            {
+                Text = bulletText,
+                TextColor = new UiColor(200, 210, 230),
+                BulletColor = new UiColor(120, 180, 220),
+                TextScale = FontScale
+            };
+            _bulletItems.Add(bullet);
+        }
+
+        _imagesLabel = new UiLabel
+        {
+            Text = "Images",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _imagePreview = new UiImage
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            ShowCheckerboard = true,
+            CheckerSize = 6,
+            CornerRadius = 4
+        };
+
+        _imageButton = new UiImageButton
+        {
+            ShowCheckerboard = true,
+            CornerRadius = 4
+        };
+        _imageButton.Clicked += () => _imageButtonClicks++;
+
+        _imageButtonStatus = new UiLabel
+        {
+            Text = "Image button: 0 clicks",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _multiComponentLabel = new UiLabel
+        {
+            Text = "Multi-component Widgets",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _inputFloat2 = new UiInputFloat2 { FieldTextScale = FontScale };
+        _inputFloat2.ValueX = 0.1f;
+        _inputFloat2.ValueY = 0.8f;
+
+        _inputFloat3 = new UiInputFloat3 { FieldTextScale = FontScale };
+        _inputFloat3.ValueX = 0.2f;
+        _inputFloat3.ValueY = 0.3f;
+        _inputFloat3.ValueZ = 0.4f;
+
+        _inputFloat4 = new UiInputFloat4 { FieldTextScale = FontScale };
+        _inputFloat4.ValueX = 0.1f;
+        _inputFloat4.ValueY = 0.2f;
+        _inputFloat4.ValueZ = 0.3f;
+        _inputFloat4.ValueW = 0.4f;
+
+        _inputInt2 = new UiInputInt2 { FieldTextScale = FontScale };
+        _inputInt2.ValueX = 2;
+        _inputInt2.ValueY = 5;
+
+        _inputInt3 = new UiInputInt3 { FieldTextScale = FontScale };
+        _inputInt3.ValueX = 1;
+        _inputInt3.ValueY = 2;
+        _inputInt3.ValueZ = 3;
+
+        _inputInt4 = new UiInputInt4 { FieldTextScale = FontScale };
+        _inputInt4.ValueX = 1;
+        _inputInt4.ValueY = 2;
+        _inputInt4.ValueZ = 3;
+        _inputInt4.ValueW = 4;
+
+        _sliderFloat2 = new UiSliderFloat2 { TextScale = FontScale, Min = 0f, Max = 1f };
+        _sliderFloat2.ValueX = 0.2f;
+        _sliderFloat2.ValueY = 0.6f;
+
+        _sliderFloat3 = new UiSliderFloat3 { TextScale = FontScale, Min = 0f, Max = 1f };
+        _sliderFloat3.ValueX = 0.1f;
+        _sliderFloat3.ValueY = 0.5f;
+        _sliderFloat3.ValueZ = 0.8f;
+
+        _sliderFloat4 = new UiSliderFloat4 { TextScale = FontScale, Min = 0f, Max = 1f };
+        _sliderFloat4.ValueX = 0.1f;
+        _sliderFloat4.ValueY = 0.3f;
+        _sliderFloat4.ValueZ = 0.6f;
+        _sliderFloat4.ValueW = 0.9f;
+
+        _sliderInt2 = new UiSliderInt2 { TextScale = FontScale, Min = 0, Max = 10, WholeNumbers = true };
+        _sliderInt2.ValueX = 3;
+        _sliderInt2.ValueY = 7;
+
+        _sliderInt3 = new UiSliderInt3 { TextScale = FontScale, Min = 0, Max = 10, WholeNumbers = true };
+        _sliderInt3.ValueX = 2;
+        _sliderInt3.ValueY = 4;
+        _sliderInt3.ValueZ = 8;
+
+        _sliderInt4 = new UiSliderInt4 { TextScale = FontScale, Min = 0, Max = 10, WholeNumbers = true };
+        _sliderInt4.ValueX = 1;
+        _sliderInt4.ValueY = 3;
+        _sliderInt4.ValueZ = 5;
+        _sliderInt4.ValueW = 7;
+
+        _multiComponentStatusLabel = new UiLabel
+        {
+            Text = "Vectors: (0,0,0,0)",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _disableLabel = new UiLabel
+        {
+            Text = "Disable Blocks",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _disableToggle = new UiCheckbox
+        {
+            Text = "Enable group",
+            TextScale = FontScale,
+            Checked = true
+        };
+
+        _disabledGroup = new UiDisabledGroup();
+
+        _disabledButton = new UiButton
+        {
+            Text = "Disabled Button",
+            TextScale = FontScale
+        };
+
+        _disabledSlider = new UiSlider
+        {
+            Min = 0f,
+            Max = 1f,
+            Value = 0.7f,
+            TextScale = FontScale,
+            ShowValue = true
+        };
+
+        _disabledField = new UiTextField
+        {
+            TextScale = FontScale,
+            Text = "Disabled input",
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _disabledGroup.AddChild(_disabledButton);
+        _disabledGroup.AddChild(_disabledSlider);
+        _disabledGroup.AddChild(_disabledField);
+
+        _dragDropLabel = new UiLabel
+        {
+            Text = "Drag and Drop",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _dragDropSource = new UiDragDropSource
+        {
+            PayloadType = "color",
+            PayloadData = new UiColor(120, 180, 220)
+        };
+
+        _dragDropSourcePanel = new UiPanel
+        {
+            Background = new UiColor(24, 28, 38),
+            Border = new UiColor(70, 80, 100)
+        };
+
+        _dragDropSourceLabel = new UiLabel
+        {
+            Text = "Drag swatch",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _dragDropSourcePanel.AddChild(_dragDropSourceLabel);
+        _dragDropSource.AddChild(_dragDropSourcePanel);
+
+        _dragDropTarget = new UiDragDropTarget
+        {
+            PayloadType = "color"
+        };
+
+        _dragDropTargetPanel = new UiPanel
+        {
+            Background = new UiColor(28, 32, 44),
+            Border = new UiColor(90, 100, 120)
+        };
+
+        _dragDropTargetLabel = new UiLabel
+        {
+            Text = "Drop swatch",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _dragDropTargetPanel.AddChild(_dragDropTargetLabel);
+        _dragDropTarget.AddChild(_dragDropTargetPanel);
+
+        _dragDropStatusLabel = new UiLabel
+        {
+            Text = "Drag status: idle",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _dragDropTooltip = new UiTooltip
+        {
+            TextScale = FontScale,
+            Background = new UiColor(20, 24, 34),
+            Border = new UiColor(70, 80, 100),
+            TextColor = UiColor.White
+        };
+
+        _dragDropTooltipRegion = new UiTooltipRegion
+        {
+            Text = "Release to drop",
+            Tooltip = _dragDropTooltip
+        };
+        _dragDropTarget.AddChild(_dragDropTooltipRegion);
+
+        _dragDropItems.AddRange(new[]
+        {
+            "Item A",
+            "Item B",
+            "Item C",
+            "Item D"
+        });
+
+        for (int i = 0; i < _dragDropItems.Count; i++)
+        {
+            int index = i;
+            UiDragDropSource source = new UiDragDropSource
+            {
+                PayloadType = "reorder",
+                PayloadData = index
+            };
+
+            UiDragDropTarget target = new UiDragDropTarget
+            {
+                PayloadType = "reorder"
+            };
+
+            UiPanel panel = new UiPanel
+            {
+                Background = new UiColor(20, 24, 34),
+                Border = new UiColor(70, 80, 100)
+            };
+
+            UiLabel label = new UiLabel
+            {
+                Text = _dragDropItems[index],
+                Color = new UiColor(200, 210, 230),
+                Scale = FontScale
+            };
+
+            panel.AddChild(label);
+            source.AddChild(panel);
+            source.AddChild(target);
+
+            target.PayloadDropped += payload =>
+            {
+                if (payload.Data is int fromIndex && fromIndex != index)
+                {
+                    string temp = _dragDropItems[index];
+                    _dragDropItems[index] = _dragDropItems[fromIndex];
+                    _dragDropItems[fromIndex] = temp;
+                }
+            };
+
+            _dragDropItemSources.Add(source);
+            _dragDropItemTargets.Add(target);
+            _dragDropItemPanels.Add(panel);
+            _dragDropItemLabels.Add(label);
+        }
+
+        _dragDropTarget.PayloadDropped += payload =>
+        {
+            if (payload.Data is UiColor color && _dragDropTargetPanel != null)
+            {
+                _dragDropTargetPanel.Background = color;
+                _dragDropStatusLabel.Text = "Drag status: dropped color";
+            }
+        };
+
+        _itemStatusLabel = new UiLabel
+        {
+            Text = "Item Status: idle",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _windowStatusLabel = new UiLabel
+        {
+            Text = "Window Status: idle",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _focusStatusLabel = new UiLabel
+        {
+            Text = "Focus: none",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale
+        };
+
+        _inputInfoLabel = new UiLabel
+        {
+            Text = "Input: Mouse (0,0)",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _shortcutLabel = new UiLabel
+        {
+            Text = "Shortcut: none",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale
+        };
+
+        _focusInputField = new UiTextField
+        {
+            TextScale = FontScale,
+            Placeholder = "Focusable field",
+            CaretIndexFromPoint = GetCaretIndexFromPoint
+        };
+
+        _focusButton = new UiButton
+        {
+            Text = "Focus field",
+            TextScale = FontScale
+        };
+        _focusButton.Clicked += () =>
+        {
+            if (_context != null && _focusInputField != null)
+            {
+                _context.Focus.RequestFocus(_focusInputField);
+            }
+        };
+
+        _focusResultLabel = new UiLabel
+        {
+            Text = "Focused: none",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _toolsLabel = new UiLabel
+        {
+            Text = "Tools",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _toolsLink = new UiTextLink
+        {
+            Text = "OpenControls docs",
+            Url = "https://github.com/PippinwareLLC/OpenControls/blob/main/API.MD",
+            OpenUrlOnClick = true,
+            TextScale = FontScale
+        };
+
+        _aboutButton = new UiButton
+        {
+            Text = "About",
+            TextScale = FontScale
+        };
+        _aboutButton.Clicked += () =>
+        {
+            if (_modalLabel != null)
+            {
+                _modalLabel.Text = "OpenControls: lightweight UI demos and widgets.";
+            }
+
+            _modal?.Open();
+        };
+
+        _themeDarkButton = new UiButton
+        {
+            Text = "Theme: Dark",
+            TextScale = FontScale
+        };
+        _themeDarkButton.Clicked += () =>
+        {
+            if (_rootPanel != null)
+            {
+                _rootPanel.Background = new UiColor(12, 14, 20);
+            }
+
+            _menuStatus = "Menu: Theme Dark";
+        };
+
+        _themeLightButton = new UiButton
+        {
+            Text = "Theme: Light",
+            TextScale = FontScale
+        };
+        _themeLightButton.Clicked += () =>
+        {
+            if (_rootPanel != null)
+            {
+                _rootPanel.Background = new UiColor(24, 26, 32);
+            }
+
+            _menuStatus = "Menu: Theme Light";
+        };
+
+        _examplesLabel = new UiLabel
+        {
+            Text = "Examples",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true
+        };
+
+        _examplesHintLabel = new UiLabel
+        {
+            Text = "See Console, Assets, Inspector, and other example windows.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
         _widgetsTree = new UiTreeNode
         {
             Text = "Widgets",
@@ -1668,9 +2947,72 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             IsOpen = false
         };
 
+        _widgetsConfigTree = new UiTreeNode
+        {
+            Text = "Help & Configuration",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsMenuTree = new UiTreeNode
+        {
+            Text = "Menu",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
         _widgetsBasicTree = new UiTreeNode
         {
             Text = "Basic",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsBulletsTree = new UiTreeNode
+        {
+            Text = "Bullets",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsTextTree = new UiTreeNode
+        {
+            Text = "Text",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsTextFilterTree = new UiTreeNode
+        {
+            Text = "Text Filter",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsTextInputTree = new UiTreeNode
+        {
+            Text = "Text Input",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsImagesTree = new UiTreeNode
+        {
+            Text = "Images",
             TextScale = FontScale,
             ArrowColor = UiColor.White,
             ContentPadding = 4,
@@ -1698,6 +3040,33 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsDragTree = new UiTreeNode
         {
             Text = "Drag Widgets",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsDragDropTree = new UiTreeNode
+        {
+            Text = "Drag and Drop",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsDisableTree = new UiTreeNode
+        {
+            Text = "Disable Blocks",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsMultiComponentTree = new UiTreeNode
+        {
+            Text = "Multi-component Widgets",
             TextScale = FontScale,
             ArrowColor = UiColor.White,
             ContentPadding = 4,
@@ -1794,6 +3163,42 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             IsOpen = false
         };
 
+        _widgetsStatusTree = new UiTreeNode
+        {
+            Text = "Item & Window Status",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsInputFocusTree = new UiTreeNode
+        {
+            Text = "Inputs & Focus",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsToolsTree = new UiTreeNode
+        {
+            Text = "Tools",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _widgetsExamplesTree = new UiTreeNode
+        {
+            Text = "Examples",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
         _widgetsTooltipTree = new UiTreeNode
         {
             Text = "Tooltips",
@@ -1821,6 +3226,25 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             IsOpen = false
         };
 
+        _widgetsConfigTree.AddChild(_configHelpLabel);
+        _widgetsConfigTree.AddChild(_configHelpText);
+        _widgetsConfigTree.AddChild(_configLargeFontCheckbox);
+        _widgetsConfigTree.AddChild(_configBackendLabel);
+        _widgetsConfigTree.AddChild(_configDockingCheckbox);
+        _widgetsConfigTree.AddChild(_configViewportCheckbox);
+        _widgetsConfigTree.AddChild(_configStyleLabel);
+        _widgetsConfigTree.AddChild(_configCaptureLabel);
+        _widgetsConfigTree.AddChild(_configCaptureKeyboardCheckbox);
+        _widgetsConfigTree.AddChild(_configCaptureMouseCheckbox);
+        _widgetsConfigTree.AddChild(_windowOptionsLabel);
+        _widgetsConfigTree.AddChild(_windowAllowResizeCheckbox);
+        _widgetsConfigTree.AddChild(_windowShowTitleCheckbox);
+        _widgetsConfigTree.AddChild(_windowAllowDragCheckbox);
+        _widgetsConfigTree.AddChild(_windowShowGripCheckbox);
+
+        _widgetsMenuTree.AddChild(_demoMenuBar);
+        _widgetsMenuTree.AddChild(_demoMenuStatusLabel);
+
         _widgetsBasicTree.AddChild(_snapCheckbox);
         _widgetsBasicTree.AddChild(_gizmoCheckbox);
         _widgetsBasicTree.AddChild(_widgetsSeparator);
@@ -1830,6 +3254,63 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsBasicTree.AddChild(_invisibleButtonLabel);
         _widgetsBasicTree.AddChild(_invisibleButtonPanel);
         _widgetsBasicTree.AddChild(_invisibleButtonStatus);
+        _widgetsBasicTree.AddChild(_basicButtonsLabel);
+        _widgetsBasicTree.AddChild(_basicPrimaryButton);
+        _widgetsBasicTree.AddChild(_basicDangerButton);
+        _widgetsBasicTree.AddChild(_basicRepeatButton);
+        _widgetsBasicTree.AddChild(_basicRepeatStatusLabel);
+        _widgetsBasicTree.AddChild(_basicInputLabel);
+        _widgetsBasicTree.AddChild(_basicInputText);
+        _widgetsBasicTree.AddChild(_basicInputIntLabel);
+        _widgetsBasicTree.AddChild(_basicInputInt);
+        _widgetsBasicTree.AddChild(_basicInputFloatLabel);
+        _widgetsBasicTree.AddChild(_basicInputFloat);
+
+        _widgetsBulletsTree.AddChild(_bulletsLabel);
+        foreach (UiBulletText bullet in _bulletItems)
+        {
+            _widgetsBulletsTree.AddChild(bullet);
+        }
+
+        _widgetsTextTree.AddChild(_textHeaderLabel);
+        _widgetsTextTree.AddChild(_textColoredLabel);
+        _widgetsTextTree.AddChild(_textColoredSample);
+        _widgetsTextTree.AddChild(_textFontSizeLabel);
+        _widgetsTextTree.AddChild(_textFontSizeSmall);
+        _widgetsTextTree.AddChild(_textFontSizeLarge);
+        _widgetsTextTree.AddChild(_textWrappedBlock);
+        _widgetsTextTree.AddChild(_textUtf8Label);
+        _widgetsTextTree.AddChild(_textLink);
+
+        _widgetsTextFilterTree.AddChild(_textFilterLabel);
+        _widgetsTextFilterTree.AddChild(_textFilterField);
+        _widgetsTextFilterTree.AddChild(_textFilterList);
+        _widgetsTextFilterTree.AddChild(_textFilterStatusLabel);
+
+        _widgetsTextInputTree.AddChild(_textInputLabel);
+        _widgetsTextInputTree.AddChild(_multiLineInput);
+        _widgetsTextInputTree.AddChild(_filteredInputLabel);
+        _widgetsTextInputTree.AddChild(_filteredInputField);
+        _widgetsTextInputTree.AddChild(_passwordInputLabel);
+        _widgetsTextInputTree.AddChild(_passwordField);
+        _widgetsTextInputTree.AddChild(_passwordMaskLabel);
+        _widgetsTextInputTree.AddChild(_passwordHintLabel);
+        _widgetsTextInputTree.AddChild(_completionInputLabel);
+        _widgetsTextInputTree.AddChild(_completionField);
+        _widgetsTextInputTree.AddChild(_completionHintLabel);
+        _widgetsTextInputTree.AddChild(_completionHistoryLabel);
+        _widgetsTextInputTree.AddChild(_resizeInputLabel);
+        _widgetsTextInputTree.AddChild(_resizeInputField);
+        _widgetsTextInputTree.AddChild(_elidingInputLabel);
+        _widgetsTextInputTree.AddChild(_elidingInputField);
+        _widgetsTextInputTree.AddChild(_elidingResultLabel);
+        _widgetsTextInputTree.AddChild(_miscInputLabel);
+        _widgetsTextInputTree.AddChild(_miscInputField);
+
+        _widgetsImagesTree.AddChild(_imagesLabel);
+        _widgetsImagesTree.AddChild(_imagePreview);
+        _widgetsImagesTree.AddChild(_imageButton);
+        _widgetsImagesTree.AddChild(_imageButtonStatus);
 
         _widgetsSliderTree.AddChild(_volumeSlider);
         _widgetsSliderTree.AddChild(_volumeProgress);
@@ -1842,6 +3323,15 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsSliderTree.AddChild(_angleSliderLabel);
         _widgetsSliderTree.AddChild(_angleSlider);
         _widgetsSliderTree.AddChild(_angleSliderValueLabel);
+        _widgetsSliderTree.AddChild(_verticalSliderLabel);
+        _widgetsSliderTree.AddChild(_verticalSlider);
+        _widgetsSliderTree.AddChild(_verticalSliderValueLabel);
+        _widgetsSliderTree.AddChild(_sliderFlagsLabel);
+        _widgetsSliderTree.AddChild(_sliderWholeNumbersCheckbox);
+        _widgetsSliderTree.AddChild(_sliderStepCheckbox);
+        _widgetsSliderTree.AddChild(_enumSliderLabel);
+        _widgetsSliderTree.AddChild(_enumSlider);
+        _widgetsSliderTree.AddChild(_enumSliderValueLabel);
 
         _widgetsStyleTree.AddChild(_roundingLabel);
         _widgetsStyleTree.AddChild(_roundingSlider);
@@ -1870,6 +3360,34 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsDragTree.AddChild(_dragNoSlowFastCheckbox);
         _widgetsDragTree.AddChild(_dragLogCheckbox);
         _widgetsDragTree.AddChild(_dragHintLabel);
+
+        _widgetsDragDropTree.AddChild(_dragDropLabel);
+        _widgetsDragDropTree.AddChild(_dragDropSource);
+        _widgetsDragDropTree.AddChild(_dragDropTarget);
+        _widgetsDragDropTree.AddChild(_dragDropStatusLabel);
+        foreach (UiDragDropSource source in _dragDropItemSources)
+        {
+            _widgetsDragDropTree.AddChild(source);
+        }
+
+        _widgetsDisableTree.AddChild(_disableLabel);
+        _widgetsDisableTree.AddChild(_disableToggle);
+        _widgetsDisableTree.AddChild(_disabledGroup);
+
+        _widgetsMultiComponentTree.AddChild(_multiComponentLabel);
+        _widgetsMultiComponentTree.AddChild(_inputFloat2);
+        _widgetsMultiComponentTree.AddChild(_inputFloat3);
+        _widgetsMultiComponentTree.AddChild(_inputFloat4);
+        _widgetsMultiComponentTree.AddChild(_inputInt2);
+        _widgetsMultiComponentTree.AddChild(_inputInt3);
+        _widgetsMultiComponentTree.AddChild(_inputInt4);
+        _widgetsMultiComponentTree.AddChild(_sliderFloat2);
+        _widgetsMultiComponentTree.AddChild(_sliderFloat3);
+        _widgetsMultiComponentTree.AddChild(_sliderFloat4);
+        _widgetsMultiComponentTree.AddChild(_sliderInt2);
+        _widgetsMultiComponentTree.AddChild(_sliderInt3);
+        _widgetsMultiComponentTree.AddChild(_sliderInt4);
+        _widgetsMultiComponentTree.AddChild(_multiComponentStatusLabel);
 
         _widgetsListTree.AddChild(_sceneLabel);
         _widgetsListTree.AddChild(_sceneList);
@@ -1920,8 +3438,17 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsLayoutTree.AddChild(_canvas);
         _widgetsLayoutTree.AddChild(_gridLabel);
         _widgetsLayoutTree.AddChild(_grid);
+        _widgetsLayoutTree.AddChild(_layoutHorizontalLabel);
+        _widgetsLayoutTree.AddChild(_layoutButtonLeft);
+        _widgetsLayoutTree.AddChild(_layoutButtonCenter);
+        _widgetsLayoutTree.AddChild(_layoutButtonRight);
+        _widgetsLayoutTree.AddChild(_layoutDummyLabel);
+        _widgetsLayoutTree.AddChild(_layoutDummyPanel);
+        _widgetsLayoutTree.AddChild(_layoutWrapLabel);
+        _widgetsLayoutTree.AddChild(_layoutWrapBlock);
         _widgetsLayoutTree.AddChild(_tabBarLabel);
         _widgetsLayoutTree.AddChild(_tabBar);
+        _widgetsLayoutTree.AddChild(_tabButtonStatusLabel);
         _widgetsLayoutTree.AddChild(_splitterLabel);
         _widgetsLayoutTree.AddChild(_splitterVerticalLeftPanel);
         _widgetsLayoutTree.AddChild(_splitterVertical);
@@ -1937,6 +3464,25 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _widgetsLayoutTree.AddChild(item);
         }
 
+        _widgetsStatusTree.AddChild(_itemStatusLabel);
+        _widgetsStatusTree.AddChild(_windowStatusLabel);
+        _widgetsStatusTree.AddChild(_focusStatusLabel);
+
+        _widgetsInputFocusTree.AddChild(_inputInfoLabel);
+        _widgetsInputFocusTree.AddChild(_shortcutLabel);
+        _widgetsInputFocusTree.AddChild(_focusInputField);
+        _widgetsInputFocusTree.AddChild(_focusButton);
+        _widgetsInputFocusTree.AddChild(_focusResultLabel);
+
+        _widgetsToolsTree.AddChild(_toolsLabel);
+        _widgetsToolsTree.AddChild(_toolsLink);
+        _widgetsToolsTree.AddChild(_aboutButton);
+        _widgetsToolsTree.AddChild(_themeDarkButton);
+        _widgetsToolsTree.AddChild(_themeLightButton);
+
+        _widgetsExamplesTree.AddChild(_examplesLabel);
+        _widgetsExamplesTree.AddChild(_examplesHintLabel);
+
         _widgetsTooltipTree.AddChild(_tooltipLabel);
         _widgetsTooltipTree.AddChild(_tooltipRegion);
 
@@ -1951,10 +3497,20 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsTreeHeaderTree.AddChild(_treeNode);
         _widgetsTreeHeaderTree.AddChild(_collapsingHeader);
 
+        _widgetsTree.AddChild(_widgetsConfigTree);
+        _widgetsTree.AddChild(_widgetsMenuTree);
         _widgetsTree.AddChild(_widgetsBasicTree);
+        _widgetsTree.AddChild(_widgetsBulletsTree);
+        _widgetsTree.AddChild(_widgetsTextTree);
+        _widgetsTree.AddChild(_widgetsTextFilterTree);
+        _widgetsTree.AddChild(_widgetsTextInputTree);
+        _widgetsTree.AddChild(_widgetsImagesTree);
         _widgetsTree.AddChild(_widgetsSliderTree);
         _widgetsTree.AddChild(_widgetsStyleTree);
         _widgetsTree.AddChild(_widgetsDragTree);
+        _widgetsTree.AddChild(_widgetsDragDropTree);
+        _widgetsTree.AddChild(_widgetsDisableTree);
+        _widgetsTree.AddChild(_widgetsMultiComponentTree);
         _widgetsTree.AddChild(_widgetsListTree);
         _widgetsTree.AddChild(_widgetsMultiSelectTree);
         _widgetsTree.AddChild(_widgetsComboTree);
@@ -1965,6 +3521,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsTree.AddChild(_widgetsAsciiTree);
         _widgetsTree.AddChild(_widgetsSelectableTree);
         _widgetsTree.AddChild(_widgetsLayoutTree);
+        _widgetsTree.AddChild(_widgetsStatusTree);
+        _widgetsTree.AddChild(_widgetsInputFocusTree);
+        _widgetsTree.AddChild(_widgetsToolsTree);
+        _widgetsTree.AddChild(_widgetsExamplesTree);
         _widgetsTree.AddChild(_widgetsTooltipTree);
         _widgetsTree.AddChild(_widgetsPopupTree);
         _widgetsTree.AddChild(_widgetsTreeHeaderTree);
@@ -2226,6 +3786,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _root.AddChild(_tooltip);
         }
 
+        if (_dragDropTooltip != null)
+        {
+            _root.AddChild(_dragDropTooltip);
+        }
+
         if (_modal != null)
         {
             _root.AddChild(_modal);
@@ -2306,17 +3871,36 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _textField.Bounds = new UiRect(x, buttonY + 38, Math.Max(0, fieldWidth), 22);
         }
 
-        if (_widgetsWindow != null && _widgetsTitleLabel != null && _widgetsTree != null && _widgetsBasicTree != null && _widgetsSliderTree != null
-            && _widgetsStyleTree != null && _widgetsDragTree != null && _widgetsListTree != null && _widgetsMultiSelectTree != null && _widgetsComboTree != null && _widgetsTableTree != null
-            && _widgetsPlotTree != null && _widgetsWaveformTree != null && _widgetsColorTree != null && _widgetsAsciiTree != null && _widgetsSelectableTree != null && _widgetsLayoutTree != null && _widgetsTooltipTree != null
+        if (_widgetsWindow != null && _widgetsTitleLabel != null && _widgetsTree != null && _widgetsConfigTree != null && _widgetsMenuTree != null && _widgetsBasicTree != null
+            && _widgetsBulletsTree != null && _widgetsTextTree != null && _widgetsTextFilterTree != null && _widgetsTextInputTree != null && _widgetsImagesTree != null
+            && _widgetsSliderTree != null && _widgetsStyleTree != null && _widgetsDragTree != null && _widgetsDragDropTree != null && _widgetsDisableTree != null && _widgetsMultiComponentTree != null
+            && _widgetsListTree != null && _widgetsMultiSelectTree != null && _widgetsComboTree != null && _widgetsTableTree != null
+            && _widgetsPlotTree != null && _widgetsWaveformTree != null && _widgetsColorTree != null && _widgetsAsciiTree != null && _widgetsSelectableTree != null && _widgetsLayoutTree != null
+            && _widgetsStatusTree != null && _widgetsInputFocusTree != null && _widgetsToolsTree != null && _widgetsExamplesTree != null && _widgetsTooltipTree != null
             && _widgetsPopupTree != null && _widgetsTreeHeaderTree != null && _snapCheckbox != null && _gizmoCheckbox != null
             && _widgetsSeparator != null
             && _qualityLow != null && _qualityMedium != null && _qualityHigh != null
             && _invisibleButtonLabel != null && _invisibleButtonPanel != null && _invisibleButton != null && _invisibleButtonStatus != null
+            && _basicButtonsLabel != null && _basicPrimaryButton != null && _basicDangerButton != null && _basicRepeatButton != null && _basicRepeatStatusLabel != null
+            && _basicInputLabel != null && _basicInputText != null && _basicInputIntLabel != null && _basicInputInt != null && _basicInputFloatLabel != null && _basicInputFloat != null
+            && _configHelpLabel != null && _configHelpText != null && _configBackendLabel != null && _configDockingCheckbox != null && _configViewportCheckbox != null
+            && _configStyleLabel != null && _configLargeFontCheckbox != null && _configCaptureLabel != null && _configCaptureKeyboardCheckbox != null && _configCaptureMouseCheckbox != null
+            && _windowOptionsLabel != null && _windowAllowResizeCheckbox != null && _windowShowTitleCheckbox != null && _windowAllowDragCheckbox != null && _windowShowGripCheckbox != null
+            && _demoMenuBar != null && _demoMenuStatusLabel != null
+            && _bulletsLabel != null
+            && _textHeaderLabel != null && _textColoredLabel != null && _textColoredSample != null && _textFontSizeLabel != null && _textFontSizeSmall != null && _textFontSizeLarge != null
+            && _textWrappedBlock != null && _textUtf8Label != null && _textLink != null
+            && _textFilterLabel != null && _textFilterField != null && _textFilterList != null && _textFilterStatusLabel != null
+            && _textInputLabel != null && _multiLineInput != null && _filteredInputLabel != null && _filteredInputField != null && _passwordInputLabel != null && _passwordField != null && _passwordMaskLabel != null && _passwordHintLabel != null
+            && _completionInputLabel != null && _completionField != null && _completionHintLabel != null && _completionHistoryLabel != null && _resizeInputLabel != null && _resizeInputField != null
+            && _elidingInputLabel != null && _elidingInputField != null && _elidingResultLabel != null && _miscInputLabel != null && _miscInputField != null
+            && _imagesLabel != null && _imagePreview != null && _imageButton != null && _imageButtonStatus != null
             && _volumeSlider != null && _volumeProgress != null
             && _verticalProgressLabel != null && _verticalProgress != null && _vuMeterLabel != null && _vuMeter != null
             && _radialProgressLabel != null && _radialProgress != null
             && _angleSliderLabel != null && _angleSlider != null && _angleSliderValueLabel != null
+            && _verticalSliderLabel != null && _verticalSlider != null && _verticalSliderValueLabel != null
+            && _sliderFlagsLabel != null && _sliderWholeNumbersCheckbox != null && _sliderStepCheckbox != null && _enumSliderLabel != null && _enumSlider != null && _enumSliderValueLabel != null
             && _roundingLabel != null && _roundingSlider != null && _roundingPreviewLabel != null && _roundingButton != null
             && _roundingField != null && _roundingPanel != null
             && _dragFloatLabel != null && _dragFloat != null && _dragIntLabel != null && _dragInt != null && _dragRangeLabel != null
@@ -2324,6 +3908,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _dragFloat3 != null && _dragFloat4 != null && _dragVectorIntLabel != null && _dragInt2 != null
             && _dragInt3 != null && _dragInt4 != null && _dragFlagsLabel != null && _dragClampCheckbox != null
             && _dragNoSlowFastCheckbox != null && _dragLogCheckbox != null && _dragHintLabel != null
+            && _dragDropLabel != null && _dragDropSource != null && _dragDropTarget != null && _dragDropStatusLabel != null && _dragDropSourcePanel != null && _dragDropTargetPanel != null && _dragDropSourceLabel != null && _dragDropTargetLabel != null && _dragDropTooltipRegion != null
+            && _disableLabel != null && _disableToggle != null && _disabledGroup != null && _disabledButton != null && _disabledSlider != null && _disabledField != null
+            && _multiComponentLabel != null && _inputFloat2 != null && _inputFloat3 != null && _inputFloat4 != null && _inputInt2 != null && _inputInt3 != null && _inputInt4 != null
+            && _sliderFloat2 != null && _sliderFloat3 != null && _sliderFloat4 != null && _sliderInt2 != null && _sliderInt3 != null && _sliderInt4 != null && _multiComponentStatusLabel != null
             && _sceneLabel != null && _sceneList != null && _sceneSelectionLabel != null && _multiSelectLabel != null
             && _multiSelectHintLabel != null && _multiSelectList != null && _multiSelectSelectionLabel != null && _comboLabel != null
             && _sceneComboBox != null && _comboSelectionLabel != null && _tableLabel != null && _sceneTable != null
@@ -2331,15 +3919,20 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _colorPicker != null && _colorSelectionLabel != null && _colorButtonLabel != null && _asciiLabel != null && _asciiPageLabel != null && _asciiPageCombo != null
             && _asciiTable != null && _selectablesLabel != null && _selectablesHintLabel != null
             && _selectableLighting != null && _selectableNavigation != null && _selectableAudio != null && _scrollPanelLabel != null
+            && _layoutHorizontalLabel != null && _layoutButtonLeft != null && _layoutButtonCenter != null && _layoutButtonRight != null && _layoutDummyLabel != null && _layoutDummyPanel != null && _layoutWrapLabel != null && _layoutWrapBlock != null
             && _textEditorLabel != null && _textEditor != null
             && _gridLabel != null && _grid != null && _gridPrimaryButton != null && _gridSecondaryButton != null && _gridInfoLabel != null && _gridStatusLabel != null
             && _tabBarLabel != null && _tabBar != null && _tabOverview != null && _tabDetails != null && _tabSettings != null
-            && _tabOverviewLabel != null && _tabDetailsLabel != null && _tabSettingsLabel != null
+            && _tabOverviewLabel != null && _tabDetailsLabel != null && _tabSettingsLabel != null && _tabButtonStatusLabel != null
             && _canvasLabel != null && _canvas != null && _canvasNodeA != null && _canvasNodeB != null && _canvasNodeC != null
             && _splitterLabel != null && _splitterVerticalLeftPanel != null && _splitterVertical != null && _splitterVerticalRightPanel != null
             && _splitterHorizontalTopPanel != null && _splitterHorizontal != null && _splitterHorizontalBottomPanel != null
             && _scrollPanel != null && _menuPopupLabel != null && _menuPopupButton != null && _menuPopupStatus != null
             && _menuPopup != null && _menuPopupTable != null && _menuPopupContentItem != null
+            && _itemStatusLabel != null && _windowStatusLabel != null && _focusStatusLabel != null
+            && _inputInfoLabel != null && _shortcutLabel != null && _focusInputField != null && _focusButton != null && _focusResultLabel != null
+            && _toolsLabel != null && _toolsLink != null && _aboutButton != null && _themeDarkButton != null && _themeLightButton != null
+            && _examplesLabel != null && _examplesHintLabel != null
             && _popupButton != null && _modalButton != null && _tooltipLabel != null && _tooltipRegion != null
             && _hierarchyLabel != null && _treeNode != null && _collapsingHeader != null && _popup != null && _popupLabel != null
             && _popupCloseButton != null && _modal != null && _modalLabel != null && _modalCloseButton != null && _root != null)
@@ -2360,6 +3953,57 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             int rootContentWidth = Math.Max(0, treeWidth - _widgetsTree.Indent);
             int rootPadding = Math.Max(0, _widgetsTree.ContentPadding);
             int categoryY = 0;
+
+            int configContentWidth = Math.Max(0, rootContentWidth - _widgetsConfigTree.Indent);
+            int configPadding = Math.Max(0, _widgetsConfigTree.ContentPadding);
+            int configY = 0;
+            _configHelpLabel.Bounds = new UiRect(0, configY, configContentWidth, labelHeight);
+            configY += labelHeight + 4;
+            int helpTextHeight = labelHeight * 3;
+            _configHelpText.Bounds = new UiRect(0, configY, configContentWidth, helpTextHeight);
+            configY += helpTextHeight + 6;
+            _configLargeFontCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 8;
+            _configBackendLabel.Bounds = new UiRect(0, configY, configContentWidth, labelHeight);
+            configY += labelHeight + 4;
+            _configDockingCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 4;
+            _configViewportCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 8;
+            _configStyleLabel.Bounds = new UiRect(0, configY, configContentWidth, labelHeight);
+            configY += labelHeight + 4;
+            _configCaptureLabel.Bounds = new UiRect(0, configY, configContentWidth, labelHeight);
+            configY += labelHeight + 4;
+            _configCaptureKeyboardCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 4;
+            _configCaptureMouseCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 8;
+            _windowOptionsLabel.Bounds = new UiRect(0, configY, configContentWidth, labelHeight);
+            configY += labelHeight + 4;
+            _windowAllowResizeCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 4;
+            _windowShowTitleCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 4;
+            _windowAllowDragCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 4;
+            _windowShowGripCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 4;
+            int configHeight = treeHeaderHeight + (_widgetsConfigTree.IsOpen ? configPadding + configY : 0);
+            _widgetsConfigTree.HeaderHeight = treeHeaderHeight;
+            _widgetsConfigTree.Bounds = new UiRect(0, categoryY, rootContentWidth, configHeight);
+            categoryY += configHeight + categorySpacing;
+
+            int menuContentWidth = Math.Max(0, rootContentWidth - _widgetsMenuTree.Indent);
+            int menuPadding = Math.Max(0, _widgetsMenuTree.ContentPadding);
+            int menuY = 0;
+            _demoMenuBar.Bounds = new UiRect(0, menuY, menuContentWidth, _demoMenuBar.BarHeight);
+            menuY += _demoMenuBar.BarHeight + 6;
+            _demoMenuStatusLabel.Bounds = new UiRect(0, menuY, menuContentWidth, labelHeight);
+            menuY += labelHeight + 4;
+            int menuHeight = treeHeaderHeight + (_widgetsMenuTree.IsOpen ? menuPadding + menuY : 0);
+            _widgetsMenuTree.HeaderHeight = treeHeaderHeight;
+            _widgetsMenuTree.Bounds = new UiRect(0, categoryY, rootContentWidth, menuHeight);
+            categoryY += menuHeight + categorySpacing;
 
             int basicContentWidth = Math.Max(0, rootContentWidth - _widgetsBasicTree.Indent);
             int basicPadding = Math.Max(0, _widgetsBasicTree.ContentPadding);
@@ -2385,10 +4029,164 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             basicY += _invisibleButtonPanel.Bounds.Height + 4;
             _invisibleButtonStatus.Bounds = new UiRect(0, basicY, basicContentWidth, labelHeight);
             basicY += labelHeight + 4;
+
+            _basicButtonsLabel.Bounds = new UiRect(0, basicY, basicContentWidth, labelHeight);
+            basicY += labelHeight + 6;
+            int basicButtonWidth = Math.Min(140, Math.Max(0, (basicContentWidth - 8) / 2));
+            _basicPrimaryButton.Bounds = new UiRect(0, basicY, basicButtonWidth, 24);
+            _basicDangerButton.Bounds = new UiRect(basicButtonWidth + 8, basicY, basicButtonWidth, 24);
+            basicY += 30;
+            int repeatWidth = Math.Min(180, basicContentWidth);
+            _basicRepeatButton.Bounds = new UiRect(0, basicY, Math.Max(0, repeatWidth), 24);
+            basicY += 30;
+            _basicRepeatStatusLabel.Bounds = new UiRect(0, basicY, basicContentWidth, labelHeight);
+            basicY += labelHeight + 6;
+            _basicInputLabel.Bounds = new UiRect(0, basicY, basicContentWidth, labelHeight);
+            basicY += labelHeight + 4;
+            int basicInputWidth = Math.Min(240, basicContentWidth);
+            _basicInputText.Bounds = new UiRect(0, basicY, Math.Max(0, basicInputWidth), 22);
+            basicY += 30;
+            _basicInputIntLabel.Bounds = new UiRect(0, basicY, basicContentWidth, labelHeight);
+            basicY += labelHeight + 4;
+            _basicInputInt.Bounds = new UiRect(0, basicY, Math.Max(0, basicInputWidth), 22);
+            basicY += 30;
+            _basicInputFloatLabel.Bounds = new UiRect(0, basicY, basicContentWidth, labelHeight);
+            basicY += labelHeight + 4;
+            _basicInputFloat.Bounds = new UiRect(0, basicY, Math.Max(0, basicInputWidth), 22);
+            basicY += 30;
+
             int basicHeight = treeHeaderHeight + (_widgetsBasicTree.IsOpen ? basicPadding + basicY : 0);
             _widgetsBasicTree.HeaderHeight = treeHeaderHeight;
             _widgetsBasicTree.Bounds = new UiRect(0, categoryY, rootContentWidth, basicHeight);
             categoryY += basicHeight + categorySpacing;
+
+            int bulletsContentWidth = Math.Max(0, rootContentWidth - _widgetsBulletsTree.Indent);
+            int bulletsPadding = Math.Max(0, _widgetsBulletsTree.ContentPadding);
+            int bulletsY = 0;
+            _bulletsLabel.Bounds = new UiRect(0, bulletsY, bulletsContentWidth, labelHeight);
+            bulletsY += labelHeight + 6;
+            foreach (UiBulletText bullet in _bulletItems)
+            {
+                bullet.Bounds = new UiRect(0, bulletsY, bulletsContentWidth, labelHeight);
+                bulletsY += labelHeight + 4;
+            }
+            int bulletsHeight = treeHeaderHeight + (_widgetsBulletsTree.IsOpen ? bulletsPadding + bulletsY : 0);
+            _widgetsBulletsTree.HeaderHeight = treeHeaderHeight;
+            _widgetsBulletsTree.Bounds = new UiRect(0, categoryY, rootContentWidth, bulletsHeight);
+            categoryY += bulletsHeight + categorySpacing;
+
+            int textContentWidth = Math.Max(0, rootContentWidth - _widgetsTextTree.Indent);
+            int textPadding = Math.Max(0, _widgetsTextTree.ContentPadding);
+            int textY = 0;
+            _textHeaderLabel.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
+            textY += labelHeight + 4;
+            _textColoredLabel.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
+            textY += labelHeight + 4;
+            _textColoredSample.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
+            textY += labelHeight + 6;
+            _textFontSizeLabel.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
+            textY += labelHeight + 4;
+            int smallTextHeight = _renderer.MeasureTextHeight(_textFontSizeSmall.Scale);
+            _textFontSizeSmall.Bounds = new UiRect(0, textY, textContentWidth, smallTextHeight);
+            textY += smallTextHeight + 4;
+            int largeTextHeight = _renderer.MeasureTextHeight(_textFontSizeLarge.Scale);
+            _textFontSizeLarge.Bounds = new UiRect(0, textY, textContentWidth, largeTextHeight);
+            textY += largeTextHeight + 6;
+            int wrapHeight = labelHeight * 3;
+            _textWrappedBlock.Bounds = new UiRect(0, textY, textContentWidth, wrapHeight);
+            textY += wrapHeight + 6;
+            _textUtf8Label.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
+            textY += labelHeight + 6;
+            _textLink.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
+            textY += labelHeight + 4;
+            int textHeight = treeHeaderHeight + (_widgetsTextTree.IsOpen ? textPadding + textY : 0);
+            _widgetsTextTree.HeaderHeight = treeHeaderHeight;
+            _widgetsTextTree.Bounds = new UiRect(0, categoryY, rootContentWidth, textHeight);
+            categoryY += textHeight + categorySpacing;
+
+            int filterContentWidth = Math.Max(0, rootContentWidth - _widgetsTextFilterTree.Indent);
+            int filterPadding = Math.Max(0, _widgetsTextFilterTree.ContentPadding);
+            int filterY = 0;
+            _textFilterLabel.Bounds = new UiRect(0, filterY, filterContentWidth, labelHeight);
+            filterY += labelHeight + 6;
+            _textFilterField.Bounds = new UiRect(0, filterY, filterContentWidth, 22);
+            filterY += 30;
+            _textFilterList.Bounds = new UiRect(0, filterY, filterContentWidth, 120);
+            _textFilterList.ItemHeight = labelHeight + 6;
+            filterY += _textFilterList.Bounds.Height + 6;
+            _textFilterStatusLabel.Bounds = new UiRect(0, filterY, filterContentWidth, labelHeight);
+            filterY += labelHeight + 4;
+            int filterHeight = treeHeaderHeight + (_widgetsTextFilterTree.IsOpen ? filterPadding + filterY : 0);
+            _widgetsTextFilterTree.HeaderHeight = treeHeaderHeight;
+            _widgetsTextFilterTree.Bounds = new UiRect(0, categoryY, rootContentWidth, filterHeight);
+            categoryY += filterHeight + categorySpacing;
+
+            int textInputContentWidth = Math.Max(0, rootContentWidth - _widgetsTextInputTree.Indent);
+            int textInputPadding = Math.Max(0, _widgetsTextInputTree.ContentPadding);
+            int textInputY = 0;
+            _textInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 6;
+            int editorHeight = Math.Max(120, labelHeight * 6);
+            _multiLineInput.Bounds = new UiRect(0, textInputY, textInputContentWidth, editorHeight);
+            textInputY += editorHeight + 8;
+            _filteredInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 4;
+            _filteredInputField.Bounds = new UiRect(0, textInputY, textInputContentWidth, 22);
+            textInputY += 30;
+            _passwordInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 4;
+            _passwordField.Bounds = new UiRect(0, textInputY, textInputContentWidth, 22);
+            int passwordPadding = Math.Max(0, _passwordField.Padding);
+            _passwordMaskLabel.Bounds = new UiRect(_passwordField.Bounds.X + passwordPadding, _passwordField.Bounds.Y + passwordPadding, Math.Max(0, _passwordField.Bounds.Width - passwordPadding * 2), labelHeight);
+            textInputY += 30;
+            _passwordHintLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 6;
+            _completionInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 4;
+            _completionField.Bounds = new UiRect(0, textInputY, textInputContentWidth, 22);
+            textInputY += 30;
+            _completionHintLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 4;
+            _completionHistoryLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 6;
+            _resizeInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 4;
+            int resizeWidth = Math.Min(textInputContentWidth, Math.Max(140, _renderer.MeasureTextWidth(_resizeInputField.Text, FontScale) + _resizeInputField.Padding * 2 + 20));
+            _resizeInputField.Bounds = new UiRect(0, textInputY, resizeWidth, 22);
+            textInputY += 30;
+            _elidingInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 4;
+            int elideWidth = Math.Min(textInputContentWidth, 260);
+            _elidingInputField.Bounds = new UiRect(0, textInputY, elideWidth, 22);
+            textInputY += 30;
+            _elidingResultLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 6;
+            _miscInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 4;
+            _miscInputField.Bounds = new UiRect(0, textInputY, textInputContentWidth, 22);
+            textInputY += 30;
+            int textInputHeight = treeHeaderHeight + (_widgetsTextInputTree.IsOpen ? textInputPadding + textInputY : 0);
+            _widgetsTextInputTree.HeaderHeight = treeHeaderHeight;
+            _widgetsTextInputTree.Bounds = new UiRect(0, categoryY, rootContentWidth, textInputHeight);
+            categoryY += textInputHeight + categorySpacing;
+
+            int imagesContentWidth = Math.Max(0, rootContentWidth - _widgetsImagesTree.Indent);
+            int imagesPadding = Math.Max(0, _widgetsImagesTree.ContentPadding);
+            int imagesY = 0;
+            _imagesLabel.Bounds = new UiRect(0, imagesY, imagesContentWidth, labelHeight);
+            imagesY += labelHeight + 6;
+            int previewSize = Math.Max(80, Math.Min(160, imagesContentWidth));
+            _imagePreview.Bounds = new UiRect(0, imagesY, previewSize, previewSize);
+            imagesY += previewSize + 6;
+            int imageButtonSize = Math.Max(40, Math.Min(80, imagesContentWidth));
+            _imageButton.Bounds = new UiRect(0, imagesY, imageButtonSize, imageButtonSize);
+            imagesY += imageButtonSize + 4;
+            _imageButtonStatus.Bounds = new UiRect(0, imagesY, imagesContentWidth, labelHeight);
+            imagesY += labelHeight + 4;
+            int imagesHeight = treeHeaderHeight + (_widgetsImagesTree.IsOpen ? imagesPadding + imagesY : 0);
+            _widgetsImagesTree.HeaderHeight = treeHeaderHeight;
+            _widgetsImagesTree.Bounds = new UiRect(0, categoryY, rootContentWidth, imagesHeight);
+            categoryY += imagesHeight + categorySpacing;
 
             int sliderContentWidth = Math.Max(0, rootContentWidth - _widgetsSliderTree.Indent);
             int sliderPadding = Math.Max(0, _widgetsSliderTree.ContentPadding);
@@ -2420,6 +4218,28 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _angleSlider.Bounds = new UiRect(0, sliderY, sliderContentWidth, 24);
             sliderY += 30;
             _angleSliderValueLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 6;
+
+            _verticalSliderLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 6;
+            int verticalSliderHeight = Math.Max(90, labelHeight * 6);
+            _verticalSlider.Bounds = new UiRect(0, sliderY, Math.Max(24, Math.Min(40, sliderContentWidth)), verticalSliderHeight);
+            sliderY += verticalSliderHeight + 4;
+            _verticalSliderValueLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 6;
+
+            _sliderFlagsLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 4;
+            _sliderWholeNumbersCheckbox.Bounds = new UiRect(0, sliderY, sliderContentWidth, rowHeight);
+            sliderY += rowHeight + 4;
+            _sliderStepCheckbox.Bounds = new UiRect(0, sliderY, sliderContentWidth, rowHeight);
+            sliderY += rowHeight + 6;
+
+            _enumSliderLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
+            sliderY += labelHeight + 4;
+            _enumSlider.Bounds = new UiRect(0, sliderY, sliderContentWidth, 24);
+            sliderY += 30;
+            _enumSliderValueLabel.Bounds = new UiRect(0, sliderY, sliderContentWidth, labelHeight);
             sliderY += labelHeight + 4;
             int sliderHeight = treeHeaderHeight + (_widgetsSliderTree.IsOpen ? sliderPadding + sliderY : 0);
             _widgetsSliderTree.HeaderHeight = treeHeaderHeight;
@@ -2506,6 +4326,108 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _widgetsDragTree.HeaderHeight = treeHeaderHeight;
             _widgetsDragTree.Bounds = new UiRect(0, categoryY, rootContentWidth, dragHeight);
             categoryY += dragHeight + categorySpacing;
+
+            int dragDropContentWidth = Math.Max(0, rootContentWidth - _widgetsDragDropTree.Indent);
+            int dragDropPadding = Math.Max(0, _widgetsDragDropTree.ContentPadding);
+            int dragDropY = 0;
+            _dragDropLabel.Bounds = new UiRect(0, dragDropY, dragDropContentWidth, labelHeight);
+            dragDropY += labelHeight + 6;
+            int dragPanelSize = Math.Max(80, Math.Min(140, (dragDropContentWidth - 12) / 2));
+            _dragDropSource.Bounds = new UiRect(0, dragDropY, dragPanelSize, dragPanelSize);
+            _dragDropSourcePanel.Bounds = _dragDropSource.Bounds;
+            _dragDropSourceLabel.Bounds = new UiRect(_dragDropSource.Bounds.X + 6, _dragDropSource.Bounds.Y + 6, Math.Max(0, dragPanelSize - 12), labelHeight);
+            _dragDropTarget.Bounds = new UiRect(dragPanelSize + 12, dragDropY, dragPanelSize, dragPanelSize);
+            _dragDropTargetPanel.Bounds = _dragDropTarget.Bounds;
+            _dragDropTargetLabel.Bounds = new UiRect(_dragDropTarget.Bounds.X + 6, _dragDropTarget.Bounds.Y + 6, Math.Max(0, dragPanelSize - 12), labelHeight);
+            _dragDropTooltipRegion.Bounds = _dragDropTarget.Bounds;
+            dragDropY += dragPanelSize + 6;
+            _dragDropStatusLabel.Bounds = new UiRect(0, dragDropY, dragDropContentWidth, labelHeight);
+            dragDropY += labelHeight + 6;
+
+            int reorderWidth = Math.Min(240, dragDropContentWidth);
+            int reorderRowHeight = labelHeight + 6;
+            for (int i = 0; i < _dragDropItemSources.Count; i++)
+            {
+                int rowY = dragDropY + i * (reorderRowHeight + 4);
+                UiDragDropSource source = _dragDropItemSources[i];
+                UiDragDropTarget target = _dragDropItemTargets[i];
+                UiPanel panel = _dragDropItemPanels[i];
+                UiLabel label = _dragDropItemLabels[i];
+                source.Bounds = new UiRect(0, rowY, reorderWidth, reorderRowHeight);
+                target.Bounds = source.Bounds;
+                panel.Bounds = source.Bounds;
+                int labelY = rowY + (reorderRowHeight - labelHeight) / 2;
+                label.Bounds = new UiRect(source.Bounds.X + 6, labelY, Math.Max(0, reorderWidth - 12), labelHeight);
+            }
+
+            dragDropY += _dragDropItemSources.Count * (reorderRowHeight + 4);
+            int dragDropHeight = treeHeaderHeight + (_widgetsDragDropTree.IsOpen ? dragDropPadding + dragDropY : 0);
+            _widgetsDragDropTree.HeaderHeight = treeHeaderHeight;
+            _widgetsDragDropTree.Bounds = new UiRect(0, categoryY, rootContentWidth, dragDropHeight);
+            categoryY += dragDropHeight + categorySpacing;
+
+            int disableContentWidth = Math.Max(0, rootContentWidth - _widgetsDisableTree.Indent);
+            int disablePadding = Math.Max(0, _widgetsDisableTree.ContentPadding);
+            int disableY = 0;
+            _disableLabel.Bounds = new UiRect(0, disableY, disableContentWidth, labelHeight);
+            disableY += labelHeight + 6;
+            _disableToggle.Bounds = new UiRect(0, disableY, disableContentWidth, rowHeight);
+            disableY += rowHeight + 6;
+            int groupWidth = Math.Min(260, disableContentWidth);
+            int groupX = 0;
+            int groupPadding = 8;
+            int groupY = disableY;
+            int groupInnerY = groupY + groupPadding;
+            _disabledButton.Bounds = new UiRect(groupX + groupPadding, groupInnerY, Math.Max(0, groupWidth - groupPadding * 2), 24);
+            groupInnerY += 30;
+            _disabledSlider.Bounds = new UiRect(groupX + groupPadding, groupInnerY, Math.Max(0, groupWidth - groupPadding * 2), 24);
+            groupInnerY += 30;
+            _disabledField.Bounds = new UiRect(groupX + groupPadding, groupInnerY, Math.Max(0, groupWidth - groupPadding * 2), 22);
+            groupInnerY += 28;
+            int groupHeight = Math.Max(0, groupInnerY - groupY + groupPadding);
+            _disabledGroup.Bounds = new UiRect(groupX, groupY, groupWidth, groupHeight);
+            disableY += groupHeight + 4;
+            int disableHeight = treeHeaderHeight + (_widgetsDisableTree.IsOpen ? disablePadding + disableY : 0);
+            _widgetsDisableTree.HeaderHeight = treeHeaderHeight;
+            _widgetsDisableTree.Bounds = new UiRect(0, categoryY, rootContentWidth, disableHeight);
+            categoryY += disableHeight + categorySpacing;
+
+            int multiComponentContentWidth = Math.Max(0, rootContentWidth - _widgetsMultiComponentTree.Indent);
+            int multiComponentPadding = Math.Max(0, _widgetsMultiComponentTree.ContentPadding);
+            int multiComponentY = 0;
+            _multiComponentLabel.Bounds = new UiRect(0, multiComponentY, multiComponentContentWidth, labelHeight);
+            multiComponentY += labelHeight + 6;
+            int vectorWidth = Math.Min(360, multiComponentContentWidth);
+            _inputFloat2.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _inputFloat3.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _inputFloat4.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _inputInt2.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _inputInt3.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _inputInt4.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _sliderFloat2.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _sliderFloat3.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _sliderFloat4.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _sliderInt2.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _sliderInt3.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _sliderInt4.Bounds = new UiRect(0, multiComponentY, vectorWidth, 24);
+            multiComponentY += 30;
+            _multiComponentStatusLabel.Bounds = new UiRect(0, multiComponentY, multiComponentContentWidth, labelHeight);
+            multiComponentY += labelHeight + 4;
+            int multiComponentHeight = treeHeaderHeight + (_widgetsMultiComponentTree.IsOpen ? multiComponentPadding + multiComponentY : 0);
+            _widgetsMultiComponentTree.HeaderHeight = treeHeaderHeight;
+            _widgetsMultiComponentTree.Bounds = new UiRect(0, categoryY, rootContentWidth, multiComponentHeight);
+            categoryY += multiComponentHeight + categorySpacing;
 
             int listContentWidth = Math.Max(0, rootContentWidth - _widgetsListTree.Indent);
             int listPadding = Math.Max(0, _widgetsListTree.ContentPadding);
@@ -2692,6 +4614,26 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _grid.Bounds = new UiRect(0, layoutY, layoutContentWidth, gridHeight);
             layoutY += gridHeight + 8;
 
+            _layoutHorizontalLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
+            layoutY += labelHeight + 6;
+            int horizontalButtonWidth = Math.Min(100, Math.Max(0, (layoutContentWidth - 16) / 3));
+            _layoutButtonLeft.Bounds = new UiRect(0, layoutY, horizontalButtonWidth, 24);
+            _layoutButtonCenter.Bounds = new UiRect(horizontalButtonWidth + 8, layoutY, horizontalButtonWidth, 24);
+            _layoutButtonRight.Bounds = new UiRect((horizontalButtonWidth + 8) * 2, layoutY, horizontalButtonWidth, 24);
+            layoutY += 30;
+
+            _layoutDummyLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
+            layoutY += labelHeight + 6;
+            int dummyWidth = Math.Min(100, layoutContentWidth);
+            _layoutDummyPanel.Bounds = new UiRect(0, layoutY, dummyWidth, 20);
+            layoutY += _layoutDummyPanel.Bounds.Height + 8;
+
+            _layoutWrapLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
+            layoutY += labelHeight + 6;
+            int wrapBlockHeight = labelHeight * 3;
+            _layoutWrapBlock.Bounds = new UiRect(0, layoutY, layoutContentWidth, wrapBlockHeight);
+            layoutY += wrapBlockHeight + 8;
+
             _tabBarLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;
 
@@ -2707,7 +4649,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _tabDetailsLabel.Bounds = new UiRect(tabContent.X + tabContentPadding, tabContent.Y + tabContentPadding, tabTextWidth, labelHeight);
             _tabSettingsLabel.Bounds = new UiRect(tabContent.X + tabContentPadding, tabContent.Y + tabContentPadding, tabTextWidth, labelHeight);
 
-            layoutY += _tabBar.Bounds.Height + 8;
+            layoutY += _tabBar.Bounds.Height + 6;
+
+            _tabButtonStatusLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
+            layoutY += labelHeight + 8;
 
             _splitterLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;
@@ -2758,6 +4703,68 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _widgetsLayoutTree.HeaderHeight = treeHeaderHeight;
             _widgetsLayoutTree.Bounds = new UiRect(0, categoryY, rootContentWidth, layoutHeight);
             categoryY += layoutHeight + categorySpacing;
+
+            int statusContentWidth = Math.Max(0, rootContentWidth - _widgetsStatusTree.Indent);
+            int statusPadding = Math.Max(0, _widgetsStatusTree.ContentPadding);
+            int statusY = 0;
+            _itemStatusLabel.Bounds = new UiRect(0, statusY, statusContentWidth, labelHeight);
+            statusY += labelHeight + 4;
+            _windowStatusLabel.Bounds = new UiRect(0, statusY, statusContentWidth, labelHeight);
+            statusY += labelHeight + 4;
+            _focusStatusLabel.Bounds = new UiRect(0, statusY, statusContentWidth, labelHeight);
+            statusY += labelHeight + 4;
+            int statusHeight = treeHeaderHeight + (_widgetsStatusTree.IsOpen ? statusPadding + statusY : 0);
+            _widgetsStatusTree.HeaderHeight = treeHeaderHeight;
+            _widgetsStatusTree.Bounds = new UiRect(0, categoryY, rootContentWidth, statusHeight);
+            categoryY += statusHeight + categorySpacing;
+
+            int inputContentWidth = Math.Max(0, rootContentWidth - _widgetsInputFocusTree.Indent);
+            int inputPadding = Math.Max(0, _widgetsInputFocusTree.ContentPadding);
+            int inputY = 0;
+            _inputInfoLabel.Bounds = new UiRect(0, inputY, inputContentWidth, labelHeight);
+            inputY += labelHeight + 4;
+            _shortcutLabel.Bounds = new UiRect(0, inputY, inputContentWidth, labelHeight);
+            inputY += labelHeight + 6;
+            _focusInputField.Bounds = new UiRect(0, inputY, Math.Min(240, inputContentWidth), 22);
+            inputY += 30;
+            _focusButton.Bounds = new UiRect(0, inputY, Math.Min(160, inputContentWidth), 24);
+            inputY += 30;
+            _focusResultLabel.Bounds = new UiRect(0, inputY, inputContentWidth, labelHeight);
+            inputY += labelHeight + 4;
+            int inputHeight = treeHeaderHeight + (_widgetsInputFocusTree.IsOpen ? inputPadding + inputY : 0);
+            _widgetsInputFocusTree.HeaderHeight = treeHeaderHeight;
+            _widgetsInputFocusTree.Bounds = new UiRect(0, categoryY, rootContentWidth, inputHeight);
+            categoryY += inputHeight + categorySpacing;
+
+            int toolsContentWidth = Math.Max(0, rootContentWidth - _widgetsToolsTree.Indent);
+            int toolsPadding = Math.Max(0, _widgetsToolsTree.ContentPadding);
+            int toolsY = 0;
+            _toolsLabel.Bounds = new UiRect(0, toolsY, toolsContentWidth, labelHeight);
+            toolsY += labelHeight + 6;
+            _toolsLink.Bounds = new UiRect(0, toolsY, toolsContentWidth, labelHeight);
+            toolsY += labelHeight + 6;
+            _aboutButton.Bounds = new UiRect(0, toolsY, Math.Min(140, toolsContentWidth), 24);
+            toolsY += 30;
+            _themeDarkButton.Bounds = new UiRect(0, toolsY, Math.Min(160, toolsContentWidth), 24);
+            toolsY += 30;
+            _themeLightButton.Bounds = new UiRect(0, toolsY, Math.Min(160, toolsContentWidth), 24);
+            toolsY += 30;
+            int toolsHeight = treeHeaderHeight + (_widgetsToolsTree.IsOpen ? toolsPadding + toolsY : 0);
+            _widgetsToolsTree.HeaderHeight = treeHeaderHeight;
+            _widgetsToolsTree.Bounds = new UiRect(0, categoryY, rootContentWidth, toolsHeight);
+            categoryY += toolsHeight + categorySpacing;
+
+            int examplesContentWidth = Math.Max(0, rootContentWidth - _widgetsExamplesTree.Indent);
+            int examplesPadding = Math.Max(0, _widgetsExamplesTree.ContentPadding);
+            int examplesY = 0;
+            _examplesLabel.Bounds = new UiRect(0, examplesY, examplesContentWidth, labelHeight);
+            examplesY += labelHeight + 4;
+            _examplesHintLabel.Bounds = new UiRect(0, examplesY, examplesContentWidth, labelHeight);
+            examplesY += labelHeight + 4;
+            int examplesHeight = treeHeaderHeight + (_widgetsExamplesTree.IsOpen ? examplesPadding + examplesY : 0);
+            _widgetsExamplesTree.HeaderHeight = treeHeaderHeight;
+            _widgetsExamplesTree.Bounds = new UiRect(0, categoryY, rootContentWidth, examplesHeight);
+            categoryY += examplesHeight + categorySpacing;
 
             int tooltipContentWidth = Math.Max(0, rootContentWidth - _widgetsTooltipTree.Indent);
             int tooltipPadding = Math.Max(0, _widgetsTooltipTree.ContentPadding);
@@ -3052,6 +5059,459 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             bool includeAlpha = (_colorEdit?.ShowAlpha ?? false) || (_colorPicker?.ShowAlpha ?? false);
             _colorSelectionLabel.Text = $"Color: {FormatHex(_sharedColor, includeAlpha)}";
         }
+
+        if (_verticalSlider != null && _verticalSliderValueLabel != null)
+        {
+            _verticalSliderValueLabel.Text = $"Vertical: {(int)Math.Round(_verticalSlider.Value * 100f)}%";
+        }
+
+        if (_enumSlider != null && _enumSliderValueLabel != null)
+        {
+            int index = (int)MathF.Round(_enumSlider.Value);
+            index = Math.Clamp(index, 0, Math.Max(0, _enumSliderItems.Count - 1));
+            _enumSlider.Value = index;
+            string name = _enumSliderItems.Count > 0 ? _enumSliderItems[index] : "None";
+            _enumSliderValueLabel.Text = $"Enum: {name}";
+        }
+
+        if (_basicRepeatStatusLabel != null)
+        {
+            _basicRepeatStatusLabel.Text = $"Repeats: {_basicRepeatTicks}";
+        }
+
+        if (_imageButtonStatus != null)
+        {
+            _imageButtonStatus.Text = $"Image button: {_imageButtonClicks} clicks";
+        }
+
+        if (_passwordField != null && _passwordMaskLabel != null)
+        {
+            int length = _passwordField.Text.Length;
+            _passwordMaskLabel.Text = length > 0 ? new string('*', length) : string.Empty;
+        }
+
+        if (_completionField != null && _completionHintLabel != null)
+        {
+            string hint = BuildCompletionHint(_completionField.Text);
+            _completionHintLabel.Text = $"Suggestions: {hint}";
+        }
+
+        if (_completionHistoryLabel != null)
+        {
+            _completionHistoryLabel.Text = _completionHistory.Count == 0
+                ? "History: (empty)"
+                : $"History: {string.Join(", ", _completionHistory)}";
+        }
+
+        if (_elidingInputField != null && _elidingResultLabel != null && _renderer != null)
+        {
+            int maxWidth = Math.Max(0, _elidingInputField.Bounds.Width - 12);
+            _elidingResultLabel.Text = $"Elided: {BuildElidedText(_elidingInputField.Text, maxWidth, FontScale)}";
+        }
+
+        if (_textFilterField != null)
+        {
+            UpdateTextFilter();
+        }
+
+        if (_textFilterList != null && _textFilterStatusLabel != null)
+        {
+            string selection;
+            if (_textFilterFilteredItems.Count == 0)
+            {
+                selection = "None";
+            }
+            else if (_textFilterList.SelectedIndex >= 0 && _textFilterList.SelectedIndex < _textFilterFilteredItems.Count)
+            {
+                selection = _textFilterFilteredItems[_textFilterList.SelectedIndex];
+            }
+            else
+            {
+                selection = "All";
+            }
+            _textFilterStatusLabel.Text = $"Filter: {selection}";
+        }
+
+        if (_multiComponentStatusLabel != null && _inputFloat2 != null && _inputFloat3 != null && _inputFloat4 != null && _inputInt2 != null && _inputInt3 != null && _inputInt4 != null)
+        {
+            _multiComponentStatusLabel.Text = $"Vectors: F2({_inputFloat2.ValueX:0.00},{_inputFloat2.ValueY:0.00}) F3({_inputFloat3.ValueX:0.00},{_inputFloat3.ValueY:0.00},{_inputFloat3.ValueZ:0.00}) I2({_inputInt2.ValueX},{_inputInt2.ValueY})";
+        }
+
+        if (_disableToggle != null && _disabledGroup != null)
+        {
+            _disabledGroup.Enabled = _disableToggle.Checked;
+        }
+
+        if (_dragDropItemLabels.Count > 0)
+        {
+            SyncDragDropItems();
+        }
+
+        if (_dragDropStatusLabel != null && _context != null)
+        {
+            if (_context.DragDrop.IsDragging)
+            {
+                _dragDropStatusLabel.Text = "Drag status: dragging";
+            }
+            else if (_dragDropStatusLabel.Text.Contains("dragging", StringComparison.OrdinalIgnoreCase))
+            {
+                _dragDropStatusLabel.Text = "Drag status: idle";
+            }
+
+            if (_dragDropTooltipRegion != null)
+            {
+                _dragDropTooltipRegion.Text = _context.DragDrop.IsDragging ? "Release to drop" : string.Empty;
+            }
+        }
+
+        if (_configLargeFontCheckbox != null && _helpLabel != null)
+        {
+            _helpLabel.Scale = _configLargeFontCheckbox.Checked ? FontScale + 1 : FontScale;
+        }
+
+        if (_windowAllowResizeCheckbox != null && _windowShowTitleCheckbox != null && _windowAllowDragCheckbox != null && _windowShowGripCheckbox != null && _standaloneWindow != null)
+        {
+            _standaloneWindow.AllowResize = _windowAllowResizeCheckbox.Checked;
+            _standaloneWindow.ShowTitleBar = _windowShowTitleCheckbox.Checked;
+            _standaloneWindow.AllowDrag = _windowAllowDragCheckbox.Checked;
+            _standaloneWindow.ShowResizeGrip = _windowShowGripCheckbox.Checked;
+        }
+    }
+
+    private void UpdateInputPanels(UiInputState input, float deltaSeconds)
+    {
+        if (_basicRepeatButton != null)
+        {
+            bool held = input.LeftDown && _basicRepeatButton.Bounds.Contains(input.MousePosition);
+            if (held)
+            {
+                _basicRepeatAccumulator += Math.Max(0f, deltaSeconds);
+                const float repeatInterval = 0.2f;
+                while (_basicRepeatAccumulator >= repeatInterval)
+                {
+                    _basicRepeatAccumulator -= repeatInterval;
+                    _basicRepeatTicks++;
+                }
+            }
+            else
+            {
+                _basicRepeatAccumulator = 0f;
+            }
+        }
+
+        if (_inputInfoLabel != null)
+        {
+            string modifiers = $"{(input.CtrlDown ? "Ctrl" : "Ctrl-")} {(input.ShiftDown ? "Shift" : "Shift-")}";
+            string scrollText = $"Scroll {input.ScrollDelta}";
+            string textInput = input.TextInput.Count > 0 ? $"Text '{input.TextInput[input.TextInput.Count - 1]}'" : "Text -";
+            _inputInfoLabel.Text = $"Input: Mouse ({input.MousePosition.X},{input.MousePosition.Y}) {scrollText} {modifiers} {textInput}";
+        }
+
+        if (_shortcutLabel != null)
+        {
+            if (input.CtrlDown && input.TextInput.Count > 0)
+            {
+                char last = input.TextInput[input.TextInput.Count - 1];
+                if (!char.IsControl(last))
+                {
+                    string key = char.ToUpperInvariant(last).ToString();
+                    _lastShortcutText = input.ShiftDown ? $"Ctrl+Shift+{key}" : $"Ctrl+{key}";
+                }
+            }
+            else if (input.Navigation.Enter || input.Navigation.KeypadEnter)
+            {
+                _lastShortcutText = "Enter";
+            }
+            else if (input.Navigation.Tab)
+            {
+                _lastShortcutText = "Tab";
+            }
+
+            _shortcutLabel.Text = $"Shortcut: {_lastShortcutText}";
+        }
+
+        if (_context == null)
+        {
+            return;
+        }
+
+        UiElement? hovered = _root?.HitTest(_lastMousePosition);
+        if (hovered == _root || hovered == _rootPanel)
+        {
+            hovered = null;
+        }
+
+        if (_itemStatusLabel != null)
+        {
+            _itemStatusLabel.Text = $"Item: {DescribeElement(hovered)}";
+        }
+
+        UiElement? focused = _context.Focus.Focused;
+        if (_focusStatusLabel != null)
+        {
+            _focusStatusLabel.Text = $"Focus: {DescribeElement(focused)}";
+        }
+
+        if (_focusResultLabel != null)
+        {
+            _focusResultLabel.Text = $"Focused: {DescribeElement(focused)}";
+        }
+
+        if (_windowStatusLabel != null)
+        {
+            UiWindow? window = FindAncestorWindow(focused ?? hovered);
+            if (window == null)
+            {
+                _windowStatusLabel.Text = "Window: none";
+            }
+            else
+            {
+                string title = string.IsNullOrWhiteSpace(window.Title) ? window.GetType().Name : window.Title;
+                _windowStatusLabel.Text = $"Window: {TrimText(title, 26)}";
+            }
+        }
+
+        if (_completionField != null && focused == _completionField && (input.Navigation.Enter || input.Navigation.KeypadEnter))
+        {
+            string text = _completionField.Text.Trim();
+            if (!string.IsNullOrEmpty(text))
+            {
+                _completionHistory.Remove(text);
+                _completionHistory.Add(text);
+                const int maxHistory = 5;
+                while (_completionHistory.Count > maxHistory)
+                {
+                    _completionHistory.RemoveAt(0);
+                }
+            }
+        }
+    }
+
+    private void UpdateSliderFlags()
+    {
+        bool wholeNumbers = _sliderWholeNumbersCheckbox?.Checked ?? false;
+        float step = (_sliderStepCheckbox?.Checked ?? false) ? 0.1f : 0f;
+
+        ApplySliderFlags(_volumeSlider, wholeNumbers, step);
+        ApplySliderFlags(_verticalSlider, wholeNumbers, step);
+    }
+
+    private void UpdateTextFilter()
+    {
+        if (_textFilterField == null || _textFilterList == null)
+        {
+            return;
+        }
+
+        string filter = _textFilterField.Text ?? string.Empty;
+        if (string.Equals(filter, _lastTextFilter, StringComparison.Ordinal) && _textFilterFilteredItems.Count > 0)
+        {
+            return;
+        }
+
+        string? previousSelection = null;
+        if (_textFilterList.SelectedIndex >= 0 && _textFilterList.SelectedIndex < _textFilterFilteredItems.Count)
+        {
+            previousSelection = _textFilterFilteredItems[_textFilterList.SelectedIndex];
+        }
+
+        _textFilterFilteredItems.Clear();
+        if (string.IsNullOrWhiteSpace(filter))
+        {
+            _textFilterFilteredItems.AddRange(_textFilterItems);
+        }
+        else
+        {
+            foreach (string item in _textFilterItems)
+            {
+                if (item.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                {
+                    _textFilterFilteredItems.Add(item);
+                }
+            }
+        }
+
+        _lastTextFilter = filter;
+
+        if (previousSelection != null)
+        {
+            _textFilterList.SelectedIndex = _textFilterFilteredItems.IndexOf(previousSelection);
+        }
+        else if (_textFilterList.SelectedIndex >= _textFilterFilteredItems.Count)
+        {
+            _textFilterList.SelectedIndex = -1;
+        }
+    }
+
+    private void SyncDragDropItems()
+    {
+        int count = Math.Min(_dragDropItems.Count, _dragDropItemLabels.Count);
+        for (int i = 0; i < count; i++)
+        {
+            _dragDropItemLabels[i].Text = _dragDropItems[i];
+            _dragDropItemSources[i].PayloadData = i;
+        }
+    }
+
+    private string BuildCompletionHint(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "(none)";
+        }
+
+        string trimmed = text.Trim();
+        List<string> matches = new();
+        foreach (string option in CompletionHints)
+        {
+            if (option.StartsWith(trimmed, StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(option);
+                if (matches.Count >= 4)
+                {
+                    break;
+                }
+            }
+        }
+
+        return matches.Count == 0 ? "(none)" : string.Join(", ", matches);
+    }
+
+    private string BuildElidedText(string text, int maxWidth, int scale)
+    {
+        if (_renderer == null || string.IsNullOrEmpty(text) || maxWidth <= 0)
+        {
+            return string.Empty;
+        }
+
+        string line = text.Split('\n')[0];
+        if (_renderer.MeasureTextWidth(line, scale) <= maxWidth)
+        {
+            return line;
+        }
+
+        const string ellipsis = "...";
+        int ellipsisWidth = _renderer.MeasureTextWidth(ellipsis, scale);
+        if (ellipsisWidth >= maxWidth)
+        {
+            return ellipsisWidth <= maxWidth ? ellipsis : string.Empty;
+        }
+
+        int low = 0;
+        int high = line.Length;
+        while (low < high)
+        {
+            int mid = (low + high + 1) / 2;
+            string slice = line.Substring(0, mid);
+            int width = _renderer.MeasureTextWidth(slice, scale);
+            if (width + ellipsisWidth <= maxWidth)
+            {
+                low = mid;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        if (low <= 0)
+        {
+            return ellipsisWidth <= maxWidth ? ellipsis : string.Empty;
+        }
+
+        return line.Substring(0, low) + ellipsis;
+    }
+
+    private static void ApplySliderFlags(UiSlider? slider, bool wholeNumbers, float step)
+    {
+        if (slider == null)
+        {
+            return;
+        }
+
+        slider.WholeNumbers = wholeNumbers;
+        slider.Step = step;
+        slider.Value = slider.Value;
+    }
+
+    private static void ApplySliderFlags(UiVSlider? slider, bool wholeNumbers, float step)
+    {
+        if (slider == null)
+        {
+            return;
+        }
+
+        slider.WholeNumbers = wholeNumbers;
+        slider.Step = step;
+        slider.Value = slider.Value;
+    }
+
+    private static string DescribeElement(UiElement? element)
+    {
+        if (element == null)
+        {
+            return "none";
+        }
+
+        return element switch
+        {
+            UiWindow window => DescribeText("Window", window.Title),
+            UiButton button => DescribeText("Button", button.Text),
+            UiCheckbox checkbox => DescribeText("Checkbox", checkbox.Text),
+            UiLabel label => DescribeText("Label", label.Text),
+            UiTextBlock => "Text Block",
+            UiTextField field => DescribeText("Input", field.Text),
+            UiTreeNode node => DescribeText("Tree", node.Text),
+            UiTabItem tab => DescribeText("Tab", tab.Text),
+            UiSelectable selectable => DescribeText("Selectable", selectable.Text),
+            UiComboBox => "Combo Box",
+            UiListBox => "List Box",
+            UiMenuBar => "Menu Bar",
+            _ when !string.IsNullOrWhiteSpace(element.Id) => $"{element.GetType().Name} {element.Id}",
+            _ => element.GetType().Name
+        };
+    }
+
+    private static UiWindow? FindAncestorWindow(UiElement? element)
+    {
+        UiElement? current = element;
+        while (current != null)
+        {
+            if (current is UiWindow window)
+            {
+                return window;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
+    }
+
+    private static string DescribeText(string label, string? text)
+    {
+        string trimmed = text?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return label;
+        }
+
+        return $"{label} \"{TrimText(trimmed, 26)}\"";
+    }
+
+    private static string TrimText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+        {
+            return text;
+        }
+
+        if (maxLength <= 3)
+        {
+            return text.Substring(0, Math.Max(0, maxLength));
+        }
+
+        return text.Substring(0, maxLength - 3) + "...";
     }
 
     private void UpdateDragFlags()
@@ -3180,7 +5640,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         if (_renderer != null)
         {
-        _font.CodePage = clamped == 1 ? TinyFontCodePage.Cp437 : TinyFontCodePage.Latin1;
+            _font.CodePage = clamped == 1 ? TinyFontCodePage.Cp437 : TinyFontCodePage.Latin1;
         }
 
         UpdateAsciiTable();

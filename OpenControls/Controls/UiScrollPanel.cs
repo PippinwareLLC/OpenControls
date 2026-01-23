@@ -178,7 +178,7 @@ public sealed class UiScrollPanel : UiElement
         ClampScrollOffset();
 
         UiInputState childInput = BuildChildInput(input, mouseInViewport && !mouseInScrollbar);
-        UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DeltaSeconds);
+        UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds);
         foreach (UiElement child in Children)
         {
             child.Update(childContext);

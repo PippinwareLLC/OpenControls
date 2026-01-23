@@ -23,7 +23,7 @@ public sealed class UiModalHost : UiElement
         }
 
         UiInputState blockedInput = BuildBlockedInput(context.Input);
-        UiUpdateContext blockedContext = new UiUpdateContext(blockedInput, context.Focus, context.DeltaSeconds);
+        UiUpdateContext blockedContext = new UiUpdateContext(blockedInput, context.Focus, context.DragDrop, context.DeltaSeconds);
 
         foreach (UiElement child in Children)
         {

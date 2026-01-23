@@ -1021,7 +1021,7 @@ public sealed class UiMenuBar : UiElement
                     Navigation = input.Navigation
                 };
 
-                item.Content.Update(new UiUpdateContext(childInput, context.Focus, context.DeltaSeconds));
+                item.Content.Update(new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds));
             }
         }
     }

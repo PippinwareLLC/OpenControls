@@ -182,7 +182,7 @@ public sealed class UiCanvas : UiElement
         }
 
         UiInputState childInput = BuildChildInput(input, mouseInViewport && !_panning);
-        UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DeltaSeconds);
+        UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds);
         foreach (UiElement child in Children)
         {
             child.Update(childContext);
