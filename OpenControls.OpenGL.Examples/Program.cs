@@ -12,13 +12,14 @@ public static class Program
     {
         GameWindowSettings gameSettings = GameWindowSettings.Default;
         gameSettings.UpdateFrequency = 60;
+        bool isMacOs = OperatingSystem.IsMacOS();
 
         NativeWindowSettings windowSettings = new()
         {
             Size = new Vector2i(1280, 720),
             Title = "OpenControls OpenGL Examples",
-            Profile = ContextProfile.Compatability,
-            APIVersion = new Version(3, 3),
+            Profile = isMacOs ? ContextProfile.Any : ContextProfile.Compatability,
+            APIVersion = isMacOs ? new Version(2, 1) : new Version(3, 3),
             WindowBorder = WindowBorder.Resizable
         };
 

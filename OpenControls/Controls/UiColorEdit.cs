@@ -6,8 +6,6 @@ public sealed class UiColorEdit : UiElement
     private bool _dragging;
     private int _dragChannel = -1;
     private int _hoverChannel = -1;
-    private bool _focused;
-
     public UiColor Color
     {
         get => _color;
@@ -171,12 +169,10 @@ public sealed class UiColorEdit : UiElement
 
     protected internal override void OnFocusGained()
     {
-        _focused = true;
     }
 
     protected internal override void OnFocusLost()
     {
-        _focused = false;
         _dragging = false;
         _dragChannel = -1;
     }

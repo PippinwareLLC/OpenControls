@@ -10,8 +10,6 @@ public sealed class UiColorPicker : UiElement
     private bool _draggingSv;
     private bool _draggingHue;
     private bool _draggingAlpha;
-    private bool _focused;
-
     public UiColor Color
     {
         get => _color;
@@ -143,12 +141,10 @@ public sealed class UiColorPicker : UiElement
 
     protected internal override void OnFocusGained()
     {
-        _focused = true;
     }
 
     protected internal override void OnFocusLost()
     {
-        _focused = false;
         _draggingSv = false;
         _draggingHue = false;
         _draggingAlpha = false;

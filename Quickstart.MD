@@ -1,6 +1,6 @@
 # Quickstart
 
-This guide shows how to host OpenControls in a game loop. OpenControls ships MonoGame, SDL2, and OpenGL renderer adapters in `OpenControls.MonoGame`, `OpenControls.SdlNet`, and `OpenControls.OpenGL`, and you can implement `IUiRenderer` for other hosts (custom engines, etc).
+This guide shows how to host OpenControls in a game loop. OpenControls ships MonoGame, SDL2, Silk.NET, and OpenGL renderer adapters in `OpenControls.MonoGame`, `OpenControls.SdlNet`, `OpenControls.SilkNet`, and `OpenControls.OpenGL`, and you can implement `IUiRenderer` for other hosts (custom engines, etc).
 
 ## 1) Create a renderer adapter
 Implement `IUiRenderer` with your drawing API (sprite batch, canvas, etc).
@@ -200,6 +200,7 @@ ui.Render(renderer);
 - TinyBitmapFont lives in OpenControls and renderers can switch `CodePage` between Latin-1 and CP437; the Widgets demo includes an ASCII table.
 - Run `dotnet run --project OpenControls.MonoGame.Examples` to launch the MonoGame examples app.
 - Run `dotnet run --project OpenControls.SdlNet.Examples` to launch the SDL2-CS example (requires SDL2 native; on Windows place `SDL2.dll` on PATH or beside the executable).
+- Run `dotnet run --project OpenControls.SilkNet.Examples` to launch the Silk.NET example host.
 - Run `dotnet run --project OpenControls.OpenGL.Examples` to launch the OpenGL examples app.
 - For MonoGame `SpriteBatch`, use `SpriteSortMode.Immediate` plus a `RasterizerState` with `ScissorTestEnable = true` so `PushClip`/`PopClip` take effect.
-- For OpenGL, use a compatibility profile with an orthographic top-left projection, enable blending, and keep `GL_SCISSOR_TEST` available for clipping.
+- For OpenGL and Silk.NET's legacy OpenGL backend, use a compatibility profile with an orthographic top-left projection, enable blending, and keep `GL_SCISSOR_TEST` available for clipping.

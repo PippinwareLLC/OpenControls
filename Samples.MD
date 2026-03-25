@@ -715,6 +715,16 @@ dotnet run --project OpenControls.SdlNet.Examples
 
 This launches an SDL window (requires the SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable). It uses the shared SDL2 renderer adapter from `OpenControls.SdlNet`.
 
+OpenControls also ships a Silk.NET renderer adapter in `OpenControls.SilkNet` for hosts that want Silk.NET windowing/input with a compatibility-profile OpenGL context.
+
+Run the Silk.NET examples host:
+
+```bash
+dotnet run --project OpenControls.SilkNet.Examples
+```
+
+This launches a Silk.NET window that renders the shared examples UI through `OpenControls.SilkNet` and `OpenControls.Examples`.
+
 OpenControls also ships an OpenGL renderer adapter in `OpenControls.OpenGL` for hosts that provide a compatibility-profile OpenGL context.
 
 Run the OpenGL examples host:

@@ -33,6 +33,8 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - `OpenControls.MonoGame`: MonoGame DesktopGL renderer adapter library.
 - `OpenControls.MonoGame.Examples`: runnable MonoGame host for the shared examples UI.
 - `OpenControls.SdlNet`: SDL2-CS renderer adapter library.
+- `OpenControls.SilkNet`: Silk.NET renderer adapter library (legacy OpenGL).
+- `OpenControls.SilkNet.Examples`: runnable Silk.NET host for the shared examples UI.
 - `OpenControls.OpenGL`: OpenGL renderer adapter library (OpenTK).
 - `OpenControls.OpenGL.Examples`: runnable OpenGL host for the shared examples UI.
 - `OpenControls.SdlNet.Examples`: SDL2-CS renderer example that mirrors the OpenControls.Examples UI (requires SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable).
@@ -41,6 +43,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - Build the core library: `dotnet build OpenControls/OpenControls.csproj`
 - Run the MonoGame examples: `dotnet run --project OpenControls.MonoGame.Examples/OpenControls.MonoGame.Examples.csproj`
 - Run the OpenGL examples: `dotnet run --project OpenControls.OpenGL.Examples/OpenControls.OpenGL.Examples.csproj`
+- Run the Silk.NET examples: `dotnet run --project OpenControls.SilkNet.Examples/OpenControls.SilkNet.Examples.csproj`
 - Run parity verification (widgets + demos): `powershell -ExecutionPolicy Bypass -File scripts/verify-parity.ps1`
 - Run demo parity + build verification: `powershell -ExecutionPolicy Bypass -File scripts/verify-examples.ps1`
 - Refresh parity manifests after adding/removing widgets or demo markers: `powershell -ExecutionPolicy Bypass -File scripts/verify-parity.ps1 -Update`
@@ -83,6 +86,8 @@ Parity validation rules:
 | `OpenControls.MonoGame.Examples` | Host app | Active | MonoGame examples host. |
 | `OpenControls.SdlNet` | Renderer adapter | Active | SDL2-CS adapter. |
 | `OpenControls.SdlNet.Examples` | Host app | Active | Requires `SDL2.dll` at runtime. |
+| `OpenControls.SilkNet` | Renderer adapter | Active | Silk.NET legacy OpenGL adapter. |
+| `OpenControls.SilkNet.Examples` | Host app | Active | Silk.NET windowing/input host. |
 | `OpenControls.OpenGL` | Renderer adapter | Active | OpenTK compatibility-profile adapter. |
 | `OpenControls.OpenGL.Examples` | Host app | Active | OpenTK OpenGL host. |
 
@@ -101,6 +106,7 @@ OpenControls is renderer-agnostic; hosts provide an `IUiRenderer` implementation
 Current adapters:
 - MonoGame DesktopGL (OpenControls.MonoGame).
 - SDL2-CS (OpenControls.SdlNet).
+- Silk.NET legacy OpenGL (OpenControls.SilkNet).
 - OpenGL (OpenControls.OpenGL).
 
 Planned expansion:
@@ -138,6 +144,8 @@ Planned expansion:
 - UI state serialization is available for layout persistence.
 - OpenControls.MonoGame.Examples renders the shared examples UI using MonoGame DesktopGL (via OpenControls.MonoGame).
 - OpenControls.SdlNet.Examples renders the shared examples UI using SDL2-CS (via OpenControls.SdlNet).
+- OpenControls.SilkNet provides a Silk.NET-based renderer adapter using legacy OpenGL bindings.
+- OpenControls.SilkNet.Examples renders the shared examples UI using Silk.NET windowing/input plus the Silk.NET renderer adapter.
 - OpenControls.OpenGL provides an OpenTK-based renderer adapter (compatibility profile).
 - OpenControls.OpenGL.Examples renders the shared examples UI using OpenGL (via OpenControls.OpenGL).
 - OpenControls.Examples includes an Examples menu to open feature windows as dockable panels.

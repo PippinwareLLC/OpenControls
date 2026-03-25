@@ -78,7 +78,7 @@ This is a brief overview of the current OpenControls surface area.
 ## Notes
 - All bounds are absolute (`UiRect`), so layout is explicit.
 - Controls are renderer-agnostic; rendering is done by the host adapter.
-- `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame, SDL2-CS, and OpenGL adapters (Latin-1/CP437).
+- `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame, SDL2-CS, Silk.NET, and OpenGL adapters (Latin-1/CP437).
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.
 - `UiContext.Render` performs an overlay pass; `UiMenuBar` dropdowns draw there so they render above other controls.
@@ -232,7 +232,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiInputState.ScrollDelta` uses mouse wheel delta (positive values scroll up by default).
 - `UiInputState.ScreenMousePosition` preserves the screen-space cursor position for overlay UI like tooltips.
 - `UiInputState.ShiftDown`/`CtrlDown` drive range/toggle selection for multi-select.
-- Prefer platform text input events (for example MonoGame `GameWindow.TextInput` or SDL `SDL_TEXTINPUT`) for `UiInputState.TextInput`; use key mapping as a fallback.
+- Prefer platform text input events (for example MonoGame `GameWindow.TextInput`, Silk.NET `IKeyboard.KeyChar`, or SDL `SDL_TEXTINPUT`) for `UiInputState.TextInput`; use key mapping as a fallback.
 - `UiContext` skips Tab traversal when the focused element reports `HandlesTabInput` (used by `UiTextEditor.AllowTabInput`).
 - When `UiContext` moves focus via Tab, it consumes the Tab input so the newly focused element does not receive a tab insert.
 - `UiNavigationInput.Activate` is true for Enter, Keypad Enter, or Space.

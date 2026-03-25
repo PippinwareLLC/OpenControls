@@ -249,8 +249,9 @@ public sealed class TinyBitmapFont
 
     private bool TryCreateGlyph(char c, out byte[] glyph)
     {
-        if (SymbolGlyphs.TryGetValue(c, out glyph))
+        if (SymbolGlyphs.TryGetValue(c, out byte[]? symbolGlyph))
         {
+            glyph = symbolGlyph;
             return true;
         }
 
@@ -335,8 +336,9 @@ public sealed class TinyBitmapFont
         string compat = c.ToString().Normalize(NormalizationForm.FormKD);
         foreach (char ch in compat)
         {
-            if (BaseGlyphs.TryGetValue(ch, out glyph))
+            if (BaseGlyphs.TryGetValue(ch, out byte[]? compatGlyph))
             {
+                glyph = compatGlyph;
                 return true;
             }
         }
