@@ -5,6 +5,65 @@ namespace OpenControls.Tests;
 
 public sealed class UiVirtualizationTests
 {
+    private sealed class TestRenderer : IUiRenderer
+    {
+        public UiFont DefaultFont { get; set; } = UiFont.Default;
+
+        public void FillRect(UiRect rect, UiColor color)
+        {
+        }
+
+        public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
+        {
+        }
+
+        public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
+        {
+        }
+
+        public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+        }
+
+        public int MeasureTextWidth(string text, int scale = 1)
+        {
+            return MeasureTextWidth(text, scale, DefaultFont);
+        }
+
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            UiFont resolved = font ?? DefaultFont;
+            return resolved.MeasureTextWidth(text, scale);
+        }
+
+        public int MeasureTextHeight(int scale = 1)
+        {
+            return MeasureTextHeight(scale, DefaultFont);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            UiFont resolved = font ?? DefaultFont;
+            return resolved.MeasureTextHeight(scale);
+        }
+
+        public void PushClip(UiRect rect)
+        {
+        }
+
+        public void PopClip()
+        {
+        }
+    }
+
     [Fact]
     public void Clipper_FixedHeightRangeComputesVisibleAndMaterializedIndices()
     {
@@ -23,6 +82,15 @@ public sealed class UiVirtualizationTests
         int scroll = UiClipper.EnsureVisible(itemCount: 100, itemExtent: 20, viewportExtent: 55, scrollOffset: 0, index: 99);
 
         Assert.Equal(1945, scroll);
+    }
+
+    [Fact]
+    public void DefaultClipRange_DoesNotPretendToHaveMaterializedItems()
+    {
+        UiClipRange range = default;
+
+        Assert.False(range.HasVisibleItems);
+        Assert.False(range.HasMaterializedItems);
     }
 
     [Fact]
@@ -93,6 +161,29 @@ public sealed class UiVirtualizationTests
         Assert.Equal(18, tree.SelectedIndex);
         Assert.NotNull(tree.SelectedItem);
         Assert.True(tree.VisibleItemCount < 40 + 36);
+    }
+
+    [Fact]
+    public void TreeView_RenderBeforeFirstUpdateDoesNotThrow()
+    {
+        UiTreeView tree = new()
+        {
+            Bounds = new UiRect(0, 0, 220, 88),
+            ItemHeight = 22,
+            OverscanItems = 1
+        };
+
+        UiTreeViewItem root = new("Gameplay") { IsOpen = true };
+        root.Children.Add(new UiTreeViewItem("Player"));
+        root.Children.Add(new UiTreeViewItem("Enemies"));
+        tree.RootItems.Add(root);
+
+        TestRenderer renderer = new();
+        UiRenderContext context = new(renderer, renderer.DefaultFont);
+
+        tree.Render(context);
+
+        Assert.Equal(3, tree.VisibleItemCount);
     }
 
     private static void Update(UiElement element, UiInputState input)

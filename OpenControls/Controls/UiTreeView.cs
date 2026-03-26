@@ -311,6 +311,8 @@ public sealed class UiTreeView : UiElement
             return;
         }
 
+        EnsureRenderState();
+
         UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, Background);
         if (Border.A > 0)
         {
@@ -327,7 +329,9 @@ public sealed class UiTreeView : UiElement
         int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
 
         context.Renderer.PushClip(Bounds);
-        for (int index = _clipRange.FirstMaterializedIndex; index <= _clipRange.LastMaterializedIndex; index++)
+        int firstIndex = Math.Max(0, _clipRange.FirstMaterializedIndex);
+        int lastIndex = Math.Min(_visibleRows.Count - 1, _clipRange.LastMaterializedIndex);
+        for (int index = firstIndex; index <= lastIndex; index++)
         {
             VisibleRow row = _visibleRows[index];
             int y = Bounds.Y + _clipRange.GetItemStart(index) - _clipRange.ViewportStart;
@@ -681,6 +685,21 @@ public sealed class UiTreeView : UiElement
         _selectionModel?.SetItemCount(_visibleRows.Count, SelectionScope);
         int itemHeight = Math.Max(1, ItemHeight);
         int viewportHeight = Math.Max(0, Bounds.Height);
+        _scrollOffset = UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset);
+        _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
+    }
+
+    private void EnsureRenderState()
+    {
+        int itemHeight = Math.Max(1, ItemHeight);
+        int viewportHeight = Math.Max(0, Bounds.Height);
+
+        if ((_visibleRows.Count == 0 && RootItems.Count > 0) || _clipRange.ItemCount != _visibleRows.Count)
+        {
+            RefreshVisibleRows();
+            return;
+        }
+
         _scrollOffset = UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset);
         _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
     }

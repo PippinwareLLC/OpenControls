@@ -34,8 +34,17 @@ public readonly struct UiClipRange
     public int FirstMaterializedIndex { get; }
     public int LastMaterializedIndex { get; }
 
-    public bool HasVisibleItems => FirstVisibleIndex >= 0 && LastVisibleIndex >= FirstVisibleIndex;
-    public bool HasMaterializedItems => FirstMaterializedIndex >= 0 && LastMaterializedIndex >= FirstMaterializedIndex;
+    public bool HasVisibleItems =>
+        ItemCount > 0
+        && FirstVisibleIndex >= 0
+        && LastVisibleIndex >= FirstVisibleIndex
+        && LastVisibleIndex < ItemCount;
+
+    public bool HasMaterializedItems =>
+        ItemCount > 0
+        && FirstMaterializedIndex >= 0
+        && LastMaterializedIndex >= FirstMaterializedIndex
+        && LastMaterializedIndex < ItemCount;
 
     public int GetItemStart(int index)
     {

@@ -526,6 +526,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private bool _standaloneInitialized;
     private string? _statePath;
     private ExamplePanel _activeExample = ExamplePanel.Custom;
+    private ExamplePanel? _pendingExample;
+    private bool _isUpdatingUi;
     private readonly List<string> _sceneItems = new()
     {
         "Intro Scene",
@@ -615,7 +617,17 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         }
 
         UpdateLayout(width, height);
-        _context.Update(input, deltaSeconds);
+        _isUpdatingUi = true;
+        try
+        {
+            _context.Update(input, deltaSeconds);
+        }
+        finally
+        {
+            _isUpdatingUi = false;
+        }
+
+        ApplyPendingExampleLayout();
         HandleContextPopupExamples(input);
         UpdateWindowContent();
         UpdateStatusLabel();
@@ -9220,6 +9232,28 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     }
 
     private void SetActiveExample(ExamplePanel example)
+    {
+        if (_isUpdatingUi)
+        {
+            _pendingExample = example;
+            return;
+        }
+
+        ApplyExampleSelection(example);
+    }
+
+    private void ApplyPendingExampleLayout()
+    {
+        if (_pendingExample is not ExamplePanel example)
+        {
+            return;
+        }
+
+        _pendingExample = null;
+        ApplyExampleSelection(example);
+    }
+
+    private void ApplyExampleSelection(ExamplePanel example)
     {
         _activeExample = example;
         ApplyExampleLayout(example);
