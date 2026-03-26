@@ -199,6 +199,19 @@ public sealed class UiMenuBar : UiElement
         _openPath.Clear();
     }
 
+    public void OpenAttached(UiRect anchorBounds)
+    {
+        Bounds = anchorBounds;
+        OpenPopup();
+    }
+
+    public void OpenContext(UiPoint point, int width = 0)
+    {
+        int popupWidth = width > 0 ? width : DropdownMinWidth;
+        Bounds = new UiRect(point.X, point.Y, popupWidth, 0);
+        OpenPopup();
+    }
+
     public void ClosePopup()
     {
         if (!_popupOpen)

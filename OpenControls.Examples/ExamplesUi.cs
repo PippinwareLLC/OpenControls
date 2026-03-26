@@ -590,6 +590,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         UpdateLayout(width, height);
         _context.Update(input, deltaSeconds);
+        HandleContextPopupExamples(input);
         UpdateWindowContent();
         UpdateStatusLabel();
         UpdateWidgetPanel();
@@ -2079,7 +2080,22 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _popupButton.Clicked += () => _popup?.OpenAttached(_popupButton.Bounds, new UiPoint(240, 148));
         _modalButton.Clicked += () => _modal?.Open();
-        _menuPopupButton.Clicked += () => _menuPopup?.TogglePopup();
+        _menuPopupButton.Clicked += () =>
+        {
+            if (_menuPopup == null || _menuPopupButton == null)
+            {
+                return;
+            }
+
+            if (_menuPopup.IsPopupOpen)
+            {
+                _menuPopup.ClosePopup();
+                return;
+            }
+
+            UiRect anchorBounds = new UiRect(_menuPopupButton.Bounds.X, _menuPopupButton.Bounds.Bottom + 4, _menuPopupButton.Bounds.Width, _menuPopupButton.Bounds.Height);
+            _menuPopup.OpenAttached(anchorBounds);
+        };
 
         InitializeCompositionDemo();
 
@@ -5165,6 +5181,43 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         }
     }
 
+    private void HandleContextPopupExamples(UiInputState input)
+    {
+        if (_context == null || !input.RightClicked)
+        {
+            return;
+        }
+
+        if (_menuPopup != null && _menuPopupButton != null && _context.Hovered == _menuPopupButton)
+        {
+            _menuPopup.OpenContext(input.MousePosition, 180);
+            if (_menuPopupStatus != null)
+            {
+                _menuPopupStatus.Text = "Menu: Context";
+            }
+
+            return;
+        }
+
+        if (_popup == null || _popupLabel == null)
+        {
+            return;
+        }
+
+        if (_widgetsWindow != null && _context.IsHovered(_widgetsWindow))
+        {
+            _popupLabel.Text = "Popup content (window context)";
+            _popup.OpenContext(input.MousePosition, new UiPoint(240, 148));
+            return;
+        }
+
+        if (_rootPanel != null && _context.Hovered == _rootPanel)
+        {
+            _popupLabel.Text = "Popup content (empty space context)";
+            _popup.OpenContext(input.MousePosition, new UiPoint(240, 148));
+        }
+    }
+
     private void UpdateStatusLabel()
     {
         if (_statusLabel == null || _textField == null)
@@ -5786,7 +5839,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _popupContextButton = new UiButton
         {
-            Text = "Open Context Popup",
+            Text = "Open Element Context Popup",
             TextScale = FontScale
         };
         _popupContextButton.Clicked += () => _popup?.OpenContext(_lastMousePosition, new UiPoint(240, 148));
@@ -6079,8 +6132,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             UiTreeNode node => DescribeText("Tree", node.Text),
             UiTabItem tab => DescribeText("Tab", tab.Text),
             UiSelectable selectable => DescribeText("Selectable", selectable.Text),
-            UiCombo => "Rich Combo",
             UiComboBox => "Combo Box",
+            UiCombo => "Rich Combo",
             UiListView => "List View",
             UiListBox => "List Box",
             UiSelectableRow row => DescribeText("Row", row.Text),

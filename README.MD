@@ -137,15 +137,16 @@ Planned expansion:
 - Color edit and color picker controls include gradient SV, alpha bars, and checkerboard transparency.
 - Multi-select selection model for list boxes and selectables (Ctrl/Shift range) is available.
 - Scroll panels support auto/always scrollbars for overflowing content.
-- `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and popup open helpers now power the composed combo/list/popup demo in `OpenControls.Examples`.
+- `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and popup open helpers now power the composed combo/list/popup demo in `OpenControls.Examples`, and `UiComboBox` remains as a string-list convenience wrapper over that richer combo path.
 - `IUiImageSource` plus `UiDelegateImageSource` provide a reusable adapter path for repeated thumbnail/icon drawing inside rich rows and popup content.
+- `UiChildRegion` is the embedded, clipped, scrollable viewport primitive for content inside an existing window, panel, or popup; use `UiWindow` when you need independent title/chrome/focus behavior instead of an in-place framed region.
 - Windows can host optional scroll panels for overflow content (shown in docked/floating examples).
 - Window and dock host controls support tabbed layouts with close buttons and overflow scrolling.
 - Tab bars support `UiTabItemButton` with leading/trailing placement.
 - Tabs, window titles, table headers, tree node headers, and labels can render bold text.
 - Dock workspaces support drag previews, drop targets, and floating windows.
 - Drag/drop payloads are supported via `UiDragDropSource`, `UiDragDropTarget`, and `UiDragDropContext`.
-- Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, and embedded content.
+- Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, embedded content, and attached/context opening helpers for popup-mode composition.
 - Tree nodes, collapsing headers, tooltips, popups, and modals are available.
 - Text editor control supports line numbers, scrolling, and syntax highlighting.
 - Text fields now support selection, copy/cut/paste, undo/redo, commit/cancel hooks, password/read-only/filtering modes, completion/history callbacks, resize callbacks, and placeholder text.

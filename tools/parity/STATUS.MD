@@ -15,7 +15,7 @@
 - [x] Milestone 3 is complete for the scoped first-pass font/icon parity target.
 - [x] Milestone 4 is complete for the scoped first-pass text-entry target.
 - [x] Milestone 5 is complete for the scoped first-pass text-editor target.
-- [x] Milestone 6 is complete for the scoped first-pass combo/list/popup composition target.
+- [x] Milestone 6 is complete.
 - [x] Milestone 7 is the next recommended implementation target.
 
 ## Status Table
@@ -27,7 +27,7 @@
 | Font system, atlas, and icon glyph pipeline | Must have | Complete / scoped first pass | Milestone 6 | Milestone 3 is complete for the shipped first-pass target: `UiFont`/`UiFontBuilder`/`UiFontRegistry`, per-element and inherited font selection, renderer-side glyph caches, custom font loading, fallback chains, and merged icon-font ranges are all in place. `OpenControls.SilkNet.Examples` is the reference validation host, the Widgets text demo shows custom fonts plus inline icons, and bitmap fallback is preserved for the ASCII/code-page and editor demos. Deferred font follow-on work stays in the roadmap notes instead of blocking milestone closure. |
 | Text entry foundation | Must have | Complete / scoped first pass | Milestone 6 | Milestone 4 is complete for the shipped first-pass target: `UiTextField` supports selection, clipboard, undo/redo, commit/cancel hooks, password/read-only/filtering modes, resize/completion/history callbacks, shared `UiTextEditingState`, and a clipboard abstraction on `UiContext`. `UiNumericField` inherits the richer text-entry behavior, the Widgets text demos are real, and `OpenControls.Tests` covers the shared editing core. Deferred IME/composition depth stays in the roadmap notes instead of blocking milestone closure. |
 | Text editor depth | High-value parity | Complete / scoped first pass | Milestone 6 | Milestone 5 is complete for the shipped first-pass target: `UiTextEditor` now reuses `UiTextEditingState`, supports mouse/keyboard selection, clipboard, undo/redo, line helpers, word/page/home/end navigation, caret/selection/text events, demo coverage, and regression tests. Deferred editor follow-on work stays in the roadmap notes instead of blocking milestone closure. |
-| Combo/list/popup composition | Must have | Complete / scoped first pass | Milestone 7 | `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, popup open helpers, image-source adapters, and the composed examples demo are now landed; compatibility wrappers and extra popup variants stay in the roadmap notes. |
+| Combo/list/popup composition | Must have | Complete | Milestone 7 | Milestone 6 is now fully complete: `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, popup open helpers, image-source adapters, the `UiComboBox` convenience wrapper, menu popup helpers, and element/window/empty-space context popup demos are all in place. |
 | Layout containers | Must have | Partial by manual bounds | Milestone 7 | Need retained equivalents for practical layout demos and product UI. |
 | Tables 2.0 | Must have | Partial | Milestone 8 | Sorting exists, but resize/reorder/hide/scroll depth does not. |
 | Virtualization / clipper | Must have | Missing | Milestone 9 | Needed for large lists, tables, and trees. |

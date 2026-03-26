@@ -108,6 +108,50 @@ public sealed class UiCompositionControlsTests
         Assert.False(combo.IsOpen);
     }
 
+    [Fact]
+    public void ComboBox_WrapsComboRowsAndPreservesStringSelection()
+    {
+        UiComboBox comboBox = new()
+        {
+            Bounds = new UiRect(0, 0, 180, 24),
+            Items = new[] { "Alpha", "Beta", "Gamma" }
+        };
+
+        UiFocusManager focus = new();
+        UiMemoryClipboard clipboard = new();
+
+        Update(comboBox, focus, clipboard, new UiInputState());
+        comboBox.SelectedIndex = 1;
+
+        Assert.Equal(3, comboBox.ListView.Items.Count);
+        Assert.Equal(1, comboBox.SelectedIndex);
+        Assert.Equal("Beta", comboBox.SelectedItem?.Text);
+        Assert.False(comboBox.ShowFilterField);
+    }
+
+    [Fact]
+    public void MenuBar_OpenContextAndAttachedHelpers_EnablePopupMode()
+    {
+        UiMenuBar menu = new()
+        {
+            DisplayMode = UiMenuDisplayMode.Popup,
+            DropdownMinWidth = 120
+        };
+
+        menu.OpenContext(new UiPoint(40, 50));
+        Assert.True(menu.IsPopupOpen);
+        Assert.Equal(40, menu.Bounds.X);
+        Assert.Equal(50, menu.Bounds.Y);
+        Assert.Equal(120, menu.Bounds.Width);
+
+        menu.ClosePopup();
+        menu.OpenAttached(new UiRect(10, 20, 80, 24));
+        Assert.True(menu.IsPopupOpen);
+        Assert.Equal(10, menu.Bounds.X);
+        Assert.Equal(20, menu.Bounds.Y);
+        Assert.Equal(80, menu.Bounds.Width);
+    }
+
     private static UiListView CreateListView()
     {
         UiListView listView = new()

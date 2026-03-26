@@ -197,18 +197,19 @@ ui.Render(renderer);
 - Use `UiModalHost` when modal dialogs should block input to the rest of the UI.
 - Set `CornerRadius` on common controls for rounded corners, or use `UiRenderHelpers.FillRectRounded`/`DrawRectRounded`/`MaskRectRounded` in custom widgets.
 - Use `UiSelectionModel` with `UiListBox`/`UiSelectable` for multi-select (Ctrl/Shift ranges).
-- Use `UiCombo`, `UiListView`, `UiSelectableRow`, and `UiChildRegion` when you want composed combo/list/popup content or embedded clipped child regions instead of string-only widgets.
+- Use `UiCombo`, `UiListView`, `UiSelectableRow`, and `UiChildRegion` when you want composed combo/list/popup content or embedded clipped child regions instead of string-only widgets; `UiComboBox` stays available as the convenience wrapper for plain string data.
 - Use `IUiImageSource`/`UiDelegateImageSource` for repeated thumbnails and icon-like row artwork without wiring a fresh draw callback everywhere.
 - Use `UiPopup.OpenAttached(...)` and `UiPopup.OpenContext(...)` for anchored popup demos and context menus.
+- Use `UiChildRegion` for embedded framed subviews inside an existing window, panel, or popup; use `UiWindow` when the content needs its own chrome, title bar, or independent window-like focus surface.
 - There is no layout engine; you set bounds each frame or on resize.
 - Use `UiFocusManager` (via `UiContext.Focus`) to drive focus if needed.
 - Use `UiContext` runtime-query helpers like `HoveredItemState`, `FocusedContainerState`, `GetItemState`, `TryGetVisibleBounds`, and the focus helpers (`RequestFocusById`, `RequestFocusFirst`, `RequestFocusChild`) when you need real item/window status or code-driven focus.
 - Set `UiContext.Clipboard` when you want text controls to use a host/system clipboard instead of the default in-memory clipboard.
-- Set `UiMenuBar.DisplayMode = Popup` and call `OpenPopup` to build context menus anchored to the menu `Bounds`.
+- Set `UiMenuBar.DisplayMode = Popup` and call `OpenPopup`, `OpenAttached(...)`, or `OpenContext(...)` to build popup-mode menus from explicit bounds, element anchors, or cursor positions.
 - TinyBitmapFont lives in OpenControls and renderers can switch `CodePage` between Latin-1 and CP437; the Widgets demo includes an ASCII table.
 - Use `UiFontBuilder.AddFile(...)` plus `UiFontRegistry` to register custom font files and optional icon-font layers, then assign them through `UiContext.DefaultFont` or `UiElement.Font`.
 - The shared examples app now demonstrates custom body fonts plus merged Font Awesome-style icons in the Widgets text section; ASCII/code-page and text-editor demos intentionally keep using `TinyBitmapFont` fallback.
-- The shared examples app also includes a composed combo/list/popup demo built from `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and `UiDelegateImageSource`.
+- The shared examples app also includes a composed combo/list/popup demo built from `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and `UiDelegateImageSource`, plus element/window/empty-space context popup examples.
 - Optional HarfBuzz integration is still treated as shaping/layout depth rather than a blocker for first-pass font parity, and Slug remains an optional GPU text-rendering path to evaluate.
 - Run `dotnet run --project OpenControls.MonoGame.Examples` to launch the MonoGame examples app.
 - Run `dotnet run --project OpenControls.SdlNet.Examples` to launch the SDL2-CS example (requires SDL2 native; on Windows place `SDL2.dll` on PATH or beside the executable).

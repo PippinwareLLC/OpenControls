@@ -54,7 +54,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiProgressBar`: value bar with optional overlay text (horizontal/vertical, segmented, radial).
 - `UiListBox`: list selector with hover/selected states.
 - `UiSelectable`: selectable row with hover/selected states.
-- `UiComboBox`: dropdown selector with an overlay list.
+- `UiComboBox`: string-list convenience wrapper over `UiCombo` and `UiListView`.
 - `UiTable`: grid/table control with column headers and selectable rows (headers can be bold).
 - `UiPlotPanel`: plotting panel with axes, tick labels, grid lines, and zoom/pan input.
 - `UiWaveform`: waveform panel for rendering sample data with optional zero line.
@@ -94,6 +94,8 @@ This is a brief overview of the current OpenControls surface area.
 - Set `UiContext.Clipboard` when a host wants system clipboard integration; otherwise the default in-memory clipboard still enables copy/cut/paste within the UI session.
 - The shipped first-pass runtime uses shared renderer glyph caches for custom fonts and inline icon text; HarfBuzz-backed shaping and Slug-backed GPU text rendering remain optional follow-on work in `IMGUI_PARITY_ATTACK_PLAN.MD`.
 - `UiPopup.OpenAttached(...)` and `UiPopup.OpenContext(...)` are the preferred helpers for anchored and point-based popup opening in retained demos.
+- `UiMenuBar.OpenAttached(...)` and `UiMenuBar.OpenContext(...)` provide the same anchored and point-based helpers for popup-mode menus.
+- `UiChildRegion` is an embedded clipped viewport inside an existing parent; use it for framed sub-content, and use `UiWindow` when the content needs independent title/chrome/focus behavior.
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.
 - `UiContext.Render` performs an overlay pass; `UiMenuBar` dropdowns draw there so they render above other controls.
@@ -167,6 +169,7 @@ This is a brief overview of the current OpenControls surface area.
 ## Combo Box Notes
 - `UiComboBox.Items`: assign items to display in the dropdown list.
 - `UiComboBox.SelectedIndex`: set or read the active selection.
+- `UiComboBox` now rides on the richer `UiCombo`/`UiListView` composition path while preserving the string-list API.
 - Dropdown rendering happens in the overlay pass so it draws above other controls.
 - `UiComboBox.ScrollWheelItems`: number of items to scroll per mouse wheel step when open.
 - Dropdowns clamp to the nearest scroll panel viewport when present, otherwise to ancestor bounds in local coordinates.

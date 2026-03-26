@@ -451,7 +451,7 @@ OpenControls has useful concrete widgets, but Dear ImGui's flexibility often com
 ### Combo/List/Popup Checklist
 
 - [x] Introduce a retained combo container that can host arbitrary child controls, not only strings.
-- [ ] Keep `UiComboBox` as a convenience wrapper over the richer container if possible.
+- [x] Keep `UiComboBox` as a convenience wrapper over the richer container if possible.
 - [x] Introduce a retained list-box container for arbitrary child content.
 - [x] Support typed-search / filterable combo patterns without bespoke one-off widgets.
 - [x] Support richer rows in combo/list content:
@@ -460,17 +460,17 @@ OpenControls has useful concrete widgets, but Dear ImGui's flexibility often com
   - [x] asset-picker style rows
 - [x] Expand popup helpers:
   - [x] context popup attached to an element
-  - [ ] window context popup
-  - [ ] empty-space context popup
+  - [x] window context popup
+  - [x] empty-space context popup
   - [x] better popup positioning and clamping
 - [x] Ensure popup and combo content participate in focus/capture logic correctly.
-- [ ] Add menu helpers where composition overlap exists with popup behavior.
+- [x] Add menu helpers where composition overlap exists with popup behavior.
 
 ### Child Content / Child Windows Checklist
 
 - [x] Introduce a framed child-region/container primitive if `UiScrollPanel` is not enough.
 - [x] Support embedded scrollable child regions with strong clipping behavior.
-- [ ] Document how child regions differ from windows and panels.
+- [x] Document how child regions differ from windows and panels.
 - [x] Standardize image/texture interop for composed content:
   - [x] renderer-level texture/image primitive or a stable adapter contract
   - [x] thumbnails/icons in combo/list/table rows without ad hoc callback wiring every time
@@ -480,7 +480,7 @@ OpenControls has useful concrete widgets, but Dear ImGui's flexibility often com
 
 - [x] `OpenControls.Examples` shows a composed combo/list/popup/child-region demo built from `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and `UiDelegateImageSource`.
 - [x] Popup helpers are demonstrated via attached and context opening in the examples UI.
-- [x] The first-pass Milestone 6 target is now visible in the repo, while wrapper migration and the extra popup variants remain tracked as follow-on work.
+- [x] Milestone 6 is now fully complete in the repo, including the `UiComboBox` compatibility wrapper and element/window/empty-space context popup demos.
 
 ### Exit Criteria
 

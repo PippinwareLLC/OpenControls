@@ -1,6 +1,6 @@
 namespace OpenControls.Controls;
 
-public sealed class UiCombo : UiElement
+public class UiCombo : UiElement
 {
     private readonly UiPopup _popup;
     private readonly UiTextField _filterField;
@@ -101,6 +101,12 @@ public sealed class UiCombo : UiElement
     {
         get => _popup.Border;
         set => _popup.Border = value;
+    }
+
+    public bool ClampToParent
+    {
+        get => _popup.ClampToParent;
+        set => _popup.ClampToParent = value;
     }
 
     public UiColor TextColor { get; set; } = UiColor.White;
