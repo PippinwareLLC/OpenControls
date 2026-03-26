@@ -34,7 +34,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - `OpenControls.MonoGame`: MonoGame DesktopGL renderer adapter library.
 - `OpenControls.MonoGame.Examples`: runnable MonoGame host for the shared examples UI.
 - `OpenControls.SdlNet`: SDL2-CS renderer adapter library.
-- `OpenControls.SilkNet`: Silk.NET renderer adapter library (legacy OpenGL).
+- `OpenControls.SilkNet`: Silk.NET renderer adapter library (OpenGL 3.3 core profile).
 - `OpenControls.SilkNet.Examples`: runnable Silk.NET host for the shared examples UI. This is the primary parity/reference host.
 - `OpenControls.OpenGL`: OpenGL renderer adapter library (OpenTK).
 - `OpenControls.OpenGL.Examples`: runnable OpenGL host for the shared examples UI.
@@ -72,7 +72,7 @@ Parity deviations (documented and intentional):
 Current roadmap priority after the latest Alliance-focused re-audit:
 - Milestone 13 is now complete for the shipped first-pass backend/editor-readiness target.
 - The next major milestone is Milestone 14: tooling, style-editor, and examples cleanup.
-- Remaining follow-on caveats are now mostly advanced text-system depth like HarfBuzz/bidi/RTL work, host-specific IME polish beyond the current SDL reference path, and general demo/tooling cleanup rather than per-pixel rendering or ultra-thin persistence fundamentals.
+- Remaining follow-on caveats are now mostly deeper bidi/RTL/layout polish beyond the shipped first-pass HarfBuzz shaping path, host-specific IME polish beyond the current SDL reference path plus the Silk bridge hooks, and general demo/tooling cleanup rather than per-pixel rendering or ultra-thin persistence fundamentals.
 
 ## Parity Tracking
 Phase 0 parity tracking now lives in checked-in markdown files:
@@ -109,7 +109,7 @@ Historical note:
 | `OpenControls.MonoGame.Examples` | Host app | Active | MonoGame examples host. |
 | `OpenControls.SdlNet` | Renderer adapter | Active | SDL2-CS adapter. |
 | `OpenControls.SdlNet.Examples` | Host app | Active | Requires `SDL2.dll` at runtime. |
-| `OpenControls.SilkNet` | Renderer adapter | Active | Silk.NET legacy OpenGL adapter. |
+| `OpenControls.SilkNet` | Renderer adapter | Active | Silk.NET OpenGL 3.3 core-profile adapter. |
 | `OpenControls.SilkNet.Examples` | Host app | Active | Silk.NET windowing/input host. |
 | `OpenControls.OpenGL` | Renderer adapter | Active | OpenTK compatibility-profile adapter. |
 | `OpenControls.OpenGL.Examples` | Host app | Active | OpenTK OpenGL host. |
@@ -130,7 +130,7 @@ OpenControls is renderer-agnostic; hosts provide an `IUiRenderer` implementation
 Current adapters:
 - MonoGame DesktopGL (OpenControls.MonoGame).
 - SDL2-CS (OpenControls.SdlNet).
-- Silk.NET legacy OpenGL (OpenControls.SilkNet).
+- Silk.NET OpenGL 3.3 core profile (OpenControls.SilkNet).
 - OpenGL (OpenControls.OpenGL).
 
 Planned expansion:
@@ -180,8 +180,8 @@ Planned expansion:
 - UI state serialization now restores richer editor/view state including selection, scroll, table view, combo/list state, and custom extension hooks through `IUiStatefulElement`.
 - OpenControls.MonoGame.Examples renders the shared examples UI using MonoGame DesktopGL (via OpenControls.MonoGame).
 - OpenControls.SdlNet.Examples renders the shared examples UI using SDL2-CS (via OpenControls.SdlNet).
-- OpenControls.SilkNet provides a Silk.NET-based renderer adapter using legacy OpenGL bindings.
-- OpenControls.SilkNet.Examples renders the shared examples UI using Silk.NET windowing/input plus the Silk.NET renderer adapter.
+- OpenControls.SilkNet provides a Silk.NET-based renderer adapter using modern OpenGL 3.3 core-profile bindings.
+- OpenControls.SilkNet.Examples renders the shared examples UI using Silk.NET windowing/input plus the Silk.NET renderer adapter, and now exposes a `SilkTextInputBridge` hook so host apps can forward platform composition/candidate-window behavior through the same `UiTextInputRequest` / `UiInputState.Composition` contract.
 - OpenControls.OpenGL provides an OpenTK-based renderer adapter (compatibility profile).
 - OpenControls.OpenGL.Examples renders the shared examples UI using OpenGL (via OpenControls.OpenGL).
 - OpenControls.Examples includes an Examples menu to open feature windows as dockable panels.
@@ -194,7 +194,7 @@ Planned expansion:
 - A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).
 - OpenControls now ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, custom font-file loading, fallback chains, and merged icon-font ranges for Dear ImGui-style inline icon text.
-- The shipped renderer path now uses shared atlas-backed grayscale glyph caches across MonoGame, SDL2-CS, Silk.NET, and OpenGL instead of per-pixel glyph loops; optional HarfBuzz shaping and optional Slug GPU text rendering remain follow-on work in the parity roadmap.
+- The shipped renderer path now uses shared atlas-backed grayscale glyph caches across MonoGame, SDL2-CS, Silk.NET, and OpenGL instead of per-pixel glyph loops, and outline-font shaping now has a first-pass HarfBuzz-backed path for ligatures, kerning, and script-aware glyph placement. Slug remains an optional follow-on GPU text-rendering path in the parity roadmap.
 - OpenControls now also ships `UiDpiCompensation` and `UiScaledRenderer` for default-on DPI-aware rendering from a 96 DPI baseline. The shipped Silk.NET, MonoGame, SDL2-CS, OpenGL, and editor hosts now keep layout/input in logical units while scaling rendering to the host DPI, and custom hosts can opt out by disabling the compensation object.
 
 ## DPI Compensation

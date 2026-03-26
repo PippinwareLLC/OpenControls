@@ -255,10 +255,10 @@ ui.Render(renderer);
 - The shared examples app also includes a composed combo/list/popup demo built from `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and `UiDelegateImageSource`, plus element/window/empty-space context popup examples, the Milestone 12 overlay/menu polish gallery section, and retained layout container samples.
 - The shared examples app also shows live text-input request diagnostics in `Inputs & Focus`, including caret bounds, candidate bounds, and preedit/composition text, and the Widget Gallery now includes a `UiPicker` example beside the richer combo/list surfaces.
 - `UiStateSerializer` now restores richer editor/view state such as text selection, scroll offsets, table column/view state, combo/list selection/filter state, and custom control state through `IUiStatefulElement`.
-- Optional HarfBuzz integration is still treated as shaping/layout depth rather than a blocker for first-pass font parity, and Slug remains an optional GPU text-rendering path to evaluate.
+- OpenControls now ships a first-pass HarfBuzz-backed shaping path for outline fonts, while deeper bidi/RTL/layout behavior and Slug-based GPU text rendering remain follow-on work to evaluate.
 - Run `dotnet run --project OpenControls.MonoGame.Examples` to launch the MonoGame examples app.
 - Run `dotnet run --project OpenControls.SdlNet.Examples` to launch the SDL2-CS example (requires SDL2 native; on Windows place `SDL2.dll` on PATH or beside the executable).
 - Run `dotnet run --project OpenControls.SilkNet.Examples` to launch the Silk.NET example host.
 - Run `dotnet run --project OpenControls.OpenGL.Examples` to launch the OpenGL examples app.
 - For MonoGame `SpriteBatch`, use `SpriteSortMode.Immediate` plus a `RasterizerState` with `ScissorTestEnable = true` so `PushClip`/`PopClip` take effect.
-- For OpenGL and Silk.NET's legacy OpenGL backend, use a compatibility profile with an orthographic top-left projection, enable blending, and keep `GL_SCISSOR_TEST` available for clipping.
+- For OpenGL hosts, keep a top-left pixel-space projection (or equivalent shader transform), enable blending, and keep `GL_SCISSOR_TEST` available for clipping. The shipped Silk.NET host now targets an OpenGL 3.3 core-profile path instead of the older compatibility renderer.

@@ -4,7 +4,7 @@ using OpenControls.Examples;
 using OpenControls.SilkNet;
 using Silk.NET.Input;
 using Silk.NET.Maths;
-using Silk.NET.OpenGL.Legacy;
+using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
 
 namespace OpenControls.SilkNet.Examples;
@@ -142,19 +142,18 @@ public sealed class SilkExamplesApp : IDisposable
     private bool _textInputActive = true;
     private UiMouseCursor _appliedCursor = UiMouseCursor.Arrow;
 
+    public SilkTextInputBridge? TextInputBridge { get; set; }
+
     public SilkExamplesApp()
     {
-        bool isMacOs = OperatingSystem.IsMacOS();
         WindowOptions options = WindowOptions.Default;
         options.Size = new Vector2D<int>(1280, 720);
         options.Title = "OpenControls Silk.NET Examples";
-        options.API = isMacOs
-            ? new GraphicsAPI(ContextAPI.OpenGL, new APIVersion(2, 1))
-            : new GraphicsAPI(
-                ContextAPI.OpenGL,
-                ContextProfile.Compatability,
-                ContextFlags.Default,
-                new APIVersion(3, 3));
+        options.API = new GraphicsAPI(
+            ContextAPI.OpenGL,
+            ContextProfile.Core,
+            ContextFlags.Default,
+            new APIVersion(3, 3));
         options.VSync = true;
 
         _window = Window.Create(options);
@@ -211,6 +210,8 @@ public sealed class SilkExamplesApp : IDisposable
             inputDisposable.Dispose();
         }
 
+        _renderer?.Dispose();
+
         if (_gl is IDisposable glDisposable)
         {
             glDisposable.Dispose();
@@ -248,6 +249,7 @@ public sealed class SilkExamplesApp : IDisposable
         _ui.Clipboard = _keyboard != null ? new SilkKeyboardClipboard(_keyboard) : new UiMemoryClipboard();
         _ui.SetTitleText("OpenControls Silk.NET Examples");
         _ui.ExitRequested += CloseWindow;
+        TextInputBridge?.ApplyActive(_textInputActive);
 
         InitializeGlState();
         UpdateProjection(_window.FramebufferSize);
@@ -284,9 +286,7 @@ public sealed class SilkExamplesApp : IDisposable
         }
 
         _gl.ClearColor(10f / 255f, 12f / 255f, 18f / 255f, 1f);
-        _gl.Clear(ClearBufferMask.ColorBufferBit);
-        _gl.MatrixMode(MatrixMode.Modelview);
-        _gl.LoadIdentity();
+        _gl.Clear((uint)ClearBufferMask.ColorBufferBit);
 
         _ui.Render();
     }
@@ -370,6 +370,7 @@ public sealed class SilkExamplesApp : IDisposable
             ScrollDeltaX = _scrollDeltaX,
             ScrollDelta = _scrollDelta,
             TextInput = _textInputBuffer.Count > 0 ? _textInputBuffer.ToArray() : Array.Empty<char>(),
+            Composition = TextInputBridge?.ResolveComposition() ?? UiTextCompositionState.Empty,
             KeysDown = BuildKeyList(includeDown: true, includePressed: false, includeReleased: false),
             KeysPressed = BuildKeyList(includeDown: false, includePressed: true, includeReleased: false),
             KeysReleased = BuildKeyList(includeDown: false, includePressed: false, includeReleased: true),
@@ -402,6 +403,7 @@ public sealed class SilkExamplesApp : IDisposable
         }
 
         SetTextInputActive(_ui.WantTextInput);
+        ApplyTextInputRequest(_ui.TextInputRequest);
         ApplyMouseCursor(_ui.RequestedMouseCursor);
     }
 
@@ -412,28 +414,39 @@ public sealed class SilkExamplesApp : IDisposable
         _dpiCompensation.SetScaleFromContentSize(logicalSize.X, logicalSize.Y, framebufferSize.X, framebufferSize.Y);
     }
 
+    private void ApplyTextInputRequest(UiTextInputRequest? request)
+    {
+        if (request is UiTextInputRequest value)
+        {
+            TextInputBridge?.Apply(_dpiCompensation.ToPhysical(value));
+            return;
+        }
+
+        TextInputBridge?.Apply(null);
+    }
+
     private void SetTextInputActive(bool enabled)
     {
         if (enabled == _textInputActive)
         {
+            TextInputBridge?.ApplyActive(enabled);
             return;
         }
 
-        if (_keyboard is null)
+        if (_keyboard is not null)
         {
-            return;
-        }
-
-        if (enabled)
-        {
-            _keyboard.BeginInput();
-        }
-        else
-        {
-            _keyboard.EndInput();
+            if (enabled)
+            {
+                _keyboard.BeginInput();
+            }
+            else
+            {
+                _keyboard.EndInput();
+            }
         }
 
         _textInputActive = enabled;
+        TextInputBridge?.ApplyActive(enabled);
     }
 
     private void ApplyMouseCursor(UiMouseCursor cursor)
@@ -526,20 +539,14 @@ public sealed class SilkExamplesApp : IDisposable
 
     private void UpdateProjection(Vector2D<int> size)
     {
-        if (_gl is null)
+        if (_renderer is null)
         {
             return;
         }
 
         int safeWidth = Math.Max(1, size.X);
         int safeHeight = Math.Max(1, size.Y);
-
-        _gl.Viewport(0, 0, (uint)safeWidth, (uint)safeHeight);
-        _gl.MatrixMode(MatrixMode.Projection);
-        _gl.LoadIdentity();
-        _gl.Ortho(0, safeWidth, safeHeight, 0, -1, 1);
-        _gl.MatrixMode(MatrixMode.Modelview);
-        _gl.LoadIdentity();
+        _renderer.SetViewportSize(safeWidth, safeHeight);
     }
 
     private bool IsDown(Key key)

@@ -3708,18 +3708,18 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsComboTree.AddChild(_sceneComboBox);
         _widgetsComboTree.AddChild(_comboSelectionLabel);
 
-        _widgetsCompositionTree.AddChild(_compositionLabel);
-        _widgetsCompositionTree.AddChild(_compositionComboLabel);
-        _widgetsCompositionTree.AddChild(_compositionCombo);
-        _widgetsCompositionTree.AddChild(_compositionComboStatusLabel);
-        _widgetsCompositionTree.AddChild(_compositionListLabel);
-        _widgetsCompositionTree.AddChild(_compositionList);
-        _widgetsCompositionTree.AddChild(_compositionListStatusLabel);
-        _widgetsCompositionTree.AddChild(_compositionChildRegionLabel);
-        _widgetsCompositionTree.AddChild(_compositionChildRegion);
-        _widgetsCompositionTree.AddChild(_compositionChildRegionStatusLabel);
-        _widgetsCompositionTree.AddChild(_popupButton);
-        _widgetsCompositionTree.AddChild(_popupContextButton);
+        _widgetsCompositionTree!.AddChild(_compositionLabel!);
+        _widgetsCompositionTree.AddChild(_compositionComboLabel!);
+        _widgetsCompositionTree.AddChild(_compositionCombo!);
+        _widgetsCompositionTree.AddChild(_compositionComboStatusLabel!);
+        _widgetsCompositionTree.AddChild(_compositionListLabel!);
+        _widgetsCompositionTree.AddChild(_compositionList!);
+        _widgetsCompositionTree.AddChild(_compositionListStatusLabel!);
+        _widgetsCompositionTree.AddChild(_compositionChildRegionLabel!);
+        _widgetsCompositionTree.AddChild(_compositionChildRegion!);
+        _widgetsCompositionTree.AddChild(_compositionChildRegionStatusLabel!);
+        _widgetsCompositionTree.AddChild(_popupButton!);
+        _widgetsCompositionTree.AddChild(_popupContextButton!);
 
         _widgetsTableTree.AddChild(_tableLabel);
         _widgetsTableTree.AddChild(_sceneTable);
@@ -5408,11 +5408,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             int popupHeight = labelHeight + buttonHeight + 24;
             int popupX = content.X + popupAnchorX - _scrollPanel.ScrollX;
             int popupY = content.Y + popupAnchorY - _scrollPanel.ScrollY + _popupButton.Bounds.Height + 6;
-            _popup.Bounds = new UiRect(popupX, popupY, popupWidth, popupHeight);
+            _popup!.Bounds = new UiRect(popupX, popupY, popupWidth, popupHeight);
 
             int popupInnerPadding = 8;
-            _popupLabel.Bounds = new UiRect(popupX + popupInnerPadding, popupY + popupInnerPadding, Math.Max(0, popupWidth - popupInnerPadding * 2), labelHeight);
-            _popupCloseButton.Bounds = new UiRect(popupX + popupWidth - 80 - popupInnerPadding, popupY + popupHeight - buttonHeight - popupInnerPadding, 80, buttonHeight);
+            _popupLabel!.Bounds = new UiRect(popupX + popupInnerPadding, popupY + popupInnerPadding, Math.Max(0, popupWidth - popupInnerPadding * 2), labelHeight);
+            _popupCloseButton!.Bounds = new UiRect(popupX + popupWidth - 80 - popupInnerPadding, popupY + popupHeight - buttonHeight - popupInnerPadding, 80, buttonHeight);
 
             UiRect rootBounds = _root.Bounds;
             int modalWidth = Math.Min(280, Math.Max(160, rootBounds.Width - Padding * 2));

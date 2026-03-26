@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
+using Buffer = HarfBuzzSharp.Buffer;
+using HarfBuzzSharp;
 using WaterTrans.GlyphLoader;
 using WaterTrans.GlyphLoader.Geometry;
 
@@ -92,46 +94,23 @@ public sealed class UiFont
 
         List<UiPositionedGlyph> glyphs = new();
         int lineHeight = metrics.LineHeight;
-        int penX = 0;
         int penY = 0;
         int width = 0;
-        int lines = 1;
-
-        foreach (Rune rune in text.EnumerateRunes())
+        int lineStart = 0;
+        int lines = 0;
+        for (int i = 0; i <= text.Length; i++)
         {
-            if (rune.Value == '\r')
+            bool endOfLine = i == text.Length || text[i] == '\n';
+            if (!endOfLine)
             {
                 continue;
             }
 
-            if (rune.Value == '\n')
-            {
-                width = Math.Max(width, penX);
-                penX = 0;
-                penY += lineHeight;
-                lines++;
-                continue;
-            }
-
-            if (rune.Value == '\t')
-            {
-                for (int i = 0; i < 4; i++)
-                {
-                    UiRasterizedGlyph spaceGlyph = ResolveGlyph(new Rune(' '), safeScale);
-                    penX += spaceGlyph.AdvanceX;
-                }
-
-                continue;
-            }
-
-            UiRasterizedGlyph glyph = ResolveGlyph(rune, safeScale);
-            if (glyph.HasBitmap)
-            {
-                glyphs.Add(new UiPositionedGlyph(glyph, penX + glyph.OffsetX, penY + glyph.OffsetY));
-            }
-
-            penX += glyph.AdvanceX;
-            width = Math.Max(width, penX);
+            string lineText = NormalizeLineText(text.AsSpan(lineStart, i - lineStart));
+            width = Math.Max(width, LayoutLine(lineText, penY, safeScale, glyphs));
+            penY += lineHeight;
+            lines++;
+            lineStart = i + 1;
         }
 
         int height = Math.Max(lineHeight, lines * lineHeight);
@@ -171,6 +150,185 @@ public sealed class UiFont
         return UiRasterizedGlyph.Empty(metrics.PixelSize / 2, metrics.LineHeight);
     }
 
+    private int LayoutLine(string text, int penY, int scale, List<UiPositionedGlyph> glyphs)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 0;
+        }
+
+        StringBuilder segmentText = new();
+        UiFontLayer? segmentLayer = null;
+        bool? segmentRightToLeft = null;
+        int penX = 0;
+
+        foreach (Rune rune in text.EnumerateRunes())
+        {
+            UiFontLayer? layer = ResolvePreferredLayer(rune);
+            bool? runeRightToLeft = GetStrongDirection(rune);
+
+            if (segmentText.Length > 0 && !CanAppendToSegment(segmentLayer, layer, segmentRightToLeft, runeRightToLeft))
+            {
+                penX += EmitSegment(segmentText.ToString(), segmentLayer, segmentRightToLeft ?? false, penX, penY, scale, glyphs);
+                segmentText.Clear();
+                segmentRightToLeft = null;
+            }
+
+            if (segmentText.Length == 0)
+            {
+                segmentLayer = layer;
+            }
+
+            if (segmentRightToLeft is null && runeRightToLeft is bool direction)
+            {
+                segmentRightToLeft = direction;
+            }
+
+            segmentText.Append(rune.ToString());
+        }
+
+        if (segmentText.Length > 0)
+        {
+            penX += EmitSegment(segmentText.ToString(), segmentLayer, segmentRightToLeft ?? false, penX, penY, scale, glyphs);
+        }
+
+        return penX;
+    }
+
+    private int EmitSegment(string text, UiFontLayer? preferredLayer, bool rightToLeft, int penX, int penY, int scale, List<UiPositionedGlyph> glyphs)
+    {
+        int pixelSize = GetPixelSize(scale);
+        if (preferredLayer?.Source is IUiShapingGlyphSource shapingSource
+            && shapingSource.TryShape(text, pixelSize, rightToLeft, out UiShapedRun run))
+        {
+            int runAdvance = 0;
+            for (int i = 0; i < run.Glyphs.Count; i++)
+            {
+                UiShapedGlyph shapedGlyph = run.Glyphs[i];
+                UiRasterizedGlyph glyph = ResolveGlyph(preferredLayer, shapedGlyph.GlyphIndex, pixelSize);
+                if (glyph.HasBitmap)
+                {
+                    glyphs.Add(new UiPositionedGlyph(
+                        glyph,
+                        penX + runAdvance + glyph.OffsetX + shapedGlyph.OffsetX,
+                        penY + glyph.OffsetY + shapedGlyph.OffsetY));
+                }
+
+                runAdvance += shapedGlyph.AdvanceX;
+            }
+
+            return Math.Max(0, run.Width);
+        }
+
+        int advance = 0;
+        foreach (Rune rune in text.EnumerateRunes())
+        {
+            UiRasterizedGlyph glyph = ResolveGlyph(rune, scale);
+            if (glyph.HasBitmap)
+            {
+                glyphs.Add(new UiPositionedGlyph(glyph, penX + advance + glyph.OffsetX, penY + glyph.OffsetY));
+            }
+
+            advance += glyph.AdvanceX;
+        }
+
+        return advance;
+    }
+
+    private UiFontLayer? ResolvePreferredLayer(Rune rune)
+    {
+        for (int i = 0; i < _layers.Length; i++)
+        {
+            UiFontLayer layer = _layers[i];
+            if (layer.Matches(rune) && layer.Source.HasGlyph(rune))
+            {
+                return layer;
+            }
+        }
+
+        return null;
+    }
+
+    private UiRasterizedGlyph ResolveGlyph(UiFontLayer layer, uint glyphIndex, int pixelSize)
+    {
+        GlyphCacheKey key = new(layer.Index, (int)glyphIndex, pixelSize, IsGlyphIndex: true);
+        return _glyphCache.GetOrAdd(key, _ => CreateGlyph(layer, glyphIndex, pixelSize));
+    }
+
+    private static string NormalizeLineText(ReadOnlySpan<char> line)
+    {
+        if (line.IsEmpty)
+        {
+            return string.Empty;
+        }
+
+        StringBuilder builder = new(line.Length);
+        foreach (char character in line)
+        {
+            if (character == '\r')
+            {
+                continue;
+            }
+
+            if (character == '\t')
+            {
+                builder.Append("    ");
+                continue;
+            }
+
+            builder.Append(character);
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool CanAppendToSegment(UiFontLayer? currentLayer, UiFontLayer? nextLayer, bool? currentDirection, bool? nextDirection)
+    {
+        if (!ReferenceEquals(currentLayer, nextLayer))
+        {
+            return false;
+        }
+
+        if (nextDirection is null || currentDirection is null)
+        {
+            return true;
+        }
+
+        return currentDirection == nextDirection;
+    }
+
+    private static bool? GetStrongDirection(Rune rune)
+    {
+        if (Rune.IsWhiteSpace(rune))
+        {
+            return null;
+        }
+
+        UnicodeCategory category = Rune.GetUnicodeCategory(rune);
+        if (category is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark
+            or UnicodeCategory.SpaceSeparator or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator
+            or UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.DashPunctuation
+            or UnicodeCategory.OpenPunctuation or UnicodeCategory.ClosePunctuation or UnicodeCategory.InitialQuotePunctuation
+            or UnicodeCategory.FinalQuotePunctuation or UnicodeCategory.OtherPunctuation or UnicodeCategory.MathSymbol
+            or UnicodeCategory.CurrencySymbol or UnicodeCategory.ModifierSymbol or UnicodeCategory.OtherSymbol
+            or UnicodeCategory.DecimalDigitNumber or UnicodeCategory.LetterNumber or UnicodeCategory.OtherNumber)
+        {
+            return null;
+        }
+
+        return IsRightToLeftRune(rune);
+    }
+
+    private static bool IsRightToLeftRune(Rune rune)
+    {
+        int value = rune.Value;
+        return value is >= 0x0590 and <= 0x08FF
+            or >= 0xFB1D and <= 0xFDFF
+            or >= 0xFE70 and <= 0xFEFF
+            or >= 0x10800 and <= 0x10FFF
+            or >= 0x1E800 and <= 0x1EEFF;
+    }
+
     private bool TryResolveGlyph(Rune rune, int scale, out UiRasterizedGlyph glyph)
     {
         int pixelSize = GetPixelSize(scale);
@@ -182,7 +340,7 @@ public sealed class UiFont
                 continue;
             }
 
-            GlyphCacheKey key = new(layer.Index, rune.Value, pixelSize);
+            GlyphCacheKey key = new(layer.Index, rune.Value, pixelSize, IsGlyphIndex: false);
             glyph = _glyphCache.GetOrAdd(key, _ => CreateGlyph(layer, rune, pixelSize));
             if (glyph.IsValid)
             {
@@ -197,6 +355,26 @@ public sealed class UiFont
     private static UiRasterizedGlyph CreateGlyph(UiFontLayer layer, Rune rune, int pixelSize)
     {
         if (!layer.Source.TryGetGlyph(rune, pixelSize, out UiGlyphBitmap glyph))
+        {
+            return UiRasterizedGlyph.Invalid;
+        }
+
+        int verticalOffset = layer.BaselineOffset * Math.Max(1, pixelSize) / Math.Max(1, layer.Source.BasePixelSize);
+        int horizontalOffset = layer.AdvanceOffset * Math.Max(1, pixelSize) / Math.Max(1, layer.Source.BasePixelSize);
+        return new UiRasterizedGlyph(
+            glyph.Width,
+            glyph.Height,
+            glyph.Alpha,
+            glyph.OffsetX,
+            glyph.OffsetY + verticalOffset,
+            glyph.AdvanceX + horizontalOffset,
+            glyph.LineHeight);
+    }
+
+    private static UiRasterizedGlyph CreateGlyph(UiFontLayer layer, uint glyphIndex, int pixelSize)
+    {
+        if (layer.Source is not IUiShapingGlyphSource shapingSource
+            || !shapingSource.TryGetGlyph(glyphIndex, pixelSize, out UiGlyphBitmap glyph))
         {
             return UiRasterizedGlyph.Invalid;
         }
@@ -277,7 +455,14 @@ internal interface IUiGlyphSource
 {
     int BasePixelSize { get; }
     UiFontMetrics GetMetrics(int pixelSize);
+    bool HasGlyph(Rune rune);
     bool TryGetGlyph(Rune rune, int pixelSize, out UiGlyphBitmap glyph);
+}
+
+internal interface IUiShapingGlyphSource : IUiGlyphSource
+{
+    bool TryGetGlyph(uint glyphIndex, int pixelSize, out UiGlyphBitmap glyph);
+    bool TryShape(string text, int pixelSize, bool rightToLeft, out UiShapedRun run);
 }
 
 internal sealed class UiBitmapFontSource : IUiGlyphSource
@@ -296,6 +481,11 @@ internal sealed class UiBitmapFontSource : IUiGlyphSource
     {
         int scale = Math.Max(1, pixelSize / TinyBitmapFont.GlyphHeight);
         return new UiFontMetrics(pixelSize, 0, TinyBitmapFont.GlyphHeight * scale, TinyBitmapFont.GlyphHeight * scale);
+    }
+
+    public bool HasGlyph(Rune rune)
+    {
+        return true;
     }
 
     public bool TryGetGlyph(Rune rune, int pixelSize, out UiGlyphBitmap glyph)
@@ -347,11 +537,14 @@ internal sealed class UiBitmapFontSource : IUiGlyphSource
     }
 }
 
-internal sealed class UiOutlineFontSource : IUiGlyphSource
+internal sealed class UiOutlineFontSource : IUiShapingGlyphSource
 {
     private readonly Typeface _typeface;
+    private readonly Blob _blob;
+    private readonly Face _face;
     private readonly ConcurrentDictionary<int, UiFontMetrics> _metricsCache = new();
     private readonly ConcurrentDictionary<(ushort GlyphIndex, int PixelSize), UiGlyphBitmap> _glyphCache = new();
+    private readonly ConcurrentDictionary<int, HarfBuzzSharp.Font> _shapingFonts = new();
 
     public UiOutlineFontSource(string path, bool monospace)
     {
@@ -364,6 +557,8 @@ internal sealed class UiOutlineFontSource : IUiGlyphSource
         Monospace = monospace;
         using FileStream stream = File.OpenRead(path);
         _typeface = new Typeface(stream);
+        _blob = Blob.FromFile(path);
+        _face = new Face(_blob, 0);
         BasePixelSize = 16;
     }
 
@@ -382,6 +577,11 @@ internal sealed class UiOutlineFontSource : IUiGlyphSource
         });
     }
 
+    public bool HasGlyph(Rune rune)
+    {
+        return _typeface.CharacterToGlyphMap.TryGetValue(rune.Value, out ushort glyphIndex) && glyphIndex != 0;
+    }
+
     public bool TryGetGlyph(Rune rune, int pixelSize, out UiGlyphBitmap glyph)
     {
         if (!_typeface.CharacterToGlyphMap.TryGetValue(rune.Value, out ushort glyphIndex) || glyphIndex == 0)
@@ -392,6 +592,72 @@ internal sealed class UiOutlineFontSource : IUiGlyphSource
 
         glyph = _glyphCache.GetOrAdd((glyphIndex, pixelSize), key => RasterizeGlyph(key.GlyphIndex, key.PixelSize));
         return true;
+    }
+
+    public bool TryGetGlyph(uint glyphIndex, int pixelSize, out UiGlyphBitmap glyph)
+    {
+        if (glyphIndex == 0 || glyphIndex > ushort.MaxValue)
+        {
+            glyph = default;
+            return false;
+        }
+
+        glyph = _glyphCache.GetOrAdd(((ushort)glyphIndex, pixelSize), key => RasterizeGlyph(key.GlyphIndex, key.PixelSize));
+        return glyph.IsValid;
+    }
+
+    public bool TryShape(string text, int pixelSize, bool rightToLeft, out UiShapedRun run)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            run = UiShapedRun.Empty;
+            return false;
+        }
+
+        HarfBuzzSharp.Font font = _shapingFonts.GetOrAdd(pixelSize, CreateShapingFont);
+        using Buffer buffer = new();
+        buffer.AddUtf16(text);
+        buffer.GuessSegmentProperties();
+        buffer.Direction = rightToLeft ? Direction.RightToLeft : Direction.LeftToRight;
+        font.Shape(buffer);
+
+        GlyphInfo[] infos = buffer.GlyphInfos;
+        GlyphPosition[] positions = buffer.GlyphPositions;
+        if (infos.Length == 0 || infos.Length != positions.Length)
+        {
+            run = UiShapedRun.Empty;
+            return false;
+        }
+
+        UiShapedGlyph[] glyphs = new UiShapedGlyph[infos.Length];
+        int width = 0;
+        for (int i = 0; i < infos.Length; i++)
+        {
+            GlyphInfo info = infos[i];
+            GlyphPosition position = positions[i];
+            int xOffset = ToPixels(position.XOffset);
+            int yOffset = -ToPixels(position.YOffset);
+            int advanceX = ToPixels(position.XAdvance);
+            glyphs[i] = new UiShapedGlyph(info.Codepoint, xOffset, yOffset, advanceX);
+            width += advanceX;
+        }
+
+        run = new UiShapedRun(glyphs, Math.Max(0, width));
+        return true;
+    }
+
+    private HarfBuzzSharp.Font CreateShapingFont(int pixelSize)
+    {
+        HarfBuzzSharp.Font font = new(_face);
+        font.SetFunctionsOpenType();
+        int scale = Math.Max(1, pixelSize) * 64;
+        font.SetScale(scale, scale);
+        return font;
+    }
+
+    private static int ToPixels(int value)
+    {
+        return (int)Math.Round(value / 64f);
     }
 
     private UiGlyphBitmap RasterizeGlyph(ushort glyphIndex, int pixelSize)
@@ -685,7 +951,7 @@ internal sealed class UiOutlineFontSource : IUiGlyphSource
     }
 }
 
-internal readonly record struct GlyphCacheKey(int LayerIndex, int CodePoint, int PixelSize);
+internal readonly record struct GlyphCacheKey(int LayerIndex, int GlyphValue, int PixelSize, bool IsGlyphIndex);
 
 internal readonly record struct UiGlyphBitmap(
     int Width,
@@ -734,6 +1000,22 @@ internal sealed class UiRasterizedGlyph
     {
         return new UiRasterizedGlyph(0, 0, Array.Empty<byte>(), 0, 0, advanceX, lineHeight);
     }
+}
+
+internal readonly record struct UiShapedGlyph(uint GlyphIndex, int OffsetX, int OffsetY, int AdvanceX);
+
+internal sealed class UiShapedRun
+{
+    public static UiShapedRun Empty { get; } = new(Array.Empty<UiShapedGlyph>(), 0);
+
+    public UiShapedRun(IReadOnlyList<UiShapedGlyph> glyphs, int width)
+    {
+        Glyphs = glyphs;
+        Width = width;
+    }
+
+    public IReadOnlyList<UiShapedGlyph> Glyphs { get; }
+    public int Width { get; }
 }
 
 internal readonly record struct UiPositionedGlyph(UiRasterizedGlyph Glyph, int X, int Y);
