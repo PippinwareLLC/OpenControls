@@ -17,6 +17,7 @@ public class UiPopup : UiElement
     public bool CloseOnEscape { get; set; } = true;
 
     public bool IsOpen { get; private set; }
+    public override bool CapturesPointerInput => IsOpen;
 
     public event Action? Opened;
     public event Action? Closed;
@@ -131,5 +132,11 @@ public class UiPopup : UiElement
         {
             UiRenderHelpers.DrawRectRounded(context.Renderer, Bounds, CornerRadius, Border, BorderThickness);
         }
+    }
+
+    protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        cursor = UiMouseCursor.Arrow;
+        return false;
     }
 }

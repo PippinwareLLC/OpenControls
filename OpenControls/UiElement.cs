@@ -9,6 +9,8 @@ public abstract class UiElement
     public bool Enabled { get; set; } = true;
     public virtual bool IsFocusable => false;
     public virtual bool HandlesTabInput => false;
+    public virtual bool WantsTextInput => false;
+    public virtual bool CapturesPointerInput => IsFocusable;
     public virtual bool ClipChildren { get; set; }
     public string Id { get; set; } = string.Empty;
     public UiElement? Parent { get; private set; }
@@ -112,5 +114,11 @@ public abstract class UiElement
 
     protected internal virtual void OnFocusLost()
     {
+    }
+
+    protected internal virtual bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        cursor = UiMouseCursor.Arrow;
+        return false;
     }
 }

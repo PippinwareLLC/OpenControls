@@ -332,6 +332,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiLabel? _configCaptureLabel;
     private UiCheckbox? _configCaptureKeyboardCheckbox;
     private UiCheckbox? _configCaptureMouseCheckbox;
+    private UiCheckbox? _configWantTextInputCheckbox;
     private UiLabel? _windowOptionsLabel;
     private UiCheckbox? _windowAllowResizeCheckbox;
     private UiCheckbox? _windowShowTitleCheckbox;
@@ -423,6 +424,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiPoint _lastMousePosition;
     private UiLabel? _inputInfoLabel;
     private UiLabel? _shortcutLabel;
+    private UiLabel? _captureInfoLabel;
     private UiTextField? _focusInputField;
     private UiButton? _focusButton;
     private UiLabel? _focusResultLabel;
@@ -505,6 +507,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     }
 
     public event Action? ExitRequested;
+    public bool WantCaptureMouse => _context?.WantCaptureMouse ?? false;
+    public bool WantCaptureKeyboard => _context?.WantCaptureKeyboard ?? false;
+    public bool WantTextInput => _context?.WantTextInput ?? false;
+    public UiMouseCursor RequestedMouseCursor => _context?.RequestedMouseCursor ?? UiMouseCursor.Arrow;
 
     public void Update(UiInputState input, float deltaSeconds, int width, int height, bool saveRequested, bool loadRequested)
     {
@@ -2130,7 +2136,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _configCaptureLabel = new UiLabel
         {
-            Text = "Configuration / Capture & Logging",
+            Text = "Configuration / Capture Outputs",
             Color = UiColor.White,
             Scale = FontScale,
             Bold = true
@@ -2138,16 +2144,25 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _configCaptureKeyboardCheckbox = new UiCheckbox
         {
-            Text = "Capture Keyboard",
+            Text = "WantCaptureKeyboard",
             TextScale = FontScale,
-            Checked = true
+            Checked = true,
+            Enabled = false
         };
 
         _configCaptureMouseCheckbox = new UiCheckbox
         {
-            Text = "Capture Mouse",
+            Text = "WantCaptureMouse",
             TextScale = FontScale,
-            Checked = true
+            Checked = true,
+            Enabled = false
+        };
+
+        _configWantTextInputCheckbox = new UiCheckbox
+        {
+            Text = "WantTextInput",
+            TextScale = FontScale,
+            Enabled = false
         };
 
         _windowOptionsLabel = new UiLabel
@@ -2835,6 +2850,13 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Scale = FontScale
         };
 
+        _captureInfoLabel = new UiLabel
+        {
+            Text = "Capture: Mouse - Keyboard - Text - Cursor Arrow",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale
+        };
+
         _focusInputField = new UiTextField
         {
             TextScale = FontScale,
@@ -3236,6 +3258,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsConfigTree.AddChild(_configCaptureLabel);
         _widgetsConfigTree.AddChild(_configCaptureKeyboardCheckbox);
         _widgetsConfigTree.AddChild(_configCaptureMouseCheckbox);
+        _widgetsConfigTree.AddChild(_configWantTextInputCheckbox);
         _widgetsConfigTree.AddChild(_windowOptionsLabel);
         _widgetsConfigTree.AddChild(_windowAllowResizeCheckbox);
         _widgetsConfigTree.AddChild(_windowShowTitleCheckbox);
@@ -3470,6 +3493,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _widgetsInputFocusTree.AddChild(_inputInfoLabel);
         _widgetsInputFocusTree.AddChild(_shortcutLabel);
+        _widgetsInputFocusTree.AddChild(_captureInfoLabel);
         _widgetsInputFocusTree.AddChild(_focusInputField);
         _widgetsInputFocusTree.AddChild(_focusButton);
         _widgetsInputFocusTree.AddChild(_focusResultLabel);
@@ -3884,7 +3908,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _basicButtonsLabel != null && _basicPrimaryButton != null && _basicDangerButton != null && _basicRepeatButton != null && _basicRepeatStatusLabel != null
             && _basicInputLabel != null && _basicInputText != null && _basicInputIntLabel != null && _basicInputInt != null && _basicInputFloatLabel != null && _basicInputFloat != null
             && _configHelpLabel != null && _configHelpText != null && _configBackendLabel != null && _configDockingCheckbox != null && _configViewportCheckbox != null
-            && _configStyleLabel != null && _configLargeFontCheckbox != null && _configCaptureLabel != null && _configCaptureKeyboardCheckbox != null && _configCaptureMouseCheckbox != null
+            && _configStyleLabel != null && _configLargeFontCheckbox != null && _configCaptureLabel != null && _configCaptureKeyboardCheckbox != null && _configCaptureMouseCheckbox != null && _configWantTextInputCheckbox != null
             && _windowOptionsLabel != null && _windowAllowResizeCheckbox != null && _windowShowTitleCheckbox != null && _windowAllowDragCheckbox != null && _windowShowGripCheckbox != null
             && _demoMenuBar != null && _demoMenuStatusLabel != null
             && _bulletsLabel != null
@@ -3930,7 +3954,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _scrollPanel != null && _menuPopupLabel != null && _menuPopupButton != null && _menuPopupStatus != null
             && _menuPopup != null && _menuPopupTable != null && _menuPopupContentItem != null
             && _itemStatusLabel != null && _windowStatusLabel != null && _focusStatusLabel != null
-            && _inputInfoLabel != null && _shortcutLabel != null && _focusInputField != null && _focusButton != null && _focusResultLabel != null
+            && _inputInfoLabel != null && _shortcutLabel != null && _captureInfoLabel != null && _focusInputField != null && _focusButton != null && _focusResultLabel != null
             && _toolsLabel != null && _toolsLink != null && _aboutButton != null && _themeDarkButton != null && _themeLightButton != null
             && _examplesLabel != null && _examplesHintLabel != null
             && _popupButton != null && _modalButton != null && _tooltipLabel != null && _tooltipRegion != null
@@ -3977,6 +4001,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _configCaptureKeyboardCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
             configY += rowHeight + 4;
             _configCaptureMouseCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
+            configY += rowHeight + 4;
+            _configWantTextInputCheckbox.Bounds = new UiRect(0, configY, configContentWidth, rowHeight);
             configY += rowHeight + 8;
             _windowOptionsLabel.Bounds = new UiRect(0, configY, configContentWidth, labelHeight);
             configY += labelHeight + 4;
@@ -4724,6 +4750,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _inputInfoLabel.Bounds = new UiRect(0, inputY, inputContentWidth, labelHeight);
             inputY += labelHeight + 4;
             _shortcutLabel.Bounds = new UiRect(0, inputY, inputContentWidth, labelHeight);
+            inputY += labelHeight + 4;
+            _captureInfoLabel.Bounds = new UiRect(0, inputY, inputContentWidth, labelHeight);
             inputY += labelHeight + 6;
             _focusInputField.Bounds = new UiRect(0, inputY, Math.Min(240, inputContentWidth), 22);
             inputY += 30;
@@ -5201,30 +5229,19 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         if (_inputInfoLabel != null)
         {
-            string modifiers = $"{(input.CtrlDown ? "Ctrl" : "Ctrl-")} {(input.ShiftDown ? "Shift" : "Shift-")}";
+            string modifiers = FormatModifiers(input);
+            string buttons = $"Buttons {FormatMouseButtons(input)}";
             string scrollText = $"Scroll {input.ScrollDelta}";
             string textInput = input.TextInput.Count > 0 ? $"Text '{input.TextInput[input.TextInput.Count - 1]}'" : "Text -";
-            _inputInfoLabel.Text = $"Input: Mouse ({input.MousePosition.X},{input.MousePosition.Y}) {scrollText} {modifiers} {textInput}";
+            string pressedKeys = FormatPressedKeys(input.KeysPressed);
+            _inputInfoLabel.Text = $"Input: Mouse ({input.MousePosition.X},{input.MousePosition.Y}) {scrollText} {buttons} Mods {modifiers} {textInput} Keys {pressedKeys}";
         }
 
         if (_shortcutLabel != null)
         {
-            if (input.CtrlDown && input.TextInput.Count > 0)
+            if (TryGetShortcutText(input, out string shortcutText))
             {
-                char last = input.TextInput[input.TextInput.Count - 1];
-                if (!char.IsControl(last))
-                {
-                    string key = char.ToUpperInvariant(last).ToString();
-                    _lastShortcutText = input.ShiftDown ? $"Ctrl+Shift+{key}" : $"Ctrl+{key}";
-                }
-            }
-            else if (input.Navigation.Enter || input.Navigation.KeypadEnter)
-            {
-                _lastShortcutText = "Enter";
-            }
-            else if (input.Navigation.Tab)
-            {
-                _lastShortcutText = "Tab";
+                _lastShortcutText = shortcutText;
             }
 
             _shortcutLabel.Text = $"Shortcut: {_lastShortcutText}";
@@ -5235,7 +5252,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             return;
         }
 
-        UiElement? hovered = _root?.HitTest(_lastMousePosition);
+        UiElement? hovered = _context.Hovered ?? _root?.HitTest(_lastMousePosition);
         if (hovered == _root || hovered == _rootPanel)
         {
             hovered = null;
@@ -5255,6 +5272,27 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         if (_focusResultLabel != null)
         {
             _focusResultLabel.Text = $"Focused: {DescribeElement(focused)}";
+        }
+
+        if (_captureInfoLabel != null)
+        {
+            _captureInfoLabel.Text =
+                $"Capture: Mouse {FormatBool(_context.WantCaptureMouse)} Keyboard {FormatBool(_context.WantCaptureKeyboard)} Text {FormatBool(_context.WantTextInput)} Cursor {FormatCursor(_context.RequestedMouseCursor)}";
+        }
+
+        if (_configCaptureKeyboardCheckbox != null)
+        {
+            _configCaptureKeyboardCheckbox.Checked = _context.WantCaptureKeyboard;
+        }
+
+        if (_configCaptureMouseCheckbox != null)
+        {
+            _configCaptureMouseCheckbox.Checked = _context.WantCaptureMouse;
+        }
+
+        if (_configWantTextInputCheckbox != null)
+        {
+            _configWantTextInputCheckbox.Checked = _context.WantTextInput;
         }
 
         if (_windowStatusLabel != null)
@@ -5625,6 +5663,189 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         return includeAlpha
             ? $"#{color.R:X2}{color.G:X2}{color.B:X2}{color.A:X2}"
             : $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+    }
+
+    private static string FormatModifiers(UiInputState input)
+    {
+        StringBuilder builder = new StringBuilder();
+        AppendModifier(builder, input.CtrlDown, "Ctrl");
+        AppendModifier(builder, input.ShiftDown, "Shift");
+        AppendModifier(builder, input.AltDown, "Alt");
+        AppendModifier(builder, input.SuperDown, "Super");
+        return builder.Length == 0 ? "-" : builder.ToString();
+    }
+
+    private static string FormatMouseButtons(UiInputState input)
+    {
+        char left = input.LeftDown ? 'L' : '-';
+        char right = input.RightDown ? 'R' : '-';
+        char middle = input.MiddleDown ? 'M' : '-';
+        return new string(new[] { left, right, middle });
+    }
+
+    private static string FormatPressedKeys(IReadOnlyList<UiKey> keys)
+    {
+        if (keys.Count == 0)
+        {
+            return "-";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        int count = Math.Min(keys.Count, 3);
+        for (int i = 0; i < count; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append('+');
+            }
+
+            builder.Append(FormatKey(keys[i]));
+        }
+
+        if (keys.Count > count)
+        {
+            builder.Append("+...");
+        }
+
+        return builder.ToString();
+    }
+
+    private static string FormatBool(bool value)
+    {
+        return value ? "yes" : "no";
+    }
+
+    private static string FormatCursor(UiMouseCursor cursor)
+    {
+        return cursor switch
+        {
+            UiMouseCursor.TextInput => "TextInput",
+            UiMouseCursor.ResizeAll => "ResizeAll",
+            UiMouseCursor.ResizeNS => "ResizeNS",
+            UiMouseCursor.ResizeEW => "ResizeEW",
+            UiMouseCursor.ResizeNESW => "ResizeNESW",
+            UiMouseCursor.ResizeNWSE => "ResizeNWSE",
+            UiMouseCursor.Hand => "Hand",
+            UiMouseCursor.NotAllowed => "NotAllowed",
+            _ => "Arrow"
+        };
+    }
+
+    private static void AppendModifier(StringBuilder builder, bool enabled, string label)
+    {
+        if (!enabled)
+        {
+            return;
+        }
+
+        if (builder.Length > 0)
+        {
+            builder.Append('+');
+        }
+
+        builder.Append(label);
+    }
+
+    private static bool TryGetShortcutText(UiInputState input, out string shortcutText)
+    {
+        if (TryGetPrimaryShortcutText(input, UiKey.S, out shortcutText))
+        {
+            return true;
+        }
+
+        if (TryGetPrimaryShortcutText(input, UiKey.F, out shortcutText))
+        {
+            return true;
+        }
+
+        if (TryGetPrimaryShortcutText(input, UiKey.P, shift: true, out shortcutText))
+        {
+            return true;
+        }
+
+        if (input.IsKeyPressed(UiKey.Tab))
+        {
+            shortcutText = input.ShiftDown ? "Shift+Tab" : "Tab";
+            return true;
+        }
+
+        if (input.IsKeyPressed(UiKey.Enter) || input.IsKeyPressed(UiKey.KeypadEnter))
+        {
+            shortcutText = "Enter";
+            return true;
+        }
+
+        if (input.IsKeyPressed(UiKey.Space))
+        {
+            shortcutText = "Space";
+            return true;
+        }
+
+        if (input.IsKeyPressed(UiKey.Escape))
+        {
+            shortcutText = "Escape";
+            return true;
+        }
+
+        shortcutText = string.Empty;
+        return false;
+    }
+
+    private static bool TryGetPrimaryShortcutText(UiInputState input, UiKey key, out string shortcutText)
+    {
+        return TryGetPrimaryShortcutText(input, key, false, out shortcutText);
+    }
+
+    private static bool TryGetPrimaryShortcutText(UiInputState input, UiKey key, bool shift, out string shortcutText)
+    {
+        if (!input.IsPrimaryShortcutPressed(key, shift))
+        {
+            shortcutText = string.Empty;
+            return false;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.Append(input.SuperDown && !input.CtrlDown ? "Super" : "Ctrl");
+        if (shift)
+        {
+            builder.Append("+Shift");
+        }
+
+        builder.Append('+');
+        builder.Append(FormatKey(key));
+        shortcutText = builder.ToString();
+        return true;
+    }
+
+    private static string FormatKey(UiKey key)
+    {
+        return key switch
+        {
+            UiKey.D0 => "0",
+            UiKey.D1 => "1",
+            UiKey.D2 => "2",
+            UiKey.D3 => "3",
+            UiKey.D4 => "4",
+            UiKey.D5 => "5",
+            UiKey.D6 => "6",
+            UiKey.D7 => "7",
+            UiKey.D8 => "8",
+            UiKey.D9 => "9",
+            UiKey.KeypadEnter => "KeypadEnter",
+            UiKey.Backspace => "Backspace",
+            UiKey.Delete => "Delete",
+            UiKey.Enter => "Enter",
+            UiKey.Escape => "Escape",
+            UiKey.Home => "Home",
+            UiKey.End => "End",
+            UiKey.Left => "Left",
+            UiKey.Right => "Right",
+            UiKey.Up => "Up",
+            UiKey.Down => "Down",
+            UiKey.Space => "Space",
+            UiKey.Tab => "Tab",
+            _ => key.ToString()
+        };
     }
 
     private void SetAsciiPageIndex(int index)

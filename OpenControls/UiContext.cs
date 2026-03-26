@@ -4,6 +4,8 @@ namespace OpenControls;
 
 public sealed class UiContext
 {
+    private UiElement? _mouseCaptureTarget;
+
     public UiContext(UiElement root)
     {
         Root = root ?? throw new ArgumentNullException(nameof(root));
@@ -12,6 +14,12 @@ public sealed class UiContext
     public UiElement Root { get; }
     public UiFocusManager Focus { get; } = new();
     public UiDragDropContext DragDrop { get; } = new();
+    public UiElement? Hovered { get; private set; }
+    public UiElement? PointerCaptureTarget { get; private set; }
+    public UiMouseCursor RequestedMouseCursor { get; private set; } = UiMouseCursor.Arrow;
+    public bool WantCaptureMouse { get; private set; }
+    public bool WantCaptureKeyboard { get; private set; }
+    public bool WantTextInput { get; private set; }
 
     public void Update(UiInputState input, float deltaSeconds = 0f)
     {
@@ -30,6 +38,7 @@ public sealed class UiContext
         DragDrop.BeginFrame(effectiveInput);
         Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds));
         DragDrop.EndFrame();
+        RefreshOutputs(effectiveInput);
     }
 
     private bool IsTabHandled()
@@ -206,11 +215,163 @@ public sealed class UiContext
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
             LeftReleased = input.LeftReleased,
+            RightDown = input.RightDown,
+            RightClicked = input.RightClicked,
+            RightReleased = input.RightReleased,
+            MiddleDown = input.MiddleDown,
+            MiddleClicked = input.MiddleClicked,
+            MiddleReleased = input.MiddleReleased,
             ShiftDown = input.ShiftDown,
             CtrlDown = input.CtrlDown,
+            AltDown = input.AltDown,
+            SuperDown = input.SuperDown,
             ScrollDelta = input.ScrollDelta,
             TextInput = textInput,
+            KeysDown = input.KeysDown,
+            KeysPressed = FilterKey(input.KeysPressed, UiKey.Tab),
+            KeysReleased = input.KeysReleased,
             Navigation = navigation
         };
+    }
+
+    private void RefreshOutputs(UiInputState input)
+    {
+        Hovered = Root.HitTest(input.MousePosition);
+        if (input.LeftClicked && ResolveFocusTarget(Hovered) == null)
+        {
+            Focus.ClearFocus();
+        }
+
+        UiElement? hoveredCaptureTarget = ResolvePointerCaptureTarget(Hovered);
+
+        if ((input.LeftClicked || input.RightClicked || input.MiddleClicked) && hoveredCaptureTarget != null)
+        {
+            _mouseCaptureTarget = hoveredCaptureTarget;
+        }
+
+        if (!input.AnyMouseDown)
+        {
+            _mouseCaptureTarget = null;
+        }
+
+        PointerCaptureTarget = _mouseCaptureTarget ?? hoveredCaptureTarget;
+
+        bool blockingOverlayOpen = HasBlockingOverlay(Root);
+        WantTextInput = Focus.Focused?.WantsTextInput == true;
+        WantCaptureKeyboard = WantTextInput || Focus.Focused != null || blockingOverlayOpen;
+        WantCaptureMouse = PointerCaptureTarget != null || blockingOverlayOpen;
+        RequestedMouseCursor = ResolveMouseCursor(input);
+    }
+
+    private UiMouseCursor ResolveMouseCursor(UiInputState input)
+    {
+        UiElement? current = PointerCaptureTarget ?? Hovered;
+        while (current != null)
+        {
+            if (current.TryGetMouseCursor(input, current == Focus.Focused, out UiMouseCursor cursor))
+            {
+                return cursor;
+            }
+
+            current = current.Parent;
+        }
+
+        return UiMouseCursor.Arrow;
+    }
+
+    private static UiElement? ResolvePointerCaptureTarget(UiElement? element)
+    {
+        UiElement? current = element;
+        while (current != null)
+        {
+            if (current.CapturesPointerInput)
+            {
+                return current;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
+    }
+
+    private static UiElement? ResolveFocusTarget(UiElement? element)
+    {
+        UiElement? current = element;
+        while (current != null)
+        {
+            if (current.IsFocusable)
+            {
+                return current;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
+    }
+
+    private static bool HasBlockingOverlay(UiElement element)
+    {
+        if (!element.Visible || !element.Enabled)
+        {
+            return false;
+        }
+
+        if (element is UiModal modal && modal.IsOpen)
+        {
+            return true;
+        }
+
+        if (element is UiPopup popup && popup.IsOpen)
+        {
+            return true;
+        }
+
+        if (element is UiMenuBar menuBar && menuBar.HasOpenMenu)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < element.Children.Count; i++)
+        {
+            if (HasBlockingOverlay(element.Children[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<UiKey> FilterKey(IReadOnlyList<UiKey> keys, UiKey excludedKey)
+    {
+        if (keys.Count == 0)
+        {
+            return keys;
+        }
+
+        List<UiKey>? filtered = null;
+        for (int i = 0; i < keys.Count; i++)
+        {
+            UiKey key = keys[i];
+            if (key == excludedKey)
+            {
+                if (filtered == null)
+                {
+                    filtered = new List<UiKey>(keys.Count);
+                    for (int j = 0; j < i; j++)
+                    {
+                        filtered.Add(keys[j]);
+                    }
+                }
+
+                continue;
+            }
+
+            filtered?.Add(key);
+        }
+
+        return filtered ?? keys;
     }
 }

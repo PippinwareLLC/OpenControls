@@ -80,64 +80,64 @@ Current documented parity gaps around shortcuts, mouse cursors, WantCapture beha
 
 ### Primary Targets
 
-- [ ] Expand `UiInputState` beyond the current minimal left-button + Ctrl/Shift model.
-- [ ] Add host-facing capture/cursor/text-input outputs on `UiContext`.
-- [ ] Introduce a scalable key model instead of one-off booleans for every future key.
+- [x] Expand `UiInputState` beyond the current minimal left-button + Ctrl/Shift model.
+- [x] Add host-facing capture/cursor/text-input outputs on `UiContext`.
+- [x] Introduce a scalable key model instead of one-off booleans for every future key.
 
 ### API Work
 
 - [ ] Extend `UiInputState` with richer pointer data:
-  - [ ] right mouse button
-  - [ ] middle mouse button
+  - [x] right mouse button
+  - [x] middle mouse button
   - [ ] double click information
   - [ ] drag thresholds / drag origin data if needed
   - [ ] wheel X in addition to wheel Y if useful
-- [ ] Extend modifier support:
-  - [ ] Alt
-  - [ ] Super / Command / Windows key
-  - [ ] platform-specific shortcut modifier abstraction
-- [ ] Introduce richer keyboard state:
-  - [ ] named key enum
-  - [ ] per-key down/pressed/released queries
-  - [ ] key chord representation
-  - [ ] shortcut routing helper
+- [x] Extend modifier support:
+  - [x] Alt
+  - [x] Super / Command / Windows key
+  - [x] platform-specific shortcut modifier abstraction
+- [x] Introduce richer keyboard state:
+  - [x] named key enum
+  - [x] per-key down/pressed/released queries
+  - [x] key chord representation
+  - [x] shortcut routing helper
 - [ ] Add host output properties somewhere stable, likely on `UiContext`:
-  - [ ] `WantCaptureMouse`
-  - [ ] `WantCaptureKeyboard`
-  - [ ] `WantTextInput`
-  - [ ] requested mouse cursor shape
+  - [x] `WantCaptureMouse`
+  - [x] `WantCaptureKeyboard`
+  - [x] `WantTextInput`
+  - [x] requested mouse cursor shape
   - [ ] optional IME/text-input request metadata
 
 ### Core Behavior Work
 
-- [ ] Ensure focus, hover, active drag, popup, and modal state all contribute to capture outputs.
-- [ ] Ensure clicks in empty space still clear focus correctly while capture flags remain accurate.
+- [x] Ensure focus, hover, active drag, popup, and modal state all contribute to capture outputs.
+- [x] Ensure clicks in empty space still clear focus correctly while capture flags remain accurate.
 - [ ] Define precedence rules for shortcuts:
   - [ ] focused widget shortcuts
   - [ ] hovered widget shortcuts
   - [ ] global shortcuts
   - [ ] popup/modal override behavior
-- [ ] Add a single place where host adapters read "what cursor should I show right now?"
+- [x] Add a single place where host adapters read "what cursor should I show right now?"
 
 ### Host Integration Work
 
-- [ ] Update MonoGame host to populate richer input state.
-- [ ] Update SDL host to populate richer input state.
-- [ ] Update Silk.NET host to populate richer input state.
-- [ ] Update OpenGL example host input plumbing as needed.
-- [ ] Normalize platform shortcut semantics so macOS-style behavior is possible later if desired.
+- [x] Update MonoGame host to populate richer input state.
+- [x] Update SDL host to populate richer input state.
+- [x] Update Silk.NET host to populate richer input state.
+- [x] Update OpenGL example host input plumbing as needed.
+- [x] Normalize platform shortcut semantics so macOS-style behavior is possible later if desired.
 
 ### Demo/Docs Work
 
-- [ ] Replace the simulated shortcut demo with real shortcut detection.
-- [ ] Replace informational WantCapture labels with actual context outputs.
-- [ ] Implement mouse cursor demo with real cursor changes.
-- [ ] Document how hosts should consume capture flags.
+- [x] Replace the simulated shortcut demo with real shortcut detection.
+- [x] Replace informational WantCapture labels with actual context outputs.
+- [x] Implement mouse cursor demo with real cursor changes.
+- [x] Document how hosts should consume capture flags.
 
 ### Exit Criteria
 
-- [ ] The parity caveats for shortcuts, mouse cursors, and WantCapture in `README.MD` can be removed or substantially reduced.
-- [ ] New input features are available without breaking existing simple hosts.
+- [x] The parity caveats for shortcuts, mouse cursors, and WantCapture in `README.MD` can be removed or substantially reduced.
+- [x] New input features are available without breaking existing simple hosts.
 
 ## Milestone 2: Runtime State Queries And Focus APIs
 
@@ -549,8 +549,8 @@ Once the infrastructure and core widgets are stronger, the examples app can stop
 
 If resourcing is tight, do the work in this order:
 
-- [ ] Phase 0
-- [ ] Milestone 1
+- [x] Phase 0
+- [x] Milestone 1
 - [ ] Milestone 2
 - [ ] Milestone 3
 - [ ] Milestone 7
@@ -567,8 +567,8 @@ If resourcing is tight, do the work in this order:
 
 ### Release Slice A: Infrastructure
 
-- [ ] Phase 0
-- [ ] Milestone 1
+- [x] Phase 0
+- [x] Milestone 1
 - [ ] Milestone 2
 
 ### Release Slice B: Text And Editing
@@ -595,6 +595,7 @@ If resourcing is tight, do the work in this order:
 
 ## Final Notes
 
-- [ ] If only one thing happens next, it should be Milestone 1.
+- [x] If only one thing happens next, it should be Milestone 1.
+- [ ] If only one thing happens next now, it should be Milestone 2.
 - [ ] If only one user-facing thing happens after that, it should be Milestone 3 or Milestone 7 depending on whether your near-term product is more editor-heavy or data-view-heavy.
 - [ ] Re-audit after Milestone 3 and again after Milestone 7 before committing to the entire tail of the roadmap.

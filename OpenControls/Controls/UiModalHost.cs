@@ -100,10 +100,21 @@ public sealed class UiModalHost : UiElement
             LeftDown = false,
             LeftClicked = false,
             LeftReleased = false,
+            RightDown = false,
+            RightClicked = false,
+            RightReleased = false,
+            MiddleDown = false,
+            MiddleClicked = false,
+            MiddleReleased = false,
             ShiftDown = false,
             CtrlDown = false,
+            AltDown = false,
+            SuperDown = false,
             ScrollDelta = 0,
             TextInput = Array.Empty<char>(),
+            KeysDown = Array.Empty<UiKey>(),
+            KeysPressed = Array.Empty<UiKey>(),
+            KeysReleased = Array.Empty<UiKey>(),
             Navigation = default
         };
     }

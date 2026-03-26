@@ -130,6 +130,7 @@ public sealed class UiMenuBar : UiElement
 
     public UiMenuDisplayMode DisplayMode { get; set; } = UiMenuDisplayMode.Bar;
     public bool IsPopupOpen => _popupOpen;
+    public bool HasOpenMenu => DisplayMode == UiMenuDisplayMode.Popup ? _popupOpen : _openPath.Count > 0;
     public bool ClosePopupOnOutsideClick { get; set; } = true;
     public bool ClosePopupOnEscape { get; set; } = true;
     public bool ClosePopupOnItemClick { get; set; } = true;
@@ -164,6 +165,7 @@ public sealed class UiMenuBar : UiElement
     public int FallbackCharHeight { get; set; } = 7;
     public Func<string, int, int>? MeasureTextWidth { get; set; }
     public Func<int, int>? MeasureTextHeight { get; set; }
+    public override bool CapturesPointerInput => true;
 
     public void OpenPopup()
     {
@@ -1014,10 +1016,21 @@ public sealed class UiMenuBar : UiElement
                     LeftDown = allowInput && input.LeftDown,
                     LeftClicked = allowInput && input.LeftClicked,
                     LeftReleased = allowInput && input.LeftReleased,
+                    RightDown = allowInput && input.RightDown,
+                    RightClicked = allowInput && input.RightClicked,
+                    RightReleased = allowInput && input.RightReleased,
+                    MiddleDown = allowInput && input.MiddleDown,
+                    MiddleClicked = allowInput && input.MiddleClicked,
+                    MiddleReleased = allowInput && input.MiddleReleased,
                     ShiftDown = input.ShiftDown,
                     CtrlDown = input.CtrlDown,
+                    AltDown = input.AltDown,
+                    SuperDown = input.SuperDown,
                     ScrollDelta = allowInput ? input.ScrollDelta : 0,
                     TextInput = input.TextInput,
+                    KeysDown = input.KeysDown,
+                    KeysPressed = input.KeysPressed,
+                    KeysReleased = input.KeysReleased,
                     Navigation = input.Navigation
                 };
 

@@ -35,6 +35,7 @@ public sealed class UiTextField : UiElement
     public Func<UiTextField, UiPoint, int>? CaretIndexFromPoint { get; set; }
 
     public override bool IsFocusable => true;
+    public override bool WantsTextInput => true;
 
     public override void Update(UiUpdateContext context)
     {
@@ -128,6 +129,18 @@ public sealed class UiTextField : UiElement
         _focused = false;
         _caretVisible = false;
         _caretTimer = 0f;
+    }
+
+    protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        if (_focused || Bounds.Contains(input.MousePosition))
+        {
+            cursor = UiMouseCursor.TextInput;
+            return true;
+        }
+
+        cursor = UiMouseCursor.Arrow;
+        return false;
     }
 
     private void HandleNavigation(UiNavigationInput navigation)

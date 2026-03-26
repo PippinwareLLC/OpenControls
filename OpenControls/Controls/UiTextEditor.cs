@@ -21,6 +21,7 @@ public sealed class UiTextEditor : UiElement
 
         public override bool IsFocusable => true;
         public override bool HandlesTabInput => _owner.AllowTabInput;
+        public override bool WantsTextInput => true;
 
         public override void Update(UiUpdateContext context)
         {
@@ -60,6 +61,18 @@ public sealed class UiTextEditor : UiElement
         protected internal override void OnFocusLost()
         {
             _owner.SetFocusState(false);
+        }
+
+        protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+        {
+            if (focused || Bounds.Contains(input.MousePosition))
+            {
+                cursor = UiMouseCursor.TextInput;
+                return true;
+            }
+
+            cursor = UiMouseCursor.Arrow;
+            return false;
         }
     }
 

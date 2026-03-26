@@ -104,6 +104,18 @@ public sealed class UiTextLink : UiElement
         _pressed = false;
     }
 
+    protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        if (_hovered || _pressed || focused)
+        {
+            cursor = UiMouseCursor.Hand;
+            return true;
+        }
+
+        cursor = UiMouseCursor.Arrow;
+        return false;
+    }
+
     private void HandleClick()
     {
         Clicked?.Invoke();

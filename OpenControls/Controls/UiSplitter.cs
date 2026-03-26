@@ -18,6 +18,7 @@ public sealed class UiSplitter : UiElement
     public UiColor ActiveColor { get; set; } = new UiColor(96, 114, 145);
 
     public bool IsDragging => _dragging;
+    public override bool CapturesPointerInput => true;
 
     public event Action<int>? Dragged;
 
@@ -72,5 +73,19 @@ public sealed class UiSplitter : UiElement
     private int GetAxisPosition(UiPoint point)
     {
         return Orientation == UiSplitterOrientation.Vertical ? point.X : point.Y;
+    }
+
+    protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        if (_hovered || _dragging)
+        {
+            cursor = Orientation == UiSplitterOrientation.Vertical
+                ? UiMouseCursor.ResizeEW
+                : UiMouseCursor.ResizeNS;
+            return true;
+        }
+
+        cursor = UiMouseCursor.Arrow;
+        return false;
     }
 }

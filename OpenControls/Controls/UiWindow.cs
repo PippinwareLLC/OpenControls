@@ -39,6 +39,7 @@ public sealed class UiWindow : UiElement
     public bool IsResizing => _resizing;
     public UiScrollPanel? ScrollPanel => _scrollPanel;
     public UiElement ContentRoot => _scrollPanel != null ? _scrollPanel : this;
+    public override bool CapturesPointerInput => true;
 
     public override UiRect ClipBounds => ContentBounds;
 
@@ -249,5 +250,23 @@ public sealed class UiWindow : UiElement
         }
 
         _scrollPanel.Bounds = ContentBounds;
+    }
+
+    protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        if (AllowResize && (_resizing || ResizeGripBounds.Contains(input.MousePosition)))
+        {
+            cursor = UiMouseCursor.ResizeNWSE;
+            return true;
+        }
+
+        if (AllowDrag && ShowTitleBar && (_dragging || TitleBarBounds.Contains(input.MousePosition)))
+        {
+            cursor = UiMouseCursor.ResizeAll;
+            return true;
+        }
+
+        cursor = UiMouseCursor.Arrow;
+        return false;
     }
 }

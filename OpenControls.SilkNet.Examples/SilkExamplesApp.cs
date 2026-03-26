@@ -11,8 +11,82 @@ namespace OpenControls.SilkNet.Examples;
 
 public sealed class SilkExamplesApp : IDisposable
 {
+    private static readonly Dictionary<Key, UiKey> KeyMap = new()
+    {
+        [Key.A] = UiKey.A,
+        [Key.B] = UiKey.B,
+        [Key.C] = UiKey.C,
+        [Key.D] = UiKey.D,
+        [Key.E] = UiKey.E,
+        [Key.F] = UiKey.F,
+        [Key.G] = UiKey.G,
+        [Key.H] = UiKey.H,
+        [Key.I] = UiKey.I,
+        [Key.J] = UiKey.J,
+        [Key.K] = UiKey.K,
+        [Key.L] = UiKey.L,
+        [Key.M] = UiKey.M,
+        [Key.N] = UiKey.N,
+        [Key.O] = UiKey.O,
+        [Key.P] = UiKey.P,
+        [Key.Q] = UiKey.Q,
+        [Key.R] = UiKey.R,
+        [Key.S] = UiKey.S,
+        [Key.T] = UiKey.T,
+        [Key.U] = UiKey.U,
+        [Key.V] = UiKey.V,
+        [Key.W] = UiKey.W,
+        [Key.X] = UiKey.X,
+        [Key.Y] = UiKey.Y,
+        [Key.Z] = UiKey.Z,
+        [Key.Number0] = UiKey.D0,
+        [Key.Number1] = UiKey.D1,
+        [Key.Number2] = UiKey.D2,
+        [Key.Number3] = UiKey.D3,
+        [Key.Number4] = UiKey.D4,
+        [Key.Number5] = UiKey.D5,
+        [Key.Number6] = UiKey.D6,
+        [Key.Number7] = UiKey.D7,
+        [Key.Number8] = UiKey.D8,
+        [Key.Number9] = UiKey.D9,
+        [Key.F1] = UiKey.F1,
+        [Key.F2] = UiKey.F2,
+        [Key.F3] = UiKey.F3,
+        [Key.F4] = UiKey.F4,
+        [Key.F5] = UiKey.F5,
+        [Key.F6] = UiKey.F6,
+        [Key.F7] = UiKey.F7,
+        [Key.F8] = UiKey.F8,
+        [Key.F9] = UiKey.F9,
+        [Key.F10] = UiKey.F10,
+        [Key.F11] = UiKey.F11,
+        [Key.F12] = UiKey.F12,
+        [Key.Left] = UiKey.Left,
+        [Key.Right] = UiKey.Right,
+        [Key.Up] = UiKey.Up,
+        [Key.Down] = UiKey.Down,
+        [Key.Home] = UiKey.Home,
+        [Key.End] = UiKey.End,
+        [Key.Backspace] = UiKey.Backspace,
+        [Key.Delete] = UiKey.Delete,
+        [Key.Tab] = UiKey.Tab,
+        [Key.Enter] = UiKey.Enter,
+        [Key.KeypadEnter] = UiKey.KeypadEnter,
+        [Key.Space] = UiKey.Space,
+        [Key.Escape] = UiKey.Escape,
+        [Key.ShiftLeft] = UiKey.Shift,
+        [Key.ShiftRight] = UiKey.Shift,
+        [Key.ControlLeft] = UiKey.Control,
+        [Key.ControlRight] = UiKey.Control,
+        [Key.AltLeft] = UiKey.Alt,
+        [Key.AltRight] = UiKey.Alt,
+        [Key.SuperLeft] = UiKey.Super,
+        [Key.SuperRight] = UiKey.Super
+    };
+
     private readonly IWindow _window;
     private readonly Dictionary<Key, bool> _previousKeyStates = new();
+    private readonly Dictionary<Key, bool> _currentKeyStates = new();
     private readonly List<char> _textInputBuffer = new();
 
     private GL? _gl;
@@ -23,8 +97,12 @@ public sealed class SilkExamplesApp : IDisposable
     private TinyBitmapFont? _font;
     private ExamplesUi? _ui;
     private bool _previousLeftDown;
+    private bool _previousRightDown;
+    private bool _previousMiddleDown;
     private int _scrollDelta;
     private bool _disposed;
+    private bool _textInputActive = true;
+    private UiMouseCursor _appliedCursor = UiMouseCursor.Arrow;
 
     public SilkExamplesApp()
     {
@@ -71,7 +149,7 @@ public sealed class SilkExamplesApp : IDisposable
         if (_keyboard is not null)
         {
             _keyboard.KeyChar -= HandleKeyChar;
-            _keyboard.EndInput();
+            SetTextInputActive(false);
         }
 
         if (_mouse is not null)
@@ -135,12 +213,14 @@ public sealed class SilkExamplesApp : IDisposable
             return;
         }
 
+        CaptureKeyboardState();
         Vector2D<int> framebufferSize = _window.FramebufferSize;
         bool saveRequested = WasPressed(Key.F5);
         bool loadRequested = WasPressed(Key.F9);
 
         UiInputState input = BuildInputState();
         _ui.Update(input, (float)deltaSeconds, framebufferSize.X, framebufferSize.Y, saveRequested, loadRequested);
+        ApplyHostState();
 
         _scrollDelta = 0;
         _textInputBuffer.Clear();
@@ -196,6 +276,14 @@ public sealed class SilkExamplesApp : IDisposable
         bool leftClicked = leftDown && !_previousLeftDown;
         bool leftReleased = !leftDown && _previousLeftDown;
         _previousLeftDown = leftDown;
+        bool rightDown = _mouse?.IsButtonPressed(MouseButton.Right) == true;
+        bool rightClicked = rightDown && !_previousRightDown;
+        bool rightReleased = !rightDown && _previousRightDown;
+        _previousRightDown = rightDown;
+        bool middleDown = _mouse?.IsButtonPressed(MouseButton.Middle) == true;
+        bool middleClicked = middleDown && !_previousMiddleDown;
+        bool middleReleased = !middleDown && _previousMiddleDown;
+        _previousMiddleDown = middleDown;
 
         UiPoint mousePoint = new(framebufferPoint.X, framebufferPoint.Y);
 
@@ -206,10 +294,21 @@ public sealed class SilkExamplesApp : IDisposable
             LeftDown = leftDown,
             LeftClicked = leftClicked,
             LeftReleased = leftReleased,
+            RightDown = rightDown,
+            RightClicked = rightClicked,
+            RightReleased = rightReleased,
+            MiddleDown = middleDown,
+            MiddleClicked = middleClicked,
+            MiddleReleased = middleReleased,
             ShiftDown = IsDown(Key.ShiftLeft) || IsDown(Key.ShiftRight),
             CtrlDown = IsDown(Key.ControlLeft) || IsDown(Key.ControlRight),
+            AltDown = IsDown(Key.AltLeft) || IsDown(Key.AltRight),
+            SuperDown = IsDown(Key.SuperLeft) || IsDown(Key.SuperRight),
             ScrollDelta = _scrollDelta,
             TextInput = _textInputBuffer.Count > 0 ? _textInputBuffer.ToArray() : Array.Empty<char>(),
+            KeysDown = BuildKeyList(includeDown: true, includePressed: false, includeReleased: false),
+            KeysPressed = BuildKeyList(includeDown: false, includePressed: true, includeReleased: false),
+            KeysReleased = BuildKeyList(includeDown: false, includePressed: false, includeReleased: true),
             Navigation = new UiNavigationInput
             {
                 MoveLeft = WasPressed(Key.Left),
@@ -227,6 +326,116 @@ public sealed class SilkExamplesApp : IDisposable
                 Escape = WasPressed(Key.Escape)
             }
         };
+    }
+
+    private void ApplyHostState()
+    {
+        if (_ui == null)
+        {
+            return;
+        }
+
+        SetTextInputActive(_ui.WantTextInput);
+        ApplyMouseCursor(_ui.RequestedMouseCursor);
+    }
+
+    private void SetTextInputActive(bool enabled)
+    {
+        if (enabled == _textInputActive)
+        {
+            return;
+        }
+
+        if (_keyboard is null)
+        {
+            return;
+        }
+
+        if (enabled)
+        {
+            _keyboard.BeginInput();
+        }
+        else
+        {
+            _keyboard.EndInput();
+        }
+
+        _textInputActive = enabled;
+    }
+
+    private void ApplyMouseCursor(UiMouseCursor cursor)
+    {
+        if (_mouse is null || cursor == _appliedCursor)
+        {
+            return;
+        }
+
+        ICursor? mouseCursor = _mouse.Cursor;
+        if (mouseCursor is null)
+        {
+            return;
+        }
+
+        mouseCursor.Type = CursorType.Standard;
+        mouseCursor.StandardCursor = MapStandardCursor(cursor);
+        mouseCursor.CursorMode = CursorMode.Normal;
+        _appliedCursor = cursor;
+    }
+
+    private static StandardCursor MapStandardCursor(UiMouseCursor cursor)
+    {
+        return cursor switch
+        {
+            UiMouseCursor.TextInput => StandardCursor.IBeam,
+            UiMouseCursor.ResizeAll => StandardCursor.ResizeAll,
+            UiMouseCursor.ResizeNS => StandardCursor.VResize,
+            UiMouseCursor.ResizeEW => StandardCursor.HResize,
+            UiMouseCursor.ResizeNESW => StandardCursor.NeswResize,
+            UiMouseCursor.ResizeNWSE => StandardCursor.NwseResize,
+            UiMouseCursor.Hand => StandardCursor.Hand,
+            UiMouseCursor.NotAllowed => StandardCursor.NotAllowed,
+            _ => StandardCursor.Arrow
+        };
+    }
+
+    private void CaptureKeyboardState()
+    {
+        _previousKeyStates.Clear();
+        foreach ((Key key, bool isDown) in _currentKeyStates)
+        {
+            _previousKeyStates[key] = isDown;
+        }
+
+        _currentKeyStates.Clear();
+        if (_keyboard is null)
+        {
+            return;
+        }
+
+        foreach (Key key in _keyboard.SupportedKeys)
+        {
+            _currentKeyStates[key] = _keyboard.IsKeyPressed(key);
+        }
+    }
+
+    private UiKey[] BuildKeyList(bool includeDown, bool includePressed, bool includeReleased)
+    {
+        List<UiKey> keys = new();
+        foreach ((Key key, bool currentDown) in _currentKeyStates)
+        {
+            bool previousDown = _previousKeyStates.TryGetValue(key, out bool wasDown) && wasDown;
+            bool include = includeDown && currentDown;
+            include |= includePressed && currentDown && !previousDown;
+            include |= includeReleased && !currentDown && previousDown;
+            if (!include || !KeyMap.TryGetValue(key, out UiKey uiKey) || keys.Contains(uiKey))
+            {
+                continue;
+            }
+
+            keys.Add(uiKey);
+        }
+
+        return keys.ToArray();
     }
 
     private void InitializeGlState()
@@ -262,14 +471,13 @@ public sealed class SilkExamplesApp : IDisposable
 
     private bool IsDown(Key key)
     {
-        return _keyboard?.IsKeyPressed(key) == true;
+        return _currentKeyStates.TryGetValue(key, out bool isDown) && isDown;
     }
 
     private bool WasPressed(Key key)
     {
-        bool current = IsDown(key);
+        bool current = _currentKeyStates.TryGetValue(key, out bool isDown) && isDown;
         bool previous = _previousKeyStates.TryGetValue(key, out bool wasDown) && wasDown;
-        _previousKeyStates[key] = current;
         return current && !previous;
     }
 

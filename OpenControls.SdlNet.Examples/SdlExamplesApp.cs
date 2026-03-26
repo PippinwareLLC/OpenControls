@@ -11,6 +11,73 @@ namespace OpenControls.SdlNet.Examples;
 
 public sealed class SdlExamplesApp : IDisposable
 {
+    private static readonly (SDL.SDL_Scancode Scancode, UiKey UiKey)[] KeyMap =
+    [
+        (SDL.SDL_Scancode.SDL_SCANCODE_A, UiKey.A),
+        (SDL.SDL_Scancode.SDL_SCANCODE_B, UiKey.B),
+        (SDL.SDL_Scancode.SDL_SCANCODE_C, UiKey.C),
+        (SDL.SDL_Scancode.SDL_SCANCODE_D, UiKey.D),
+        (SDL.SDL_Scancode.SDL_SCANCODE_E, UiKey.E),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F, UiKey.F),
+        (SDL.SDL_Scancode.SDL_SCANCODE_G, UiKey.G),
+        (SDL.SDL_Scancode.SDL_SCANCODE_H, UiKey.H),
+        (SDL.SDL_Scancode.SDL_SCANCODE_I, UiKey.I),
+        (SDL.SDL_Scancode.SDL_SCANCODE_J, UiKey.J),
+        (SDL.SDL_Scancode.SDL_SCANCODE_K, UiKey.K),
+        (SDL.SDL_Scancode.SDL_SCANCODE_L, UiKey.L),
+        (SDL.SDL_Scancode.SDL_SCANCODE_M, UiKey.M),
+        (SDL.SDL_Scancode.SDL_SCANCODE_N, UiKey.N),
+        (SDL.SDL_Scancode.SDL_SCANCODE_O, UiKey.O),
+        (SDL.SDL_Scancode.SDL_SCANCODE_P, UiKey.P),
+        (SDL.SDL_Scancode.SDL_SCANCODE_Q, UiKey.Q),
+        (SDL.SDL_Scancode.SDL_SCANCODE_R, UiKey.R),
+        (SDL.SDL_Scancode.SDL_SCANCODE_S, UiKey.S),
+        (SDL.SDL_Scancode.SDL_SCANCODE_T, UiKey.T),
+        (SDL.SDL_Scancode.SDL_SCANCODE_U, UiKey.U),
+        (SDL.SDL_Scancode.SDL_SCANCODE_V, UiKey.V),
+        (SDL.SDL_Scancode.SDL_SCANCODE_W, UiKey.W),
+        (SDL.SDL_Scancode.SDL_SCANCODE_X, UiKey.X),
+        (SDL.SDL_Scancode.SDL_SCANCODE_Y, UiKey.Y),
+        (SDL.SDL_Scancode.SDL_SCANCODE_Z, UiKey.Z),
+        (SDL.SDL_Scancode.SDL_SCANCODE_0, UiKey.D0),
+        (SDL.SDL_Scancode.SDL_SCANCODE_1, UiKey.D1),
+        (SDL.SDL_Scancode.SDL_SCANCODE_2, UiKey.D2),
+        (SDL.SDL_Scancode.SDL_SCANCODE_3, UiKey.D3),
+        (SDL.SDL_Scancode.SDL_SCANCODE_4, UiKey.D4),
+        (SDL.SDL_Scancode.SDL_SCANCODE_5, UiKey.D5),
+        (SDL.SDL_Scancode.SDL_SCANCODE_6, UiKey.D6),
+        (SDL.SDL_Scancode.SDL_SCANCODE_7, UiKey.D7),
+        (SDL.SDL_Scancode.SDL_SCANCODE_8, UiKey.D8),
+        (SDL.SDL_Scancode.SDL_SCANCODE_9, UiKey.D9),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F1, UiKey.F1),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F2, UiKey.F2),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F3, UiKey.F3),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F4, UiKey.F4),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F5, UiKey.F5),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F6, UiKey.F6),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F7, UiKey.F7),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F8, UiKey.F8),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F9, UiKey.F9),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F10, UiKey.F10),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F11, UiKey.F11),
+        (SDL.SDL_Scancode.SDL_SCANCODE_F12, UiKey.F12),
+        (SDL.SDL_Scancode.SDL_SCANCODE_LEFT, UiKey.Left),
+        (SDL.SDL_Scancode.SDL_SCANCODE_RIGHT, UiKey.Right),
+        (SDL.SDL_Scancode.SDL_SCANCODE_UP, UiKey.Up),
+        (SDL.SDL_Scancode.SDL_SCANCODE_DOWN, UiKey.Down),
+        (SDL.SDL_Scancode.SDL_SCANCODE_HOME, UiKey.Home),
+        (SDL.SDL_Scancode.SDL_SCANCODE_END, UiKey.End),
+        (SDL.SDL_Scancode.SDL_SCANCODE_BACKSPACE, UiKey.Backspace),
+        (SDL.SDL_Scancode.SDL_SCANCODE_DELETE, UiKey.Delete),
+        (SDL.SDL_Scancode.SDL_SCANCODE_TAB, UiKey.Tab),
+        (SDL.SDL_Scancode.SDL_SCANCODE_RETURN, UiKey.Enter),
+        (SDL.SDL_Scancode.SDL_SCANCODE_KP_ENTER, UiKey.KeypadEnter),
+        (SDL.SDL_Scancode.SDL_SCANCODE_SPACE, UiKey.Space),
+        (SDL.SDL_Scancode.SDL_SCANCODE_ESCAPE, UiKey.Escape)
+    ];
+
+    private static readonly Dictionary<UiMouseCursor, IntPtr> CursorCache = new();
+
     private static readonly Encoding Utf8Encoding = new UTF8Encoding(false);
 
     private IntPtr _window;
@@ -18,6 +85,7 @@ public sealed class SdlExamplesApp : IDisposable
     private bool _textInputActive;
     private bool _quit;
     private bool _disposed;
+    private UiMouseCursor _appliedCursor = UiMouseCursor.Arrow;
 
     private SdlUiRenderer? _renderer;
     private TinyBitmapFont? _font;
@@ -27,6 +95,8 @@ public sealed class SdlExamplesApp : IDisposable
     private byte[] _previousKeyStates = Array.Empty<byte>();
     private int _keyCount;
     private bool _previousLeftDown;
+    private bool _previousRightDown;
+    private bool _previousMiddleDown;
     private int _scrollDelta;
     private readonly List<char> _textInputBuffer = new();
 
@@ -50,6 +120,12 @@ public sealed class SdlExamplesApp : IDisposable
             SDL.SDL_StopTextInput();
             _textInputActive = false;
         }
+
+        foreach (IntPtr cursor in CursorCache.Values)
+        {
+            SDL.SDL_FreeCursor(cursor);
+        }
+        CursorCache.Clear();
 
         if (_rendererHandle != IntPtr.Zero)
         {
@@ -149,6 +225,7 @@ public sealed class SdlExamplesApp : IDisposable
             UiInputState input = BuildInputState();
 
             _ui.Update(input, deltaSeconds, width, height, saveRequested, loadRequested);
+            ApplyHostState();
             Render();
         }
     }
@@ -232,11 +309,21 @@ public sealed class SdlExamplesApp : IDisposable
         bool leftDown = (mouseState & SDL.SDL_BUTTON_LMASK) != 0;
         bool leftClicked = leftDown && !_previousLeftDown;
         bool leftReleased = !leftDown && _previousLeftDown;
+        bool rightDown = (mouseState & SDL.SDL_BUTTON_RMASK) != 0;
+        bool rightClicked = rightDown && !_previousRightDown;
+        bool rightReleased = !rightDown && _previousRightDown;
+        bool middleDown = (mouseState & SDL.SDL_BUTTON_MMASK) != 0;
+        bool middleClicked = middleDown && !_previousMiddleDown;
+        bool middleReleased = !middleDown && _previousMiddleDown;
         _previousLeftDown = leftDown;
+        _previousRightDown = rightDown;
+        _previousMiddleDown = middleDown;
 
         SDL.SDL_Keymod mods = SDL.SDL_GetModState();
         bool shift = (mods & SDL.SDL_Keymod.KMOD_SHIFT) != 0;
         bool ctrl = (mods & SDL.SDL_Keymod.KMOD_CTRL) != 0;
+        bool alt = (mods & SDL.SDL_Keymod.KMOD_ALT) != 0;
+        bool superKey = (mods & SDL.SDL_Keymod.KMOD_GUI) != 0;
 
         return new UiInputState
         {
@@ -245,10 +332,21 @@ public sealed class SdlExamplesApp : IDisposable
             LeftDown = leftDown,
             LeftClicked = leftClicked,
             LeftReleased = leftReleased,
+            RightDown = rightDown,
+            RightClicked = rightClicked,
+            RightReleased = rightReleased,
+            MiddleDown = middleDown,
+            MiddleClicked = middleClicked,
+            MiddleReleased = middleReleased,
             ShiftDown = shift,
             CtrlDown = ctrl,
+            AltDown = alt,
+            SuperDown = superKey,
             ScrollDelta = _scrollDelta,
             TextInput = _textInputBuffer.Count > 0 ? _textInputBuffer.ToArray() : Array.Empty<char>(),
+            KeysDown = BuildKeyList(pressedOnly: false, releasedOnly: false),
+            KeysPressed = BuildKeyList(pressedOnly: true, releasedOnly: false),
+            KeysReleased = BuildKeyList(pressedOnly: false, releasedOnly: true),
             Navigation = new UiNavigationInput
             {
                 MoveLeft = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_LEFT),
@@ -266,6 +364,124 @@ public sealed class SdlExamplesApp : IDisposable
                 Escape = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_ESCAPE)
             }
         };
+    }
+
+    private void ApplyHostState()
+    {
+        if (_ui == null)
+        {
+            return;
+        }
+
+        SetTextInputActive(_ui.WantTextInput);
+        ApplyMouseCursor(_ui.RequestedMouseCursor);
+    }
+
+    private void SetTextInputActive(bool enabled)
+    {
+        if (enabled == _textInputActive)
+        {
+            return;
+        }
+
+        if (enabled)
+        {
+            SDL.SDL_StartTextInput();
+        }
+        else
+        {
+            SDL.SDL_StopTextInput();
+        }
+
+        _textInputActive = enabled;
+    }
+
+    private void ApplyMouseCursor(UiMouseCursor cursor)
+    {
+        if (cursor == _appliedCursor)
+        {
+            return;
+        }
+
+        SDL.SDL_SetCursor(GetSystemCursor(cursor));
+        _appliedCursor = cursor;
+    }
+
+    private static IntPtr GetSystemCursor(UiMouseCursor cursor)
+    {
+        if (CursorCache.TryGetValue(cursor, out IntPtr handle))
+        {
+            return handle;
+        }
+
+        SDL.SDL_SystemCursor systemCursor = cursor switch
+        {
+            UiMouseCursor.TextInput => SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_IBEAM,
+            UiMouseCursor.ResizeAll => SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_SIZEALL,
+            UiMouseCursor.ResizeNS => SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_SIZENS,
+            UiMouseCursor.ResizeEW => SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_SIZEWE,
+            UiMouseCursor.ResizeNESW => SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_SIZENESW,
+            UiMouseCursor.ResizeNWSE => SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_SIZENWSE,
+            UiMouseCursor.Hand => SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_HAND,
+            UiMouseCursor.NotAllowed => SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_NO,
+            _ => SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_ARROW
+        };
+
+        handle = SDL.SDL_CreateSystemCursor(systemCursor);
+        if (handle == IntPtr.Zero)
+        {
+            handle = SDL.SDL_CreateSystemCursor(SDL.SDL_SystemCursor.SDL_SYSTEM_CURSOR_ARROW);
+        }
+
+        CursorCache[cursor] = handle;
+        return handle;
+    }
+
+    private UiKey[] BuildKeyList(bool pressedOnly, bool releasedOnly)
+    {
+        if (_keyCount <= 0)
+        {
+            return Array.Empty<UiKey>();
+        }
+
+        List<UiKey> keys = new();
+        for (int index = 0; index < _keyCount; index++)
+        {
+            bool current = _currentKeyStates[index] != 0;
+            bool previous = _previousKeyStates[index] != 0;
+            bool include = pressedOnly
+                ? current && !previous
+                : releasedOnly
+                    ? !current && previous
+                    : current;
+
+            if (!include)
+            {
+                continue;
+            }
+
+            if (TryMapScancode((SDL.SDL_Scancode)index, out UiKey uiKey) && !keys.Contains(uiKey))
+            {
+                keys.Add(uiKey);
+            }
+        }
+
+        return keys.ToArray();
+    }
+
+    private static bool TryMapScancode(SDL.SDL_Scancode scancode, out UiKey uiKey)
+    {
+        foreach ((SDL.SDL_Scancode mappedScancode, UiKey mappedUiKey) in KeyMap)
+        {
+            if (mappedScancode == scancode)
+            {
+                uiKey = mappedUiKey;
+                return true;
+            }
+        }
+
+        uiKey = UiKey.Unknown;
+        return false;
     }
 
     private bool IsPressed(SDL.SDL_Scancode scancode)

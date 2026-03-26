@@ -24,6 +24,7 @@ public sealed class UiPanel : UiElement
     public UiColor ResizeGripColor { get; set; } = new(90, 100, 120);
 
     public bool IsResizing => _resizing;
+    public override bool CapturesPointerInput => AllowResize;
 
     public UiRect ResizeGripBounds
     {
@@ -111,5 +112,17 @@ public sealed class UiPanel : UiElement
         {
             context.Renderer.FillRect(ResizeGripBounds, ResizeGripColor);
         }
+    }
+
+    protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        if (AllowResize && (_resizing || ResizeGripBounds.Contains(input.MousePosition)))
+        {
+            cursor = UiMouseCursor.ResizeNWSE;
+            return true;
+        }
+
+        cursor = UiMouseCursor.Arrow;
+        return false;
     }
 }

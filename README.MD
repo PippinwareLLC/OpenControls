@@ -50,10 +50,10 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 The Widgets window in `OpenControls.Examples` mirrors the structure of the reference demo source. Every demo marker was replaced with a working OpenControls demo panel so the tree now maps to the same sections (Help & Configuration, Menu, Basic widgets, Text, Sliders, Drag & Drop, Tables, Layout, Inputs & Focus, Tools, Examples, etc.).
 
 Parity deviations (documented and intentional):
-- Shortcuts + mouse cursors: OpenControls input only exposes Ctrl/Shift, navigation keys, and text input, so shortcuts are approximated from text input and cursor-shape changes are not shown.
+- Shortcut routing depth: the Inputs & Focus demo now uses real named keys and key chords, but `UiMenuBar.MenuItem.Shortcut` remains display-only and command routing is still app-defined.
 - Drag/slider flags: the demo toggles whole-number snapping and step size; advanced flags like logarithmic and always-clamp are not available.
 - Text input callbacks: completion/history is simulated; OpenControls does not expose edit callbacks.
-- WantCapture overrides: the capture checkboxes are informational only; host-specific capture routing is not exposed in OpenControls.
+- WantCapture overrides: `UiContext` now exposes actual `WantCaptureMouse`, `WantCaptureKeyboard`, and `WantTextInput` outputs, but manual override toggles are not part of the core API.
 - Image demos: `UiImage` and `UiImageButton` rely on renderer-supplied textures, so hosts without texture bindings will show placeholders.
 - Item/window status queries: status labels use hit-testing and focus tracking, not the full item status flag set.
 
@@ -112,6 +112,8 @@ Planned expansion:
 
 ## Status
 - Core element tree, focus management, and basic controls are implemented.
+- `UiInputState` now supports left/right/middle mouse buttons, Alt/Super modifiers, named keys, and per-key down/pressed/released state.
+- `UiContext` now exposes `Hovered`, `PointerCaptureTarget`, `WantCaptureMouse`, `WantCaptureKeyboard`, `WantTextInput`, and `RequestedMouseCursor`, and the example hosts consume those outputs.
 - Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented, radial), list box, combo box, selectable, color button, and separator controls are available.
 - Table controls with column headers and selectable rows are available.
 - Table headers support angled labels and sortable columns via `UiTable.UseAngledHeaders` and `UiTable.SortSpecs`.
@@ -148,5 +150,6 @@ Planned expansion:
 - OpenControls.Examples includes an Examples menu to open feature windows as dockable panels.
 - OpenControls.Examples includes a dedicated Text Editor demo window.
 - OpenControls.Examples widgets window groups controls into categorized tree nodes (collapsed by default, with header spacing).
+- OpenControls.Examples now shows real shortcut, capture, and requested-cursor state in the Inputs & Focus demo.
 - A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).

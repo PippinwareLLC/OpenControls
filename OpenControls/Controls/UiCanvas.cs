@@ -297,10 +297,21 @@ public sealed class UiCanvas : UiElement
             LeftDown = input.LeftDown,
             LeftClicked = allowMouse && input.LeftClicked,
             LeftReleased = input.LeftReleased,
+            RightDown = allowMouse && input.RightDown,
+            RightClicked = allowMouse && input.RightClicked,
+            RightReleased = allowMouse && input.RightReleased,
+            MiddleDown = allowMouse && input.MiddleDown,
+            MiddleClicked = allowMouse && input.MiddleClicked,
+            MiddleReleased = allowMouse && input.MiddleReleased,
             ShiftDown = input.ShiftDown,
             CtrlDown = input.CtrlDown,
+            AltDown = input.AltDown,
+            SuperDown = input.SuperDown,
             ScrollDelta = allowMouse ? input.ScrollDelta : 0,
             TextInput = input.TextInput,
+            KeysDown = input.KeysDown,
+            KeysPressed = input.KeysPressed,
+            KeysReleased = input.KeysReleased,
             Navigation = input.Navigation
         };
     }

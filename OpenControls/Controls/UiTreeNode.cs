@@ -282,10 +282,21 @@ public sealed class UiTreeNode : UiElement
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
             LeftReleased = input.LeftReleased,
+            RightDown = input.RightDown,
+            RightClicked = input.RightClicked,
+            RightReleased = input.RightReleased,
+            MiddleDown = input.MiddleDown,
+            MiddleClicked = input.MiddleClicked,
+            MiddleReleased = input.MiddleReleased,
             ShiftDown = input.ShiftDown,
             CtrlDown = input.CtrlDown,
+            AltDown = input.AltDown,
+            SuperDown = input.SuperDown,
             ScrollDelta = input.ScrollDelta,
             TextInput = input.TextInput,
+            KeysDown = input.KeysDown,
+            KeysPressed = input.KeysPressed,
+            KeysReleased = input.KeysReleased,
             Navigation = input.Navigation
         };
     }

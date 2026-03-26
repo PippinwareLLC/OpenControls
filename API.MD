@@ -3,11 +3,13 @@
 This is a brief overview of the current OpenControls surface area.
 
 ## Core Types
-- `UiContext`: owns the root element and focus manager; call `Update` and `Render` each frame.
-- `UiElement`: base class for all UI elements; handles visibility, enablement, child hierarchy, hit tests, IDs, child clipping, and overlay rendering.
+- `UiContext`: owns the root element and focus manager, and publishes host-facing hover/capture/cursor outputs after each `Update`.
+- `UiElement`: base class for all UI elements; handles visibility, enablement, child hierarchy, hit tests, IDs, child clipping, overlay rendering, and optional text-input/pointer-capture/cursor hints.
 - `UiFocusManager`: tracks focused element and handles focus transitions.
-- `UiInputState`: host-provided input snapshot (mouse, clicks, scroll delta, text input, navigation).
+- `UiInputState`: host-provided input snapshot (mouse buttons, clicks, modifiers, scroll delta, text input, named key state, and navigation).
 - `UiNavigationInput`: directional/navigation key flags (arrows, Home/End, Backspace/Delete, Tab, Enter/KeypadEnter, Space).
+- `UiKey`, `UiModifierKeys`, `UiKeyChord`: named key and shortcut types for richer keyboard input.
+- `UiMouseCursor`: host-facing cursor request enum returned by `UiContext`.
 - `IUiRenderer`: rendering abstraction; hosts implement this for their graphics API (includes clip stack, gradient, and checkerboard fills).
 - `UiRect`, `UiPoint`, `UiColor`: lightweight geometry and color structs.
 - `UiRenderHelpers`: helper methods for gradients, checkerboard fills, rounded rectangles, and bold text.
@@ -82,6 +84,7 @@ This is a brief overview of the current OpenControls surface area.
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.
 - `UiContext.Render` performs an overlay pass; `UiMenuBar` dropdowns draw there so they render above other controls.
+- `UiContext.Update` also refreshes `Hovered`, `PointerCaptureTarget`, `WantCaptureMouse`, `WantCaptureKeyboard`, `WantTextInput`, and `RequestedMouseCursor`.
 
 ## Rounded Corner Notes
 - Use `UiRenderHelpers.FillRectRounded` and `UiRenderHelpers.DrawRectRounded` for rounded rectangles in custom controls.
@@ -230,12 +233,15 @@ This is a brief overview of the current OpenControls surface area.
 
 ## Input Notes
 - `UiInputState.ScrollDelta` uses mouse wheel delta (positive values scroll up by default).
+- `UiInputState` includes left/right/middle button state plus `AltDown` and `SuperDown` modifier flags.
 - `UiInputState.ScreenMousePosition` preserves the screen-space cursor position for overlay UI like tooltips.
-- `UiInputState.ShiftDown`/`CtrlDown` drive range/toggle selection for multi-select.
+- `UiInputState.ShiftDown`/`CtrlDown` still drive range/toggle selection for multi-select, and `PrimaryShortcutDown` / `IsPrimaryShortcutPressed(...)` provide a simple Ctrl-or-Super shortcut helper.
+- `UiInputState.KeysDown`, `KeysPressed`, and `KeysReleased` expose named key state, and `IsKeyPressed(...)` / `IsKeyChordPressed(...)` help with shortcut handling.
 - Prefer platform text input events (for example MonoGame `GameWindow.TextInput`, Silk.NET `IKeyboard.KeyChar`, or SDL `SDL_TEXTINPUT`) for `UiInputState.TextInput`; use key mapping as a fallback.
 - `UiContext` skips Tab traversal when the focused element reports `HandlesTabInput` (used by `UiTextEditor.AllowTabInput`).
 - When `UiContext` moves focus via Tab, it consumes the Tab input so the newly focused element does not receive a tab insert.
 - `UiNavigationInput.Activate` is true for Enter, Keypad Enter, or Space.
+- Hosts should read `UiContext.WantCaptureMouse`, `UiContext.WantCaptureKeyboard`, `UiContext.WantTextInput`, and `UiContext.RequestedMouseCursor` after `Update`.
 
 ## Serialization Notes
 - Assign stable `UiElement.Id` values for controls you want to persist.

@@ -4,6 +4,7 @@ using OpenControls.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
+using OpenTK.Windowing.Common.Input;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 
@@ -11,6 +12,71 @@ namespace OpenControls.OpenGL.Examples;
 
 public sealed class OpenGlExamplesWindow : GameWindow
 {
+    private static readonly (Keys Key, UiKey UiKey)[] KeyMap =
+    [
+        (Keys.A, UiKey.A),
+        (Keys.B, UiKey.B),
+        (Keys.C, UiKey.C),
+        (Keys.D, UiKey.D),
+        (Keys.E, UiKey.E),
+        (Keys.F, UiKey.F),
+        (Keys.G, UiKey.G),
+        (Keys.H, UiKey.H),
+        (Keys.I, UiKey.I),
+        (Keys.J, UiKey.J),
+        (Keys.K, UiKey.K),
+        (Keys.L, UiKey.L),
+        (Keys.M, UiKey.M),
+        (Keys.N, UiKey.N),
+        (Keys.O, UiKey.O),
+        (Keys.P, UiKey.P),
+        (Keys.Q, UiKey.Q),
+        (Keys.R, UiKey.R),
+        (Keys.S, UiKey.S),
+        (Keys.T, UiKey.T),
+        (Keys.U, UiKey.U),
+        (Keys.V, UiKey.V),
+        (Keys.W, UiKey.W),
+        (Keys.X, UiKey.X),
+        (Keys.Y, UiKey.Y),
+        (Keys.Z, UiKey.Z),
+        (Keys.D0, UiKey.D0),
+        (Keys.D1, UiKey.D1),
+        (Keys.D2, UiKey.D2),
+        (Keys.D3, UiKey.D3),
+        (Keys.D4, UiKey.D4),
+        (Keys.D5, UiKey.D5),
+        (Keys.D6, UiKey.D6),
+        (Keys.D7, UiKey.D7),
+        (Keys.D8, UiKey.D8),
+        (Keys.D9, UiKey.D9),
+        (Keys.F1, UiKey.F1),
+        (Keys.F2, UiKey.F2),
+        (Keys.F3, UiKey.F3),
+        (Keys.F4, UiKey.F4),
+        (Keys.F5, UiKey.F5),
+        (Keys.F6, UiKey.F6),
+        (Keys.F7, UiKey.F7),
+        (Keys.F8, UiKey.F8),
+        (Keys.F9, UiKey.F9),
+        (Keys.F10, UiKey.F10),
+        (Keys.F11, UiKey.F11),
+        (Keys.F12, UiKey.F12),
+        (Keys.Left, UiKey.Left),
+        (Keys.Right, UiKey.Right),
+        (Keys.Up, UiKey.Up),
+        (Keys.Down, UiKey.Down),
+        (Keys.Home, UiKey.Home),
+        (Keys.End, UiKey.End),
+        (Keys.Backspace, UiKey.Backspace),
+        (Keys.Delete, UiKey.Delete),
+        (Keys.Tab, UiKey.Tab),
+        (Keys.Enter, UiKey.Enter),
+        (Keys.KeyPadEnter, UiKey.KeypadEnter),
+        (Keys.Space, UiKey.Space),
+        (Keys.Escape, UiKey.Escape)
+    ];
+
     private readonly List<char> _textInputBuffer = new();
     private OpenGLUiRenderer? _renderer;
     private TinyBitmapFont? _font;
@@ -19,7 +85,14 @@ public sealed class OpenGlExamplesWindow : GameWindow
     private bool _leftDown;
     private bool _leftClicked;
     private bool _leftReleased;
+    private bool _rightDown;
+    private bool _rightClicked;
+    private bool _rightReleased;
+    private bool _middleDown;
+    private bool _middleClicked;
+    private bool _middleReleased;
     private int _scrollDelta;
+    private UiMouseCursor _appliedCursor = UiMouseCursor.Arrow;
 
     public OpenGlExamplesWindow(GameWindowSettings gameSettings, NativeWindowSettings windowSettings)
         : base(gameSettings, windowSettings)
@@ -73,10 +146,15 @@ public sealed class OpenGlExamplesWindow : GameWindow
 
         UiInputState input = BuildInputState(keyboard, previousKeyboard, mouse);
         _ui.Update(input, (float)args.Time, Size.X, Size.Y, saveRequested, loadRequested);
+        ApplyHostState();
 
         _previousKeyboard = keyboard;
         _leftClicked = false;
         _leftReleased = false;
+        _rightClicked = false;
+        _rightReleased = false;
+        _middleClicked = false;
+        _middleReleased = false;
         _scrollDelta = 0;
     }
 
@@ -130,6 +208,16 @@ public sealed class OpenGlExamplesWindow : GameWindow
             _leftDown = true;
             _leftClicked = true;
         }
+        else if (e.Button == MouseButton.Right)
+        {
+            _rightDown = true;
+            _rightClicked = true;
+        }
+        else if (e.Button == MouseButton.Middle)
+        {
+            _middleDown = true;
+            _middleClicked = true;
+        }
     }
 
     protected override void OnMouseUp(MouseButtonEventArgs e)
@@ -140,6 +228,16 @@ public sealed class OpenGlExamplesWindow : GameWindow
         {
             _leftDown = false;
             _leftReleased = true;
+        }
+        else if (e.Button == MouseButton.Right)
+        {
+            _rightDown = false;
+            _rightReleased = true;
+        }
+        else if (e.Button == MouseButton.Middle)
+        {
+            _middleDown = false;
+            _middleReleased = true;
         }
     }
 
@@ -156,6 +254,8 @@ public sealed class OpenGlExamplesWindow : GameWindow
     {
         Vector2 mousePosition = currentMouse.Position;
         UiPoint mousePoint = new UiPoint((int)Math.Round(mousePosition.X), (int)Math.Round(mousePosition.Y));
+        IReadOnlyList<char> textInputBuffer = ConsumeTextInput();
+        IReadOnlyList<char> textInput = _ui?.WantTextInput == true ? textInputBuffer : Array.Empty<char>();
 
         return new UiInputState
         {
@@ -164,10 +264,21 @@ public sealed class OpenGlExamplesWindow : GameWindow
             LeftDown = _leftDown,
             LeftClicked = _leftClicked,
             LeftReleased = _leftReleased,
+            RightDown = _rightDown,
+            RightClicked = _rightClicked,
+            RightReleased = _rightReleased,
+            MiddleDown = _middleDown,
+            MiddleClicked = _middleClicked,
+            MiddleReleased = _middleReleased,
             ShiftDown = currentKeyboard.IsKeyDown(Keys.LeftShift) || currentKeyboard.IsKeyDown(Keys.RightShift),
             CtrlDown = currentKeyboard.IsKeyDown(Keys.LeftControl) || currentKeyboard.IsKeyDown(Keys.RightControl),
+            AltDown = currentKeyboard.IsKeyDown(Keys.LeftAlt) || currentKeyboard.IsKeyDown(Keys.RightAlt),
+            SuperDown = currentKeyboard.IsKeyDown(Keys.LeftSuper) || currentKeyboard.IsKeyDown(Keys.RightSuper),
             ScrollDelta = _scrollDelta,
-            TextInput = ConsumeTextInput(),
+            TextInput = textInput,
+            KeysDown = BuildKeyList(currentKeyboard, previousKeyboard, pressedOnly: false, releasedOnly: false),
+            KeysPressed = BuildKeyList(currentKeyboard, previousKeyboard, pressedOnly: true, releasedOnly: false),
+            KeysReleased = BuildKeyList(currentKeyboard, previousKeyboard, pressedOnly: false, releasedOnly: true),
             Navigation = new UiNavigationInput
             {
                 MoveLeft = IsPressed(currentKeyboard, previousKeyboard, Keys.Left),
@@ -187,8 +298,65 @@ public sealed class OpenGlExamplesWindow : GameWindow
         };
     }
 
+    private void ApplyHostState()
+    {
+        if (_ui == null)
+        {
+            return;
+        }
+
+        ApplyMouseCursor(_ui.RequestedMouseCursor);
+    }
+
+    private void ApplyMouseCursor(UiMouseCursor cursor)
+    {
+        if (cursor == _appliedCursor)
+        {
+            return;
+        }
+
+        Cursor = MapMouseCursor(cursor);
+        _appliedCursor = cursor;
+    }
+
+    private static MouseCursor MapMouseCursor(UiMouseCursor cursor)
+    {
+        return cursor switch
+        {
+            UiMouseCursor.TextInput => MouseCursor.IBeam,
+            _ => MouseCursor.Default
+        };
+    }
+
+    private static UiKey[] BuildKeyList(KeyboardState currentKeyboard, KeyboardState previousKeyboard, bool pressedOnly, bool releasedOnly)
+    {
+        List<UiKey> keys = new();
+        foreach ((Keys key, UiKey uiKey) in KeyMap)
+        {
+            bool current = currentKeyboard.IsKeyDown(key);
+            bool previous = previousKeyboard.IsKeyDown(key);
+            bool include = pressedOnly
+                ? current && !previous
+                : releasedOnly
+                    ? !current && previous
+                    : current;
+
+            if (include && !keys.Contains(uiKey))
+            {
+                keys.Add(uiKey);
+            }
+        }
+
+        return keys.ToArray();
+    }
+
     private void HandleTextInput(TextInputEventArgs args)
     {
+        if (_ui?.WantTextInput != true)
+        {
+            return;
+        }
+
         int codePoint = (int)args.Unicode;
         if (codePoint <= 0)
         {
