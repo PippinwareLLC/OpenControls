@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace OpenControls;
@@ -162,7 +163,7 @@ public sealed class TinyBitmapFont
     private static readonly Encoding Latin1Encoding = Encoding.Latin1;
     private static readonly Encoding Cp437Encoding;
 
-    private readonly Dictionary<char, byte[]> _glyphCache = new(BaseGlyphs);
+    private readonly ConcurrentDictionary<char, byte[]> _glyphCache = new(BaseGlyphs);
     private readonly byte[][] _latin1Glyphs;
     private readonly byte[][] _cp437Glyphs;
 
@@ -236,20 +237,15 @@ public sealed class TinyBitmapFont
 
     private byte[] GetGlyphCore(char c)
     {
-        if (_glyphCache.TryGetValue(c, out byte[]? glyph))
+        return _glyphCache.GetOrAdd(c, key =>
         {
-            return glyph;
-        }
+            if (TryCreateGlyph(key, out byte[] glyph))
+            {
+                return glyph;
+            }
 
-        if (TryCreateGlyph(c, out glyph))
-        {
-            _glyphCache[c] = glyph;
-            return glyph;
-        }
-
-        glyph = BaseGlyphs['?'];
-        _glyphCache[c] = glyph;
-        return glyph;
+            return BaseGlyphs['?'];
+        });
     }
 
     private bool TryCreateGlyph(char c, out byte[] glyph)

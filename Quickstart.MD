@@ -51,18 +51,22 @@ Use `UiDockHost` to host windows as tabs.
 ```csharp
 UiDockHost dock = new UiDockHost
 {
-    Bounds = new UiRect(20, 120, 360, 200)
+    Bounds = new UiRect(20, 120, 360, 200),
+    AutoSizeTabs = true,
+    TabMaxWidth = 160,
+    TabTextOverflow = UiTabTextOverflowMode.Ellipsis,
+    ShowOverflowMenuButton = true
 };
 
-UiWindow assets = new UiWindow { Title = "Assets" };
-UiWindow properties = new UiWindow { Title = "Properties" };
+UiWindow assets = new UiWindow { Title = "Assets / Content Browser" };
+UiWindow properties = new UiWindow { Title = "Inspector / Selection Details" };
 dock.AddWindow(assets);
 dock.AddWindow(properties);
 
 root.AddChild(dock);
 ```
 
-Tabs can be dragged to reorder within the dock bar. Drag a tab outside the dock to detach it; handle `TabDetached` to reattach or host it elsewhere.
+Tabs can be dragged to reorder within the dock bar. Drag a tab outside the dock to detach it; handle `TabDetached` to reattach or host it elsewhere. Long titles can auto-size, ellipsize, and fall back to the overflow menu when the strip runs out of space.
 
 ## 2b) Workspace docking with drop targets
 Use `UiDockWorkspace` to get drag previews, drop targets, and floating windows.

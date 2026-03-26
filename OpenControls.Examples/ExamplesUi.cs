@@ -520,9 +520,13 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiWindow? _assetsWindow;
     private UiWindow? _consoleWindow;
     private UiWindow? _inspectorWindow;
+    private UiWindow? _metricsWindow;
+    private UiWindow? _buildQueueWindow;
     private UiLabel? _assetsLabel;
     private UiLabel? _consoleLabel;
     private UiLabel? _inspectorLabel;
+    private UiLabel? _metricsLabel;
+    private UiLabel? _buildQueueLabel;
     private bool _standaloneInitialized;
     private string? _statePath;
     private ExamplePanel _activeExample = ExamplePanel.Custom;
@@ -1739,12 +1743,14 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         {
             TabTextScale = FontScale,
             TabPadding = 8,
-            TabSpacing = 4
+            TabSpacing = 4,
+            TabMaxWidth = 150,
+            TabTextOverflow = UiTabTextOverflowMode.Ellipsis
         };
 
-        _tabOverview = new UiTabItem { Text = WithIcon("Overview", IconBolt) };
-        _tabDetails = new UiTabItem { Text = WithIcon("Diagnostics", IconBug) };
-        _tabSettings = new UiTabItem { Text = WithIcon("Settings", IconGear) };
+        _tabOverview = new UiTabItem { Text = WithIcon("Overview / System Summary", IconBolt) };
+        _tabDetails = new UiTabItem { Text = WithIcon("Diagnostics / Error Streams", IconBug) };
+        _tabSettings = new UiTabItem { Text = WithIcon("Settings / Automation Rules", IconGear) };
 
         _tabOverviewLabel = new UiLabel
         {
@@ -1783,7 +1789,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _tabButtonStatusLabel = new UiLabel
         {
-            Text = "Tab buttons: idle",
+            Text = "Tab buttons: use the arrows when long titles overflow, and the docked tabs now support overflow menus plus close commands on right-click.",
             Color = new UiColor(200, 210, 230),
             Scale = FontScale
         };
@@ -4210,20 +4216,30 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         };
         _dockLeft = _dockWorkspace.RootHost;
         _dockLeft.Id = "dock-left";
-        _dockLeft.TabWidth = 160;
+        _dockLeft.TabWidth = 120;
+        _dockLeft.AutoSizeTabs = true;
+        _dockLeft.TabMaxWidth = 190;
+        _dockLeft.TabTextOverflow = UiTabTextOverflowMode.Ellipsis;
+        _dockLeft.ShowOverflowMenuButton = true;
         _dockLeft.TabTextScale = FontScale;
 
-        _assetsWindow = new UiWindow { Id = "window-assets", Title = "Assets", TitleTextScale = FontScale };
-        _consoleWindow = new UiWindow { Id = "window-console", Title = "Console", TitleTextScale = FontScale };
-        _inspectorWindow = new UiWindow { Id = "window-inspector", Title = "Inspector", TitleTextScale = FontScale };
+        _assetsWindow = new UiWindow { Id = "window-assets", Title = "Assets / Content Browser", TitleTextScale = FontScale };
+        _consoleWindow = new UiWindow { Id = "window-console", Title = "Console / Diagnostics", TitleTextScale = FontScale };
+        _inspectorWindow = new UiWindow { Id = "window-inspector", Title = "Inspector / Selection Details", TitleTextScale = FontScale };
+        _metricsWindow = new UiWindow { Id = "window-metrics", Title = "Metrics / Performance Overview", TitleTextScale = FontScale };
+        _buildQueueWindow = new UiWindow { Id = "window-build-queue", Title = "Build Queue / Automation Jobs", TitleTextScale = FontScale };
 
-        _assetsLabel = new UiLabel { Text = "Assets tab", Color = UiColor.White, Scale = FontScale };
-        _consoleLabel = new UiLabel { Text = "Console tab", Color = UiColor.White, Scale = FontScale };
-        _inspectorLabel = new UiLabel { Text = "Inspector tab", Color = UiColor.White, Scale = FontScale };
+        _assetsLabel = new UiLabel { Text = "Assets tab: right-click the dock tab for Close Others / Close Tabs To Right / Close All.", Color = UiColor.White, Scale = FontScale };
+        _consoleLabel = new UiLabel { Text = "Console tab: long titles now autosize, clamp, and ellipsize.", Color = UiColor.White, Scale = FontScale };
+        _inspectorLabel = new UiLabel { Text = "Inspector tab: use the overflow button when tabs fall off-screen.", Color = UiColor.White, Scale = FontScale };
+        _metricsLabel = new UiLabel { Text = "Metrics tab: overflow list target.", Color = UiColor.White, Scale = FontScale };
+        _buildQueueLabel = new UiLabel { Text = "Build Queue tab: another long-title dock sample.", Color = UiColor.White, Scale = FontScale };
 
         _assetsWindow.AddChild(_assetsLabel);
         _consoleWindow.AddChild(_consoleLabel);
         _inspectorWindow.AddChild(_inspectorLabel);
+        _metricsWindow.AddChild(_metricsLabel);
+        _buildQueueWindow.AddChild(_buildQueueLabel);
 
         _rootPanel.AddChild(_menuBar);
         _rootPanel.AddChild(_dockWorkspace);
@@ -5174,7 +5190,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             int tabBarHeight = Math.Max(22, labelHeight + 6);
             int tabContentHeight = Math.Max(64, labelHeight * 3);
             _tabBar.TabBarHeight = tabBarHeight;
-            _tabBar.Bounds = new UiRect(0, layoutY, layoutContentWidth, tabBarHeight + tabContentHeight);
+            int tabBarWidth = Math.Min(layoutContentWidth, 360);
+            _tabBar.Bounds = new UiRect(0, layoutY, tabBarWidth, tabBarHeight + tabContentHeight);
 
             UiRect tabContent = _tabBar.ContentBounds;
             int tabContentPadding = 8;
@@ -5519,6 +5536,18 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         {
             UiRect content = _inspectorWindow.ContentBounds;
             _inspectorLabel.Bounds = new UiRect(content.X + 8, content.Y + 8, Math.Max(0, content.Width - 16), labelHeight);
+        }
+
+        if (_metricsWindow != null && _metricsLabel != null)
+        {
+            UiRect content = _metricsWindow.ContentBounds;
+            _metricsLabel.Bounds = new UiRect(content.X + 8, content.Y + 8, Math.Max(0, content.Width - 16), labelHeight);
+        }
+
+        if (_buildQueueWindow != null && _buildQueueLabel != null)
+        {
+            UiRect content = _buildQueueWindow.ContentBounds;
+            _buildQueueLabel.Bounds = new UiRect(content.X + 8, content.Y + 8, Math.Max(0, content.Width - 16), labelHeight);
         }
     }
 
@@ -6753,6 +6782,190 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         };
         AddSectionChild(coreSection, separatorText, 24);
         AddGallerySection(_widgetGalleryRoot, coreSection, 358);
+
+        UiStack tabOverflowSection = CreateGallerySection(
+            "Tabs, Overflow, And Dock Actions",
+            "This section is the explicit demo for the new tab-strip behavior: long titles ellipsize in narrow strips, overflow arrows appear when tabs no longer fit, dock hosts expose an overflow list, and right-click dock tabs for editor-style bulk-close commands.");
+
+        UiStack tabOverflowRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiTabBar galleryTabOverflowBar = new()
+        {
+            TabTextScale = FontScale,
+            TabPadding = 8,
+            TabSpacing = 4,
+            AutoSizeTabs = true,
+            TabMaxWidth = 124,
+            TabTextOverflow = UiTabTextOverflowMode.Ellipsis
+        };
+        UiTabItem galleryOverviewTab = new() { Text = "Overview / Runtime Summary" };
+        UiTabItem galleryDiagnosticsTab = new() { Text = "Diagnostics / Build And Errors" };
+        UiTabItem galleryAutomationTab = new() { Text = "Automation / Scheduled Jobs" };
+        UiTabItem galleryCollaborationTab = new() { Text = "Collaboration / Review Notes" };
+        galleryOverviewTab.AddChild(new UiLabel
+        {
+            Text = "TabBar demo: long labels ellipsize and the strip scrolls with arrows.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Bounds = new UiRect(8, 8, 300, 18)
+        });
+        galleryDiagnosticsTab.AddChild(new UiLabel
+        {
+            Text = "Switch tabs and use the arrow buttons when some titles move off-screen.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Bounds = new UiRect(8, 8, 320, 18)
+        });
+        galleryAutomationTab.AddChild(new UiLabel
+        {
+            Text = "This row is intentionally narrow so overflow and title ellipsis are obvious.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Bounds = new UiRect(8, 8, 330, 18)
+        });
+        galleryCollaborationTab.AddChild(new UiLabel
+        {
+            Text = "The same overflow policy is mirrored by dock tabs below.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Bounds = new UiRect(8, 8, 280, 18)
+        });
+        galleryTabOverflowBar.AddChild(galleryOverviewTab);
+        galleryTabOverflowBar.AddChild(galleryDiagnosticsTab);
+        galleryTabOverflowBar.AddChild(galleryAutomationTab);
+        galleryTabOverflowBar.AddChild(galleryCollaborationTab);
+
+        UiTextBlock tabOverflowNote = new()
+        {
+            Text =
+                "Top: regular `UiTabBar` overflow.\n" +
+                "Use the arrow buttons to reach tabs that no longer fit.\n" +
+                "Tab titles ellipsize once they hit the width cap instead of spilling across the strip.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 76)
+        };
+        AddRowFixedChild(tabOverflowRow, galleryTabOverflowBar, 372, 108);
+        AddRowFillChild(tabOverflowRow, tabOverflowNote, 76);
+        AddSectionChild(tabOverflowSection, tabOverflowRow, 112);
+
+        UiStack dockOverflowRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiDockHost galleryDockHost = new()
+        {
+            TabTextScale = FontScale,
+            TabWidth = 112,
+            AutoSizeTabs = true,
+            TabMaxWidth = 148,
+            TabTextOverflow = UiTabTextOverflowMode.Ellipsis,
+            ShowOverflowMenuButton = true,
+            ShowTabContextMenu = true
+        };
+        UiLabel galleryDockStatus = CreateGalleryInfoLabel("Dock actions: ready");
+        UiButton resetDockTabsButton = new()
+        {
+            Text = "Reset Dock Tabs",
+            TextScale = FontScale
+        };
+        UiButton addDockOverflowButton = new()
+        {
+            Text = "Add Long Tab",
+            TextScale = FontScale
+        };
+        UiStack dockControlColumn = new()
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 8
+        };
+        UiTextBlock dockOverflowNote = new()
+        {
+            Text =
+                "Bottom: `UiDockHost` overflow and context actions.\n" +
+                "Right-click a tab for Close Others / Close Tabs To The Right / Close All.\n" +
+                "Use Reset after Close All, or Add Long Tab to force more overflow.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 68)
+        };
+        UiStack dockButtonRow = CreateGalleryRow();
+        AddRowFixedChild(dockButtonRow, resetDockTabsButton, 152, 28);
+        AddRowFixedChild(dockButtonRow, addDockOverflowButton, 128, 28);
+        dockControlColumn.AddChild(dockOverflowNote);
+        dockControlColumn.SetLayout(dockOverflowNote, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(68),
+            CrossLength = UiLayoutLength.Fill()
+        });
+        dockControlColumn.AddChild(galleryDockStatus);
+        dockControlColumn.SetLayout(galleryDockStatus, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(18),
+            CrossLength = UiLayoutLength.Fill()
+        });
+        dockControlColumn.AddChild(dockButtonRow);
+        dockControlColumn.SetLayout(dockButtonRow, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(32),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        int galleryDockExtraCount = 0;
+
+        UiWindow CreateGalleryDockWindow(string id, string title, string message)
+        {
+            UiWindow window = new()
+            {
+                Id = id,
+                Title = title,
+                TitleTextScale = FontScale,
+                AllowClose = true
+            };
+            window.AddChild(new UiLabel
+            {
+                Text = message,
+                Color = UiColor.White,
+                Scale = FontScale,
+                Bounds = new UiRect(10, 10, 320, 18)
+            });
+            return window;
+        }
+
+        void PopulateGalleryDockSample(string status)
+        {
+            galleryDockExtraCount = 0;
+            galleryDockHost.ClearWindows();
+            galleryDockHost.AddWindow(CreateGalleryDockWindow("gallery-dock-assets", "Assets / Content Browser", "Dock sample: right-click the tab strip for bulk-close actions."));
+            galleryDockHost.AddWindow(CreateGalleryDockWindow("gallery-dock-console", "Console / Diagnostics Output", "Dock sample: titles auto-size, clamp, and ellipsize."));
+            galleryDockHost.AddWindow(CreateGalleryDockWindow("gallery-dock-inspector", "Inspector / Selection Details", "Dock sample: use the overflow button when tabs move off-screen."));
+            galleryDockHost.AddWindow(CreateGalleryDockWindow("gallery-dock-metrics", "Metrics / Performance Overview", "Dock sample: another long title that contributes to overflow."));
+            galleryDockHost.AddWindow(CreateGalleryDockWindow("gallery-dock-build", "Build Queue / Automation Jobs", "Dock sample: reset this row after Close All."));
+            galleryDockStatus.Text = status;
+        }
+
+        galleryDockHost.TabClosed += window => galleryDockStatus.Text = $"Dock actions: closed {window.Title}";
+        galleryDockHost.TabDetached += (window, _) => galleryDockStatus.Text = $"Dock actions: detached {window.Title}";
+        resetDockTabsButton.Clicked += () => PopulateGalleryDockSample("Dock actions: sample reset. Right-click a tab or open the overflow menu.");
+        addDockOverflowButton.Clicked += () =>
+        {
+            galleryDockExtraCount++;
+            galleryDockHost.AddWindow(CreateGalleryDockWindow(
+                $"gallery-dock-extra-{galleryDockExtraCount}",
+                $"Documentation / Internal Tooling Reference {galleryDockExtraCount}",
+                "Extra dock tab: this button is here to force more overflow without restarting the demo."));
+            galleryDockStatus.Text = $"Dock actions: added extra tab {galleryDockExtraCount}. Use the overflow menu button at the strip edge.";
+        };
+
+        PopulateGalleryDockSample("Dock actions: sample ready. Right-click a tab or use the overflow button.");
+
+        AddRowFixedChild(dockOverflowRow, galleryDockHost, 372, 156);
+        AddRowFillChild(dockOverflowRow, dockControlColumn, 128);
+        AddSectionChild(tabOverflowSection, dockOverflowRow, 160);
+        AddGallerySection(_widgetGalleryRoot, tabOverflowSection, 344);
 
         UiStack numericSection = CreateGallerySection(
             "Numeric And Vector Inputs",
@@ -9319,6 +9532,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         UiDockHost rightHost = _dockWorkspace.SplitHost(_dockLeft, UiDockWorkspace.DockTarget.Right);
         rightHost.Id = "dock-right";
         rightHost.TabWidth = _dockLeft.TabWidth;
+        rightHost.AutoSizeTabs = _dockLeft.AutoSizeTabs;
+        rightHost.TabMaxWidth = _dockLeft.TabMaxWidth;
+        rightHost.TabTextOverflow = _dockLeft.TabTextOverflow;
+        rightHost.ShowOverflowMenuButton = _dockLeft.ShowOverflowMenuButton;
         rightHost.TabTextScale = _dockLeft.TabTextScale;
         _dockRight = rightHost;
         return rightHost;
@@ -9381,9 +9598,19 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             leftHost.DockWindow(_consoleWindow);
         }
 
+        if (_metricsWindow != null)
+        {
+            leftHost.DockWindow(_metricsWindow);
+        }
+
         if (_inspectorWindow != null)
         {
             rightHost.DockWindow(_inspectorWindow);
+        }
+
+        if (_buildQueueWindow != null)
+        {
+            rightHost.DockWindow(_buildQueueWindow);
         }
 
         if (includeFloating && _dockWorkspace != null && _standaloneWindow != null)

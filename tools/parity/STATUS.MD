@@ -30,6 +30,7 @@
 - [x] Milestone 14 is now the tooling/style-editor/examples cleanup milestone that follows it.
 - [x] Milestone 13 is complete for the shipped first-pass backend/editor-readiness target.
 - [x] Milestone 14 is now the next recommended implementation target.
+- [x] `OpenControls.Examples` now explicitly demonstrates tab-strip overflow/ellipsis behavior for `UiTabBar` and `UiDockHost`, plus dock overflow menus and right-click bulk-close commands.
 
 ## Status Table
 

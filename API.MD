@@ -135,7 +135,11 @@ This is a brief overview of the current OpenControls surface area.
 
 ## Dock Host Notes
 - `UiDockHost.ShowCloseButtons` toggles close buttons; `UiWindow.AllowClose` controls per-window visibility.
+- `UiDockHost.AutoSizeTabs`, `TabWidth`, and `TabMaxWidth` control fixed-width vs content-driven dock tabs.
+- `UiDockHost.TabTextOverflow` switches between clipped and ellipsized tab titles when width is constrained.
 - Dock hosts show scroll arrows when tabs exceed the available width; use `ScrollStep` and `ScrollButtonWidth` to tune behavior.
+- `UiDockHost.ShowOverflowMenuButton` adds a trailing overflow button that lists hidden tabs.
+- `UiDockHost.ShowTabContextMenu` enables right-click dock-tab commands for `Close`, `Close Others`, `Close Tabs To The Right`, and `Close All`.
 
 ## Dock Workspace Notes
 - `UiDockWorkspace.ResetLayout`: clears dock hosts and floating windows back to a single root host.
@@ -273,6 +277,7 @@ This is a brief overview of the current OpenControls surface area.
 - `ActiveTabChanged` fires when a new `UiTabItem` becomes active.
 - `UiTabBar.TabClosed` fires when a close button is clicked; set `UiTabItem.AllowClose` or `UiTabBar.ShowCloseButtons` to control visibility.
 - `UiTabBar.GetTabBounds` and `UiTabBar.GetTabCloseBounds` expose the current tab and close-button rectangles.
+- `UiTabBar.AutoSizeTabs`, `TabMaxWidth`, and `TabTextOverflow` control tab width policy and optional title ellipsis.
 - Tab bars show left/right scroll arrows when tabs exceed the available width; use `ScrollStep` and `ScrollButtonWidth` to tune behavior.
 - Inactive tab items do not update or render their children.
 - Inactive tab items are skipped during focus traversal.

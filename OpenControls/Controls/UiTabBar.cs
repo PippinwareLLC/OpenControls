@@ -34,6 +34,7 @@ public sealed class UiTabBar : UiElement
     public int TabTextScale { get; set; } = 1;
     public bool TabTextBold { get; set; }
     public bool AutoSizeTabs { get; set; } = true;
+    public UiTabTextOverflowMode TabTextOverflow { get; set; } = UiTabTextOverflowMode.Clip;
     public int TabWidth { get; set; }
     public int TabMaxWidth { get; set; }
     public bool ShowCloseButtons { get; set; } = true;
@@ -250,13 +251,14 @@ public sealed class UiTabBar : UiElement
                 UiColor textColor = i == _activeIndex ? TabActiveTextColor : TabTextColor;
                 int textY = tabRect.Y + (tabRect.Height - textHeight) / 2;
                 int textX = tabRect.X + Math.Max(0, TabPadding);
+                string renderText = GetRenderedTabText(tab, tabRect);
                 if (TabTextBold)
                 {
-                    UiRenderHelpers.DrawTextBold(context.Renderer, tab.Text, new UiPoint(textX, textY), textColor, TabTextScale, font);
+                    UiRenderHelpers.DrawTextBold(context.Renderer, renderText, new UiPoint(textX, textY), textColor, TabTextScale, font);
                 }
                 else
                 {
-                    context.Renderer.DrawText(tab.Text, new UiPoint(textX, textY), textColor, TabTextScale, font);
+                    context.Renderer.DrawText(renderText, new UiPoint(textX, textY), textColor, TabTextScale, font);
                 }
 
                 if (ShowCloseButtons && tab.AllowClose)
@@ -814,6 +816,27 @@ public sealed class UiTabBar : UiElement
         }
 
         return Math.Max(0, width);
+    }
+
+    private string GetRenderedTabText(UiTabItem tab, UiRect tabRect)
+    {
+        if (TabTextOverflow != UiTabTextOverflowMode.Ellipsis)
+        {
+            return tab.Text;
+        }
+
+        int availableWidth = Math.Max(0, tabRect.Width - Math.Max(0, TabPadding) * 2);
+        if (ShowCloseButtons && tab.AllowClose)
+        {
+            availableWidth = Math.Max(0, availableWidth - GetCloseAreaWidth());
+        }
+
+        if (TabTextBold && availableWidth > 0)
+        {
+            availableWidth = Math.Max(0, availableWidth - 1);
+        }
+
+        return UiTextHelpers.BuildElidedText(tab.Text, availableWidth, TabTextScale, _layoutFont);
     }
 
     private static int MeasureTextWidth(string text, int scale, UiFont font)

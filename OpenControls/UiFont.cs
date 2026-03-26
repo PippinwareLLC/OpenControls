@@ -263,7 +263,7 @@ internal interface IUiGlyphSource
 
 internal sealed class UiBitmapFontSource : IUiGlyphSource
 {
-    private readonly Dictionary<(char Character, int PixelSize), UiGlyphBitmap> _glyphCache = new();
+    private readonly ConcurrentDictionary<(char Character, int PixelSize), UiGlyphBitmap> _glyphCache = new();
 
     public UiBitmapFontSource(TinyBitmapFont font)
     {
@@ -282,18 +282,15 @@ internal sealed class UiBitmapFontSource : IUiGlyphSource
     public bool TryGetGlyph(Rune rune, int pixelSize, out UiGlyphBitmap glyph)
     {
         char character = rune.IsBmp ? (char)rune.Value : '?';
-        glyph = _glyphCache.GetValueOrDefault((character, pixelSize));
-        if (glyph.IsValid)
+        glyph = _glyphCache.GetOrAdd((character, pixelSize), key =>
         {
-            return true;
-        }
+            int scale = Math.Max(1, key.PixelSize / TinyBitmapFont.GlyphHeight);
+            byte[] rows = Font.GetGlyph(key.Character);
+            int advance = (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * scale;
+            byte[] alpha = RasterizeBitmapGlyph(rows, scale, out int width, out int height);
+            return new UiGlyphBitmap(width, height, alpha, 0, 0, advance, TinyBitmapFont.GlyphHeight * scale);
+        });
 
-        int scale = Math.Max(1, pixelSize / TinyBitmapFont.GlyphHeight);
-        byte[] rows = Font.GetGlyph(character);
-        int advance = (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * scale;
-        byte[] alpha = RasterizeBitmapGlyph(rows, scale, out int width, out int height);
-        glyph = new UiGlyphBitmap(width, height, alpha, 0, 0, advance, TinyBitmapFont.GlyphHeight * scale);
-        _glyphCache[(character, pixelSize)] = glyph;
         return true;
     }
 

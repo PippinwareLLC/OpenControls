@@ -126,12 +126,12 @@ A widget is only considered demo-complete when all applicable items are true:
 - [ ] `UiScrollPanel`: vertical scrolling, horizontal scrolling, combined scrollbars, content-size behavior, clipped long content.
 - [ ] `UiCanvas`: pan, zoom, grid, origin helpers, child interaction.
 - [ ] `UiWindow`: title bar, drag, resize grip, optional scroll panel, close button behavior where applicable.
-- [ ] `UiDockHost`: tab strip behavior, close buttons, overflow scrolling, reorder/detach behavior.
+- [x] `UiDockHost`: tab strip behavior, close buttons, auto-size/ellipsis policy, overflow scrolling, overflow menu, bulk-close context actions, reorder/detach behavior.
 - [ ] `UiDockWorkspace`: drag/drop docking, floating windows, split resizing, minimum pane clamps, persisted split ratios, nested split behavior.
 
 ## Tabs / Trees / Overlays
 
-- [ ] `UiTabBar`: tab switching, active/hover states, overflow, leading/trailing buttons.
+- [x] `UiTabBar`: tab switching, active/hover states, auto-size/ellipsis policy, overflow, leading/trailing buttons.
 - [ ] `UiTabItem`: active/inactive content behavior, close behavior where applicable.
 - [ ] `UiTabItemButton`: leading/trailing placement, auto size, click status.
 - [x] `UiTreeView`: large fixed-height trees, open/close, hierarchy lines, expand/collapse/reveal helpers, wheel scrolling, keyboard navigation, selection, and visible-range status.

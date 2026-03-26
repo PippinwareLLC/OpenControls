@@ -13,6 +13,11 @@ public static class UiRenderHelpers
         renderer.DrawText(text, new UiPoint(position.X + 1, position.Y), color, scale, font);
     }
 
+    public static string BuildElidedText(string text, int maxWidth, int scale = 1, UiFont? font = null)
+    {
+        return UiTextHelpers.BuildElidedText(text, maxWidth, scale, font);
+    }
+
     public static void FillRectRounded(IUiRenderer renderer, UiRect rect, int radius, UiColor color)
     {
         if (rect.Width <= 0 || rect.Height <= 0)
