@@ -6,6 +6,8 @@ public sealed class UiTextField : UiElement
     private float _caretTimer;
     private bool _caretVisible = true;
     private string _text = string.Empty;
+    private bool _clickedThisFrame;
+    private bool _editedThisFrame;
 
     public string Text
     {
@@ -44,11 +46,14 @@ public sealed class UiTextField : UiElement
             return;
         }
 
+        _clickedThisFrame = false;
+        _editedThisFrame = false;
         UiInputState input = context.Input;
         if (input.LeftClicked)
         {
             if (Bounds.Contains(input.MousePosition))
             {
+                _clickedThisFrame = true;
                 context.Focus.RequestFocus(this);
                 int caretIndex = Text.Length;
                 if (CaretIndexFromPoint != null)
@@ -155,6 +160,27 @@ public sealed class UiTextField : UiElement
         return true;
     }
 
+    protected internal override UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+    {
+        UiItemStatusFlags status = base.GetItemStatus(context, input, focused, hovered);
+        if (_focused)
+        {
+            status |= UiItemStatusFlags.Active;
+        }
+
+        if (_clickedThisFrame)
+        {
+            status |= UiItemStatusFlags.Clicked;
+        }
+
+        if (_editedThisFrame)
+        {
+            status |= UiItemStatusFlags.Edited;
+        }
+
+        return status;
+    }
+
     private void HandleNavigation(UiNavigationInput navigation)
     {
         if (navigation.MoveLeft)
@@ -204,6 +230,7 @@ public sealed class UiTextField : UiElement
 
             Text = Text.Insert(CaretIndex, character.ToString());
             SetCaret(CaretIndex + 1);
+            _editedThisFrame = true;
         }
     }
 
@@ -227,6 +254,7 @@ public sealed class UiTextField : UiElement
         int caretIndex = CaretIndex;
         Text = Text.Remove(caretIndex - 1, 1);
         SetCaret(caretIndex - 1);
+        _editedThisFrame = true;
     }
 
     private void Delete()
@@ -238,6 +266,7 @@ public sealed class UiTextField : UiElement
 
         Text = Text.Remove(CaretIndex, 1);
         SetCaret(CaretIndex);
+        _editedThisFrame = true;
     }
 
     private void SetCaret(int index)

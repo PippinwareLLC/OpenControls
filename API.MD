@@ -3,12 +3,14 @@
 This is a brief overview of the current OpenControls surface area.
 
 ## Core Types
-- `UiContext`: owns the root element and focus manager, publishes host-facing hover/capture/cursor outputs after each `Update`, and provides scoped shortcut-query helpers.
+- `UiContext`: owns the root element and focus manager, publishes host-facing hover/capture/cursor outputs after each `Update`, exposes per-frame item/container query snapshots, and provides scoped shortcut-query plus focus-helper methods.
 - `UiElement`: base class for all UI elements; handles visibility, enablement, child hierarchy, hit tests, IDs, child clipping, overlay rendering, and optional text-input/pointer-capture/cursor hints.
 - `UiFocusManager`: tracks focused element and handles focus transitions.
 - `UiInputState`: host-provided input snapshot (mouse buttons, clicks, modifiers, scroll delta, text input, named key state, and navigation).
 - `UiNavigationInput`: directional/navigation key flags (arrows, Home/End, Backspace/Delete, Tab, Enter/KeypadEnter, Space).
 - `UiKey`, `UiModifierKeys`, `UiKeyChord`, `UiShortcutScope`: named key and shortcut types for richer keyboard input and scoped routing.
+- `UiItemStatusFlags`, `UiItemStateSnapshot`: per-frame item interaction/status model (`Hovered`, `Active`, `Pressed`, `Dragging`, `Edited`, `Activated`, `Deactivated`, `Clicked`, plus bounds/clip-bounds).
+- `UiContainerKind`, `UiContainerStateSnapshot`: per-frame container/window-like state model for windows, popups, modals, menu bars, tab items/bars, dock hosts, and modal hosts.
 - `UiMouseCursor`: host-facing cursor request enum returned by `UiContext`.
 - `UiTextInputRequest`: focused text-input metadata for IME/on-screen-keyboard friendly hosts.
 - `UiInputHostHelpers`: shared helper methods for host-side double-click and drag-origin tracking.
@@ -83,11 +85,11 @@ This is a brief overview of the current OpenControls surface area.
 - All bounds are absolute (`UiRect`), so layout is explicit.
 - Controls are renderer-agnostic; rendering is done by the host adapter.
 - `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame, SDL2-CS, Silk.NET, and OpenGL adapters (Latin-1/CP437).
-- Custom TTF/OTF/WOFF2 fonts, merged icon-font ranges, and optional HarfBuzz-backed shaping are planned under Milestone 3 in `IMGUI_PARITY_ATTACK_PLAN.MD`; the current runtime path is still `TinyBitmapFont`-based.
+- Custom TTF/OTF/WOFF2 fonts, merged icon-font ranges, optional HarfBuzz-backed shaping, and optional Slug-backed GPU font rendering are planned under Milestone 3 in `IMGUI_PARITY_ATTACK_PLAN.MD`; the current runtime path is still `TinyBitmapFont`-based.
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.
 - `UiContext.Render` performs an overlay pass; `UiMenuBar` dropdowns draw there so they render above other controls.
-- `UiContext.Update` also refreshes `Hovered`, `PointerCaptureTarget`, `WantCaptureMouse`, `WantCaptureKeyboard`, `WantTextInput`, and `RequestedMouseCursor`.
+- `UiContext.Update` also refreshes `Hovered`, `ActiveInputLayer`, `PointerCaptureTarget`, `WantCaptureMouse`, `WantCaptureKeyboard`, `WantTextInput`, `RequestedMouseCursor`, `LastItemState`, hovered/focused item snapshots, and hovered/focused/active-layer container snapshots.
 
 ## Rounded Corner Notes
 - Use `UiRenderHelpers.FillRectRounded` and `UiRenderHelpers.DrawRectRounded` for rounded rectangles in custom controls.
@@ -113,12 +115,21 @@ This is a brief overview of the current OpenControls surface area.
 - `UiWindow.AddContentChild`: adds to the scroll panel if present, otherwise adds directly to the window.
 - `UiWindow.ContentRoot`: returns the scroll panel if present, otherwise the window itself.
 
+## Runtime Query Notes
+- Use `UiContext.GetItemState`, `HoveredItemState`, `FocusedItemState`, and `LastItemState` to inspect per-frame interaction state without ad hoc hit-testing.
+- Use `UiContext.GetContainerState`, `GetContainingContainerState`, `HoveredContainerState`, `FocusedContainerState`, and `ActiveInputLayerState` for window/popup/menu/tab/dock runtime status.
+- Use `UiContext.IsHovered`, `IsFocused`, and `TryGetVisibleBounds` when you want a lighter-weight query than the full snapshot structs.
+- Use `UiContext.RequestFocus`, `RequestFocusById`, `RequestFocusFirst`, and `RequestFocusChild` for code-driven focus changes, including next-frame focus.
+
 ## Menu Notes
 - `UiMenuBar.MenuItem`: data objects describing menu entries, separators, shortcuts, and submenus.
 - `UiMenuBar.MeasureTextWidth/MeasureTextHeight`: set these when you need accurate sizing for a custom renderer.
 - Set `UiMenuBar.DisplayMode` to `Popup` and call `OpenPopup`/`ClosePopup`/`TogglePopup` for context-style menus anchored to `Bounds`.
 - `MenuItem.Content` can host custom controls (tables, sliders, panels); use `ContentWidth`/`ContentHeight` and `ContentPadding` to size the row, and `ContentClip`/`ContentCapturesInput` to control input behavior.
 - Menu dropdowns clamp to the nearest scroll panel viewport when present, otherwise to ancestor bounds in local coordinates.
+
+## Modal Notes
+- `UiModalHost.ActiveModal` returns the topmost open modal when one is blocking input.
 
 ## Drag Notes
 - `UiDragFloat`/`UiDragInt`: drag horizontally to adjust values; set `Speed`, `Min`, `Max`, and `Flags` for clamping behavior.

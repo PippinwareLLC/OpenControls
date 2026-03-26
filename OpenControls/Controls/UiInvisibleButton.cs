@@ -5,6 +5,7 @@ public sealed class UiInvisibleButton : UiElement
     private bool _pressed;
     private bool _hovered;
     private bool _focused;
+    private bool _clickedThisFrame;
 
     public bool IsHovered => _hovered;
     public bool IsPressed => _pressed;
@@ -21,6 +22,7 @@ public sealed class UiInvisibleButton : UiElement
             return;
         }
 
+        _clickedThisFrame = false;
         UiInputState input = context.Input;
         _hovered = Bounds.Contains(input.MousePosition);
 
@@ -32,6 +34,7 @@ public sealed class UiInvisibleButton : UiElement
 
         if (_focused && input.Navigation.Activate)
         {
+            _clickedThisFrame = true;
             Clicked?.Invoke();
         }
 
@@ -39,6 +42,7 @@ public sealed class UiInvisibleButton : UiElement
         {
             if (_pressed && _hovered)
             {
+                _clickedThisFrame = true;
                 Clicked?.Invoke();
             }
 
@@ -57,5 +61,21 @@ public sealed class UiInvisibleButton : UiElement
     {
         _focused = false;
         _pressed = false;
+    }
+
+    protected internal override UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+    {
+        UiItemStatusFlags status = base.GetItemStatus(context, input, focused, hovered);
+        if (_pressed)
+        {
+            status |= UiItemStatusFlags.Active | UiItemStatusFlags.Pressed;
+        }
+
+        if (_clickedThisFrame)
+        {
+            status |= UiItemStatusFlags.Clicked;
+        }
+
+        return status;
     }
 }

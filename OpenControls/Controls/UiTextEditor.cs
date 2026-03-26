@@ -33,6 +33,7 @@ public sealed class UiTextEditor : UiElement
             UiInputState input = context.Input;
             if (input.LeftClicked && Bounds.Contains(input.MousePosition))
             {
+                _owner.RegisterPointerClick();
                 context.Focus.RequestFocus(this);
                 _owner.SetCaretFromPoint(input.MousePosition);
             }
@@ -80,6 +81,27 @@ public sealed class UiTextEditor : UiElement
             request = new UiTextInputRequest(Bounds, isMultiLine: true);
             return true;
         }
+
+        protected internal override UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+        {
+            UiItemStatusFlags status = base.GetItemStatus(context, input, focused, hovered);
+            if (_owner._hasFocus)
+            {
+                status |= UiItemStatusFlags.Active;
+            }
+
+            if (_owner._clickedThisFrame)
+            {
+                status |= UiItemStatusFlags.Clicked;
+            }
+
+            if (_owner._editedThisFrame)
+            {
+                status |= UiItemStatusFlags.Edited;
+            }
+
+            return status;
+        }
     }
 
     private readonly struct LineToken
@@ -125,6 +147,8 @@ public sealed class UiTextEditor : UiElement
     private int _lineNumberWidth;
     private int _textStartX;
     private bool _hasFocus;
+    private bool _clickedThisFrame;
+    private bool _editedThisFrame;
 
     public UiTextEditor()
     {
@@ -232,6 +256,8 @@ public sealed class UiTextEditor : UiElement
             return;
         }
 
+        _clickedThisFrame = false;
+        _editedThisFrame = false;
         RefreshLayout();
 
         _scrollPanel.Background = Background;
@@ -366,6 +392,7 @@ public sealed class UiTextEditor : UiElement
 
         if (textChanged)
         {
+            _editedThisFrame = true;
             TextChanged?.Invoke();
         }
 
@@ -754,6 +781,11 @@ public sealed class UiTextEditor : UiElement
         _textDirty = true;
         EnsureLines();
         RebuildCaches();
+    }
+
+    private void RegisterPointerClick()
+    {
+        _clickedThisFrame = true;
     }
 
     private void SetFocusState(bool focused)

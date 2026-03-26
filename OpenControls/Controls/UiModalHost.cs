@@ -3,6 +3,7 @@ namespace OpenControls.Controls;
 public sealed class UiModalHost : UiElement
 {
     public bool BlockInputWhenModalOpen { get; set; } = true;
+    public UiModal? ActiveModal => FindActiveModal();
 
     public override void Update(UiUpdateContext context)
     {

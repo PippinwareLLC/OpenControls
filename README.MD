@@ -55,7 +55,6 @@ Parity deviations (documented and intentional):
 - Text input callbacks: completion/history is simulated; OpenControls does not expose edit callbacks.
 - WantCapture overrides: `UiContext` now exposes actual `WantCaptureMouse`, `WantCaptureKeyboard`, and `WantTextInput` outputs, but manual override toggles are not part of the core API.
 - Image demos: `UiImage` and `UiImageButton` rely on renderer-supplied textures, so hosts without texture bindings will show placeholders.
-- Item/window status queries: status labels use hit-testing and focus tracking, not the full item status flag set.
 
 ## Parity Tracking
 Phase 0 parity tracking now lives in checked-in markdown files:
@@ -114,6 +113,7 @@ Planned expansion:
 - Core element tree, focus management, and basic controls are implemented.
 - `UiInputState` now supports left/right/middle mouse buttons, Alt/Super modifiers, named keys, and per-key down/pressed/released state.
 - `UiContext` now exposes `Hovered`, `PointerCaptureTarget`, `WantCaptureMouse`, `WantCaptureKeyboard`, `WantTextInput`, and `RequestedMouseCursor`, and the example hosts consume those outputs.
+- `UiContext` now also exposes per-frame item/container query snapshots (`LastItemState`, hovered/focused item, containing container, active input layer), visible-bounds helpers, and stronger focus APIs such as focus-by-id and next-frame focus requests.
 - `UiInputState` also carries double-click state, drag origins/thresholds, and horizontal wheel deltas for richer host input plumbing.
 - Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented, radial), list box, combo box, selectable, color button, and separator controls are available.
 - Table controls with column headers and selectable rows are available.
@@ -154,4 +154,4 @@ Planned expansion:
 - OpenControls.Examples now shows real shortcut, capture, and requested-cursor state in the Inputs & Focus demo.
 - A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).
-- Custom TTF/OTF/WOFF2 font loading, merged icon-font support, and optional HarfBuzz-backed shaping are tracked in the parity roadmap; today the shipped path is still `TinyBitmapFont`-based.
+- Custom TTF/OTF/WOFF2 font loading, merged icon-font support, optional HarfBuzz-backed shaping, and optional Slug-based GPU font rendering are tracked in the parity roadmap; today the shipped path is still `TinyBitmapFont`-based.

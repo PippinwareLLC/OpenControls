@@ -5,6 +5,7 @@ public sealed class UiButton : UiElement
     private bool _pressed;
     private bool _hovered;
     private bool _focused;
+    private bool _clickedThisFrame;
 
     public string Text { get; set; } = string.Empty;
     public UiColor Background { get; set; } = new UiColor(52, 60, 78);
@@ -26,6 +27,7 @@ public sealed class UiButton : UiElement
             return;
         }
 
+        _clickedThisFrame = false;
         UiInputState input = context.Input;
         _hovered = Bounds.Contains(input.MousePosition);
 
@@ -37,6 +39,7 @@ public sealed class UiButton : UiElement
 
         if (_focused && input.Navigation.Activate)
         {
+            _clickedThisFrame = true;
             Clicked?.Invoke();
         }
 
@@ -44,6 +47,7 @@ public sealed class UiButton : UiElement
         {
             if (_pressed && _hovered)
             {
+                _clickedThisFrame = true;
                 Clicked?.Invoke();
             }
 
@@ -94,5 +98,21 @@ public sealed class UiButton : UiElement
 
         cursor = UiMouseCursor.Arrow;
         return false;
+    }
+
+    protected internal override UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+    {
+        UiItemStatusFlags status = base.GetItemStatus(context, input, focused, hovered);
+        if (_pressed)
+        {
+            status |= UiItemStatusFlags.Active | UiItemStatusFlags.Pressed;
+        }
+
+        if (_clickedThisFrame)
+        {
+            status |= UiItemStatusFlags.Clicked;
+        }
+
+        return status;
     }
 }

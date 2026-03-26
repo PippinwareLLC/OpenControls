@@ -269,4 +269,20 @@ public sealed class UiWindow : UiElement
         cursor = UiMouseCursor.Arrow;
         return false;
     }
+
+    protected internal override UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+    {
+        UiItemStatusFlags status = base.GetItemStatus(context, input, focused, hovered);
+        if (_dragging || _resizing)
+        {
+            status |= UiItemStatusFlags.Active | UiItemStatusFlags.Dragging;
+        }
+
+        if (input.LeftClicked && Bounds.Contains(input.MousePosition))
+        {
+            status |= UiItemStatusFlags.Clicked;
+        }
+
+        return status;
+    }
 }

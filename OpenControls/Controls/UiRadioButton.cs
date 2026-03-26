@@ -6,6 +6,7 @@ public sealed class UiRadioButton : UiElement
     private bool _hovered;
     private bool _focused;
     private bool _checked;
+    private bool _clickedThisFrame;
 
     public string Text { get; set; } = string.Empty;
     public string GroupId { get; set; } = string.Empty;
@@ -36,6 +37,7 @@ public sealed class UiRadioButton : UiElement
             return;
         }
 
+        _clickedThisFrame = false;
         UiInputState input = context.Input;
         _hovered = Bounds.Contains(input.MousePosition);
 
@@ -47,6 +49,7 @@ public sealed class UiRadioButton : UiElement
 
         if (_focused && input.Navigation.Activate)
         {
+            _clickedThisFrame = true;
             SetChecked(true, true);
         }
 
@@ -54,6 +57,7 @@ public sealed class UiRadioButton : UiElement
         {
             if (_pressed && _hovered)
             {
+                _clickedThisFrame = true;
                 SetChecked(true, true);
             }
 
@@ -97,6 +101,22 @@ public sealed class UiRadioButton : UiElement
     protected internal override void OnFocusLost()
     {
         _focused = false;
+    }
+
+    protected internal override UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+    {
+        UiItemStatusFlags status = base.GetItemStatus(context, input, focused, hovered);
+        if (_pressed)
+        {
+            status |= UiItemStatusFlags.Active | UiItemStatusFlags.Pressed;
+        }
+
+        if (_clickedThisFrame)
+        {
+            status |= UiItemStatusFlags.Clicked;
+        }
+
+        return status;
     }
 
     private UiRect GetBoxRect()

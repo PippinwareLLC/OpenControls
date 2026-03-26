@@ -25,4 +25,21 @@ public sealed class UiModal : UiPopup
 
         base.RenderOverlay(context);
     }
+
+    public override UiElement? HitTest(UiPoint point)
+    {
+        if (!Visible || !IsOpen)
+        {
+            return null;
+        }
+
+        UiRect backdrop = BackdropBounds ?? Parent?.Bounds ?? Bounds;
+        if (!backdrop.Contains(point))
+        {
+            return null;
+        }
+
+        UiElement? hit = base.HitTest(point);
+        return hit ?? this;
+    }
 }

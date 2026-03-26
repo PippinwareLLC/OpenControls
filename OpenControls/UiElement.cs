@@ -127,4 +127,25 @@ public abstract class UiElement
         request = default;
         return false;
     }
+
+    protected internal virtual UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+    {
+        UiItemStatusFlags status = UiItemStatusFlags.None;
+        if (hovered)
+        {
+            status |= UiItemStatusFlags.Hovered;
+        }
+
+        if (focused)
+        {
+            status |= UiItemStatusFlags.Focused | UiItemStatusFlags.Active;
+        }
+
+        if (hovered && (input.LeftClicked || input.RightClicked || input.MiddleClicked))
+        {
+            status |= UiItemStatusFlags.Clicked;
+        }
+
+        return status;
+    }
 }

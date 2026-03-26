@@ -90,6 +90,16 @@ public class UiPopup : UiElement
         base.Update(context);
     }
 
+    public override UiElement? HitTest(UiPoint point)
+    {
+        if (!Visible || !IsOpen)
+        {
+            return null;
+        }
+
+        return base.HitTest(point);
+    }
+
     public override void Render(UiRenderContext context)
     {
         // Popups render in the overlay pass only.
@@ -138,5 +148,16 @@ public class UiPopup : UiElement
     {
         cursor = UiMouseCursor.Arrow;
         return false;
+    }
+
+    protected internal override UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+    {
+        UiItemStatusFlags status = base.GetItemStatus(context, input, focused, hovered);
+        if (IsOpen)
+        {
+            status |= UiItemStatusFlags.Active;
+        }
+
+        return status;
     }
 }

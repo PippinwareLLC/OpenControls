@@ -2859,6 +2859,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _focusInputField = new UiTextField
         {
+            Id = "focus-demo-field",
             TextScale = FontScale,
             Placeholder = "Focusable field",
             CaretIndexFromPoint = GetCaretIndexFromPoint
@@ -2866,14 +2867,14 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _focusButton = new UiButton
         {
-            Text = "Focus field",
+            Text = "Focus field by id",
             TextScale = FontScale
         };
         _focusButton.Clicked += () =>
         {
-            if (_context != null && _focusInputField != null)
+            if (_context != null)
             {
-                _context.Focus.RequestFocus(_focusInputField);
+                _context.RequestFocusById("focus-demo-field", nextFrame: true);
             }
         };
 
@@ -4755,7 +4756,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             inputY += labelHeight + 6;
             _focusInputField.Bounds = new UiRect(0, inputY, Math.Min(240, inputContentWidth), 22);
             inputY += 30;
-            _focusButton.Bounds = new UiRect(0, inputY, Math.Min(160, inputContentWidth), 24);
+            _focusButton.Bounds = new UiRect(0, inputY, Math.Min(200, inputContentWidth), 24);
             inputY += 30;
             _focusResultLabel.Bounds = new UiRect(0, inputY, inputContentWidth, labelHeight);
             inputY += labelHeight + 4;
@@ -5253,26 +5254,28 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _shortcutLabel.Text = $"Shortcut: {_lastShortcutText}";
         }
 
-        UiElement? hovered = _context.Hovered ?? _root?.HitTest(_lastMousePosition);
-        if (hovered == _root || hovered == _rootPanel)
+        UiItemStateSnapshot hoveredState = NormalizeExampleItemState(_context.HoveredItemState);
+        UiItemStateSnapshot focusedState = NormalizeExampleItemState(_context.FocusedItemState);
+        UiItemStateSnapshot itemState = NormalizeExampleItemState(_context.LastItemState);
+        if (!itemState.IsValid)
         {
-            hovered = null;
+            itemState = hoveredState;
         }
 
         if (_itemStatusLabel != null)
         {
-            _itemStatusLabel.Text = $"Item: {DescribeElement(hovered)}";
+            _itemStatusLabel.Text =
+                $"Item: {DescribeElement(itemState.Element)} Flags {FormatItemFlags(itemState)} Bounds {FormatRect(itemState.Bounds)} Clip {FormatRect(itemState.ClipBounds)}";
         }
 
-        UiElement? focused = _context.Focus.Focused;
         if (_focusStatusLabel != null)
         {
-            _focusStatusLabel.Text = $"Focus: {DescribeElement(focused)}";
+            _focusStatusLabel.Text = $"Focus: Hovered {DescribeElement(hoveredState.Element)} Focused {DescribeElement(focusedState.Element)}";
         }
 
         if (_focusResultLabel != null)
         {
-            _focusResultLabel.Text = $"Focused: {DescribeElement(focused)}";
+            _focusResultLabel.Text = $"Focused: {DescribeElement(focusedState.Element)}";
         }
 
         if (_captureInfoLabel != null)
@@ -5298,18 +5301,21 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         if (_windowStatusLabel != null)
         {
-            UiWindow? window = FindAncestorWindow(focused ?? hovered);
-            if (window == null)
+            UiContainerStateSnapshot containerState = _context.FocusedContainerState;
+            if (!containerState.IsValid)
             {
-                _windowStatusLabel.Text = "Window: none";
+                containerState = _context.HoveredContainerState;
             }
-            else
+            if (!containerState.IsValid)
             {
-                string title = string.IsNullOrWhiteSpace(window.Title) ? window.GetType().Name : window.Title;
-                _windowStatusLabel.Text = $"Window: {TrimText(title, 26)}";
+                containerState = _context.ActiveInputLayerState;
             }
+
+            _windowStatusLabel.Text =
+                $"Container: {DescribeElement(containerState.Element)} Kind {FormatContainerKind(containerState.Kind)} Hovered {FormatBool(containerState.Hovered)} Focused {FormatBool(containerState.Focused)} Open {FormatBool(containerState.Open)} ActiveTab {FormatBool(containerState.ActiveTab)} ActivePopup {FormatBool(containerState.ActivePopup)}";
         }
 
+        UiElement? focused = focusedState.Element;
         if (_completionField != null && focused == _completionField && (input.Navigation.Enter || input.Navigation.KeypadEnter))
         {
             string text = _completionField.Text.Trim();
@@ -5511,20 +5517,14 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         };
     }
 
-    private static UiWindow? FindAncestorWindow(UiElement? element)
+    private UiItemStateSnapshot NormalizeExampleItemState(UiItemStateSnapshot state)
     {
-        UiElement? current = element;
-        while (current != null)
+        if (state.Element == _root || state.Element == _rootPanel)
         {
-            if (current is UiWindow window)
-            {
-                return window;
-            }
-
-            current = current.Parent;
+            return UiItemStateSnapshot.Empty;
         }
 
-        return null;
+        return state;
     }
 
     private static string DescribeText(string label, string? text)
@@ -5551,6 +5551,79 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         }
 
         return text.Substring(0, maxLength - 3) + "...";
+    }
+
+    private static string FormatRect(UiRect rect)
+    {
+        return $"{rect.X},{rect.Y} {rect.Width}x{rect.Height}";
+    }
+
+    private static string FormatItemFlags(UiItemStateSnapshot state)
+    {
+        if (!state.IsValid)
+        {
+            return "-";
+        }
+
+        List<string> flags = new();
+        if (state.IsHovered)
+        {
+            flags.Add("hovered");
+        }
+        if (state.IsFocused)
+        {
+            flags.Add("focused");
+        }
+        if (state.IsActive)
+        {
+            flags.Add("active");
+        }
+        if (state.IsPressed)
+        {
+            flags.Add("pressed");
+        }
+        if (state.IsDragging)
+        {
+            flags.Add("dragging");
+        }
+        if (state.IsEdited)
+        {
+            flags.Add("edited");
+        }
+        if (state.IsActivated)
+        {
+            flags.Add("activated");
+        }
+        if (state.IsDeactivated)
+        {
+            flags.Add("deactivated");
+        }
+        if (state.IsClicked)
+        {
+            flags.Add("clicked");
+        }
+        if (state.IsClipped)
+        {
+            flags.Add("clipped");
+        }
+
+        return flags.Count == 0 ? "-" : string.Join(",", flags);
+    }
+
+    private static string FormatContainerKind(UiContainerKind kind)
+    {
+        return kind switch
+        {
+            UiContainerKind.Window => "Window",
+            UiContainerKind.Popup => "Popup",
+            UiContainerKind.Modal => "Modal",
+            UiContainerKind.MenuBar => "Menu",
+            UiContainerKind.TabItem => "Tab",
+            UiContainerKind.TabBar => "TabBar",
+            UiContainerKind.DockHost => "DockHost",
+            UiContainerKind.ModalHost => "ModalHost",
+            _ => "none"
+        };
     }
 
     private void UpdateDragFlags()

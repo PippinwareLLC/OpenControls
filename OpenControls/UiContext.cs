@@ -4,8 +4,39 @@ namespace OpenControls;
 
 public sealed class UiContext
 {
+    private enum FocusRequestKind
+    {
+        None,
+        Element,
+        Id,
+        FirstFocusableChild,
+        FocusableChild
+    }
+
+    private readonly struct FocusRequest
+    {
+        public FocusRequest(FocusRequestKind kind, UiElement? element = null, UiElement? scope = null, string? id = null, int focusableIndex = 0)
+        {
+            Kind = kind;
+            Element = element;
+            Scope = scope;
+            Id = id;
+            FocusableIndex = focusableIndex;
+        }
+
+        public FocusRequestKind Kind { get; }
+        public UiElement? Element { get; }
+        public UiElement? Scope { get; }
+        public string? Id { get; }
+        public int FocusableIndex { get; }
+        public bool IsPending => Kind != FocusRequestKind.None;
+    }
+
     private UiElement? _mouseCaptureTarget;
     private UiElement? _activeInputLayer;
+    private FocusRequest _pendingFocusRequest;
+    private Dictionary<UiElement, UiItemStateSnapshot> _itemStates = new();
+    private Dictionary<UiElement, UiContainerStateSnapshot> _containerStates = new();
 
     public UiContext(UiElement root)
     {
@@ -16,6 +47,7 @@ public sealed class UiContext
     public UiFocusManager Focus { get; } = new();
     public UiDragDropContext DragDrop { get; } = new();
     public UiElement? Hovered { get; private set; }
+    public UiElement? ActiveInputLayer => _activeInputLayer;
     public UiElement? PointerCaptureTarget { get; private set; }
     public UiMouseCursor RequestedMouseCursor { get; private set; } = UiMouseCursor.Arrow;
     public bool WantCaptureMouse { get; private set; }
@@ -23,6 +55,12 @@ public sealed class UiContext
     public bool WantTextInput { get; private set; }
     public UiInputState? LastInput { get; private set; }
     public UiTextInputRequest? TextInputRequest { get; private set; }
+    public UiItemStateSnapshot LastItemState { get; private set; }
+    public UiItemStateSnapshot HoveredItemState => GetItemState(Hovered);
+    public UiItemStateSnapshot FocusedItemState => GetItemState(Focus.Focused);
+    public UiContainerStateSnapshot HoveredContainerState => GetContainingContainerState(Hovered);
+    public UiContainerStateSnapshot FocusedContainerState => GetContainingContainerState(Focus.Focused);
+    public UiContainerStateSnapshot ActiveInputLayerState => GetContainerState(_activeInputLayer);
 
     public void Update(UiInputState input, float deltaSeconds = 0f)
     {
@@ -74,6 +112,214 @@ public sealed class UiContext
         }
 
         return IsShortcutScopeActive(scope, owner, allowDuringTextInput);
+    }
+
+    public UiItemStateSnapshot GetItemState(UiElement? element)
+    {
+        if (element == null)
+        {
+            return UiItemStateSnapshot.Empty;
+        }
+
+        if (_itemStates.TryGetValue(element, out UiItemStateSnapshot snapshot))
+        {
+            return snapshot;
+        }
+
+        UiRect clipBounds = element.Bounds;
+        if (clipBounds.Width < 0 || clipBounds.Height < 0)
+        {
+            clipBounds = default;
+        }
+
+        return new UiItemStateSnapshot(
+            element,
+            element.Bounds,
+            clipBounds,
+            UiItemStatusFlags.None,
+            element.Visible,
+            element.Enabled);
+    }
+
+    public UiContainerStateSnapshot GetContainerState(UiElement? element)
+    {
+        if (element == null)
+        {
+            return UiContainerStateSnapshot.Empty;
+        }
+
+        if (_containerStates.TryGetValue(element, out UiContainerStateSnapshot snapshot))
+        {
+            return snapshot;
+        }
+
+        UiContainerKind kind = GetContainerKind(element);
+        if (kind == UiContainerKind.None)
+        {
+            return UiContainerStateSnapshot.Empty;
+        }
+
+        UiItemStateSnapshot itemState = GetItemState(element);
+        return new UiContainerStateSnapshot(
+            element,
+            kind,
+            itemState.Bounds,
+            itemState.ClipBounds,
+            itemState.Visible,
+            itemState.Enabled,
+            false,
+            false,
+            IsContainerOpen(element),
+            IsContainerActiveTab(element),
+            false,
+            false);
+    }
+
+    public UiContainerStateSnapshot GetContainingContainerState(UiElement? element)
+    {
+        UiElement? current = element;
+        while (current != null)
+        {
+            UiContainerStateSnapshot state = GetContainerState(current);
+            if (state.IsValid)
+            {
+                return state;
+            }
+
+            current = current.Parent;
+        }
+
+        return UiContainerStateSnapshot.Empty;
+    }
+
+    public UiElement? FindElementById(string id, UiElement? scope = null)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return null;
+        }
+
+        return FindElementById(scope ?? Root, id);
+    }
+
+    public IReadOnlyList<UiElement> GetFocusableElements(UiElement? scope = null)
+    {
+        List<UiElement> focusables = new();
+        CollectFocusable(scope ?? Root, focusables);
+        return focusables;
+    }
+
+    public bool IsFocused(UiElement element, bool includeDescendants = true)
+    {
+        if (element == null)
+        {
+            throw new ArgumentNullException(nameof(element));
+        }
+
+        if (Focus.Focused == null)
+        {
+            return false;
+        }
+
+        return includeDescendants ? IsElementOrAncestor(element, Focus.Focused) : Focus.Focused == element;
+    }
+
+    public bool IsHovered(UiElement element, bool includeDescendants = true)
+    {
+        if (element == null)
+        {
+            throw new ArgumentNullException(nameof(element));
+        }
+
+        if (Hovered == null)
+        {
+            return false;
+        }
+
+        return includeDescendants ? IsElementOrAncestor(element, Hovered) : Hovered == element;
+    }
+
+    public bool IsEffectivelyVisible(UiElement element)
+    {
+        if (element == null)
+        {
+            throw new ArgumentNullException(nameof(element));
+        }
+
+        UiItemStateSnapshot itemState = GetItemState(element);
+        if (!itemState.Visible)
+        {
+            return false;
+        }
+
+        return itemState.ClipBounds.Width > 0 && itemState.ClipBounds.Height > 0;
+    }
+
+    public bool TryGetVisibleBounds(UiElement element, out UiRect visibleBounds)
+    {
+        if (element == null)
+        {
+            throw new ArgumentNullException(nameof(element));
+        }
+
+        UiItemStateSnapshot itemState = GetItemState(element);
+        visibleBounds = itemState.ClipBounds;
+        return itemState.Visible && visibleBounds.Width > 0 && visibleBounds.Height > 0;
+    }
+
+    public void RequestFocus(UiElement? element, bool nextFrame = false)
+    {
+        if (nextFrame)
+        {
+            _pendingFocusRequest = new FocusRequest(FocusRequestKind.Element, element);
+            return;
+        }
+
+        Focus.RequestFocus(ResolveFocusableTarget(element));
+    }
+
+    public bool RequestFocusById(string id, UiElement? scope = null, bool nextFrame = false)
+    {
+        if (nextFrame)
+        {
+            _pendingFocusRequest = new FocusRequest(FocusRequestKind.Id, scope: scope, id: id);
+            return true;
+        }
+
+        UiElement? target = ResolveFocusableTarget(FindElementById(id, scope));
+        Focus.RequestFocus(target);
+        return target != null;
+    }
+
+    public bool RequestFocusFirst(UiElement? scope = null, bool nextFrame = false)
+    {
+        if (nextFrame)
+        {
+            _pendingFocusRequest = new FocusRequest(FocusRequestKind.FirstFocusableChild, scope: scope ?? Root);
+            return true;
+        }
+
+        UiElement? target = FindFocusable(scope ?? Root, 0);
+        Focus.RequestFocus(target);
+        return target != null;
+    }
+
+    public bool RequestFocusChild(UiElement scope, int focusableIndex, bool nextFrame = false)
+    {
+        if (scope == null)
+        {
+            throw new ArgumentNullException(nameof(scope));
+        }
+
+        if (nextFrame)
+        {
+            _pendingFocusRequest = new FocusRequest(FocusRequestKind.FocusableChild, scope: scope, focusableIndex: focusableIndex);
+            return true;
+        }
+
+        UiElement? target = FindFocusable(scope, focusableIndex);
+        Focus.RequestFocus(target);
+        return target != null;
     }
 
     private bool IsTabHandled()
@@ -279,6 +525,7 @@ public sealed class UiContext
 
     private void RefreshOutputs(UiInputState input)
     {
+        UiElement? previousActiveInputLayer = _activeInputLayer;
         LastInput = input;
         Hovered = Root.HitTest(input.MousePosition);
         if (input.LeftClicked && ResolveFocusTarget(Hovered) == null)
@@ -300,6 +547,8 @@ public sealed class UiContext
 
         PointerCaptureTarget = _mouseCaptureTarget ?? hoveredCaptureTarget;
         _activeInputLayer = FindActiveInputLayer(Root);
+        ApplyPendingFocusRequest();
+        ApplyDefaultFocusForActiveLayer(previousActiveInputLayer);
 
         bool blockingOverlayOpen = _activeInputLayer != null;
         WantTextInput = Focus.Focused?.WantsTextInput == true;
@@ -307,6 +556,7 @@ public sealed class UiContext
         WantCaptureMouse = PointerCaptureTarget != null || blockingOverlayOpen;
         RequestedMouseCursor = ResolveMouseCursor(input);
         TextInputRequest = ResolveTextInputRequest();
+        RebuildRuntimeStateCaches(input);
     }
 
     private UiMouseCursor ResolveMouseCursor(UiInputState input)
@@ -465,6 +715,284 @@ public sealed class UiContext
         }
 
         return null;
+    }
+
+    private void ApplyPendingFocusRequest()
+    {
+        if (!_pendingFocusRequest.IsPending)
+        {
+            return;
+        }
+
+        FocusRequest request = _pendingFocusRequest;
+        _pendingFocusRequest = default;
+
+        UiElement? target = request.Kind switch
+        {
+            FocusRequestKind.Element => ResolveFocusableTarget(request.Element),
+            FocusRequestKind.Id => ResolveFocusableTarget(FindElementById(request.Id ?? string.Empty, request.Scope)),
+            FocusRequestKind.FirstFocusableChild => FindFocusable(request.Scope ?? Root, 0),
+            FocusRequestKind.FocusableChild => FindFocusable(request.Scope ?? Root, request.FocusableIndex),
+            _ => null
+        };
+
+        Focus.RequestFocus(target);
+    }
+
+    private void ApplyDefaultFocusForActiveLayer(UiElement? previousActiveInputLayer)
+    {
+        if (_activeInputLayer == null || _activeInputLayer == previousActiveInputLayer)
+        {
+            return;
+        }
+
+        if (_activeInputLayer is not UiPopup)
+        {
+            return;
+        }
+
+        if (Focus.Focused != null && IsElementOrAncestor(_activeInputLayer, Focus.Focused))
+        {
+            return;
+        }
+
+        UiElement? target = FindFocusable(_activeInputLayer, 0);
+        if (target != null)
+        {
+            Focus.RequestFocus(target);
+        }
+    }
+
+    private void RebuildRuntimeStateCaches(UiInputState input)
+    {
+        Dictionary<UiElement, UiItemStateSnapshot> previousItemStates = _itemStates;
+        _itemStates = new Dictionary<UiElement, UiItemStateSnapshot>(previousItemStates.Count);
+        _containerStates = new Dictionary<UiElement, UiContainerStateSnapshot>();
+
+        UiItemStateSnapshot lastInteresting = UiItemStateSnapshot.Empty;
+        RebuildRuntimeStateCaches(Root, Root.Bounds, input, previousItemStates, ref lastInteresting);
+
+        if (lastInteresting.IsValid)
+        {
+            LastItemState = lastInteresting;
+        }
+        else if (FocusedItemState.IsValid)
+        {
+            LastItemState = FocusedItemState;
+        }
+        else
+        {
+            LastItemState = HoveredItemState;
+        }
+    }
+
+    private void RebuildRuntimeStateCaches(
+        UiElement element,
+        UiRect inheritedClip,
+        UiInputState input,
+        IReadOnlyDictionary<UiElement, UiItemStateSnapshot> previousItemStates,
+        ref UiItemStateSnapshot lastInteresting)
+    {
+        if (!element.Visible)
+        {
+            return;
+        }
+
+        UiRect clipBounds = Intersect(inheritedClip, element.ClipBounds);
+        bool focused = Focus.Focused == element;
+        bool hovered = Hovered == element;
+
+        UiItemStatusFlags status = element.GetItemStatus(this, input, focused, hovered);
+        if (previousItemStates.TryGetValue(element, out UiItemStateSnapshot previousState))
+        {
+            if (status.HasFlag(UiItemStatusFlags.Active) && !previousState.IsActive)
+            {
+                status |= UiItemStatusFlags.Activated;
+            }
+
+            if (!status.HasFlag(UiItemStatusFlags.Active) && previousState.IsActive)
+            {
+                status |= UiItemStatusFlags.Deactivated;
+            }
+        }
+
+        UiItemStateSnapshot currentState = new(
+            element,
+            element.Bounds,
+            clipBounds,
+            status,
+            element.Visible,
+            element.Enabled);
+        _itemStates[element] = currentState;
+
+        if (IsInterestingItemState(currentState))
+        {
+            lastInteresting = currentState;
+        }
+
+        UiContainerKind kind = GetContainerKind(element);
+        if (kind != UiContainerKind.None)
+        {
+            bool containerHovered = Hovered != null && IsElementOrAncestor(element, Hovered);
+            bool containerFocused = Focus.Focused != null && IsElementOrAncestor(element, Focus.Focused);
+            bool activeInputLayer = _activeInputLayer != null && _activeInputLayer == element;
+            bool activePopup = _activeInputLayer != null
+                && (kind == UiContainerKind.Popup || kind == UiContainerKind.Modal || kind == UiContainerKind.MenuBar)
+                && IsElementOrAncestor(element, _activeInputLayer);
+
+            _containerStates[element] = new UiContainerStateSnapshot(
+                element,
+                kind,
+                element.Bounds,
+                clipBounds,
+                element.Visible,
+                element.Enabled,
+                containerHovered,
+                containerFocused,
+                IsContainerOpen(element),
+                IsContainerActiveTab(element),
+                activePopup,
+                activeInputLayer);
+        }
+
+        if (!ShouldTraverseChildren(element))
+        {
+            return;
+        }
+
+        UiRect childClip = inheritedClip;
+        if (element.ClipChildren)
+        {
+            childClip = Intersect(inheritedClip, element.ClipBounds);
+        }
+
+        foreach (UiElement child in element.Children)
+        {
+            RebuildRuntimeStateCaches(child, childClip, input, previousItemStates, ref lastInteresting);
+        }
+    }
+
+    private static bool IsInterestingItemState(UiItemStateSnapshot state)
+    {
+        return state.IsClicked
+            || state.IsActivated
+            || state.IsDeactivated
+            || state.IsEdited
+            || state.IsPressed
+            || state.IsDragging;
+    }
+
+    private static UiContainerKind GetContainerKind(UiElement element)
+    {
+        return element switch
+        {
+            UiModal => UiContainerKind.Modal,
+            UiPopup => UiContainerKind.Popup,
+            UiWindow => UiContainerKind.Window,
+            UiMenuBar => UiContainerKind.MenuBar,
+            UiTabItem => UiContainerKind.TabItem,
+            UiTabBar => UiContainerKind.TabBar,
+            UiDockHost => UiContainerKind.DockHost,
+            UiModalHost => UiContainerKind.ModalHost,
+            _ => UiContainerKind.None
+        };
+    }
+
+    private static bool IsContainerOpen(UiElement element)
+    {
+        return element switch
+        {
+            UiPopup popup => popup.IsOpen,
+            UiMenuBar menuBar => menuBar.HasOpenMenu || menuBar.IsPopupOpen,
+            UiDockHost dockHost => !dockHost.IsEmpty,
+            _ => true
+        };
+    }
+
+    private static bool IsContainerActiveTab(UiElement element)
+    {
+        if (element is UiTabItem tabItem)
+        {
+            return tabItem.IsActive;
+        }
+
+        if (element is UiWindow window && window.Parent is UiDockHost dockHost)
+        {
+            return dockHost.ActiveWindow == window;
+        }
+
+        return false;
+    }
+
+    private UiElement? ResolveFocusableTarget(UiElement? element)
+    {
+        if (element == null)
+        {
+            return null;
+        }
+
+        if (element.Visible && element.Enabled && element.IsFocusable)
+        {
+            return element;
+        }
+
+        return FindFocusable(element, 0);
+    }
+
+    private static UiElement? FindElementById(UiElement scope, string id)
+    {
+        if (!scope.Visible)
+        {
+            return null;
+        }
+
+        if (string.Equals(scope.Id, id, StringComparison.Ordinal))
+        {
+            return scope;
+        }
+
+        if (!ShouldTraverseChildren(scope))
+        {
+            return null;
+        }
+
+        foreach (UiElement child in scope.Children)
+        {
+            UiElement? match = FindElementById(child, id);
+            if (match != null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private static UiElement? FindFocusable(UiElement scope, int focusableIndex)
+    {
+        if (focusableIndex < 0)
+        {
+            return null;
+        }
+
+        List<UiElement> focusables = new();
+        CollectFocusable(scope, focusables);
+        return focusableIndex < focusables.Count ? focusables[focusableIndex] : null;
+    }
+
+    private static UiRect Intersect(UiRect a, UiRect b)
+    {
+        int left = Math.Max(a.Left, b.Left);
+        int top = Math.Max(a.Top, b.Top);
+        int right = Math.Min(a.Right, b.Right);
+        int bottom = Math.Min(a.Bottom, b.Bottom);
+
+        if (right <= left || bottom <= top)
+        {
+            return new UiRect(left, top, 0, 0);
+        }
+
+        return new UiRect(left, top, right - left, bottom - top);
     }
 
     private static IReadOnlyList<UiKey> FilterKey(IReadOnlyList<UiKey> keys, UiKey excludedKey)

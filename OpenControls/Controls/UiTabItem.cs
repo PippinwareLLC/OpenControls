@@ -51,4 +51,14 @@ public sealed class UiTabItem : UiElement
 
         base.RenderOverlay(context);
     }
+
+    public override UiElement? HitTest(UiPoint point)
+    {
+        if (!Visible || !_isActive)
+        {
+            return null;
+        }
+
+        return base.HitTest(point);
+    }
 }

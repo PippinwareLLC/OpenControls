@@ -148,42 +148,42 @@ Dear ImGui's power comes partly from easy access to item and window state. OpenC
 
 ### Primary Targets
 
-- [ ] Add runtime status/query APIs for last item, focused item, hovered item, and relevant window/container state.
-- [ ] Add focus-from-code APIs that are stronger than "request focus on this concrete element now".
+- [x] Add runtime status/query APIs for last item, focused item, hovered item, and relevant window/container state.
+- [x] Add focus-from-code APIs that are stronger than "request focus on this concrete element now".
 
 ### Checklist
 
-- [ ] Design an item-state snapshot model:
-  - [ ] hovered
-  - [ ] active / pressed / dragging
-  - [ ] edited
-  - [ ] activated / deactivated
-  - [ ] clicked
-  - [ ] bounds / clip bounds
-- [ ] Decide where these live:
-  - [ ] per-element internal state
-  - [ ] a per-frame state cache on `UiContext`
-  - [ ] helper query methods
-- [ ] Add window/container state queries:
-  - [ ] focused
-  - [ ] hovered
-  - [ ] visible
-  - [ ] clipped
-  - [ ] open / active tab / active popup
-- [ ] Add focus control helpers:
-  - [ ] focus this element next frame
-  - [ ] focus nth subcomponent / child path if needed
-  - [ ] default focus behavior for popups and modals
-  - [ ] clearer tab-order control
-- [ ] Update examples:
-  - [ ] item status section
-  - [ ] window status section
-  - [ ] focus-from-code section
+- [x] Design an item-state snapshot model:
+  - [x] hovered
+  - [x] active / pressed / dragging
+  - [x] edited
+  - [x] activated / deactivated
+  - [x] clicked
+  - [x] bounds / clip bounds
+- [x] Decide where these live:
+  - [x] per-element internal state
+  - [x] a per-frame state cache on `UiContext`
+  - [x] helper query methods
+- [x] Add window/container state queries:
+  - [x] focused
+  - [x] hovered
+  - [x] visible
+  - [x] clipped
+  - [x] open / active tab / active popup
+- [x] Add focus control helpers:
+  - [x] focus this element next frame
+  - [x] focus nth subcomponent / child path if needed
+  - [x] default focus behavior for popups and modals
+  - [x] clearer tab-order control
+- [x] Update examples:
+  - [x] item status section
+  - [x] window status section
+  - [x] focus-from-code section
 
 ### Exit Criteria
 
-- [ ] The item/window status parity caveat in the README is no longer true in its current form.
-- [ ] Complex widgets can query shared runtime state instead of recomputing local heuristics.
+- [x] The item/window status parity caveat in the README is no longer true in its current form.
+- [x] Complex widgets can query shared runtime state instead of recomputing local heuristics.
 
 ## Milestone 3: Font System, Atlas, And Icon Glyph Pipeline
 
@@ -264,6 +264,16 @@ OpenControls currently assumes a tiny built-in bitmap font and a narrow code-pag
 - [ ] Implement Silk.NET atlas upload / bind / rebuild flow first.
 - [ ] Keep MonoGame, SDL, OpenGL, and software/headless renderers functional with the same font contracts.
 - [ ] Define rebuild behavior when fonts or glyph ranges change at runtime.
+
+### Optional Slug Evaluation
+
+- [ ] Evaluate [Slug](https://github.com/EricLengyel/Slug) as an optional advanced GPU font-rendering path for shader-driven/vector-quality text.
+- [ ] Treat Slug as a rendering backend option, not the primary answer for:
+  - [ ] TTF/OTF/WOFF2 loading
+  - [ ] fallback-font orchestration
+  - [ ] Dear ImGui-style icon-font merge APIs
+- [ ] Bias any Slug spike toward Silk.NET first because it is the parity reference host and the best fit for an optional GPU-first font path.
+- [ ] Keep the default font pipeline independent so OpenControls can ship custom fonts without requiring Slug.
 
 ### API And Styling Checklist
 
@@ -655,7 +665,7 @@ If resourcing is tight, do the work in this order:
 
 - [x] Phase 0
 - [x] Milestone 1
-- [ ] Milestone 2
+- [x] Milestone 2
 - [ ] Milestone 3
 - [ ] Milestone 4
 - [ ] Milestone 8
@@ -674,7 +684,7 @@ If resourcing is tight, do the work in this order:
 
 - [x] Phase 0
 - [x] Milestone 1
-- [ ] Milestone 2
+- [x] Milestone 2
 
 ### Release Slice B: Text And Editing
 
@@ -702,7 +712,7 @@ If resourcing is tight, do the work in this order:
 ## Final Notes
 
 - [x] If only one thing happens next, it should be Milestone 1.
-- [ ] If only one thing happens next now, it should be Milestone 2.
-- [ ] If custom fonts and icon-font parity matter for the near-term product, Milestone 3 should happen immediately after Milestone 2.
+- [x] If only one thing happens next after Milestone 1, it should be Milestone 2.
+- [x] If custom fonts and icon-font parity matter for the near-term product, Milestone 3 should happen immediately after Milestone 2.
 - [ ] If only one user-facing thing happens after that, it should be Milestone 4 or Milestone 8 depending on whether your near-term product is more editor-heavy or data-view-heavy.
 - [ ] Re-audit after Milestone 4 and again after Milestone 8 before committing to the entire tail of the roadmap.

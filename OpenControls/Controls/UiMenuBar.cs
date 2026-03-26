@@ -450,6 +450,17 @@ public sealed class UiMenuBar : UiElement
         }
     }
 
+    protected internal override UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+    {
+        UiItemStatusFlags status = base.GetItemStatus(context, input, focused, hovered);
+        if (HasOpenMenu)
+        {
+            status |= UiItemStatusFlags.Active;
+        }
+
+        return status;
+    }
+
     private UiRect GetBarBounds()
     {
         int height = BarHeight;
