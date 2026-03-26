@@ -322,13 +322,20 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiScrollPanel? _scrollPanel;
     private readonly List<UiLabel> _scrollPanelItems = new();
     private UiLabel? _layoutHorizontalLabel;
+    private UiStack? _layoutRow;
     private UiButton? _layoutButtonLeft;
     private UiButton? _layoutButtonCenter;
     private UiButton? _layoutButtonRight;
     private UiLabel? _layoutDummyLabel;
+    private UiGroup? _layoutGroup;
+    private UiStack? _layoutGroupStack;
     private UiPanel? _layoutDummyPanel;
     private UiLabel? _layoutWrapLabel;
+    private UiWrapPanel? _layoutWrapPanel;
+    private readonly List<UiButton> _layoutWrapButtons = new();
     private UiTextBlock? _layoutWrapBlock;
+    private UiChildRegion? _layoutScrollRegion;
+    private UiStack? _layoutScrollStrip;
     private UiButton? _popupButton;
     private UiButton? _popupContextButton;
     private UiButton? _modalButton;
@@ -1840,58 +1847,174 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _layoutHorizontalLabel = new UiLabel
         {
-            Text = "Basic Horizontal Layout",
+            Text = "Row Stack (fixed / percent / fill, baseline-aligned)",
             Color = UiColor.White,
             Scale = FontScale
         };
 
+        _layoutRow = new UiStack
+        {
+            Orientation = UiLayoutOrientation.Horizontal,
+            CrossAlignment = UiStackAlignment.Baseline,
+            Gap = 8
+        };
+
         _layoutButtonLeft = new UiButton
         {
-            Text = "Left",
+            Text = "Fixed",
             TextScale = FontScale
         };
 
         _layoutButtonCenter = new UiButton
         {
-            Text = "Center",
-            TextScale = FontScale
+            Text = "25%",
+            TextScale = FontScale + 1
         };
 
         _layoutButtonRight = new UiButton
         {
-            Text = "Right",
+            Text = "Fill Remaining",
             TextScale = FontScale
         };
 
+        _layoutRow.AddChild(_layoutButtonLeft);
+        _layoutRow.SetLayout(_layoutButtonLeft, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(84),
+            CrossLength = UiLayoutLength.Fixed(24)
+        });
+        _layoutRow.AddChild(_layoutButtonCenter);
+        _layoutRow.SetLayout(_layoutButtonCenter, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Percentage(0.25f),
+            CrossLength = UiLayoutLength.Fixed(30)
+        });
+        _layoutRow.AddChild(_layoutButtonRight);
+        _layoutRow.SetLayout(_layoutButtonRight, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fill(),
+            CrossLength = UiLayoutLength.Fixed(24)
+        });
+
         _layoutDummyLabel = new UiLabel
         {
-            Text = "Dummy Spacer",
+            Text = "Group Container + Vertical Stack",
             Color = UiColor.White,
             Scale = FontScale
+        };
+
+        _layoutGroup = new UiGroup
+        {
+            Background = new UiColor(20, 24, 34),
+            Border = new UiColor(70, 80, 100),
+            CornerRadius = 4,
+            Padding = UiThickness.Uniform(8)
+        };
+
+        _layoutGroupStack = new UiStack
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 6
         };
 
         _layoutDummyPanel = new UiPanel
         {
             Background = new UiColor(24, 28, 38),
-            Border = new UiColor(70, 80, 100)
+            Border = new UiColor(70, 80, 100),
+            CornerRadius = 3
         };
 
         _layoutWrapLabel = new UiLabel
         {
-            Text = "Manual Wrapping",
+            Text = "Wrap / Flow Container",
             Color = UiColor.White,
             Scale = FontScale
         };
 
+        _layoutWrapPanel = new UiWrapPanel
+        {
+            ItemSpacing = 6,
+            LineSpacing = 6
+        };
+
+        string[] wrapTags =
+        {
+            "Assets",
+            "Scenes",
+            "Materials",
+            "Animation",
+            "Audio",
+            "Navigation",
+            "Rendering",
+            "Tools"
+        };
+
+        foreach (string tag in wrapTags)
+        {
+            UiButton wrapButton = new()
+            {
+                Text = tag,
+                TextScale = FontScale,
+                Bounds = new UiRect(0, 0, Math.Max(68, tag.Length * 8), 24)
+            };
+            _layoutWrapButtons.Add(wrapButton);
+            _layoutWrapPanel.AddChild(wrapButton);
+        }
+
         _layoutWrapBlock = new UiTextBlock
         {
-            Text = "Wrap this line manually by constraining the width. The block should break across multiple lines.",
+            Text = "Children in a UiGroup stay part of one logical region, while the nested vertical stack handles padding, gap, and fill sizing inside the framed content block.",
             Color = new UiColor(200, 210, 230),
             Scale = FontScale,
             Wrap = true,
             LineSpacing = 2,
             Padding = 2
         };
+
+        _layoutGroup.AddChild(_layoutGroupStack);
+        _layoutGroupStack.AddChild(_layoutDummyPanel);
+        _layoutGroupStack.SetLayout(_layoutDummyPanel, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(18),
+            CrossLength = UiLayoutLength.Fill()
+        });
+        _layoutGroupStack.AddChild(_layoutWrapBlock);
+        _layoutGroupStack.SetLayout(_layoutWrapBlock, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fill(),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        _layoutScrollRegion = new UiChildRegion
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            BorderThickness = 1,
+            CornerRadius = 4,
+            HorizontalScrollbar = UiScrollbarVisibility.Auto,
+            VerticalScrollbar = UiScrollbarVisibility.Disabled,
+            ScrollWheelStep = 48
+        };
+
+        _layoutScrollStrip = new UiStack
+        {
+            Orientation = UiLayoutOrientation.Horizontal,
+            CrossAlignment = UiStackAlignment.Center,
+            Gap = 12
+        };
+
+        _layoutScrollRegion.AddContentChild(_layoutScrollStrip);
+        foreach (UiLabel item in _scrollPanelItems)
+        {
+            item.Bounds = new UiRect(0, 0, 220, 18);
+            _layoutScrollStrip.AddChild(item);
+            _layoutScrollStrip.SetLayout(item, new UiStackItemLayout
+            {
+                PrimaryLength = UiLayoutLength.Fixed(220),
+                CrossLength = UiLayoutLength.Fixed(18)
+            });
+        }
 
         _popupButton = new UiButton
         {
@@ -3596,13 +3719,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsLayoutTree.AddChild(_gridLabel);
         _widgetsLayoutTree.AddChild(_grid);
         _widgetsLayoutTree.AddChild(_layoutHorizontalLabel);
-        _widgetsLayoutTree.AddChild(_layoutButtonLeft);
-        _widgetsLayoutTree.AddChild(_layoutButtonCenter);
-        _widgetsLayoutTree.AddChild(_layoutButtonRight);
+        _widgetsLayoutTree.AddChild(_layoutRow);
         _widgetsLayoutTree.AddChild(_layoutDummyLabel);
-        _widgetsLayoutTree.AddChild(_layoutDummyPanel);
+        _widgetsLayoutTree.AddChild(_layoutGroup);
         _widgetsLayoutTree.AddChild(_layoutWrapLabel);
-        _widgetsLayoutTree.AddChild(_layoutWrapBlock);
+        _widgetsLayoutTree.AddChild(_layoutWrapPanel);
         _widgetsLayoutTree.AddChild(_tabBarLabel);
         _widgetsLayoutTree.AddChild(_tabBar);
         _widgetsLayoutTree.AddChild(_tabButtonStatusLabel);
@@ -3616,10 +3737,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsLayoutTree.AddChild(_textEditorLabel);
         _widgetsLayoutTree.AddChild(_textEditor);
         _widgetsLayoutTree.AddChild(_scrollPanelLabel);
-        foreach (UiLabel item in _scrollPanelItems)
-        {
-            _widgetsLayoutTree.AddChild(item);
-        }
+        _widgetsLayoutTree.AddChild(_layoutScrollRegion);
 
         _widgetsStatusTree.AddChild(_itemStatusLabel);
         _widgetsStatusTree.AddChild(_windowStatusLabel);
@@ -4088,7 +4206,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _colorPicker != null && _colorSelectionLabel != null && _colorButtonLabel != null && _asciiLabel != null && _asciiPageLabel != null && _asciiPageCombo != null
             && _asciiTable != null && _selectablesLabel != null && _selectablesHintLabel != null
             && _selectableLighting != null && _selectableNavigation != null && _selectableAudio != null && _scrollPanelLabel != null
-            && _layoutHorizontalLabel != null && _layoutButtonLeft != null && _layoutButtonCenter != null && _layoutButtonRight != null && _layoutDummyLabel != null && _layoutDummyPanel != null && _layoutWrapLabel != null && _layoutWrapBlock != null
+            && _layoutHorizontalLabel != null && _layoutRow != null && _layoutButtonLeft != null && _layoutButtonCenter != null && _layoutButtonRight != null
+            && _layoutDummyLabel != null && _layoutGroup != null && _layoutGroupStack != null && _layoutDummyPanel != null
+            && _layoutWrapLabel != null && _layoutWrapPanel != null && _layoutWrapBlock != null && _layoutScrollRegion != null && _layoutScrollStrip != null
             && _textEditorLabel != null && _textEditor != null
             && _gridLabel != null && _grid != null && _gridPrimaryButton != null && _gridSecondaryButton != null && _gridInfoLabel != null && _gridStatusLabel != null
             && _tabBarLabel != null && _tabBar != null && _tabOverview != null && _tabDetails != null && _tabSettings != null
@@ -4855,23 +4975,21 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
             _layoutHorizontalLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;
-            int horizontalButtonWidth = Math.Min(100, Math.Max(0, (layoutContentWidth - 16) / 3));
-            _layoutButtonLeft.Bounds = new UiRect(0, layoutY, horizontalButtonWidth, 24);
-            _layoutButtonCenter.Bounds = new UiRect(horizontalButtonWidth + 8, layoutY, horizontalButtonWidth, 24);
-            _layoutButtonRight.Bounds = new UiRect((horizontalButtonWidth + 8) * 2, layoutY, horizontalButtonWidth, 24);
-            layoutY += 30;
+            _layoutRow.Bounds = new UiRect(0, layoutY, layoutContentWidth, 34);
+            layoutY += _layoutRow.Bounds.Height + 8;
 
             _layoutDummyLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;
-            int dummyWidth = Math.Min(100, layoutContentWidth);
-            _layoutDummyPanel.Bounds = new UiRect(0, layoutY, dummyWidth, 20);
-            layoutY += _layoutDummyPanel.Bounds.Height + 8;
+            int layoutGroupHeight = Math.Max(72, labelHeight * 4 + 18);
+            _layoutGroup.Bounds = new UiRect(0, layoutY, layoutContentWidth, layoutGroupHeight);
+            _layoutGroupStack.Bounds = _layoutGroup.ContentBounds;
+            layoutY += _layoutGroup.Bounds.Height + 8;
 
             _layoutWrapLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;
-            int wrapBlockHeight = labelHeight * 3;
-            _layoutWrapBlock.Bounds = new UiRect(0, layoutY, layoutContentWidth, wrapBlockHeight);
-            layoutY += wrapBlockHeight + 8;
+            int layoutWrapHeight = Math.Max(84, labelHeight * 4);
+            _layoutWrapPanel.Bounds = new UiRect(0, layoutY, layoutContentWidth, layoutWrapHeight);
+            layoutY += _layoutWrapPanel.Bounds.Height + 8;
 
             _tabBarLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;
@@ -4928,16 +5046,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
             _scrollPanelLabel.Bounds = new UiRect(0, layoutY, layoutContentWidth, labelHeight);
             layoutY += labelHeight + 6;
-
-            int logWidth = Math.Max(layoutContentWidth, 360);
-            int logY = layoutY;
-            foreach (UiLabel item in _scrollPanelItems)
-            {
-                item.Bounds = new UiRect(0, logY, logWidth, labelHeight);
-                logY += labelHeight + 4;
-            }
-
-            layoutY = logY + 2;
+            int scrollRegionHeight = 56;
+            _layoutScrollRegion.Bounds = new UiRect(0, layoutY, layoutContentWidth, scrollRegionHeight);
+            int stripWidth = _scrollPanelItems.Count * 220 + Math.Max(0, _layoutScrollStrip.Gap) * Math.Max(0, _scrollPanelItems.Count - 1);
+            _layoutScrollStrip.Bounds = new UiRect(0, 0, stripWidth, 24);
+            layoutY += scrollRegionHeight + 8;
             int layoutHeight = treeHeaderHeight + (_widgetsLayoutTree.IsOpen ? layoutPadding + layoutY : 0);
             _widgetsLayoutTree.HeaderHeight = treeHeaderHeight;
             _widgetsLayoutTree.Bounds = new UiRect(0, categoryY, rootContentWidth, layoutHeight);

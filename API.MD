@@ -59,6 +59,9 @@ This is a brief overview of the current OpenControls surface area.
 - `UiPlotPanel`: plotting panel with axes, tick labels, grid lines, and zoom/pan input.
 - `UiWaveform`: waveform panel for rendering sample data with optional zero line.
 - `UiGrid`: grid layout container that assigns children to row/column cells.
+- `UiStack`: retained row/column layout container with gap, padding, baseline/stretch alignment, and fixed/fill/percentage sizing.
+- `UiWrapPanel`: retained flow layout container for wrapped rows of child content.
+- `UiGroup`: logical grouped region for treating multiple children as one retained section.
 - `UiCanvas`: pannable/zoomable canvas that renders child elements with an optional grid and origin.
 - `UiColorEdit`: RGB(A) editor with per-channel sliders and a preview swatch.
 - `UiColorPicker`: hue/saturation/value picker with a gradient SV area, hue bar, and optional alpha bar.
@@ -96,6 +99,8 @@ This is a brief overview of the current OpenControls surface area.
 - `UiPopup.OpenAttached(...)` and `UiPopup.OpenContext(...)` are the preferred helpers for anchored and point-based popup opening in retained demos.
 - `UiMenuBar.OpenAttached(...)` and `UiMenuBar.OpenContext(...)` provide the same anchored and point-based helpers for popup-mode menus.
 - `UiChildRegion` is an embedded clipped viewport inside an existing parent; use it for framed sub-content, and use `UiWindow` when the content needs independent title/chrome/focus behavior.
+- `UiThickness` is the shared padding/margin-style value object used by the retained layout containers.
+- `UiLayoutLength` is the sizing helper for `UiStack` items (`Auto`, `Fixed`, `Fill`, `Weight`, `Percentage`).
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.
 - `UiContext.Render` performs an overlay pass; `UiMenuBar` dropdowns draw there so they render above other controls.
@@ -109,6 +114,12 @@ This is a brief overview of the current OpenControls surface area.
 ## Dock Host Events
 - `UiDockHost.TabDetached`: raised when a tab is dragged outside the host bounds.
 - `UiDockHost.TabClosed`: raised when a tab close button is clicked and the window is removed.
+
+## Layout Notes
+- Use `UiStack` for retained row/column layout instead of manually spacing siblings when the arrangement is stable.
+- Use `UiWrapPanel` for tag clouds, toolbar chips, and other wrapped inline rows.
+- Use `UiGroup` when several controls should read as one logical retained region for hover/focus ancestry and shared framing.
+- `UiDockWorkspace` now exposes visible draggable splitters between dock panes, and persisted workspace state includes the updated split ratios.
 
 ## Dock Host Notes
 - `UiDockHost.ShowCloseButtons` toggles close buttons; `UiWindow.AllowClose` controls per-window visibility.

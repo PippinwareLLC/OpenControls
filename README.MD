@@ -98,11 +98,11 @@ Historical note:
 | `OpenControls.Tests` | Test project | Active | Regression coverage for shared editor-blocking primitives. |
 
 ## Supported Widgets
-- Core: `UiPanel`, `UiLabel`, `UiTextBlock`, `UiTextLink`, `UiBullet`, `UiBulletText`, `UiButton`, `UiArrowButton`, `UiSeparator`, `UiSeparatorText`, `UiSpacer`, `UiDisabledGroup`.
+- Core: `UiPanel`, `UiGroup`, `UiLabel`, `UiTextBlock`, `UiTextLink`, `UiBullet`, `UiBulletText`, `UiButton`, `UiArrowButton`, `UiSeparator`, `UiSeparatorText`, `UiSpacer`, `UiDisabledGroup`.
 - Inputs: `UiCheckbox`, `UiRadioButton`, `UiTextField`, `UiTextEditor`, `UiInputFloat/Int/Double`, `UiInputFloat2/3/4`, `UiInputInt2/3/4`, `UiNumericField`, `UiNumericVector`, `UiSlider`, `UiSliderFloat2/3/4`, `UiSliderInt2/3/4`, `UiSliderVector`, `UiVSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`.
 - Lists and tables: `UiListBox`, `UiSelectable`, `UiComboBox`, `UiTable`.
 - Data display: `UiProgressBar` (horizontal/vertical, segmented, radial), `UiPlotPanel`, `UiWaveform`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiImage`, `UiImageButton`.
-- Layout: `UiGrid`, `UiSplitter`, `UiScrollPanel`, `UiCanvas`, `UiWindow`, `UiDockHost`, `UiDockWorkspace`.
+- Layout: `UiStack`, `UiWrapPanel`, `UiGrid`, `UiSplitter`, `UiScrollPanel`, `UiCanvas`, `UiWindow`, `UiDockHost`, `UiDockWorkspace`.
 - Interaction: `UiTabBar`, `UiTabItem`, `UiTabItemButton`, `UiDragDropSource`, `UiDragDropTarget`.
 - Overlays: `UiMenuBar`, `UiTreeNode`, `UiCollapsingHeader`, `UiTooltip`, `UiTooltipRegion`, `UiPopup`, `UiModal`, `UiModalHost`.
 
@@ -137,6 +137,7 @@ Planned expansion:
 - Color edit and color picker controls include gradient SV, alpha bars, and checkerboard transparency.
 - Multi-select selection model for list boxes and selectables (Ctrl/Shift range) is available.
 - Scroll panels support auto/always scrollbars for overflowing content.
+- `UiStack`, `UiWrapPanel`, `UiGroup`, `UiThickness`, and `UiLayoutLength` now provide retained row/column/wrap/group layout primitives with padding, gap, baseline alignment, and fixed/fill/percentage sizing.
 - `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and popup open helpers now power the composed combo/list/popup demo in `OpenControls.Examples`, and `UiComboBox` remains as a string-list convenience wrapper over that richer combo path.
 - `IUiImageSource` plus `UiDelegateImageSource` provide a reusable adapter path for repeated thumbnail/icon drawing inside rich rows and popup content.
 - `UiChildRegion` is the embedded, clipped, scrollable viewport primitive for content inside an existing window, panel, or popup; use `UiWindow` when you need independent title/chrome/focus behavior instead of an in-place framed region.
@@ -144,7 +145,7 @@ Planned expansion:
 - Window and dock host controls support tabbed layouts with close buttons and overflow scrolling.
 - Tab bars support `UiTabItemButton` with leading/trailing placement.
 - Tabs, window titles, table headers, tree node headers, and labels can render bold text.
-- Dock workspaces support drag previews, drop targets, and floating windows.
+- Dock workspaces support drag previews, drop targets, floating windows, and draggable persisted splitters with minimum pane clamping.
 - Drag/drop payloads are supported via `UiDragDropSource`, `UiDragDropTarget`, and `UiDragDropContext`.
 - Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, embedded content, and attached/context opening helpers for popup-mode composition.
 - Tree nodes, collapsing headers, tooltips, popups, and modals are available.

@@ -494,46 +494,47 @@ Many missing ImGui demos are really layout affordances, not widgets. OpenControl
 
 ### Design Goal
 
-- [ ] Add a small family of retained layout containers that cover the practical use cases behind ImGui layout demos.
+- [x] Add a small family of retained layout containers that cover the practical use cases behind ImGui layout demos.
 
 ### Checklist
 
-- [ ] Introduce a horizontal stack / row container.
-- [ ] Introduce a vertical stack / column container if helpful.
-- [ ] Introduce a wrap/flow container for manual-wrapping style layouts.
-- [ ] Introduce group semantics so multiple children can be treated as one logical region.
-- [ ] Add spacing/alignment controls:
-  - [ ] padding
-  - [ ] gap
-  - [ ] baseline alignment
-  - [ ] stretch vs fixed children
-- [ ] Add width helpers:
-  - [ ] fill remaining width
-  - [ ] fixed width
-  - [ ] percentage/weight width where useful
-- [ ] Revisit scrollable layouts:
-  - [ ] horizontal scrolling containers
-  - [ ] content-size computation
-  - [ ] clipped long content
-- [ ] Map existing examples to new layout containers where they simplify code.
+- [x] Introduce a horizontal stack / row container.
+- [x] Introduce a vertical stack / column container if helpful.
+- [x] Introduce a wrap/flow container for manual-wrapping style layouts.
+- [x] Introduce group semantics so multiple children can be treated as one logical region.
+- [x] Add spacing/alignment controls:
+  - [x] padding
+  - [x] gap
+  - [x] baseline alignment
+  - [x] stretch vs fixed children
+- [x] Add width helpers:
+  - [x] fill remaining width
+  - [x] fixed width
+  - [x] percentage/weight width where useful
+- [x] Revisit scrollable layouts:
+  - [x] horizontal scrolling containers
+  - [x] content-size computation
+  - [x] clipped long content
+- [x] Map existing examples to new layout containers where they simplify code.
 
 ### Docking / Split Pane Checklist
 
-- [ ] Add draggable dock splitters.
-- [ ] Update split ratios from divider hit-testing and drag, not only from initial split creation.
-- [ ] Add minimum pane sizes / clamp rules so resize feels editor-safe.
-- [ ] Persist dock split ratios as part of workspace/session state.
-- [ ] Add visual splitter affordances and hover/active states.
-- [ ] Verify nested split resizing behaves predictably.
+- [x] Add draggable dock splitters.
+- [x] Update split ratios from divider hit-testing and drag, not only from initial split creation.
+- [x] Add minimum pane sizes / clamp rules so resize feels editor-safe.
+- [x] Persist dock split ratios as part of workspace/session state.
+- [x] Add visual splitter affordances and hover/active states.
+- [x] Verify nested split resizing behaves predictably.
 
 ### Explicit Non-Goal
 
-- [ ] Do not force OpenControls into cursor-based immediate layout semantics unless a tiny compatibility helper is clearly worth it.
+- [x] Do not force OpenControls into cursor-based immediate layout semantics unless a tiny compatibility helper is clearly worth it.
 
 ### Exit Criteria
 
-- [ ] The major "Layout" demo sections have natural retained-mode equivalents.
-- [ ] Example UI code gets shorter, not longer.
+- [x] The major "Layout" demo sections have natural retained-mode equivalents.
+- [x] Example UI code gets shorter, not longer.
+- [x] Milestone 7 is now fully complete in the repo, including retained layout containers, grouped layout demos, and draggable dock-workspace split resizing with persistence and nested clamp coverage.
 
 ## Milestone 8: Tables 2.0
 

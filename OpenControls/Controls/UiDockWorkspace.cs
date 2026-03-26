@@ -26,6 +26,10 @@ public sealed class UiDockWorkspace : UiElement
         public DockNode? Second { get; set; }
         public bool SplitHorizontal { get; set; }
         public float SplitRatio { get; set; } = 0.5f;
+        public UiRect Bounds { get; set; }
+        public UiRect FirstBounds { get; set; }
+        public UiRect SecondBounds { get; set; }
+        public UiRect SplitterBounds { get; set; }
     }
 
     private readonly List<UiDockHost> _hosts = new();
@@ -42,6 +46,10 @@ public sealed class UiDockWorkspace : UiElement
     private DockTarget _hoverTarget;
     private UiRect _previewBounds;
     private UiWindow? _floatingDragWindow;
+    private DockNode? _hoverSplitNode;
+    private DockNode? _dragSplitNode;
+    private int _dragSplitStartAxis;
+    private int _dragSplitStartPrimarySize;
 
     public UiColor DragPreviewColor { get; set; } = new(70, 130, 200, 120);
     public UiColor DragPreviewOutline { get; set; } = new(120, 180, 220, 200);
@@ -50,10 +58,16 @@ public sealed class UiDockWorkspace : UiElement
     public UiColor DropTargetOutline { get; set; } = new(160, 200, 240, 220);
     public int DropTargetSize { get; set; } = 48;
     public int DragThreshold { get; set; } = 6;
+    public int SplitterThickness { get; set; } = 6;
+    public int MinPaneSize { get; set; } = 80;
+    public UiColor SplitterColor { get; set; } = new(44, 52, 68);
+    public UiColor SplitterHoverColor { get; set; } = new(68, 82, 106);
+    public UiColor SplitterActiveColor { get; set; } = new(96, 120, 154);
 
     public UiDockHost RootHost { get; }
     public IReadOnlyList<UiDockHost> DockHosts => _hosts;
     public IReadOnlyList<UiWindow> FloatingWindows => _floatingWindows;
+    public override bool CapturesPointerInput => _hoverSplitNode != null || _dragSplitNode != null;
 
     public UiDockWorkspace()
     {
@@ -305,6 +319,8 @@ public sealed class UiDockWorkspace : UiElement
         LayoutNode(_rootNode, Bounds);
 
         UiInputState input = context.Input;
+        UpdateSplitters(input, context.Focus);
+        LayoutNode(_rootNode, Bounds);
         UpdateTabDrag(input);
 
         base.Update(context);
@@ -322,12 +338,26 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         base.Render(context);
+        DrawSplitters(context);
 
         if (_dragWindow != null && _dragMoved)
         {
             DrawPreview(context);
             DrawTargets(context);
         }
+    }
+
+    protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        DockNode? splitNode = _dragSplitNode ?? _hoverSplitNode;
+        if (splitNode != null)
+        {
+            cursor = splitNode.SplitHorizontal ? UiMouseCursor.ResizeNS : UiMouseCursor.ResizeEW;
+            return true;
+        }
+
+        cursor = UiMouseCursor.Arrow;
+        return false;
     }
 
     private UiDockHost CreateHost(UiDockHost? template = null, string? hostId = null)
@@ -418,8 +448,48 @@ public sealed class UiDockWorkspace : UiElement
         return created;
     }
 
+    private void UpdateSplitters(UiInputState input, UiFocusManager focus)
+    {
+        _hoverSplitNode = FindSplitterNode(_rootNode, input.MousePosition);
+
+        if (_dragSplitNode == null && input.LeftClicked && _hoverSplitNode != null)
+        {
+            _dragSplitNode = _hoverSplitNode;
+            _dragSplitStartAxis = GetSplitterAxisPosition(_dragSplitNode, input.MousePosition);
+            _dragSplitStartPrimarySize = GetNodePrimarySize(_dragSplitNode.FirstBounds, _dragSplitNode.SplitHorizontal);
+            focus.RequestFocus(null);
+        }
+
+        if (_dragSplitNode == null)
+        {
+            return;
+        }
+
+        if (input.LeftDown)
+        {
+            int delta = GetSplitterAxisPosition(_dragSplitNode, input.MousePosition) - _dragSplitStartAxis;
+            int available = GetNodePrimarySize(_dragSplitNode.Bounds, _dragSplitNode.SplitHorizontal) - Math.Max(1, SplitterThickness);
+            int minFirst = GetMinimumNodePrimarySize(_dragSplitNode.First, _dragSplitNode.SplitHorizontal);
+            int minSecond = GetMinimumNodePrimarySize(_dragSplitNode.Second, _dragSplitNode.SplitHorizontal);
+            int desiredFirst = _dragSplitStartPrimarySize + delta;
+            int firstSize = ClampSplitSize(desiredFirst, available, minFirst, minSecond);
+            _dragSplitNode.SplitRatio = available > 0 ? firstSize / (float)available : 0.5f;
+            _hoverSplitNode = _dragSplitNode;
+        }
+
+        if (input.LeftReleased)
+        {
+            _dragSplitNode = null;
+        }
+    }
+
     private void UpdateTabDrag(UiInputState input)
     {
+        if (_dragSplitNode != null)
+        {
+            return;
+        }
+
         if (_dragWindow != null && _dragSourceHost == null)
         {
             return;
@@ -828,6 +898,37 @@ public sealed class UiDockWorkspace : UiElement
         context.Renderer.DrawRect(_previewBounds, DragPreviewOutline, 1);
     }
 
+    private void DrawSplitters(UiRenderContext context)
+    {
+        DrawSplitters(context, _rootNode);
+    }
+
+    private void DrawSplitters(UiRenderContext context, DockNode node)
+    {
+        if (node.Host != null)
+        {
+            return;
+        }
+
+        if (node.First == null || node.Second == null)
+        {
+            return;
+        }
+
+        if (node.SplitterBounds.Width > 0 && node.SplitterBounds.Height > 0)
+        {
+            UiColor splitterColor = node == _dragSplitNode
+                ? SplitterActiveColor
+                : node == _hoverSplitNode
+                    ? SplitterHoverColor
+                    : SplitterColor;
+            context.Renderer.FillRect(node.SplitterBounds, splitterColor);
+        }
+
+        DrawSplitters(context, node.First);
+        DrawSplitters(context, node.Second);
+    }
+
     private void DrawTargets(UiRenderContext context)
     {
         if (_hoverHost == null)
@@ -845,33 +946,110 @@ public sealed class UiDockWorkspace : UiElement
 
     private void LayoutNode(DockNode node, UiRect bounds)
     {
+        node.Bounds = bounds;
+
         if (node.Host != null)
         {
+            node.FirstBounds = default;
+            node.SecondBounds = default;
+            node.SplitterBounds = default;
             node.Host.Bounds = bounds;
             return;
         }
 
         if (node.First == null || node.Second == null)
         {
+            node.FirstBounds = default;
+            node.SecondBounds = default;
+            node.SplitterBounds = default;
             return;
         }
 
+        int splitterThickness = Math.Max(1, SplitterThickness);
+        UiPoint firstMinSize = GetMinimumNodeSize(node.First);
+        UiPoint secondMinSize = GetMinimumNodeSize(node.Second);
+
         if (node.SplitHorizontal)
         {
-            int firstHeight = (int)(bounds.Height * node.SplitRatio);
+            int availableHeight = Math.Max(0, bounds.Height - splitterThickness);
+            int desiredFirstHeight = (int)Math.Round(availableHeight * node.SplitRatio);
+            int firstHeight = ClampSplitSize(desiredFirstHeight, availableHeight, firstMinSize.Y, secondMinSize.Y);
+            int secondHeight = Math.Max(0, availableHeight - firstHeight);
+
             UiRect firstBounds = new(bounds.X, bounds.Y, bounds.Width, firstHeight);
-            UiRect secondBounds = new(bounds.X, bounds.Y + firstHeight, bounds.Width, bounds.Height - firstHeight);
+            UiRect splitterBounds = new(bounds.X, firstBounds.Bottom, bounds.Width, splitterThickness);
+            UiRect secondBounds = new(bounds.X, splitterBounds.Bottom, bounds.Width, secondHeight);
+
+            node.FirstBounds = firstBounds;
+            node.SecondBounds = secondBounds;
+            node.SplitterBounds = splitterBounds;
+            node.SplitRatio = availableHeight > 0 ? firstHeight / (float)availableHeight : 0.5f;
+
             LayoutNode(node.First, firstBounds);
             LayoutNode(node.Second, secondBounds);
         }
         else
         {
-            int firstWidth = (int)(bounds.Width * node.SplitRatio);
+            int availableWidth = Math.Max(0, bounds.Width - splitterThickness);
+            int desiredFirstWidth = (int)Math.Round(availableWidth * node.SplitRatio);
+            int firstWidth = ClampSplitSize(desiredFirstWidth, availableWidth, firstMinSize.X, secondMinSize.X);
+            int secondWidth = Math.Max(0, availableWidth - firstWidth);
+
             UiRect firstBounds = new(bounds.X, bounds.Y, firstWidth, bounds.Height);
-            UiRect secondBounds = new(bounds.X + firstWidth, bounds.Y, bounds.Width - firstWidth, bounds.Height);
+            UiRect splitterBounds = new(firstBounds.Right, bounds.Y, splitterThickness, bounds.Height);
+            UiRect secondBounds = new(splitterBounds.Right, bounds.Y, secondWidth, bounds.Height);
+
+            node.FirstBounds = firstBounds;
+            node.SecondBounds = secondBounds;
+            node.SplitterBounds = splitterBounds;
+            node.SplitRatio = availableWidth > 0 ? firstWidth / (float)availableWidth : 0.5f;
+
             LayoutNode(node.First, firstBounds);
             LayoutNode(node.Second, secondBounds);
         }
+    }
+
+    private UiPoint GetMinimumNodeSize(DockNode? node)
+    {
+        if (node == null)
+        {
+            return new UiPoint(0, 0);
+        }
+
+        if (node.Host != null)
+        {
+            int paneSize = Math.Max(0, MinPaneSize);
+            return new UiPoint(paneSize, paneSize);
+        }
+
+        UiPoint first = GetMinimumNodeSize(node.First);
+        UiPoint second = GetMinimumNodeSize(node.Second);
+        int splitterThickness = Math.Max(1, SplitterThickness);
+
+        return node.SplitHorizontal
+            ? new UiPoint(Math.Max(first.X, second.X), first.Y + splitterThickness + second.Y)
+            : new UiPoint(first.X + splitterThickness + second.X, Math.Max(first.Y, second.Y));
+    }
+
+    private static int ClampSplitSize(int desired, int available, int minFirst, int minSecond)
+    {
+        if (available <= 0)
+        {
+            return 0;
+        }
+
+        minFirst = Math.Max(0, minFirst);
+        minSecond = Math.Max(0, minSecond);
+        int totalMinimum = minFirst + minSecond;
+        if (totalMinimum > available)
+        {
+            float scale = available / (float)totalMinimum;
+            minFirst = (int)Math.Floor(minFirst * scale);
+            minSecond = Math.Max(0, available - minFirst);
+        }
+
+        int maxFirst = Math.Max(minFirst, available - minSecond);
+        return Math.Clamp(desired, minFirst, maxFirst);
     }
 
     private static DockNode? FindNode(DockNode node, UiDockHost host)
@@ -902,6 +1080,34 @@ public sealed class UiDockWorkspace : UiElement
         return null;
     }
 
+    private DockNode? FindSplitterNode(DockNode node, UiPoint point)
+    {
+        if (node.Host != null)
+        {
+            return null;
+        }
+
+        if (node.First != null)
+        {
+            DockNode? first = FindSplitterNode(node.First, point);
+            if (first != null)
+            {
+                return first;
+            }
+        }
+
+        if (node.Second != null)
+        {
+            DockNode? second = FindSplitterNode(node.Second, point);
+            if (second != null)
+            {
+                return second;
+            }
+        }
+
+        return node.SplitterBounds.Contains(point) ? node : null;
+    }
+
     private DockTarget GetDockTarget(UiRect bounds, UiPoint point)
     {
         foreach ((DockTarget target, UiRect rect) in GetTargetRects(bounds))
@@ -913,6 +1119,22 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         return DockTarget.Center;
+    }
+
+    private static int GetSplitterAxisPosition(DockNode node, UiPoint point)
+    {
+        return node.SplitHorizontal ? point.Y : point.X;
+    }
+
+    private static int GetNodePrimarySize(UiRect bounds, bool splitHorizontal)
+    {
+        return splitHorizontal ? bounds.Height : bounds.Width;
+    }
+
+    private int GetMinimumNodePrimarySize(DockNode? node, bool splitHorizontal)
+    {
+        UiPoint minimumSize = GetMinimumNodeSize(node);
+        return splitHorizontal ? minimumSize.Y : minimumSize.X;
     }
 
     private UiRect GetDockPreviewBounds(UiRect hostBounds, DockTarget target, UiRect windowBounds)
