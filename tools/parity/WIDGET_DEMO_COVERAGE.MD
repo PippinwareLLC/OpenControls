@@ -106,7 +106,7 @@ A widget is only considered demo-complete when all applicable items are true:
 
 ## Tables / Data Display
 
-- [ ] `UiTable`: sortable headers, angled headers, selection, empty state, current scrolling limitations called out honestly.
+- [x] `UiTable`: sortable headers, angled headers, selection, empty state, resize/reorder/hide, header context menu, scrolling, custom headers, richer cells, and large-row clipping.
 - [ ] `UiProgressBar`: horizontal, vertical, radial, segmented, overlay text, fill direction, color gradients.
 - [ ] `UiPlotPanel`: multiple series, zoom/pan, autofit, tick formatting, labels.
 - [ ] `UiWaveform`: min/max mode, line mode, auto-scale, start/count windowing.

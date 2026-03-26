@@ -548,50 +548,58 @@ Many missing ImGui demos are really layout affordances, not widgets. OpenControl
 
 ## Milestone 8: Tables 2.0
 
-### Why This Is High Priority
+### Implementation Note
 
-Tables are one of the most important tooling surfaces, and OpenControls currently has a useful but shallow implementation.
+Milestone 8 is complete for the scoped first-pass table target. OpenControls now ships a `UiTable` with runtime column state separate from static definitions, user-driven resize/reorder/hide behavior, X/Y scrolling, built-in header context menus, explicit view state, row clipping for large datasets, fixed-vs-stretch column sizing, row-height hooks, per-cell styling hooks, and retained child content for headers/cells. Shared clipper extraction and deeper cross-control virtualization still remain Milestone 9 work.
 
 ### Current Gaps To Close
 
-- [ ] column resizing
-- [ ] column reordering
-- [ ] column hiding/showing
-- [ ] vertical scrolling
-- [ ] horizontal scrolling
-- [ ] header context menus
-- [ ] richer cell rendering
-- [ ] nested/advanced layouts where practical
-- [ ] better handling of large datasets
+- [x] column resizing
+- [x] column reordering
+- [x] column hiding/showing
+- [x] vertical scrolling
+- [x] horizontal scrolling
+- [x] header context menus
+- [x] richer cell rendering
+- [x] nested/advanced layouts where practical
+- [x] better handling of large datasets
 
 ### Checklist
 
-- [ ] Add a column state model distinct from static column definitions.
-- [ ] Add user-driven column resize.
-- [ ] Add user-driven column reorder.
-- [ ] Add hide/show state for columns.
-- [ ] Add optional built-in header context menu.
-- [ ] Add X/Y scrolling support.
-- [ ] Add explicit row-scroll/view state rather than truncating to the currently visible prefix.
-- [ ] Add fixed vs stretch width modes.
-- [ ] Add row height customization hooks.
-- [ ] Add per-cell background / foreground customization hooks.
-- [ ] Add a richer cell content model:
-  - [ ] text-only path stays simple
-  - [ ] child-element / retained-content path where feasible
-  - [ ] non-string cell content suitable for inspectors, hierarchies, and asset browsers
-- [ ] Add virtualization/clipping support for large row counts.
-- [ ] Verify sorting still behaves correctly with hidden/reordered columns.
-- [ ] Add examples for:
-  - [ ] reordering and hiding
-  - [ ] vertical clipping
-  - [ ] context menus
-  - [ ] sorting
-  - [ ] custom headers
+- [x] Add a column state model distinct from static column definitions.
+- [x] Add user-driven column resize.
+- [x] Add user-driven column reorder.
+- [x] Add hide/show state for columns.
+- [x] Add optional built-in header context menu.
+- [x] Add X/Y scrolling support.
+- [x] Add explicit row-scroll/view state rather than truncating to the currently visible prefix.
+- [x] Add fixed vs stretch width modes.
+- [x] Add row height customization hooks.
+- [x] Add per-cell background / foreground customization hooks.
+- [x] Add a richer cell content model:
+  - [x] text-only path stays simple
+  - [x] child-element / retained-content path where feasible
+  - [x] non-string cell content suitable for inspectors, hierarchies, and asset browsers
+- [x] Add virtualization/clipping support for large row counts.
+- [x] Verify sorting still behaves correctly with hidden/reordered columns.
+- [x] Add examples for:
+  - [x] reordering and hiding
+  - [x] vertical clipping
+  - [x] context menus
+  - [x] sorting
+  - [x] custom headers
+
+### Deferred Follow-On Work
+
+These items remain backlog, but they do not block Milestone 8 closure:
+
+- Lift the table-local row clipping logic into the shared virtualization layer in Milestone 9.
+- Add persisted table column/view state once the broader persistence milestone is ready to absorb it cleanly.
+- Add variable-height virtualization optimizations only if product-scale datasets demand more than the current clipped rendering path.
 
 ### Exit Criteria
 
-- [ ] `UiTable` is viable for inspectors, asset browsers, and data-heavy tools.
+- [x] `UiTable` is viable for inspectors, asset browsers, and data-heavy tools.
 
 ## Milestone 9: Shared Virtualization / Clipper Layer
 
@@ -768,15 +776,15 @@ If resourcing is tight, do the work in this order:
 - [x] Milestone 2
 - [x] Milestone 3
 - [x] Milestone 4
-- [ ] Milestone 8
-- [ ] Milestone 9
+- [x] Milestone 5
 - [x] Milestone 6
-- [ ] Milestone 7
+- [x] Milestone 7
+- [x] Milestone 8
+- [ ] Milestone 9
 - [ ] Milestone 10
 - [ ] Milestone 11
 - [ ] Milestone 12
 - [ ] Milestone 13
-- [ ] Milestone 5 when editor depth becomes important enough to justify the extra scope
 
 ## Suggested Release Slices
 
@@ -790,11 +798,11 @@ If resourcing is tight, do the work in this order:
 
 - [x] Milestone 3
 - [x] Milestone 4
-- [ ] Milestone 5
+- [x] Milestone 5
 
 ### Release Slice C: Data Views
 
-- [ ] Milestone 8
+- [x] Milestone 8
 - [ ] Milestone 9
 - [ ] Milestone 10
 

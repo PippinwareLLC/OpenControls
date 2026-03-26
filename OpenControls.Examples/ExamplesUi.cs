@@ -11,7 +11,7 @@ public sealed class ExamplesUi
     private const int FontScale = 2;
     private const int Padding = 12;
     private const int SplitterSize = 6;
-    private const int WidgetGalleryContentHeight = 2600;
+    private const int WidgetGalleryContentHeight = 2860;
     private const string IconGear = "\uf013";
     private const string IconFolderOpen = "\uf07c";
     private const string IconSave = "\uf0c7";
@@ -6137,6 +6137,129 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         });
     }
 
+    private static UiElement CreateTableHeaderContent(string title, string subtitle, UiColor accent)
+    {
+        UiStack root = new()
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 0,
+            Padding = UiThickness.Uniform(2)
+        };
+
+        UiPanel accentBar = new()
+        {
+            Background = accent,
+            CornerRadius = 2,
+            Bounds = new UiRect(0, 0, 0, 4)
+        };
+        root.AddChild(accentBar);
+        root.SetLayout(accentBar, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(4),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        UiLabel titleLabel = new()
+        {
+            Text = title,
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true,
+            Bounds = new UiRect(0, 0, 0, 18)
+        };
+        root.AddChild(titleLabel);
+        root.SetLayout(titleLabel, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(18),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        UiLabel subtitleLabel = new()
+        {
+            Text = subtitle,
+            Color = new UiColor(160, 170, 190),
+            Scale = 1,
+            Bounds = new UiRect(0, 0, 0, 8)
+        };
+        root.AddChild(subtitleLabel);
+        root.SetLayout(subtitleLabel, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(8),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        return root;
+    }
+
+    private static UiElement CreateTablePrimaryCell(string title, string subtitle, UiColor accent)
+    {
+        UiStack root = new()
+        {
+            Orientation = UiLayoutOrientation.Horizontal,
+            CrossAlignment = UiStackAlignment.Center,
+            Gap = 8,
+            Padding = UiThickness.Uniform(2)
+        };
+
+        UiPanel badge = new()
+        {
+            Background = accent,
+            CornerRadius = 4,
+            Bounds = new UiRect(0, 0, 12, 12)
+        };
+        root.AddChild(badge);
+        root.SetLayout(badge, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(12),
+            CrossLength = UiLayoutLength.Fixed(12)
+        });
+
+        UiStack textStack = new()
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 0
+        };
+
+        UiLabel titleLabel = new()
+        {
+            Text = title,
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bounds = new UiRect(0, 0, 0, 18)
+        };
+        textStack.AddChild(titleLabel);
+        textStack.SetLayout(titleLabel, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(18),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        UiLabel subtitleLabel = new()
+        {
+            Text = subtitle,
+            Color = new UiColor(160, 170, 190),
+            Scale = 1,
+            Bounds = new UiRect(0, 0, 0, 8)
+        };
+        textStack.AddChild(subtitleLabel);
+        textStack.SetLayout(subtitleLabel, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(8),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        root.AddChild(textStack);
+        root.SetLayout(textStack, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fill(),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        return root;
+    }
+
     private void BuildWidgetGalleryWindow()
     {
         _widgetGalleryWindow = new UiWindow
@@ -6579,7 +6702,157 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         UiStack dataSection = CreateGallerySection(
             "Tables, Images, And Alternate Data Views",
-            "The Widgets tree already covers the main table, plot, waveform, and color demos. These rows add angled headers, empty tables, line waveforms, and explicit image-source vs placeholder comparisons.");
+            "The Widgets tree already covers the main table, plot, waveform, and color demos. These rows now include the full Tables 2.0 demo plus angled headers, empty tables, line waveforms, and explicit image-source vs placeholder comparisons.");
+
+        UiStack table2Row = CreateGalleryRow(UiStackAlignment.Start);
+        UiTable advancedTable = new()
+        {
+            TextScale = FontScale,
+            HeaderTextScale = FontScale,
+            ShowHeader = true,
+            ShowGrid = true,
+            AlternatingRowBackgrounds = true,
+            HorizontalScrollbar = UiScrollbarVisibility.Always,
+            VerticalScrollbar = UiScrollbarVisibility.Always,
+            ScrollWheelStep = 48,
+            HeaderHeight = 36,
+            RowHeight = 26,
+            HeaderContextMenuWidth = 220,
+            Bounds = new UiRect(0, 0, 520, 190)
+        };
+        advancedTable.RowHeightSelector = (rowIndex, _) => rowIndex % 6 == 0 ? 34 : 26;
+
+        UiTableColumn assetColumn = new("Asset", width: 220) { WidthMode = UiTableColumnWidthMode.Fixed, MinWidth = 150 };
+        UiTableColumn groupColumn = new("Group", width: 140) { WidthMode = UiTableColumnWidthMode.Fixed, MinWidth = 120 };
+        UiTableColumn ownerColumn = new("Owner", width: 160) { WidthMode = UiTableColumnWidthMode.Fixed, MinWidth = 120 };
+        UiTableColumn memoryColumn = new("Memory", width: 110) { WidthMode = UiTableColumnWidthMode.Fixed, MinWidth = 90 };
+        UiTableColumn statusColumn = new("Status", width: 120) { WidthMode = UiTableColumnWidthMode.Fixed, MinWidth = 100 };
+        memoryColumn.HeaderContent = CreateTableHeaderContent("Memory", "MiB", new UiColor(120, 180, 220));
+        statusColumn.HeaderContent = CreateTableHeaderContent("Status", "Live state", new UiColor(220, 150, 80));
+        advancedTable.Columns.Add(assetColumn);
+        advancedTable.Columns.Add(groupColumn);
+        advancedTable.Columns.Add(ownerColumn);
+        advancedTable.Columns.Add(memoryColumn);
+        advancedTable.Columns.Add(statusColumn);
+
+        string[] groups = { "Core", "Editor", "Gameplay", "Audio", "Tools" };
+        string[] owners = { "Rawls", "James", "Lagrange", "Nadia", "Piper", "Morgan" };
+        string[] statuses = { "Ready", "Dirty", "Queued", "Blocked" };
+        UiColor[] accents =
+        {
+            new UiColor(84, 146, 238),
+            new UiColor(110, 180, 120),
+            new UiColor(220, 150, 80),
+            new UiColor(180, 120, 220),
+            new UiColor(120, 180, 220)
+        };
+
+        UiTableRow[] advancedRows = new UiTableRow[42];
+        for (int i = 0; i < advancedRows.Length; i++)
+        {
+            string group = groups[i % groups.Length];
+            string owner = owners[i % owners.Length];
+            string status = statuses[i % statuses.Length];
+            string memory = $"{12 + i * 3}";
+            advancedRows[i] = new UiTableRow
+            {
+                CellItems = new[]
+                {
+                    new UiTableCell($"Asset {i:D2}") { Content = CreateTablePrimaryCell($"Asset {i:D2}", $"{group} package", accents[i % accents.Length]) },
+                    new UiTableCell(group),
+                    new UiTableCell(owner),
+                    new UiTableCell(memory),
+                    new UiTableCell(status)
+                }
+            };
+        }
+
+        advancedTable.Rows = advancedRows;
+        advancedTable.CellBackgroundSelector = cellContext =>
+        {
+            if (cellContext.Column.Header == "Status")
+            {
+                return cellContext.Cell.Text switch
+                {
+                    "Ready" => new UiColor(40, 72, 52),
+                    "Dirty" => new UiColor(84, 62, 28),
+                    "Queued" => new UiColor(42, 52, 84),
+                    "Blocked" => new UiColor(84, 40, 44),
+                    _ => null
+                };
+            }
+
+            if (cellContext.Column.Header == "Memory" && int.TryParse(cellContext.Cell.Text, out int value) && value >= 90)
+            {
+                return new UiColor(58, 34, 34);
+            }
+
+            return null;
+        };
+        advancedTable.CellTextColorSelector = cellContext =>
+        {
+            if (cellContext.Column.Header == "Status" || cellContext.Column.Header == "Memory")
+            {
+                return UiColor.White;
+            }
+
+            return null;
+        };
+
+        UiStack table2Info = new()
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 6
+        };
+        UiLabel table2Status = CreateGalleryInfoLabel(string.Empty);
+        UiTextBlock table2Note = new()
+        {
+            Text = "Drag header edges to resize, drag the header body to reorder, and right-click the header to hide/show columns. The fixed-width setup keeps horizontal scrolling obvious, while row height and cell hooks color the heavier rows.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 84)
+        };
+        table2Info.AddChild(table2Status);
+        table2Info.SetLayout(table2Status, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(18),
+            CrossLength = UiLayoutLength.Fill()
+        });
+        table2Info.AddChild(table2Note);
+        table2Info.SetLayout(table2Note, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(84),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        void UpdateAdvancedTableStatus()
+        {
+            string sort = advancedTable.SortSpecs.Count == 0
+                ? "none"
+                : string.Join(", ", advancedTable.SortSpecs.Select(spec =>
+                {
+                    string header = spec.ColumnIndex >= 0 && spec.ColumnIndex < advancedTable.Columns.Count
+                        ? advancedTable.Columns[spec.ColumnIndex].Header
+                        : $"Column {spec.ColumnIndex}";
+                    return $"{header} {spec.Direction}";
+                }));
+            int visibleColumns = advancedTable.ColumnStates.Count(state => state.Visible);
+            table2Status.Text = $"Rows {advancedTable.ViewState.FirstVisibleRowIndex}-{advancedTable.ViewState.LastVisibleRowIndex} | Scroll {advancedTable.ViewState.ScrollX}/{advancedTable.ViewState.ScrollY} | Visible {visibleColumns}/{advancedTable.Columns.Count} | Sort {sort}";
+        }
+
+        advancedTable.SortSpecsChanged += UpdateAdvancedTableStatus;
+        advancedTable.SelectionChanged += _ => UpdateAdvancedTableStatus();
+        advancedTable.ColumnStatesChanged += UpdateAdvancedTableStatus;
+        advancedTable.ViewStateChanged += UpdateAdvancedTableStatus;
+        UpdateAdvancedTableStatus();
+
+        AddRowFixedChild(table2Row, advancedTable, 532, 190);
+        AddRowFillChild(table2Row, table2Info, 190);
+        AddSectionChild(dataSection, table2Row, 194);
 
         UiStack tableRow = CreateGalleryRow(UiStackAlignment.Start);
         UiTable angledTable = new()
@@ -6689,7 +6962,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         AddRowFixedChild(imageRow, sourcedImageButton, 68, 56);
         AddRowFillChild(imageRow, imageStatus, 36);
         AddSectionChild(dataSection, imageRow, 94);
-        AddGallerySection(_widgetGalleryRoot, dataSection, 316);
+        AddGallerySection(_widgetGalleryRoot, dataSection, 518);
 
         UiStack layoutSection = CreateGallerySection(
             "Layout Coverage Additions",

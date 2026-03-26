@@ -52,7 +52,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 ## Demo Parity (OpenControls.Examples)
 The Widgets window in `OpenControls.Examples` mirrors the structure of the reference demo source. Every demo marker was replaced with a working OpenControls demo panel so the tree now maps to the same sections (Help & Configuration, Menu, Basic widgets, Text, Sliders, Drag & Drop, Tables, Layout, Inputs & Focus, Tools, Examples, etc.).
 
-The Widgets layout now also docks a dedicated `Widget Gallery` window beside the original `Widgets` tree. That gallery is where the option-level gap-filling lives for controls that were previously easy to miss, including `UiArrowButton`, `UiSeparatorText`, `UiBullet`, `UiInputDouble`, `UiNumericField`, `UiNumericVector`, `UiSliderVector`, empty-state list/combo/list-view paths, angled-header tables, explicit `UiScrollPanel`, weighted/spanning `UiGrid`, and retained layout alignment variants.
+The Widgets layout now also docks a dedicated `Widget Gallery` window beside the original `Widgets` tree. That gallery is where the option-level gap-filling lives for controls that were previously easy to miss, including `UiArrowButton`, `UiSeparatorText`, `UiBullet`, `UiInputDouble`, `UiNumericField`, `UiNumericVector`, `UiSliderVector`, empty-state list/combo/list-view paths, a dedicated Tables 2.0 demo (resize/reorder/hide/scroll/custom headers/rich cells), explicit `UiScrollPanel`, weighted/spanning `UiGrid`, and retained layout alignment variants.
 
 Exhaustive demo coverage is now a tracked requirement, not an informal goal:
 - `tools/parity/WIDGET_DEMO_COVERAGE.MD` is the canonical checklist for which widgets, options, modes, and interaction paths are visibly demonstrated in `OpenControls.Examples`.
@@ -138,8 +138,8 @@ Planned expansion:
 - `UiInputState` also carries double-click state, drag origins/thresholds, and horizontal wheel deltas for richer host input plumbing.
 - The shipped example and editor hosts now generate held-key repeat for repeatable navigation/editing keys like arrows, backspace/delete, home/end, and page up/down.
 - Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented, radial), list box, combo box, selectable, color button, and separator controls are available.
-- Table controls with column headers and selectable rows are available.
-- Table headers support angled labels and sortable columns via `UiTable.UseAngledHeaders` and `UiTable.SortSpecs`.
+- Table controls now include runtime column/view state, row selection, resize/reorder/hide, X/Y scrolling, row clipping, row-height hooks, per-cell styling hooks, and richer header/cell content via `UiTableCell`, `UiTableColumnState`, and `UiTableViewState`.
+- Table headers support angled labels, sortable columns via `UiTable.SortSpecs`, and built-in header context menus for hide/show/reset workflows.
 - Plotting panel control supports axes, tick labels, grid lines, and zoom/pan input.
 - Waveform control renders sample buffers with min/max or line modes and an optional zero line.
 - Grid layout control assigns children to rows/columns with spacing and padding.

@@ -11,19 +11,31 @@ public sealed class UiTableColumn
         Header = header;
         Width = width;
         Weight = weight;
+        WidthMode = width > 0 ? UiTableColumnWidthMode.Fixed : UiTableColumnWidthMode.Stretch;
     }
 
     public string Header { get; set; } = string.Empty;
     public int Width { get; set; }
     public int MinWidth { get; set; } = 40;
     public float Weight { get; set; } = 1f;
+    public UiTableColumnWidthMode WidthMode { get; set; } = UiTableColumnWidthMode.Stretch;
     public bool AllowSort { get; set; } = true;
+    public bool AllowResize { get; set; } = true;
+    public bool AllowReorder { get; set; } = true;
+    public bool AllowHide { get; set; } = true;
+    public bool VisibleByDefault { get; set; } = true;
     public UiTableSortDirection DefaultSortDirection { get; set; } = UiTableSortDirection.Ascending;
     public int UserId { get; set; } = -1;
+    public UiElement? HeaderContent { get; set; }
+    public UiColor? HeaderBackground { get; set; }
+    public UiColor? HeaderTextColor { get; set; }
 }
 
 public sealed class UiTableRow
 {
+    private IReadOnlyList<string> _cells = Array.Empty<string>();
+    private IReadOnlyList<UiTableCell> _cellItems = Array.Empty<UiTableCell>();
+
     public UiTableRow()
     {
     }
@@ -33,19 +45,110 @@ public sealed class UiTableRow
         Cells = cells ?? Array.Empty<string>();
     }
 
-    public IReadOnlyList<string> Cells { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> Cells
+    {
+        get => _cells;
+        set
+        {
+            _cells = value ?? Array.Empty<string>();
+            UiTableCell[] cellItems = new UiTableCell[_cells.Count];
+            for (int i = 0; i < _cells.Count; i++)
+            {
+                cellItems[i] = new UiTableCell(_cells[i] ?? string.Empty);
+            }
+
+            _cellItems = cellItems;
+        }
+    }
+
+    public IReadOnlyList<UiTableCell> CellItems
+    {
+        get => _cellItems;
+        set
+        {
+            _cellItems = value ?? Array.Empty<UiTableCell>();
+            string[] cells = new string[_cellItems.Count];
+            for (int i = 0; i < _cellItems.Count; i++)
+            {
+                cells[i] = _cellItems[i]?.Text ?? string.Empty;
+            }
+
+            _cells = cells;
+        }
+    }
+
     public UiColor? Background { get; set; }
     public UiColor? TextColor { get; set; }
+    public int Height { get; set; }
+
+    internal UiTableCell? GetCell(int columnIndex)
+    {
+        return columnIndex >= 0 && columnIndex < _cellItems.Count ? _cellItems[columnIndex] : null;
+    }
+
+    internal string GetCellText(int columnIndex)
+    {
+        if (columnIndex >= 0 && columnIndex < _cellItems.Count)
+        {
+            return _cellItems[columnIndex]?.Text ?? string.Empty;
+        }
+
+        return string.Empty;
+    }
 }
 
 public sealed class UiTable : UiElement
 {
+    private sealed class ContentPlacement
+    {
+        public required UiElement Element { get; init; }
+        public required UiRect Bounds { get; init; }
+        public required UiRect ClipBounds { get; init; }
+    }
+
+    private readonly int[] _singleSelection = new int[1];
+    private readonly List<UiTableSortSpec> _sortSpecs = new();
+    private readonly List<UiTableColumnState> _columnStates = new();
+    private readonly List<int> _visibleColumnModelIndices = new();
+    private readonly List<int> _visibleColumnWidths = new();
+    private readonly List<UiRect> _visibleColumnRects = new();
+    private readonly List<int> _rowHeights = new();
+    private readonly List<int> _rowTops = new();
+    private readonly List<ContentPlacement> _headerPlacements = new();
+    private readonly List<ContentPlacement> _cellPlacements = new();
+    private readonly UiTableViewState _viewState = new();
+    private UiSelectionModel? _selectionModel;
     private int _selectedIndex = -1;
     private int _hoverIndex = -1;
     private bool _focused;
-    private readonly int[] _singleSelection = new int[1];
-    private UiSelectionModel? _selectionModel;
-    private readonly List<UiTableSortSpec> _sortSpecs = new();
+    private int _scrollX;
+    private int _scrollY;
+    private UiPoint _contentSize;
+    private UiPoint _viewportSize;
+    private UiRect _headerViewport;
+    private UiRect _bodyViewport;
+    private bool _showVertical;
+    private bool _showHorizontal;
+    private bool _draggingVertical;
+    private bool _draggingHorizontal;
+    private bool _hoverVerticalThumb;
+    private bool _hoverHorizontalThumb;
+    private int _dragStartMouse;
+    private int _dragStartScroll;
+    private int _pressedHeaderModelIndex = -1;
+    private UiPoint _pressedHeaderPoint;
+    private bool _pressedHeaderMultiSort;
+    private int _resizingColumnModelIndex = -1;
+    private int _resizeStartMouseX;
+    private int _resizeStartWidth;
+    private int _reorderingColumnModelIndex = -1;
+    private int _reorderInsertDisplayIndex = -1;
+    private int _visibleRowStartIndex = -1;
+    private int _visibleRowEndIndex = -1;
+    private bool _headerContextMenuOpen;
+    private UiRect _headerContextMenuBounds;
+    private int _hoverHeaderMenuEntry = -1;
+    private bool _suppressHeaderMenuClick;
 
     public List<UiTableColumn> Columns { get; } = new();
     public IReadOnlyList<UiTableRow> Rows { get; set; } = Array.Empty<UiTableRow>();
@@ -63,10 +166,27 @@ public sealed class UiTable : UiElement
     public bool AllowSorting { get; set; } = true;
     public bool AllowMultiSort { get; set; }
     public bool AllowNoSort { get; set; }
+    public bool AllowColumnResize { get; set; } = true;
+    public bool AllowColumnReorder { get; set; } = true;
+    public bool AllowColumnHiding { get; set; } = true;
+    public bool EnableHeaderContextMenu { get; set; } = true;
     public int SortIndicatorPadding { get; set; } = 4;
     public bool UseAngledHeaders { get; set; }
     public int AngledHeaderHeight { get; set; } = 48;
     public int AngledHeaderStep { get; set; }
+    public UiScrollbarVisibility HorizontalScrollbar { get; set; } = UiScrollbarVisibility.Auto;
+    public UiScrollbarVisibility VerticalScrollbar { get; set; } = UiScrollbarVisibility.Auto;
+    public int ScrollbarThickness { get; set; } = 12;
+    public int ScrollbarPadding { get; set; } = 2;
+    public int MinThumbSize { get; set; } = 12;
+    public int ScrollWheelStep { get; set; } = 40;
+    public int ResizeHandleWidth { get; set; } = 6;
+    public int HeaderContextMenuWidth { get; set; } = 180;
+    public int HeaderContextMenuItemHeight { get; set; } = 24;
+    public int ReorderIndicatorThickness { get; set; } = 2;
+    public Func<int, UiTableRow, int>? RowHeightSelector { get; set; }
+    public Func<UiTableCellContext, UiColor?>? CellBackgroundSelector { get; set; }
+    public Func<UiTableCellContext, UiColor?>? CellTextColorSelector { get; set; }
 
     public UiColor Background { get; set; } = new UiColor(24, 28, 38);
     public UiColor Border { get; set; } = new UiColor(60, 70, 90);
@@ -79,6 +199,16 @@ public sealed class UiTable : UiElement
     public UiColor RowSelectedBackground { get; set; } = new UiColor(70, 80, 100);
     public UiColor TextColor { get; set; } = UiColor.White;
     public UiColor SelectedTextColor { get; set; } = UiColor.White;
+    public UiColor ScrollbarTrack { get; set; } = new UiColor(20, 24, 34);
+    public UiColor ScrollbarBorder { get; set; } = new UiColor(60, 70, 90);
+    public UiColor ScrollbarThumb { get; set; } = new UiColor(70, 80, 100);
+    public UiColor ScrollbarThumbHover { get; set; } = new UiColor(90, 110, 140);
+    public UiColor HeaderMenuBackground { get; set; } = new UiColor(24, 28, 38);
+    public UiColor HeaderMenuBorder { get; set; } = new UiColor(70, 80, 100);
+    public UiColor HeaderMenuHoverBackground { get; set; } = new UiColor(36, 42, 58);
+    public UiColor HeaderMenuTextColor { get; set; } = UiColor.White;
+    public UiColor HeaderMenuCheckColor { get; set; } = new UiColor(120, 180, 220);
+    public UiColor ReorderIndicatorColor { get; set; } = new UiColor(120, 180, 220);
     public int CornerRadius { get; set; }
 
     public UiSelectionModel? SelectionModel
@@ -150,11 +280,68 @@ public sealed class UiTable : UiElement
     }
 
     public IReadOnlyList<UiTableSortSpec> SortSpecs => _sortSpecs;
+    public IReadOnlyList<UiTableColumnState> ColumnStates
+    {
+        get
+        {
+            EnsureColumnStates();
+            return _columnStates;
+        }
+    }
+
+    public UiPoint ContentSize => _contentSize;
+    public UiRect ViewportBounds => _bodyViewport;
+    public UiTableViewState ViewState => _viewState;
+    public int ScrollX
+    {
+        get => _scrollX;
+        set => _scrollX = value;
+    }
+
+    public int ScrollY
+    {
+        get => _scrollY;
+        set => _scrollY = value;
+    }
+
+    public UiPoint ScrollOffset
+    {
+        get => new UiPoint(_scrollX, _scrollY);
+        set
+        {
+            _scrollX = value.X;
+            _scrollY = value.Y;
+        }
+    }
+
+    public int FirstVisibleRowIndex => _visibleRowStartIndex;
+    public int LastVisibleRowIndex => _visibleRowEndIndex;
 
     public event Action<int>? SelectionChanged;
     public event Action? SortSpecsChanged;
+    public event Action? ColumnStatesChanged;
+    public event Action? ViewStateChanged;
 
     public override bool IsFocusable => true;
+    public override bool CapturesPointerInput => true;
+
+    public UiTableColumnState GetColumnState(int columnIndex)
+    {
+        EnsureColumnStates();
+        if (columnIndex < 0 || columnIndex >= _columnStates.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(columnIndex));
+        }
+
+        return _columnStates[columnIndex];
+    }
+
+    public void ResetColumnStates()
+    {
+        _columnStates.Clear();
+        EnsureColumnStates();
+        OnColumnStatesChanged();
+    }
 
     public override void Update(UiUpdateContext context)
     {
@@ -164,66 +351,39 @@ public sealed class UiTable : UiElement
         }
 
         _selectionModel?.SetItemCount(Rows.Count);
+        EnsureColumnStates();
         ValidateSortSpecs();
+        RefreshLayout();
 
         UiInputState input = context.Input;
-        bool shift = input.ShiftDown;
-        bool ctrl = input.CtrlDown;
+        UiElement? contentHit = HitTestPlacedContent(input.MousePosition);
+        bool pointerHandledByMenu = UpdateHeaderContextMenu(input);
+        bool pointerHandledByScrollbars = UpdateScrollbars(input, pointerHandledByMenu);
 
-        _hoverIndex = GetRowIndexAtPoint(input.MousePosition);
-
-        bool clicked = input.LeftClicked && Bounds.Contains(input.MousePosition);
-        int headerHeight = ShowHeader ? GetHeaderHeight() : 0;
-        bool clickedHeader = clicked && ShowHeader && input.MousePosition.Y < Bounds.Y + headerHeight;
-
-        if (clicked)
+        if (!pointerHandledByMenu)
         {
-            context.Focus.RequestFocus(this);
-            if (clickedHeader)
-            {
-                HandleHeaderClick(input.MousePosition, shift || ctrl);
-            }
-            else if (_hoverIndex >= 0 && _hoverIndex < Rows.Count)
-            {
-                ApplySelection(_hoverIndex, shift, ctrl);
-            }
-            else if (AllowDeselect)
-            {
-                if (_selectionModel != null)
-                {
-                    _selectionModel.Clear();
-                }
-                else
-                {
-                    SetSelectedIndex(-1);
-                }
-            }
+            HandleWheelScrolling(input);
+        }
+
+        _hoverIndex = pointerHandledByMenu ? -1 : GetRowIndexAtPoint(input.MousePosition);
+
+        if (!pointerHandledByMenu)
+        {
+            HandleHeaderInteractions(context, input, contentHit, pointerHandledByScrollbars);
+            HandleBodyInteractions(context, input, contentHit, pointerHandledByScrollbars);
+        }
+        else
+        {
+            ClearHeaderPressState();
         }
 
         if (_focused)
         {
-            if (input.Navigation.MoveUp)
-            {
-                MoveSelection(-1, shift, ctrl);
-            }
-
-            if (input.Navigation.MoveDown)
-            {
-                MoveSelection(1, shift, ctrl);
-            }
-
-            if (input.Navigation.Home)
-            {
-                ApplySelection(Rows.Count > 0 ? 0 : -1, shift, ctrl);
-            }
-
-            if (input.Navigation.End)
-            {
-                ApplySelection(Rows.Count > 0 ? Rows.Count - 1 : -1, shift, ctrl);
-            }
+            HandleKeyboardNavigation(input);
         }
 
-        base.Update(context);
+        RefreshLayout();
+        UpdatePlacedContent(context);
     }
 
     public override void Render(UiRenderContext context)
@@ -233,6 +393,8 @@ public sealed class UiTable : UiElement
             return;
         }
 
+        RefreshLayout();
+
         UiFont font = ResolveFont(context.DefaultFont);
         UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, Background);
         if (Border.A > 0)
@@ -240,134 +402,125 @@ public sealed class UiTable : UiElement
             UiRenderHelpers.DrawRectRounded(context.Renderer, Bounds, CornerRadius, Border, 1);
         }
 
-        int columnCount = Columns.Count;
-        if (columnCount == 0)
+        if (Columns.Count == 0 || _visibleColumnModelIndices.Count == 0)
         {
-            base.Render(context);
+            DrawScrollbars(context);
             return;
         }
 
-        int headerHeight = ShowHeader ? GetHeaderHeight() : 0;
-        int rowHeight = Math.Max(1, RowHeight);
-        int[] columnWidths = BuildColumnWidths();
-        int rowAreaHeight = Math.Max(0, Bounds.Height - headerHeight);
-        int maxRows = rowHeight > 0 ? rowAreaHeight / rowHeight : 0;
-        int rowCount = Math.Min(Rows.Count, maxRows);
+        int headerHeight = ShowHeader ? _headerViewport.Height : 0;
         int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         int headerTextHeight = context.Renderer.MeasureTextHeight(HeaderTextScale, font);
 
         context.Renderer.PushClip(Bounds);
 
-        if (ShowHeader)
+        if (ShowHeader && headerHeight > 0)
         {
             UiRect headerRect = new UiRect(Bounds.X, Bounds.Y, Bounds.Width, headerHeight);
             if (HeaderBackground.A > 0)
             {
                 context.Renderer.FillRect(headerRect, HeaderBackground);
             }
-        }
 
-        int rowY = Bounds.Y + headerHeight;
-        for (int row = 0; row < rowCount; row++)
-        {
-            UiRect rowRect = new UiRect(Bounds.X, rowY, Bounds.Width, rowHeight);
-            UiTableRow data = Rows[row];
-            UiColor fill = GetRowFill(row, data);
-            if (fill.A > 0)
+            context.Renderer.PushClip(_headerViewport);
+            for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
             {
-                context.Renderer.FillRect(rowRect, fill);
-            }
-
-            rowY += rowHeight;
-        }
-
-        if (ShowGrid)
-        {
-            int x = Bounds.X;
-            for (int col = 0; col < columnCount - 1; col++)
-            {
-                x += columnWidths[col];
-                context.Renderer.FillRect(new UiRect(x, Bounds.Y, 1, Bounds.Height), GridColor);
-            }
-
-            int lineY = Bounds.Y + headerHeight;
-            if (ShowHeader && headerHeight > 0 && lineY < Bounds.Bottom)
-            {
-                context.Renderer.FillRect(new UiRect(Bounds.X, lineY, Bounds.Width, 1), GridColor);
-            }
-
-            for (int row = 0; row < rowCount; row++)
-            {
-                lineY = Bounds.Y + headerHeight + (row + 1) * rowHeight;
-                if (lineY >= Bounds.Bottom)
+                int modelIndex = _visibleColumnModelIndices[slot];
+                UiTableColumn column = Columns[modelIndex];
+                UiRect cellRect = _visibleColumnRects[slot];
+                if (column.HeaderBackground is UiColor headerFill && headerFill.A > 0)
                 {
-                    break;
+                    context.Renderer.FillRect(cellRect, headerFill);
                 }
 
-                context.Renderer.FillRect(new UiRect(Bounds.X, lineY, Bounds.Width, 1), GridColor);
-            }
-        }
-
-        if (ShowHeader)
-        {
-            int headerY = Bounds.Y + (headerHeight - headerTextHeight) / 2;
-            int x = Bounds.X;
-            for (int col = 0; col < columnCount; col++)
-            {
-                UiTableColumn column = Columns[col];
-                UiRect cellRect = new UiRect(x, Bounds.Y, columnWidths[col], headerHeight);
-                context.Renderer.PushClip(cellRect);
-                if (UseAngledHeaders)
+                if (column.HeaderContent == null)
                 {
-                    DrawAngledHeaderText(context.Renderer, column.Header, cellRect, HeaderTextColor, HeaderTextScale, font);
-                }
-                else
-                {
-                    UiPoint textPoint = new UiPoint(x + CellPadding, headerY);
-                    if (HeaderTextBold)
-                    {
-                        UiRenderHelpers.DrawTextBold(context.Renderer, column.Header, textPoint, HeaderTextColor, HeaderTextScale, font);
-                    }
-                    else
-                    {
-                        context.Renderer.DrawText(column.Header, textPoint, HeaderTextColor, HeaderTextScale, font);
-                    }
+                    DrawHeaderText(context, font, headerTextHeight, column, cellRect);
                 }
 
-                UiTableSortSpec? sortSpec = GetSortSpec(col);
+                UiTableSortSpec? sortSpec = GetSortSpec(modelIndex);
                 if (sortSpec != null)
                 {
                     DrawSortIndicator(context, cellRect, sortSpec, font);
                 }
-                context.Renderer.PopClip();
-                x += columnWidths[col];
             }
+
+            RenderPlacedContent(context, _headerPlacements, overlay: false);
+            context.Renderer.PopClip();
         }
 
-        rowY = Bounds.Y + headerHeight;
-        for (int row = 0; row < rowCount; row++)
+        if (_bodyViewport.Width > 0 && _bodyViewport.Height > 0)
         {
-            UiTableRow data = Rows[row];
-            int textY = rowY + (rowHeight - textHeight) / 2;
-            UiColor rowTextColor = GetRowTextColor(row, data);
-            int x = Bounds.X;
-            IReadOnlyList<string> cells = data.Cells;
-
-            for (int col = 0; col < columnCount; col++)
+            context.Renderer.PushClip(_bodyViewport);
+            DrawRows(context, font, textHeight);
+            if (ShowGrid)
             {
-                string cellText = col < cells.Count ? cells[col] : string.Empty;
-                UiRect cellRect = new UiRect(x, rowY, columnWidths[col], rowHeight);
-                context.Renderer.PushClip(cellRect);
-                context.Renderer.DrawText(cellText, new UiPoint(x + CellPadding, textY), rowTextColor, TextScale, font);
-                context.Renderer.PopClip();
-                x += columnWidths[col];
+                DrawGridLines(context);
             }
 
-            rowY += rowHeight;
+            RenderPlacedContent(context, _cellPlacements, overlay: false);
+            context.Renderer.PopClip();
         }
 
         context.Renderer.PopClip();
-        base.Render(context);
+
+        DrawScrollbars(context);
+    }
+
+    public override void RenderOverlay(UiRenderContext context)
+    {
+        if (!Visible)
+        {
+            return;
+        }
+
+        RefreshLayout();
+
+        if (_headerPlacements.Count > 0)
+        {
+            RenderPlacedContent(context, _headerPlacements, overlay: true);
+        }
+
+        if (_cellPlacements.Count > 0)
+        {
+            RenderPlacedContent(context, _cellPlacements, overlay: true);
+        }
+
+        if (_reorderingColumnModelIndex >= 0)
+        {
+            DrawReorderIndicator(context);
+        }
+
+        if (_headerContextMenuOpen)
+        {
+            DrawHeaderContextMenu(context);
+        }
+
+        if (CornerRadius > 0 && Background.A > 0)
+        {
+            UiRenderHelpers.MaskRectRounded(context.Renderer, Bounds, CornerRadius, Background);
+        }
+    }
+
+    public override UiElement? HitTest(UiPoint point)
+    {
+        if (!Visible)
+        {
+            return null;
+        }
+
+        if (_headerContextMenuOpen && _headerContextMenuBounds.Contains(point))
+        {
+            return this;
+        }
+
+        if (!Bounds.Contains(point))
+        {
+            return null;
+        }
+
+        UiElement? contentHit = HitTestPlacedContent(point);
+        return contentHit ?? this;
     }
 
     protected internal override void OnFocusGained()
@@ -378,6 +531,709 @@ public sealed class UiTable : UiElement
     protected internal override void OnFocusLost()
     {
         _focused = false;
+        _draggingVertical = false;
+        _draggingHorizontal = false;
+        _resizingColumnModelIndex = -1;
+        _reorderingColumnModelIndex = -1;
+        ClearHeaderPressState();
+    }
+
+    protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        if (_resizingColumnModelIndex >= 0 || GetResizeHandleColumnIndexAtPoint(input.MousePosition) >= 0)
+        {
+            cursor = UiMouseCursor.ResizeEW;
+            return true;
+        }
+
+        cursor = UiMouseCursor.Arrow;
+        return false;
+    }
+
+    protected internal override UiItemStatusFlags GetItemStatus(UiContext context, UiInputState input, bool focused, bool hovered)
+    {
+        UiItemStatusFlags status = base.GetItemStatus(context, input, focused, hovered);
+        if (_headerContextMenuOpen || _draggingVertical || _draggingHorizontal || _resizingColumnModelIndex >= 0 || _reorderingColumnModelIndex >= 0)
+        {
+            status |= UiItemStatusFlags.Active;
+        }
+
+        return status;
+    }
+
+    private void EnsureColumnStates()
+    {
+        if (_columnStates.Count > Columns.Count)
+        {
+            _columnStates.RemoveRange(Columns.Count, _columnStates.Count - Columns.Count);
+        }
+
+        for (int i = _columnStates.Count; i < Columns.Count; i++)
+        {
+            UiTableColumn column = Columns[i];
+            UiTableColumnState state = new(i)
+            {
+                DisplayIndex = i,
+                WidthMode = column.WidthMode == UiTableColumnWidthMode.Fixed || column.Width > 0
+                    ? UiTableColumnWidthMode.Fixed
+                    : UiTableColumnWidthMode.Stretch,
+                Width = column.Width > 0 ? Math.Max(column.MinWidth, column.Width) : Math.Max(column.MinWidth, 0),
+                StretchWeight = column.Weight > 0f ? column.Weight : 1f,
+                Visible = column.VisibleByDefault
+            };
+            _columnStates.Add(state);
+        }
+
+        NormalizeColumnStates();
+    }
+
+    private void NormalizeColumnStates()
+    {
+        if (_columnStates.Count == 0)
+        {
+            return;
+        }
+
+        List<UiTableColumnState> ordered = new(_columnStates);
+        ordered.Sort((left, right) =>
+        {
+            int order = left.DisplayIndex.CompareTo(right.DisplayIndex);
+            return order != 0 ? order : left.ColumnIndex.CompareTo(right.ColumnIndex);
+        });
+
+        for (int i = 0; i < ordered.Count; i++)
+        {
+            ordered[i].DisplayIndex = i;
+        }
+    }
+
+    private void RefreshLayout()
+    {
+        BuildVisibleColumnLayout();
+        BuildRowMetrics();
+        ResolveViewportLayout();
+        ClampScrollOffset();
+        ResolveVisibleRows();
+        UpdateViewState();
+        BuildContentPlacements();
+    }
+
+    private void BuildVisibleColumnLayout()
+    {
+        _visibleColumnModelIndices.Clear();
+        for (int i = 0; i < _columnStates.Count; i++)
+        {
+            if (_columnStates[i].Visible)
+            {
+                _visibleColumnModelIndices.Add(i);
+            }
+        }
+
+        _visibleColumnModelIndices.Sort((left, right) =>
+        {
+            int order = _columnStates[left].DisplayIndex.CompareTo(_columnStates[right].DisplayIndex);
+            return order != 0 ? order : left.CompareTo(right);
+        });
+    }
+
+    private void BuildRowMetrics()
+    {
+        _rowHeights.Clear();
+        _rowTops.Clear();
+
+        int top = 0;
+        for (int i = 0; i < Rows.Count; i++)
+        {
+            UiTableRow row = Rows[i];
+            int height = row.Height > 0
+                ? row.Height
+                : RowHeightSelector?.Invoke(i, row) ?? RowHeight;
+            height = Math.Max(1, height);
+            _rowHeights.Add(height);
+            _rowTops.Add(top);
+            top += height;
+        }
+    }
+
+    private void ResolveViewportLayout()
+    {
+        int tableWidth = Math.Max(0, Bounds.Width);
+        int tableHeight = Math.Max(0, Bounds.Height);
+        int headerHeight = ShowHeader ? GetHeaderHeight() : 0;
+        int thickness = Math.Max(1, ScrollbarThickness);
+        int contentHeight = _rowTops.Count == 0 ? 0 : _rowTops[^1] + _rowHeights[^1];
+
+        bool showH = HorizontalScrollbar == UiScrollbarVisibility.Always;
+        bool showV = VerticalScrollbar == UiScrollbarVisibility.Always;
+        bool autoH = HorizontalScrollbar == UiScrollbarVisibility.Auto;
+        bool autoV = VerticalScrollbar == UiScrollbarVisibility.Auto;
+
+        int viewportWidth = tableWidth;
+        int viewportHeight = Math.Max(0, tableHeight - headerHeight);
+
+        int contentWidth = MeasureContentWidth(viewportWidth);
+
+        if (autoH && contentWidth > viewportWidth)
+        {
+            showH = true;
+        }
+
+        if (showV)
+        {
+            viewportWidth = Math.Max(0, tableWidth - thickness);
+            contentWidth = MeasureContentWidth(viewportWidth);
+        }
+
+        if (showH)
+        {
+            viewportHeight = Math.Max(0, tableHeight - headerHeight - thickness);
+        }
+
+        if (autoV && contentHeight > viewportHeight)
+        {
+            showV = true;
+            viewportWidth = Math.Max(0, tableWidth - thickness);
+            contentWidth = MeasureContentWidth(viewportWidth);
+        }
+
+        if (autoH && !showH && contentWidth > viewportWidth)
+        {
+            showH = true;
+            viewportHeight = Math.Max(0, tableHeight - headerHeight - thickness);
+        }
+
+        if (autoV && !showV && contentHeight > viewportHeight)
+        {
+            showV = true;
+            viewportWidth = Math.Max(0, tableWidth - thickness);
+            contentWidth = MeasureContentWidth(viewportWidth);
+        }
+
+        _showHorizontal = showH;
+        _showVertical = showV;
+        _viewportSize = new UiPoint(viewportWidth, viewportHeight);
+        _contentSize = new UiPoint(contentWidth, Math.Max(0, contentHeight));
+        _headerViewport = new UiRect(Bounds.X, Bounds.Y, viewportWidth, headerHeight);
+        _bodyViewport = new UiRect(Bounds.X, Bounds.Y + headerHeight, viewportWidth, viewportHeight);
+
+        BuildVisibleColumnWidths(viewportWidth);
+    }
+
+    private int MeasureContentWidth(int viewportWidth)
+    {
+        if (_visibleColumnModelIndices.Count == 0)
+        {
+            return 0;
+        }
+
+        int total = 0;
+        int fixedWidth = 0;
+        float totalStretchWeight = 0f;
+        int stretchCount = 0;
+
+        for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
+        {
+            int modelIndex = _visibleColumnModelIndices[slot];
+            UiTableColumn column = Columns[modelIndex];
+            UiTableColumnState state = _columnStates[modelIndex];
+            if (state.WidthMode == UiTableColumnWidthMode.Fixed)
+            {
+                fixedWidth += Math.Max(column.MinWidth, state.Width > 0 ? state.Width : column.Width);
+            }
+            else
+            {
+                totalStretchWeight += state.StretchWeight > 0f ? state.StretchWeight : 1f;
+                stretchCount++;
+            }
+        }
+
+        total += fixedWidth;
+        if (stretchCount > 0)
+        {
+            int remaining = Math.Max(0, viewportWidth - fixedWidth);
+            for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
+            {
+                int modelIndex = _visibleColumnModelIndices[slot];
+                UiTableColumn column = Columns[modelIndex];
+                UiTableColumnState state = _columnStates[modelIndex];
+                if (state.WidthMode == UiTableColumnWidthMode.Fixed)
+                {
+                    continue;
+                }
+
+                float weight = state.StretchWeight > 0f ? state.StretchWeight : 1f;
+                int width = totalStretchWeight > 0f
+                    ? (int)Math.Round(remaining * (weight / totalStretchWeight))
+                    : remaining / stretchCount;
+                total += Math.Max(column.MinWidth, width);
+            }
+        }
+
+        return total;
+    }
+
+    private void BuildVisibleColumnWidths(int viewportWidth)
+    {
+        _visibleColumnWidths.Clear();
+        _visibleColumnRects.Clear();
+
+        if (_visibleColumnModelIndices.Count == 0)
+        {
+            return;
+        }
+
+        int fixedWidth = 0;
+        float totalStretchWeight = 0f;
+        int stretchCount = 0;
+
+        for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
+        {
+            int modelIndex = _visibleColumnModelIndices[slot];
+            UiTableColumn column = Columns[modelIndex];
+            UiTableColumnState state = _columnStates[modelIndex];
+            if (state.WidthMode == UiTableColumnWidthMode.Fixed)
+            {
+                fixedWidth += Math.Max(column.MinWidth, state.Width > 0 ? state.Width : column.Width);
+            }
+            else
+            {
+                totalStretchWeight += state.StretchWeight > 0f ? state.StretchWeight : 1f;
+                stretchCount++;
+            }
+        }
+
+        int remaining = Math.Max(0, viewportWidth - fixedWidth);
+        for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
+        {
+            int modelIndex = _visibleColumnModelIndices[slot];
+            UiTableColumn column = Columns[modelIndex];
+            UiTableColumnState state = _columnStates[modelIndex];
+            int width;
+            if (state.WidthMode == UiTableColumnWidthMode.Fixed)
+            {
+                width = Math.Max(column.MinWidth, state.Width > 0 ? state.Width : column.Width);
+            }
+            else
+            {
+                float weight = state.StretchWeight > 0f ? state.StretchWeight : 1f;
+                width = totalStretchWeight > 0f
+                    ? (int)Math.Round(remaining * (weight / totalStretchWeight))
+                    : remaining / Math.Max(1, stretchCount);
+                width = Math.Max(column.MinWidth, width);
+            }
+
+            _visibleColumnWidths.Add(width);
+        }
+
+        int x = _bodyViewport.X - _scrollX;
+        for (int slot = 0; slot < _visibleColumnWidths.Count; slot++)
+        {
+            int width = _visibleColumnWidths[slot];
+            _visibleColumnRects.Add(new UiRect(x, Bounds.Y, width, ShowHeader ? _headerViewport.Height : 0));
+            x += width;
+        }
+    }
+
+    private void ClampScrollOffset()
+    {
+        int maxX = Math.Max(0, _contentSize.X - _viewportSize.X);
+        int maxY = Math.Max(0, _contentSize.Y - _viewportSize.Y);
+        _scrollX = Math.Clamp(_scrollX, 0, maxX);
+        _scrollY = Math.Clamp(_scrollY, 0, maxY);
+    }
+
+    private void ResolveVisibleRows()
+    {
+        _visibleRowStartIndex = -1;
+        _visibleRowEndIndex = -1;
+
+        if (_bodyViewport.Height <= 0 || Rows.Count == 0)
+        {
+            return;
+        }
+
+        int top = _scrollY;
+        int bottom = _scrollY + _bodyViewport.Height;
+        int start = 0;
+        while (start < Rows.Count && _rowTops[start] + _rowHeights[start] <= top)
+        {
+            start++;
+        }
+
+        if (start >= Rows.Count)
+        {
+            return;
+        }
+
+        int endExclusive = start;
+        while (endExclusive < Rows.Count && _rowTops[endExclusive] < bottom)
+        {
+            endExclusive++;
+        }
+
+        _visibleRowStartIndex = start;
+        _visibleRowEndIndex = Math.Max(start, endExclusive - 1);
+    }
+
+    private void UpdateViewState()
+    {
+        UiPoint previousContentSize = _viewState.ContentSize;
+        UiPoint previousViewportSize = _viewState.ViewportSize;
+        int previousScrollX = _viewState.ScrollX;
+        int previousScrollY = _viewState.ScrollY;
+        int previousFirst = _viewState.FirstVisibleRowIndex;
+        int previousLast = _viewState.LastVisibleRowIndex;
+
+        _viewState.ContentSize = _contentSize;
+        _viewState.ViewportSize = _viewportSize;
+        _viewState.HeaderViewportBounds = _headerViewport;
+        _viewState.BodyViewportBounds = _bodyViewport;
+        _viewState.ScrollX = _scrollX;
+        _viewState.ScrollY = _scrollY;
+        _viewState.FirstVisibleRowIndex = _visibleRowStartIndex;
+        _viewState.LastVisibleRowIndex = _visibleRowEndIndex;
+
+        if (previousContentSize.X != _viewState.ContentSize.X
+            || previousContentSize.Y != _viewState.ContentSize.Y
+            || previousViewportSize.X != _viewState.ViewportSize.X
+            || previousViewportSize.Y != _viewState.ViewportSize.Y
+            || previousScrollX != _viewState.ScrollX
+            || previousScrollY != _viewState.ScrollY
+            || previousFirst != _viewState.FirstVisibleRowIndex
+            || previousLast != _viewState.LastVisibleRowIndex)
+        {
+            ViewStateChanged?.Invoke();
+        }
+    }
+
+    private void BuildContentPlacements()
+    {
+        _headerPlacements.Clear();
+        _cellPlacements.Clear();
+
+        if (ShowHeader && _headerViewport.Width > 0 && _headerViewport.Height > 0)
+        {
+            for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
+            {
+                int modelIndex = _visibleColumnModelIndices[slot];
+                UiTableColumn column = Columns[modelIndex];
+                UiElement? content = column.HeaderContent;
+                if (content == null)
+                {
+                    continue;
+                }
+
+                UiRect cellRect = _visibleColumnRects[slot];
+                UiRect contentRect = InsetRect(cellRect, Math.Max(0, CellPadding));
+                UiRect clip = IntersectRect(contentRect, _headerViewport);
+                if (clip.Width <= 0 || clip.Height <= 0)
+                {
+                    continue;
+                }
+
+                content.Bounds = new UiRect(0, 0, Math.Max(0, contentRect.Width), Math.Max(0, contentRect.Height));
+                _headerPlacements.Add(new ContentPlacement
+                {
+                    Element = content,
+                    Bounds = contentRect,
+                    ClipBounds = clip
+                });
+            }
+        }
+
+        if (_visibleRowStartIndex < 0 || _visibleRowEndIndex < 0)
+        {
+            return;
+        }
+
+        for (int rowIndex = _visibleRowStartIndex; rowIndex <= _visibleRowEndIndex; rowIndex++)
+        {
+            UiTableRow row = Rows[rowIndex];
+            int rowHeight = _rowHeights[rowIndex];
+            int rowY = _bodyViewport.Y + _rowTops[rowIndex] - _scrollY;
+            for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
+            {
+                int modelIndex = _visibleColumnModelIndices[slot];
+                UiTableCell? cell = row.GetCell(modelIndex);
+                UiElement? content = cell?.Content;
+                if (content == null)
+                {
+                    continue;
+                }
+
+                UiRect columnRect = _visibleColumnRects[slot];
+                UiRect cellRect = new UiRect(columnRect.X, rowY, columnRect.Width, rowHeight);
+                int padding = cell?.Padding >= 0 ? cell.Padding : CellPadding;
+                UiRect contentRect = InsetRect(cellRect, Math.Max(0, padding));
+                UiRect clip = IntersectRect(contentRect, _bodyViewport);
+                if (clip.Width <= 0 || clip.Height <= 0)
+                {
+                    continue;
+                }
+
+                content.Bounds = new UiRect(0, 0, Math.Max(0, contentRect.Width), Math.Max(0, contentRect.Height));
+                _cellPlacements.Add(new ContentPlacement
+                {
+                    Element = content,
+                    Bounds = contentRect,
+                    ClipBounds = clip
+                });
+            }
+        }
+    }
+
+    private void UpdatePlacedContent(UiUpdateContext context)
+    {
+        for (int i = 0; i < _headerPlacements.Count; i++)
+        {
+            UpdatePlacement(_headerPlacements[i], context);
+        }
+
+        for (int i = 0; i < _cellPlacements.Count; i++)
+        {
+            UpdatePlacement(_cellPlacements[i], context);
+        }
+    }
+
+    private void UpdatePlacement(ContentPlacement placement, UiUpdateContext context)
+    {
+        UiInputState childInput = BuildPlacementInput(context.Input, placement.Bounds, placement.ClipBounds);
+        placement.Element.Update(new UiUpdateContext(
+            childInput,
+            context.Focus,
+            context.DragDrop,
+            context.DeltaSeconds,
+            context.DefaultFont,
+            context.Clipboard));
+    }
+
+    private static UiInputState BuildPlacementInput(UiInputState input, UiRect bounds, UiRect clipBounds)
+    {
+        bool useMouse = clipBounds.Contains(input.MousePosition);
+        UiPoint mouse = useMouse
+            ? new UiPoint(input.MousePosition.X - bounds.X, input.MousePosition.Y - bounds.Y)
+            : new UiPoint(int.MinValue / 4, int.MinValue / 4);
+
+        return new UiInputState
+        {
+            MousePosition = mouse,
+            ScreenMousePosition = input.ScreenMousePosition,
+            LeftDown = input.LeftDown,
+            LeftClicked = input.LeftClicked,
+            LeftDoubleClicked = input.LeftDoubleClicked,
+            LeftReleased = input.LeftReleased,
+            RightDown = input.RightDown,
+            RightClicked = input.RightClicked,
+            RightDoubleClicked = input.RightDoubleClicked,
+            RightReleased = input.RightReleased,
+            MiddleDown = input.MiddleDown,
+            MiddleClicked = input.MiddleClicked,
+            MiddleDoubleClicked = input.MiddleDoubleClicked,
+            MiddleReleased = input.MiddleReleased,
+            LeftDragOrigin = TranslatePoint(input.LeftDragOrigin, bounds.X, bounds.Y, useMouse),
+            RightDragOrigin = TranslatePoint(input.RightDragOrigin, bounds.X, bounds.Y, useMouse),
+            MiddleDragOrigin = TranslatePoint(input.MiddleDragOrigin, bounds.X, bounds.Y, useMouse),
+            DragThreshold = input.DragThreshold,
+            ShiftDown = input.ShiftDown,
+            CtrlDown = input.CtrlDown,
+            AltDown = input.AltDown,
+            SuperDown = input.SuperDown,
+            ScrollDeltaX = input.ScrollDeltaX,
+            ScrollDelta = input.ScrollDelta,
+            TextInput = input.TextInput,
+            KeysDown = input.KeysDown,
+            KeysPressed = input.KeysPressed,
+            KeysReleased = input.KeysReleased,
+            Navigation = input.Navigation
+        };
+    }
+
+    private static UiPoint? TranslatePoint(UiPoint? point, int offsetX, int offsetY, bool useMouse)
+    {
+        if (!useMouse || point is not UiPoint value)
+        {
+            return null;
+        }
+
+        return new UiPoint(value.X - offsetX, value.Y - offsetY);
+    }
+
+    private void RenderPlacedContent(UiRenderContext context, List<ContentPlacement> placements, bool overlay)
+    {
+        for (int i = 0; i < placements.Count; i++)
+        {
+            ContentPlacement placement = placements[i];
+            context.Renderer.PushClip(placement.ClipBounds);
+            UiOffsetRenderer offsetRenderer = new(context.Renderer, new UiPoint(placement.Bounds.X, placement.Bounds.Y));
+            UiRenderContext childContext = new(offsetRenderer, context.DefaultFont);
+            if (overlay)
+            {
+                placement.Element.RenderOverlay(childContext);
+            }
+            else
+            {
+                placement.Element.Render(childContext);
+            }
+
+            context.Renderer.PopClip();
+        }
+    }
+
+    private UiElement? HitTestPlacedContent(UiPoint point)
+    {
+        for (int i = _cellPlacements.Count - 1; i >= 0; i--)
+        {
+            UiElement? hit = HitTestPlacement(_cellPlacements[i], point);
+            if (hit != null)
+            {
+                return hit;
+            }
+        }
+
+        for (int i = _headerPlacements.Count - 1; i >= 0; i--)
+        {
+            UiElement? hit = HitTestPlacement(_headerPlacements[i], point);
+            if (hit != null)
+            {
+                return hit;
+            }
+        }
+
+        return null;
+    }
+
+    private static UiElement? HitTestPlacement(ContentPlacement placement, UiPoint point)
+    {
+        if (!placement.ClipBounds.Contains(point))
+        {
+            return null;
+        }
+
+        UiPoint local = new(point.X - placement.Bounds.X, point.Y - placement.Bounds.Y);
+        return placement.Element.HitTest(local);
+    }
+
+    private void DrawRows(UiRenderContext context, UiFont font, int textHeight)
+    {
+        if (_visibleRowStartIndex < 0 || _visibleRowEndIndex < 0)
+        {
+            return;
+        }
+
+        for (int rowIndex = _visibleRowStartIndex; rowIndex <= _visibleRowEndIndex; rowIndex++)
+        {
+            UiTableRow row = Rows[rowIndex];
+            int rowHeight = _rowHeights[rowIndex];
+            int rowY = _bodyViewport.Y + _rowTops[rowIndex] - _scrollY;
+            UiRect rowRect = new UiRect(_bodyViewport.X, rowY, _bodyViewport.Width, rowHeight);
+            UiColor fill = GetRowFill(rowIndex, row);
+            if (fill.A > 0)
+            {
+                context.Renderer.FillRect(rowRect, fill);
+            }
+
+            UiColor rowTextColor = GetRowTextColor(rowIndex, row);
+            int textY = rowY + (rowHeight - textHeight) / 2;
+
+            for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
+            {
+                int modelIndex = _visibleColumnModelIndices[slot];
+                UiTableColumn column = Columns[modelIndex];
+                UiRect columnRect = _visibleColumnRects[slot];
+                UiRect cellRect = new UiRect(columnRect.X, rowY, columnRect.Width, rowHeight);
+                UiTableCell? cell = row.GetCell(modelIndex);
+                UiTableCell effectiveCell = cell ?? new UiTableCell(row.GetCellText(modelIndex));
+                UiTableCellContext cellContext = new(
+                    this,
+                    row,
+                    column,
+                    effectiveCell,
+                    rowIndex,
+                    modelIndex,
+                    cellRect,
+                    IsRowSelected(rowIndex),
+                    rowIndex == _hoverIndex);
+
+                UiColor? cellFill = CellBackgroundSelector?.Invoke(cellContext) ?? cell?.Background;
+                if (cellFill.HasValue && cellFill.Value.A > 0)
+                {
+                    context.Renderer.FillRect(cellRect, cellFill.Value);
+                }
+
+                if (cell?.Content != null)
+                {
+                    continue;
+                }
+
+                UiColor textColor = CellTextColorSelector?.Invoke(cellContext) ?? cell?.TextColor ?? rowTextColor;
+                int padding = cell?.Padding >= 0 ? cell.Padding : CellPadding;
+                context.Renderer.PushClip(cellRect);
+                context.Renderer.DrawText(effectiveCell.Text, new UiPoint(cellRect.X + padding, textY), textColor, TextScale, font);
+                context.Renderer.PopClip();
+            }
+        }
+    }
+
+    private void DrawGridLines(UiRenderContext context)
+    {
+        for (int slot = 0; slot < _visibleColumnRects.Count - 1; slot++)
+        {
+            UiRect rect = _visibleColumnRects[slot];
+            int x = rect.Right;
+            int top = ShowHeader ? Bounds.Y : _bodyViewport.Y;
+            int height = ShowHeader ? Bounds.Height - (_showHorizontal ? Math.Max(1, ScrollbarThickness) : 0) : _bodyViewport.Height;
+            context.Renderer.FillRect(new UiRect(x, top, 1, Math.Max(0, height)), GridColor);
+        }
+
+        if (ShowHeader && _headerViewport.Height > 0)
+        {
+            int y = _headerViewport.Bottom;
+            if (y < Bounds.Bottom)
+            {
+                context.Renderer.FillRect(new UiRect(Bounds.X, y, _headerViewport.Width, 1), GridColor);
+            }
+        }
+
+        if (_visibleRowStartIndex < 0 || _visibleRowEndIndex < 0)
+        {
+            return;
+        }
+
+        for (int rowIndex = _visibleRowStartIndex; rowIndex <= _visibleRowEndIndex; rowIndex++)
+        {
+            int y = _bodyViewport.Y + _rowTops[rowIndex] + _rowHeights[rowIndex] - _scrollY;
+            if (y >= _bodyViewport.Bottom)
+            {
+                break;
+            }
+
+            context.Renderer.FillRect(new UiRect(_bodyViewport.X, y, _bodyViewport.Width, 1), GridColor);
+        }
+    }
+
+    private void DrawHeaderText(UiRenderContext context, UiFont font, int headerTextHeight, UiTableColumn column, UiRect cellRect)
+    {
+        UiColor textColor = column.HeaderTextColor ?? HeaderTextColor;
+        context.Renderer.PushClip(cellRect);
+        if (UseAngledHeaders)
+        {
+            DrawAngledHeaderText(context.Renderer, column.Header, cellRect, textColor, HeaderTextScale, font);
+        }
+        else
+        {
+            int headerY = cellRect.Y + (cellRect.Height - headerTextHeight) / 2;
+            UiPoint textPoint = new(cellRect.X + CellPadding, headerY);
+            if (HeaderTextBold)
+            {
+                UiRenderHelpers.DrawTextBold(context.Renderer, column.Header, textPoint, textColor, HeaderTextScale, font);
+            }
+            else
+            {
+                context.Renderer.DrawText(column.Header, textPoint, textColor, HeaderTextScale, font);
+            }
+        }
+
+        context.Renderer.PopClip();
     }
 
     private int GetHeaderHeight()
@@ -426,102 +1282,273 @@ public sealed class UiTable : UiElement
         return IsRowSelected(rowIndex) ? SelectedTextColor : TextColor;
     }
 
-    private int[] BuildColumnWidths()
+    private void HandleHeaderInteractions(UiUpdateContext context, UiInputState input, UiElement? contentHit, bool pointerHandledByScrollbars)
     {
-        int columnCount = Columns.Count;
-        int[] widths = new int[columnCount];
+        int headerModelIndex = GetHeaderColumnModelIndexAtPoint(input.MousePosition);
 
-        int fixedWidth = 0;
-        float totalWeight = 0f;
-        int flexibleCount = 0;
-
-        for (int i = 0; i < columnCount; i++)
+        if (input.RightClicked && headerModelIndex >= 0 && EnableHeaderContextMenu)
         {
-            UiTableColumn column = Columns[i];
-            if (column.Width > 0)
+            OpenHeaderContextMenu(input.MousePosition);
+            ClearHeaderPressState();
+            return;
+        }
+
+        if (_resizingColumnModelIndex >= 0)
+        {
+            if (input.LeftDown)
             {
-                widths[i] = column.Width;
-                fixedWidth += column.Width;
+                ResizeColumn(input.MousePosition.X);
+            }
+
+            if (input.LeftReleased || !input.LeftDown)
+            {
+                _resizingColumnModelIndex = -1;
+            }
+
+            return;
+        }
+
+        if (pointerHandledByScrollbars || contentHit != null)
+        {
+            if (input.LeftReleased)
+            {
+                ClearHeaderPressState();
+            }
+
+            return;
+        }
+
+        if (input.LeftClicked && headerModelIndex >= 0)
+        {
+            int resizeModelIndex = GetResizeHandleColumnIndexAtPoint(input.MousePosition);
+            if (resizeModelIndex >= 0)
+            {
+                BeginResize(resizeModelIndex, input.MousePosition.X);
+                ClearHeaderPressState();
+                return;
+            }
+
+            _pressedHeaderModelIndex = headerModelIndex;
+            _pressedHeaderPoint = input.MousePosition;
+            _pressedHeaderMultiSort = input.ShiftDown || input.CtrlDown;
+            context.Focus.RequestFocus(this);
+        }
+
+        if (_pressedHeaderModelIndex >= 0 && input.LeftDown && _reorderingColumnModelIndex < 0)
+        {
+            UiTableColumn pressedColumn = Columns[_pressedHeaderModelIndex];
+            if (AllowColumnReorder && pressedColumn.AllowReorder && HasExceededDragThreshold(_pressedHeaderPoint, input.MousePosition, input.DragThreshold))
+            {
+                BeginReorder(_pressedHeaderModelIndex, input.MousePosition);
+            }
+        }
+
+        if (_reorderingColumnModelIndex >= 0)
+        {
+            if (input.LeftDown)
+            {
+                _reorderInsertDisplayIndex = GetReorderInsertDisplayIndex(input.MousePosition);
+            }
+
+            if (input.LeftReleased || !input.LeftDown)
+            {
+                CommitReorder();
+            }
+
+            return;
+        }
+
+        if (_pressedHeaderModelIndex >= 0 && input.LeftReleased)
+        {
+            if (headerModelIndex == _pressedHeaderModelIndex)
+            {
+                HandleHeaderClick(_pressedHeaderModelIndex, _pressedHeaderMultiSort);
+            }
+
+            ClearHeaderPressState();
+        }
+    }
+
+    private void HandleBodyInteractions(UiUpdateContext context, UiInputState input, UiElement? contentHit, bool pointerHandledByScrollbars)
+    {
+        bool clicked = input.LeftClicked && Bounds.Contains(input.MousePosition);
+        if (clicked && !_headerViewport.Contains(input.MousePosition) && !pointerHandledByScrollbars && contentHit == null)
+        {
+            context.Focus.RequestFocus(this);
+            if (_hoverIndex >= 0 && _hoverIndex < Rows.Count)
+            {
+                ApplySelection(_hoverIndex, input.ShiftDown, input.CtrlDown);
+                EnsureVisible(_hoverIndex);
+            }
+            else if (AllowDeselect)
+            {
+                if (_selectionModel != null)
+                {
+                    _selectionModel.Clear();
+                }
+                else
+                {
+                    SetSelectedIndex(-1);
+                }
+            }
+        }
+    }
+
+    private void HandleKeyboardNavigation(UiInputState input)
+    {
+        bool shift = input.ShiftDown;
+        bool ctrl = input.CtrlDown;
+
+        if (input.Navigation.MoveUp)
+        {
+            MoveSelection(-1, shift, ctrl);
+        }
+
+        if (input.Navigation.MoveDown)
+        {
+            MoveSelection(1, shift, ctrl);
+        }
+
+        if (input.Navigation.Home)
+        {
+            ApplySelection(Rows.Count > 0 ? 0 : -1, shift, ctrl);
+        }
+
+        if (input.Navigation.End)
+        {
+            ApplySelection(Rows.Count > 0 ? Rows.Count - 1 : -1, shift, ctrl);
+        }
+
+        if (input.Navigation.PageUp)
+        {
+            MoveSelectionByPage(-1, shift, ctrl);
+        }
+
+        if (input.Navigation.PageDown)
+        {
+            MoveSelectionByPage(1, shift, ctrl);
+        }
+    }
+
+    private void MoveSelection(int delta, bool shift, bool ctrl)
+    {
+        if (Rows.Count == 0)
+        {
+            if (_selectionModel != null)
+            {
+                _selectionModel.Clear();
             }
             else
             {
-                float weight = column.Weight > 0f ? column.Weight : 1f;
-                totalWeight += weight;
-                flexibleCount++;
+                SetSelectedIndex(-1);
             }
+
+            return;
         }
 
-        int remaining = Math.Max(0, Bounds.Width - fixedWidth);
-        if (flexibleCount > 0)
-        {
-            for (int i = 0; i < columnCount; i++)
-            {
-                if (Columns[i].Width > 0)
-                {
-                    continue;
-                }
-
-                UiTableColumn column = Columns[i];
-                float weight = column.Weight > 0f ? column.Weight : 1f;
-                int width = totalWeight > 0f
-                    ? (int)Math.Round(remaining * (weight / totalWeight))
-                    : remaining / flexibleCount;
-                widths[i] = Math.Max(column.MinWidth, width);
-            }
-        }
-
-        int total = 0;
-        for (int i = 0; i < columnCount; i++)
-        {
-            total += widths[i];
-        }
-
-        if (total < Bounds.Width && columnCount > 0)
-        {
-            widths[columnCount - 1] += Bounds.Width - total;
-        }
-
-        return widths;
+        int current = SelectedIndex;
+        int next = current < 0 ? 0 : current + delta;
+        next = Math.Clamp(next, 0, Rows.Count - 1);
+        ApplySelection(next, shift, ctrl);
+        EnsureVisible(next);
     }
 
-    private void HandleHeaderClick(UiPoint point, bool multiSortRequested)
+    private void MoveSelectionByPage(int direction, bool shift, bool ctrl)
     {
-        if (!AllowSorting || Columns.Count == 0)
+        if (Rows.Count == 0)
         {
             return;
         }
 
-        int[] columnWidths = BuildColumnWidths();
-        int columnIndex = GetColumnIndexAtPoint(point, columnWidths);
-        if (columnIndex < 0 || columnIndex >= Columns.Count)
+        int current = SelectedIndex < 0 ? 0 : SelectedIndex;
+        int moved = current;
+        int remainingHeight = Math.Max(1, _bodyViewport.Height);
+
+        while (remainingHeight > 0)
+        {
+            int next = direction < 0 ? moved - 1 : moved + 1;
+            if (next < 0 || next >= Rows.Count)
+            {
+                break;
+            }
+
+            moved = next;
+            remainingHeight -= _rowHeights[next];
+        }
+
+        ApplySelection(moved, shift, ctrl);
+        EnsureVisible(moved);
+    }
+
+    private void ApplySelection(int index, bool shift, bool ctrl)
+    {
+        if (_selectionModel != null)
+        {
+            if (index < 0)
+            {
+                _selectionModel.Clear();
+            }
+            else
+            {
+                _selectionModel.ApplySelection(index, ctrl, shift);
+            }
+
+            return;
+        }
+
+        SetSelectedIndex(index);
+    }
+
+    private bool IsRowSelected(int index)
+    {
+        if (_selectionModel != null)
+        {
+            return _selectionModel.IsSelected(index);
+        }
+
+        return index == _selectedIndex;
+    }
+
+    private void SetSelectedIndex(int index)
+    {
+        int clamped = index;
+        if (Rows.Count == 0)
+        {
+            clamped = -1;
+        }
+        else
+        {
+            clamped = Math.Clamp(index, -1, Rows.Count - 1);
+        }
+
+        if (_selectedIndex == clamped)
         {
             return;
         }
 
-        UiTableColumn column = Columns[columnIndex];
+        _selectedIndex = clamped;
+        SelectionChanged?.Invoke(_selectedIndex);
+    }
+
+    private void HandleSelectionModelChanged()
+    {
+        SelectionChanged?.Invoke(SelectedIndex);
+    }
+
+    private void HandleHeaderClick(int modelIndex, bool multiSortRequested)
+    {
+        if (!AllowSorting || modelIndex < 0 || modelIndex >= Columns.Count)
+        {
+            return;
+        }
+
+        UiTableColumn column = Columns[modelIndex];
         if (!column.AllowSort)
         {
             return;
         }
 
-        UpdateSortSpecs(columnIndex, multiSortRequested && AllowMultiSort);
-    }
-
-    private int GetColumnIndexAtPoint(UiPoint point, int[] columnWidths)
-    {
-        int x = Bounds.X;
-        for (int i = 0; i < columnWidths.Length; i++)
-        {
-            int width = columnWidths[i];
-            if (point.X >= x && point.X < x + width)
-            {
-                return i;
-            }
-
-            x += width;
-        }
-
-        return -1;
+        UpdateSortSpecs(modelIndex, multiSortRequested && AllowMultiSort);
     }
 
     private void UpdateSortSpecs(int columnIndex, bool multiSort)
@@ -547,7 +1574,7 @@ public sealed class UiTable : UiElement
         else
         {
             UiTableColumn column = Columns[columnIndex];
-            UiTableSortSpec spec = new UiTableSortSpec(columnIndex, 0, column.DefaultSortDirection, column.UserId);
+            UiTableSortSpec spec = new(columnIndex, 0, column.DefaultSortDirection, column.UserId);
             _sortSpecs.Add(spec);
         }
 
@@ -634,7 +1661,7 @@ public sealed class UiTable : UiElement
             return;
         }
 
-        UiRect arrowRect = new UiRect(
+        UiRect arrowRect = new(
             cellRect.Right - padding - size,
             cellRect.Y + (cellRect.Height - size) / 2,
             size,
@@ -681,106 +1708,718 @@ public sealed class UiTable : UiElement
 
     private int GetRowIndexAtPoint(UiPoint point)
     {
-        if (!Bounds.Contains(point))
+        if (!_bodyViewport.Contains(point) || _bodyViewport.Height <= 0)
         {
             return -1;
         }
 
-        int headerHeight = ShowHeader ? GetHeaderHeight() : 0;
-        int rowHeight = Math.Max(1, RowHeight);
-        int localY = point.Y - Bounds.Y - headerHeight;
-        if (localY < 0)
+        int localY = point.Y - _bodyViewport.Y + _scrollY;
+        for (int i = _visibleRowStartIndex >= 0 ? _visibleRowStartIndex : 0; i < Rows.Count; i++)
+        {
+            int top = _rowTops[i];
+            int bottom = top + _rowHeights[i];
+            if (localY >= top && localY < bottom)
+            {
+                return i;
+            }
+
+            if (top > localY)
+            {
+                break;
+            }
+        }
+
+        return -1;
+    }
+
+    private int GetHeaderColumnModelIndexAtPoint(UiPoint point)
+    {
+        if (!ShowHeader || !_headerViewport.Contains(point))
         {
             return -1;
         }
 
-        int row = localY / rowHeight;
-        return row >= 0 && row < Rows.Count ? row : -1;
+        for (int slot = 0; slot < _visibleColumnRects.Count; slot++)
+        {
+            if (_visibleColumnRects[slot].Contains(point))
+            {
+                return _visibleColumnModelIndices[slot];
+            }
+        }
+
+        return -1;
     }
 
-    private void MoveSelection(int delta, bool shift, bool ctrl)
+    private int GetResizeHandleColumnIndexAtPoint(UiPoint point)
     {
-        if (Rows.Count == 0)
+        if (!AllowColumnResize || !ShowHeader || !_headerViewport.Contains(point))
         {
-            if (_selectionModel != null)
+            return -1;
+        }
+
+        int gripWidth = Math.Max(2, ResizeHandleWidth);
+        for (int slot = 0; slot < _visibleColumnRects.Count; slot++)
+        {
+            int modelIndex = _visibleColumnModelIndices[slot];
+            UiTableColumn column = Columns[modelIndex];
+            if (!column.AllowResize)
             {
-                _selectionModel.Clear();
+                continue;
             }
-            else
+
+            UiRect rect = _visibleColumnRects[slot];
+            if (point.X >= rect.Right - gripWidth && point.X < rect.Right + gripWidth && point.Y >= rect.Y && point.Y < rect.Bottom)
             {
-                SetSelectedIndex(-1);
+                return modelIndex;
             }
+        }
+
+        return -1;
+    }
+
+    private void BeginResize(int modelIndex, int mouseX)
+    {
+        UiTableColumn column = Columns[modelIndex];
+        UiTableColumnState state = _columnStates[modelIndex];
+        _resizingColumnModelIndex = modelIndex;
+        _resizeStartMouseX = mouseX;
+        _resizeStartWidth = Math.Max(column.MinWidth, state.Width > 0 ? state.Width : column.Width);
+    }
+
+    private void ResizeColumn(int mouseX)
+    {
+        if (_resizingColumnModelIndex < 0 || _resizingColumnModelIndex >= Columns.Count)
+        {
             return;
         }
 
-        int current = SelectedIndex;
-        int next = current < 0 ? 0 : current + delta;
-        next = Math.Clamp(next, 0, Rows.Count - 1);
-        ApplySelection(next, shift, ctrl);
-    }
-
-    private void ApplySelection(int index, bool shift, bool ctrl)
-    {
-        if (_selectionModel != null)
+        UiTableColumn column = Columns[_resizingColumnModelIndex];
+        UiTableColumnState state = _columnStates[_resizingColumnModelIndex];
+        int delta = mouseX - _resizeStartMouseX;
+        int width = Math.Max(column.MinWidth, _resizeStartWidth + delta);
+        if (state.Width == width && state.WidthMode == UiTableColumnWidthMode.Fixed)
         {
-            if (index < 0)
-            {
-                _selectionModel.Clear();
-            }
-            else
-            {
-                _selectionModel.ApplySelection(index, ctrl, shift);
-            }
-
             return;
         }
 
-        SetSelectedIndex(index);
+        state.WidthMode = UiTableColumnWidthMode.Fixed;
+        state.Width = width;
+        OnColumnStatesChanged();
     }
 
-    private bool IsRowSelected(int index)
+    private void BeginReorder(int modelIndex, UiPoint point)
     {
-        if (_selectionModel != null)
+        _reorderingColumnModelIndex = modelIndex;
+        _reorderInsertDisplayIndex = GetReorderInsertDisplayIndex(point);
+    }
+
+    private int GetReorderInsertDisplayIndex(UiPoint point)
+    {
+        if (_visibleColumnModelIndices.Count == 0)
         {
-            return _selectionModel.IsSelected(index);
+            return 0;
         }
 
-        return index == _selectedIndex;
+        int contentX = point.X - _headerViewport.X + _scrollX;
+        int running = 0;
+        for (int slot = 0; slot < _visibleColumnWidths.Count; slot++)
+        {
+            int width = _visibleColumnWidths[slot];
+            if (contentX < running + width / 2)
+            {
+                int modelIndex = _visibleColumnModelIndices[slot];
+                return _columnStates[modelIndex].DisplayIndex;
+            }
+
+            running += width;
+        }
+
+        return _columnStates[_visibleColumnModelIndices[^1]].DisplayIndex + 1;
     }
 
-    private void SetSelectedIndex(int index)
+    private void CommitReorder()
     {
-        int clamped = index;
-        if (Rows.Count == 0)
+        if (_reorderingColumnModelIndex < 0)
         {
-            clamped = -1;
+            return;
+        }
+
+        UiTableColumnState state = _columnStates[_reorderingColumnModelIndex];
+        int sourceDisplayIndex = state.DisplayIndex;
+        int targetDisplayIndex = _reorderInsertDisplayIndex;
+        if (targetDisplayIndex > sourceDisplayIndex)
+        {
+            targetDisplayIndex--;
+        }
+
+        targetDisplayIndex = Math.Clamp(targetDisplayIndex, 0, Math.Max(0, _columnStates.Count - 1));
+        if (targetDisplayIndex != sourceDisplayIndex)
+        {
+            for (int i = 0; i < _columnStates.Count; i++)
+            {
+                if (i == _reorderingColumnModelIndex)
+                {
+                    continue;
+                }
+
+                UiTableColumnState other = _columnStates[i];
+                if (targetDisplayIndex < sourceDisplayIndex)
+                {
+                    if (other.DisplayIndex >= targetDisplayIndex && other.DisplayIndex < sourceDisplayIndex)
+                    {
+                        other.DisplayIndex++;
+                    }
+                }
+                else if (other.DisplayIndex <= targetDisplayIndex && other.DisplayIndex > sourceDisplayIndex)
+                {
+                    other.DisplayIndex--;
+                }
+            }
+
+            state.DisplayIndex = targetDisplayIndex;
+            NormalizeColumnStates();
+            OnColumnStatesChanged();
+        }
+
+        _reorderingColumnModelIndex = -1;
+        _reorderInsertDisplayIndex = -1;
+        ClearHeaderPressState();
+    }
+
+    private void ClearHeaderPressState()
+    {
+        _pressedHeaderModelIndex = -1;
+        _pressedHeaderPoint = default;
+        _pressedHeaderMultiSort = false;
+    }
+
+    private void EnsureVisible(int rowIndex)
+    {
+        if (rowIndex < 0 || rowIndex >= Rows.Count || _bodyViewport.Height <= 0)
+        {
+            return;
+        }
+
+        int top = _rowTops[rowIndex];
+        int bottom = top + _rowHeights[rowIndex];
+        int viewTop = _scrollY;
+        int viewBottom = _scrollY + _bodyViewport.Height;
+
+        if (top < viewTop)
+        {
+            _scrollY = top;
+        }
+        else if (bottom > viewBottom)
+        {
+            _scrollY = Math.Max(0, bottom - _bodyViewport.Height);
+        }
+    }
+
+    private void HandleWheelScrolling(UiInputState input)
+    {
+        bool mouseInBody = _bodyViewport.Contains(input.MousePosition);
+        bool mouseInHeader = _headerViewport.Contains(input.MousePosition);
+        if (!mouseInBody && !mouseInHeader)
+        {
+            return;
+        }
+
+        if (input.ScrollDelta != 0)
+        {
+            int steps = (int)Math.Round(input.ScrollDelta / 120f);
+            if (steps != 0)
+            {
+                if (_showVertical)
+                {
+                    _scrollY -= steps * ScrollWheelStep;
+                }
+                else if (_showHorizontal)
+                {
+                    _scrollX -= steps * ScrollWheelStep;
+                }
+            }
+        }
+
+        if (input.ScrollDeltaX != 0 && _showHorizontal)
+        {
+            int steps = (int)Math.Round(input.ScrollDeltaX / 120f);
+            if (steps != 0)
+            {
+                _scrollX -= steps * ScrollWheelStep;
+            }
+        }
+    }
+
+    private bool UpdateScrollbars(UiInputState input, bool pointerBlockedByMenu)
+    {
+        bool handled = false;
+        bool mouseInScrollbar = false;
+
+        if (_showVertical)
+        {
+            UiRect verticalBar = GetVerticalScrollbarBounds();
+            mouseInScrollbar |= verticalBar.Contains(input.MousePosition);
+            handled |= UpdateVerticalScrollbar(input, verticalBar, pointerBlockedByMenu);
+        }
+
+        if (_showHorizontal)
+        {
+            UiRect horizontalBar = GetHorizontalScrollbarBounds();
+            mouseInScrollbar |= horizontalBar.Contains(input.MousePosition);
+            handled |= UpdateHorizontalScrollbar(input, horizontalBar, pointerBlockedByMenu);
+        }
+
+        return handled || mouseInScrollbar;
+    }
+
+    private UiRect GetVerticalScrollbarBounds()
+    {
+        int thickness = Math.Max(1, ScrollbarThickness);
+        return new UiRect(Bounds.Right - thickness, _bodyViewport.Y, thickness, _bodyViewport.Height);
+    }
+
+    private UiRect GetHorizontalScrollbarBounds()
+    {
+        int thickness = Math.Max(1, ScrollbarThickness);
+        return new UiRect(Bounds.X, Bounds.Bottom - thickness, _bodyViewport.Width, thickness);
+    }
+
+    private UiRect GetVerticalThumbBounds(UiRect bar)
+    {
+        int padding = Math.Max(0, ScrollbarPadding);
+        int trackHeight = Math.Max(0, bar.Height - padding * 2);
+        int trackTop = bar.Y + padding;
+        int scrollRange = Math.Max(0, _contentSize.Y - _viewportSize.Y);
+
+        int thumbHeight = trackHeight;
+        if (scrollRange > 0 && _contentSize.Y > 0)
+        {
+            float ratio = _viewportSize.Y / (float)_contentSize.Y;
+            thumbHeight = Math.Max(MinThumbSize, (int)Math.Round(trackHeight * ratio));
+        }
+
+        int travel = Math.Max(0, trackHeight - thumbHeight);
+        int thumbY = trackTop;
+        if (scrollRange > 0 && travel > 0)
+        {
+            float t = _scrollY / (float)scrollRange;
+            thumbY = trackTop + (int)Math.Round(travel * t);
+        }
+
+        return new UiRect(bar.X + padding, thumbY, Math.Max(1, bar.Width - padding * 2), thumbHeight);
+    }
+
+    private UiRect GetHorizontalThumbBounds(UiRect bar)
+    {
+        int padding = Math.Max(0, ScrollbarPadding);
+        int trackWidth = Math.Max(0, bar.Width - padding * 2);
+        int trackLeft = bar.X + padding;
+        int scrollRange = Math.Max(0, _contentSize.X - _viewportSize.X);
+
+        int thumbWidth = trackWidth;
+        if (scrollRange > 0 && _contentSize.X > 0)
+        {
+            float ratio = _viewportSize.X / (float)_contentSize.X;
+            thumbWidth = Math.Max(MinThumbSize, (int)Math.Round(trackWidth * ratio));
+        }
+
+        int travel = Math.Max(0, trackWidth - thumbWidth);
+        int thumbX = trackLeft;
+        if (scrollRange > 0 && travel > 0)
+        {
+            float t = _scrollX / (float)scrollRange;
+            thumbX = trackLeft + (int)Math.Round(travel * t);
+        }
+
+        return new UiRect(thumbX, bar.Y + padding, thumbWidth, Math.Max(1, bar.Height - padding * 2));
+    }
+
+    private bool UpdateVerticalScrollbar(UiInputState input, UiRect bar, bool pointerBlockedByMenu)
+    {
+        UiRect thumb = GetVerticalThumbBounds(bar);
+        _hoverVerticalThumb = thumb.Contains(input.MousePosition);
+
+        if (pointerBlockedByMenu)
+        {
+            return false;
+        }
+
+        if (!_draggingVertical && input.LeftClicked && bar.Contains(input.MousePosition))
+        {
+            if (_hoverVerticalThumb)
+            {
+                _draggingVertical = true;
+                _dragStartMouse = input.MousePosition.Y;
+                _dragStartScroll = _scrollY;
+            }
+            else
+            {
+                PageVertical(input.MousePosition.Y < thumb.Y);
+            }
+
+            return true;
+        }
+
+        if (_draggingVertical && input.LeftDown)
+        {
+            int trackHeight = Math.Max(1, bar.Height - ScrollbarPadding * 2);
+            int scrollRange = Math.Max(0, _contentSize.Y - _viewportSize.Y);
+            int thumbHeight = Math.Max(1, thumb.Height);
+            int travel = Math.Max(1, trackHeight - thumbHeight);
+            int delta = input.MousePosition.Y - _dragStartMouse;
+            float ratio = delta / (float)travel;
+            _scrollY = _dragStartScroll + (int)Math.Round(scrollRange * ratio);
+            return true;
+        }
+
+        if (_draggingVertical && (input.LeftReleased || !input.LeftDown))
+        {
+            _draggingVertical = false;
+            return true;
+        }
+
+        return bar.Contains(input.MousePosition);
+    }
+
+    private bool UpdateHorizontalScrollbar(UiInputState input, UiRect bar, bool pointerBlockedByMenu)
+    {
+        UiRect thumb = GetHorizontalThumbBounds(bar);
+        _hoverHorizontalThumb = thumb.Contains(input.MousePosition);
+
+        if (pointerBlockedByMenu)
+        {
+            return false;
+        }
+
+        if (!_draggingHorizontal && input.LeftClicked && bar.Contains(input.MousePosition))
+        {
+            if (_hoverHorizontalThumb)
+            {
+                _draggingHorizontal = true;
+                _dragStartMouse = input.MousePosition.X;
+                _dragStartScroll = _scrollX;
+            }
+            else
+            {
+                PageHorizontal(input.MousePosition.X < thumb.X);
+            }
+
+            return true;
+        }
+
+        if (_draggingHorizontal && input.LeftDown)
+        {
+            int trackWidth = Math.Max(1, bar.Width - ScrollbarPadding * 2);
+            int scrollRange = Math.Max(0, _contentSize.X - _viewportSize.X);
+            int thumbWidth = Math.Max(1, thumb.Width);
+            int travel = Math.Max(1, trackWidth - thumbWidth);
+            int delta = input.MousePosition.X - _dragStartMouse;
+            float ratio = delta / (float)travel;
+            _scrollX = _dragStartScroll + (int)Math.Round(scrollRange * ratio);
+            return true;
+        }
+
+        if (_draggingHorizontal && (input.LeftReleased || !input.LeftDown))
+        {
+            _draggingHorizontal = false;
+            return true;
+        }
+
+        return bar.Contains(input.MousePosition);
+    }
+
+    private void PageVertical(bool up)
+    {
+        if (_viewportSize.Y <= 0)
+        {
+            return;
+        }
+
+        _scrollY += up ? -_viewportSize.Y : _viewportSize.Y;
+    }
+
+    private void PageHorizontal(bool left)
+    {
+        if (_viewportSize.X <= 0)
+        {
+            return;
+        }
+
+        _scrollX += left ? -_viewportSize.X : _viewportSize.X;
+    }
+
+    private void DrawScrollbars(UiRenderContext context)
+    {
+        if (_showVertical)
+        {
+            UiRect bar = GetVerticalScrollbarBounds();
+            context.Renderer.FillRect(bar, ScrollbarTrack);
+            context.Renderer.DrawRect(bar, ScrollbarBorder, 1);
+
+            UiRect thumb = GetVerticalThumbBounds(bar);
+            UiColor thumbColor = (_hoverVerticalThumb || _draggingVertical) ? ScrollbarThumbHover : ScrollbarThumb;
+            context.Renderer.FillRect(thumb, thumbColor);
+        }
+
+        if (_showHorizontal)
+        {
+            UiRect bar = GetHorizontalScrollbarBounds();
+            context.Renderer.FillRect(bar, ScrollbarTrack);
+            context.Renderer.DrawRect(bar, ScrollbarBorder, 1);
+
+            UiRect thumb = GetHorizontalThumbBounds(bar);
+            UiColor thumbColor = (_hoverHorizontalThumb || _draggingHorizontal) ? ScrollbarThumbHover : ScrollbarThumb;
+            context.Renderer.FillRect(thumb, thumbColor);
+        }
+
+        if (_showVertical && _showHorizontal)
+        {
+            int thickness = Math.Max(1, ScrollbarThickness);
+            UiRect corner = new UiRect(Bounds.Right - thickness, Bounds.Bottom - thickness, thickness, thickness);
+            context.Renderer.FillRect(corner, ScrollbarTrack);
+            context.Renderer.DrawRect(corner, ScrollbarBorder, 1);
+        }
+    }
+
+    private void OpenHeaderContextMenu(UiPoint point)
+    {
+        int itemCount = Columns.Count + 1;
+        int width = Math.Max(120, HeaderContextMenuWidth);
+        int height = Math.Max(0, itemCount * Math.Max(1, HeaderContextMenuItemHeight));
+        UiRect bounds = UiPopupLayout.BuildContextBounds(point, new UiPoint(width, height));
+        _headerContextMenuBounds = UiPopupLayout.Clamp(this, bounds);
+        _headerContextMenuOpen = true;
+        _suppressHeaderMenuClick = true;
+        _hoverHeaderMenuEntry = -1;
+    }
+
+    private bool UpdateHeaderContextMenu(UiInputState input)
+    {
+        if (!_headerContextMenuOpen)
+        {
+            return false;
+        }
+
+        if (input.Navigation.Escape)
+        {
+            _headerContextMenuOpen = false;
+            return true;
+        }
+
+        if (_suppressHeaderMenuClick)
+        {
+            _suppressHeaderMenuClick = false;
+            return _headerContextMenuBounds.Contains(input.MousePosition);
+        }
+
+        _hoverHeaderMenuEntry = GetHeaderMenuEntryAtPoint(input.MousePosition);
+        bool mouseInside = _headerContextMenuBounds.Contains(input.MousePosition);
+
+        if (input.LeftClicked)
+        {
+            if (_hoverHeaderMenuEntry == 0)
+            {
+                ResetColumnStates();
+            }
+            else if (_hoverHeaderMenuEntry > 0)
+            {
+                ToggleHeaderMenuColumn(_hoverHeaderMenuEntry - 1);
+            }
+
+            _headerContextMenuOpen = false;
+            return true;
+        }
+
+        if (input.RightClicked && !mouseInside)
+        {
+            _headerContextMenuOpen = false;
+            return true;
+        }
+
+        return mouseInside;
+    }
+
+    private void ToggleHeaderMenuColumn(int orderedColumnIndex)
+    {
+        int[] orderedColumns = GetAllColumnIndicesByDisplayOrder();
+        if (orderedColumnIndex < 0 || orderedColumnIndex >= orderedColumns.Length)
+        {
+            return;
+        }
+
+        int modelIndex = orderedColumns[orderedColumnIndex];
+        UiTableColumn column = Columns[modelIndex];
+        if (!AllowColumnHiding || !column.AllowHide)
+        {
+            return;
+        }
+
+        int visibleCount = 0;
+        for (int i = 0; i < _columnStates.Count; i++)
+        {
+            if (_columnStates[i].Visible)
+            {
+                visibleCount++;
+            }
+        }
+
+        UiTableColumnState state = _columnStates[modelIndex];
+        if (state.Visible && visibleCount <= 1)
+        {
+            return;
+        }
+
+        state.Visible = !state.Visible;
+        OnColumnStatesChanged();
+    }
+
+    private int GetHeaderMenuEntryAtPoint(UiPoint point)
+    {
+        if (!_headerContextMenuBounds.Contains(point))
+        {
+            return -1;
+        }
+
+        int itemHeight = Math.Max(1, HeaderContextMenuItemHeight);
+        int localY = point.Y - _headerContextMenuBounds.Y;
+        int index = localY / itemHeight;
+        return index >= 0 && index < Columns.Count + 1 ? index : -1;
+    }
+
+    private void DrawHeaderContextMenu(UiRenderContext context)
+    {
+        context.Renderer.FillRect(_headerContextMenuBounds, HeaderMenuBackground);
+        context.Renderer.DrawRect(_headerContextMenuBounds, HeaderMenuBorder, 1);
+
+        int itemHeight = Math.Max(1, HeaderContextMenuItemHeight);
+        int[] orderedColumns = GetAllColumnIndicesByDisplayOrder();
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(HeaderTextScale, font);
+
+        for (int entry = 0; entry < orderedColumns.Length + 1; entry++)
+        {
+            UiRect itemRect = new(
+                _headerContextMenuBounds.X,
+                _headerContextMenuBounds.Y + entry * itemHeight,
+                _headerContextMenuBounds.Width,
+                itemHeight);
+            if (entry == _hoverHeaderMenuEntry)
+            {
+                context.Renderer.FillRect(itemRect, HeaderMenuHoverBackground);
+            }
+
+            string text;
+            bool isChecked = false;
+            if (entry == 0)
+            {
+                text = "Reset Columns";
+            }
+            else
+            {
+                int modelIndex = orderedColumns[entry - 1];
+                text = Columns[modelIndex].Header;
+                isChecked = _columnStates[modelIndex].Visible;
+            }
+
+            int textY = itemRect.Y + (itemRect.Height - textHeight) / 2;
+            int textX = itemRect.X + 10;
+            if (entry > 0)
+            {
+                UiRect checkRect = new(itemRect.X + 10, itemRect.Y + (itemRect.Height - 12) / 2, 12, 12);
+                context.Renderer.DrawRect(checkRect, HeaderMenuBorder, 1);
+                if (isChecked)
+                {
+                    UiRect fill = new(checkRect.X + 2, checkRect.Y + 2, Math.Max(0, checkRect.Width - 4), Math.Max(0, checkRect.Height - 4));
+                    context.Renderer.FillRect(fill, HeaderMenuCheckColor);
+                }
+
+                textX = checkRect.Right + 8;
+            }
+
+            context.Renderer.DrawText(text, new UiPoint(textX, textY), HeaderMenuTextColor, HeaderTextScale, font);
+        }
+    }
+
+    private int[] GetAllColumnIndicesByDisplayOrder()
+    {
+        int[] ordered = new int[_columnStates.Count];
+        for (int i = 0; i < ordered.Length; i++)
+        {
+            ordered[i] = i;
+        }
+
+        Array.Sort(ordered, (left, right) =>
+        {
+            int order = _columnStates[left].DisplayIndex.CompareTo(_columnStates[right].DisplayIndex);
+            return order != 0 ? order : left.CompareTo(right);
+        });
+        return ordered;
+    }
+
+    private void DrawReorderIndicator(UiRenderContext context)
+    {
+        int x;
+        if (_visibleColumnRects.Count == 0)
+        {
+            x = _headerViewport.X;
         }
         else
         {
-            clamped = Math.Clamp(index, -1, Rows.Count - 1);
+            x = _headerViewport.X;
+            bool placed = false;
+            for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
+            {
+                int modelIndex = _visibleColumnModelIndices[slot];
+                if (_columnStates[modelIndex].DisplayIndex >= _reorderInsertDisplayIndex)
+                {
+                    x = _visibleColumnRects[slot].X;
+                    placed = true;
+                    break;
+                }
+            }
+
+            if (!placed)
+            {
+                x = _visibleColumnRects[^1].Right;
+            }
         }
 
-        if (_selectedIndex == clamped)
-        {
-            return;
-        }
-
-        _selectedIndex = clamped;
-        SelectionChanged?.Invoke(_selectedIndex);
+        int thickness = Math.Max(1, ReorderIndicatorThickness);
+        context.Renderer.FillRect(new UiRect(x - thickness / 2, Bounds.Y, thickness, Math.Max(0, _headerViewport.Height + _bodyViewport.Height)), ReorderIndicatorColor);
     }
 
-    private void HandleSelectionModelChanged()
+    private void OnColumnStatesChanged()
     {
-        if (_selectionModel == null)
-        {
-            return;
-        }
+        NormalizeColumnStates();
+        ColumnStatesChanged?.Invoke();
+    }
 
-        int previous = _selectedIndex;
-        _selectedIndex = _selectionModel.PrimaryIndex;
-        if (previous != _selectedIndex)
-        {
-            SelectionChanged?.Invoke(_selectedIndex);
-        }
+    private static UiRect InsetRect(UiRect rect, int amount)
+    {
+        int inset = Math.Max(0, amount);
+        return new UiRect(
+            rect.X + inset,
+            rect.Y + inset,
+            Math.Max(0, rect.Width - inset * 2),
+            Math.Max(0, rect.Height - inset * 2));
+    }
+
+    private static UiRect IntersectRect(UiRect a, UiRect b)
+    {
+        int left = Math.Max(a.Left, b.Left);
+        int top = Math.Max(a.Top, b.Top);
+        int right = Math.Min(a.Right, b.Right);
+        int bottom = Math.Min(a.Bottom, b.Bottom);
+        return right <= left || bottom <= top
+            ? new UiRect(0, 0, 0, 0)
+            : new UiRect(left, top, right - left, bottom - top);
+    }
+
+    private static bool HasExceededDragThreshold(UiPoint start, UiPoint current, int threshold)
+    {
+        int dx = current.X - start.X;
+        int dy = current.Y - start.Y;
+        int safeThreshold = Math.Max(0, threshold);
+        return dx * dx + dy * dy >= safeThreshold * safeThreshold;
     }
 }

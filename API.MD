@@ -27,7 +27,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiProgressBarStyle`: progress bar style (linear or radial).
 - `UiProgressBarFillDirection`: progress bar fill direction (left/right/top/bottom).
 - `UiDragFlags`: drag widget behavior flags (clamping, log scaling, and speed modifiers).
-- `UiTableColumn`, `UiTableRow`: column/row data objects for `UiTable`.
+- `UiTableColumn`, `UiTableRow`, `UiTableCell`, `UiTableColumnState`, `UiTableViewState`, `UiTableCellContext`: table definition, content, runtime state, and styling objects for `UiTable`.
 - `UiPlotPoint`, `UiPlotSeries`: data objects for `UiPlotPanel` plotting series.
 - `UiWaveformRenderMode`: waveform rendering modes for `UiWaveform` (min/max columns or line plots).
 - `UiGridDefinition`: row/column sizing data for `UiGrid`.
@@ -55,7 +55,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiListBox`: list selector with hover/selected states.
 - `UiSelectable`: selectable row with hover/selected states.
 - `UiComboBox`: string-list convenience wrapper over `UiCombo` and `UiListView`.
-- `UiTable`: grid/table control with column headers and selectable rows (headers can be bold).
+- `UiTable`: grid/table control with column headers, selectable rows, runtime column/view state, scrolling, resize/reorder/hide, and richer header/cell content.
 - `UiPlotPanel`: plotting panel with axes, tick labels, grid lines, and zoom/pan input.
 - `UiWaveform`: waveform panel for rendering sample data with optional zero line.
 - `UiGrid`: grid layout container that assigns children to row/column cells.
@@ -186,10 +186,12 @@ This is a brief overview of the current OpenControls surface area.
 - Dropdowns clamp to the nearest scroll panel viewport when present, otherwise to ancestor bounds in local coordinates.
 
 ## Table Notes
-- `UiTable.Columns`: define headers and sizing via `UiTableColumn` (widths or weights).
-- `UiTable.Rows`: assign `UiTableRow` data (cells are string lists).
+- `UiTable.Columns`: define headers and sizing via `UiTableColumn` (fixed/stretch sizing, resize/reorder/hide flags, optional header content).
+- `UiTable.Rows`: assign `UiTableRow` data (plain string cells or richer `UiTableCell` content).
+- `UiTable.ColumnStates` / `GetColumnState(...)`: inspect or tweak runtime column order/visibility/width without mutating the static column definitions.
+- `UiTable.ViewState`: inspect scroll offsets, viewport size, content size, and visible row range.
 - `UiTable.SelectedIndex`/`SelectionModel`: row selection behavior similar to list boxes.
-- The table does not scroll internally; use `UiScrollPanel` for overflow.
+- `UiTable.CellBackgroundSelector` / `CellTextColorSelector`: apply per-cell styling without replacing the whole table renderer.
 
 ## Plot Notes
 - `UiPlotPanel.Series`: assign one or more `UiPlotSeries` (each with `UiPlotPoint` data).

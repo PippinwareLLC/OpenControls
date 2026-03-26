@@ -191,6 +191,7 @@ ui.Render(renderer);
 - `UiTextField` now includes selection, copy/cut/paste, undo/redo, password/read-only/filtering modes, completion/history callbacks, and resize callbacks for single-line editor workflows.
 - `UiTextEditor` now includes mouse/keyboard selection, copy/cut/paste, undo/redo, word/page/home/end navigation, and editor events for multiline workflows.
 - Additional controls include `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiProgressBar`, `UiListBox`, `UiComboBox`, `UiListView`, `UiCombo`, `UiSelectable`, `UiSelectableRow`, `UiChildRegion`, `UiStack`, `UiWrapPanel`, `UiGroup`, `UiTable`, `UiPlotPanel`, `UiWaveform`, `UiGrid`, `UiCanvas`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiSeparator`, `UiSplitter`, `UiScrollPanel`, `UiTextEditor`, `UiTreeNode`, `UiCollapsingHeader`, `UiPopup`, `UiModal`, `UiModalHost`, and `UiTooltip`.
+- `UiTable` now owns its own resize/reorder/hide/scroll behavior plus runtime `ColumnStates`/`ViewState`, so inspectors and asset-browser style tables no longer need an outer `UiScrollPanel` just to be usable.
 - Use `UiArrow.DrawTriangle` when you want arrow indicators that match built-in controls.
 - Use `UiWindow.EnsureScrollPanel()` plus `AddContentChild` when window content needs scrollbars.
 - `UiScrollPanel` uses panel-local child bounds and applies scroll offsets when rendering.
