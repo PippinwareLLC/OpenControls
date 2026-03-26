@@ -18,6 +18,7 @@ The goal is not to clone Dear ImGui's immediate-mode API one-to-one. The goal is
 
 - [ ] The documented parity deviations in [README.MD](/Users/thomasmayer/Dev/OpenControls/README.MD#L51) are either removed or intentionally reclassified as "won't match by design".
 - [ ] Input and host integration are rich enough to support true shortcuts, cursor requests, capture flags, and better focus routing.
+- [ ] Text rendering supports custom fonts, Unicode/icon glyph ranges, and merged icon fonts instead of only the built-in bitmap path.
 - [ ] Text entry is editor-grade for common tooling workflows.
 - [ ] Tables, lists, trees, and selection scale to large datasets.
 - [ ] OpenControls examples demonstrate credible coverage for the major Dear ImGui demo sections without hand-wavy simulation.
@@ -184,7 +185,110 @@ Dear ImGui's power comes partly from easy access to item and window state. OpenC
 - [ ] The item/window status parity caveat in the README is no longer true in its current form.
 - [ ] Complex widgets can query shared runtime state instead of recomputing local heuristics.
 
-## Milestone 3: Text Entry Foundation
+## Milestone 3: Font System, Atlas, And Icon Glyph Pipeline
+
+### Why This Needs Its Own Milestone
+
+OpenControls currently assumes a tiny built-in bitmap font and a narrow code-page model. To reach real tooling parity, the framework needs a font asset pipeline that can load custom fonts, handle broader Unicode/code point ranges, and merge icon fonts like Font Awesome into the same text flow the way Dear ImGui does.
+
+### Scope
+
+- [ ] Add a font system that supports custom application fonts instead of only `TinyBitmapFont`.
+- [ ] Add support for icon-bearing fonts and merged glyph ranges so text and icons can share one rendering path.
+- [ ] Make Silk.NET the reference host for font parity validation, then keep the other renderers aligned.
+
+### Font Asset Checklist
+
+- [ ] Introduce a font asset abstraction decoupled from `TinyBitmapFont`.
+- [ ] Support loading:
+  - [ ] TTF
+  - [ ] OTF
+  - [ ] WOFF2
+- [ ] Decide whether WOFF2 support is:
+  - [ ] runtime decode in managed code
+  - [ ] runtime decode through a dependency
+  - [ ] preprocessed to an internal baked format
+- [ ] Add a font registry / cache owned by the framework or host boundary.
+- [ ] Support multiple named font faces and sizes in one app session.
+- [ ] Preserve a built-in fallback/default font so simple hosts still work out of the box.
+
+### Glyph And Unicode Checklist
+
+- [ ] Replace the current Latin-1 / CP437-only assumptions with a broader code point pipeline.
+- [ ] Define glyph range requests:
+  - [ ] default Latin set
+  - [ ] extended Unicode ranges as needed
+  - [ ] icon ranges
+- [ ] Support font fallback chains when a glyph is missing from the primary face.
+- [ ] Add missing-glyph behavior that is deterministic and debuggable.
+- [ ] Split font rendering goals into two passes:
+  - [ ] first-pass custom-font/icon-font parity without requiring full shaping
+  - [ ] follow-on shaping/text-layout work for complex scripts and higher typography fidelity
+- [ ] Decide how much shaping/kerning support is required for the first usable version:
+  - [ ] no shaping, simple atlas path
+  - [ ] kerning-aware Latin path
+  - [ ] future shaping/text-layout milestone for complex scripts
+
+### HarfBuzz Evaluation Checklist
+
+- [ ] Evaluate HarfBuzz as an optional shaping backend rather than a blocker for initial custom-font support.
+- [ ] Document that HarfBuzz is useful for:
+  - [ ] ligatures
+  - [ ] kerning-aware glyph positioning
+  - [ ] combining marks
+  - [ ] bidi/RTL-aware shaping pipelines
+  - [ ] complex scripts such as Arabic and Indic families
+- [ ] Document that HarfBuzz is not the main dependency for:
+  - [ ] TTF/OTF/WOFF2 loading
+  - [ ] glyph atlas generation
+  - [ ] Font Awesome-style icon font merging
+- [ ] If adopted, keep HarfBuzz integration behind a clean text-layout/shaping layer so simple hosts can still ship without it.
+
+### ImGui-Style Icon Font Parity Checklist
+
+- [ ] Add an API for merging icon fonts into an existing text font configuration.
+- [ ] Support custom code point ranges like Font Awesome icon spans.
+- [ ] Allow text and icons to coexist in one string/render call without custom widget hacks.
+- [ ] Support icon glyph use in:
+  - [ ] labels
+  - [ ] buttons
+  - [ ] menus
+  - [ ] tabs
+  - [ ] tree nodes
+- [ ] Add spacing/baseline controls so merged icon fonts align cleanly with body text.
+
+### Renderer / Host Checklist
+
+- [ ] Introduce a renderer-facing font atlas or glyph cache abstraction.
+- [ ] Ensure measurement and drawing use the same glyph metrics across all renderers.
+- [ ] Implement Silk.NET atlas upload / bind / rebuild flow first.
+- [ ] Keep MonoGame, SDL, OpenGL, and software/headless renderers functional with the same font contracts.
+- [ ] Define rebuild behavior when fonts or glyph ranges change at runtime.
+
+### API And Styling Checklist
+
+- [ ] Add a stable way to choose fonts in UI code:
+  - [ ] per-element font
+  - [ ] inherited/default font
+  - [ ] temporary push/pop style equivalent if it fits retained mode
+- [ ] Add font metrics helpers needed by layout and text editing.
+- [ ] Document how icon fonts are configured and merged.
+
+### Demo/Docs Work
+
+- [ ] Add a custom font demo in `OpenControls.Examples`.
+- [ ] Add an icon font demo using merged glyph ranges.
+- [ ] Add a Silk.NET-first sample showing Font Awesome-style usage.
+- [ ] Update `README.MD`, `API.MD`, and `Samples.MD` with font-loading guidance.
+
+### Exit Criteria
+
+- [ ] A user can load a custom TTF/OTF/WOFF2 font and use it throughout the UI.
+- [ ] A user can merge an icon font range into a text font and render icons inline, Dear ImGui style.
+- [ ] The roadmap clearly distinguishes first-pass custom-font/icon-font parity from optional HarfBuzz-backed shaping work.
+- [ ] The built-in bitmap font path still works as a fallback/simple-host option.
+
+## Milestone 4: Text Entry Foundation
 
 ### Why This Is A Major Milestone
 
@@ -258,7 +362,7 @@ Text editing is the biggest user-facing gap after input. It is also a force mult
 - [ ] `UiTextField` feels credible in a real inspector/property editor.
 - [ ] The README caveat about text callbacks can be removed or narrowed substantially.
 
-## Milestone 4: Text Editor 2.0
+## Milestone 5: Text Editor 2.0
 
 ### Scope
 
@@ -281,14 +385,14 @@ Text editing is the biggest user-facing gap after input. It is also a force mult
   - [ ] text changed
   - [ ] caret moved
   - [ ] selection changed
-- [ ] Ensure editor uses shared text primitives from Milestone 3 where practical.
+- [ ] Ensure editor uses shared text primitives from Milestone 4 where practical.
 
 ### Exit Criteria
 
 - [ ] Text editor demos no longer feel like a separate toy path from text field behavior.
 - [ ] The examples app can plausibly host a code or config editor workflow.
 
-## Milestone 5: Composition APIs For Combo, List, Popup, And Child Content
+## Milestone 6: Composition APIs For Combo, List, Popup, And Child Content
 
 ### Why This Matters
 
@@ -317,7 +421,7 @@ OpenControls has useful concrete widgets, but Dear ImGui's flexibility often com
 
 - [ ] OpenControls can express richer combos, list boxes, and popup content without building custom one-off widgets every time.
 
-## Milestone 6: Layout System Upgrade
+## Milestone 7: Layout System Upgrade
 
 ### Why This Needs Its Own Milestone
 
@@ -357,7 +461,7 @@ Many missing ImGui demos are really layout affordances, not widgets. OpenControl
 - [ ] The major "Layout" demo sections have natural retained-mode equivalents.
 - [ ] Example UI code gets shorter, not longer.
 
-## Milestone 7: Tables 2.0
+## Milestone 8: Tables 2.0
 
 ### Why This Is High Priority
 
@@ -402,7 +506,7 @@ Tables are one of the most important tooling surfaces, and OpenControls currentl
 
 - [ ] `UiTable` is viable for inspectors, asset browsers, and data-heavy tools.
 
-## Milestone 8: Shared Virtualization / Clipper Layer
+## Milestone 9: Shared Virtualization / Clipper Layer
 
 ### Why This Is Separate
 
@@ -427,7 +531,7 @@ Large-data support should not be reinvented in list boxes, tables, trees, and se
 
 - [ ] "with clipper" examples stop being conceptual and become real capabilities.
 
-## Milestone 9: Selection And Trees
+## Milestone 10: Selection And Trees
 
 ### Why This Matters
 
@@ -457,7 +561,7 @@ Selection is already one of OpenControls' better stories, but Dear ImGui's newer
 
 - [ ] Multi-select no longer feels limited to basic Ctrl/Shift toggling.
 
-## Milestone 10: Drag, Slider, Numeric, And Color Depth
+## Milestone 11: Drag, Slider, Numeric, And Color Depth
 
 ### Why This Comes Later
 
@@ -492,7 +596,7 @@ OpenControls already covers these areas reasonably well. This phase is about dep
 
 - [ ] Color and numeric widgets feel configurable rather than fixed-function.
 
-## Milestone 11: Menus, Popups, Tooltips, And Overlay Polish
+## Milestone 12: Menus, Popups, Tooltips, And Overlay Polish
 
 ### Checklist
 
@@ -509,7 +613,7 @@ OpenControls already covers these areas reasonably well. This phase is about dep
 
 - [ ] Overlay behavior feels predictable across menus, popups, modals, and tooltips.
 
-## Milestone 12: Tooling, Style Editor, And Examples Parity
+## Milestone 13: Tooling, Style Editor, And Examples Parity
 
 ### Why This Is Its Own Phase
 
@@ -553,15 +657,16 @@ If resourcing is tight, do the work in this order:
 - [x] Milestone 1
 - [ ] Milestone 2
 - [ ] Milestone 3
-- [ ] Milestone 7
+- [ ] Milestone 4
 - [ ] Milestone 8
-- [ ] Milestone 5
-- [ ] Milestone 6
 - [ ] Milestone 9
+- [ ] Milestone 6
+- [ ] Milestone 7
 - [ ] Milestone 10
 - [ ] Milestone 11
 - [ ] Milestone 12
-- [ ] Milestone 4 when editor depth becomes important enough to justify the extra scope
+- [ ] Milestone 13
+- [ ] Milestone 5 when editor depth becomes important enough to justify the extra scope
 
 ## Suggested Release Slices
 
@@ -575,27 +680,29 @@ If resourcing is tight, do the work in this order:
 
 - [ ] Milestone 3
 - [ ] Milestone 4
+- [ ] Milestone 5
 
 ### Release Slice C: Data Views
 
-- [ ] Milestone 7
 - [ ] Milestone 8
 - [ ] Milestone 9
+- [ ] Milestone 10
 
 ### Release Slice D: Composition And Layout
 
-- [ ] Milestone 5
 - [ ] Milestone 6
+- [ ] Milestone 7
 
 ### Release Slice E: Polish And Showcase
 
-- [ ] Milestone 10
 - [ ] Milestone 11
 - [ ] Milestone 12
+- [ ] Milestone 13
 
 ## Final Notes
 
 - [x] If only one thing happens next, it should be Milestone 1.
 - [ ] If only one thing happens next now, it should be Milestone 2.
-- [ ] If only one user-facing thing happens after that, it should be Milestone 3 or Milestone 7 depending on whether your near-term product is more editor-heavy or data-view-heavy.
-- [ ] Re-audit after Milestone 3 and again after Milestone 7 before committing to the entire tail of the roadmap.
+- [ ] If custom fonts and icon-font parity matter for the near-term product, Milestone 3 should happen immediately after Milestone 2.
+- [ ] If only one user-facing thing happens after that, it should be Milestone 4 or Milestone 8 depending on whether your near-term product is more editor-heavy or data-view-heavy.
+- [ ] Re-audit after Milestone 4 and again after Milestone 8 before committing to the entire tail of the roadmap.

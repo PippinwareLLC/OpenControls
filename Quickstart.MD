@@ -198,6 +198,7 @@ ui.Render(renderer);
 - Use `UiFocusManager` (via `UiContext.Focus`) to drive focus if needed.
 - Set `UiMenuBar.DisplayMode = Popup` and call `OpenPopup` to build context menus anchored to the menu `Bounds`.
 - TinyBitmapFont lives in OpenControls and renderers can switch `CodePage` between Latin-1 and CP437; the Widgets demo includes an ASCII table.
+- Custom TTF/OTF/WOFF2 fonts and merged icon-font support are planned in the parity roadmap; optional HarfBuzz integration is being treated as shaping/layout depth rather than a blocker for first-pass font parity.
 - Run `dotnet run --project OpenControls.MonoGame.Examples` to launch the MonoGame examples app.
 - Run `dotnet run --project OpenControls.SdlNet.Examples` to launch the SDL2-CS example (requires SDL2 native; on Windows place `SDL2.dll` on PATH or beside the executable).
 - Run `dotnet run --project OpenControls.SilkNet.Examples` to launch the Silk.NET example host.

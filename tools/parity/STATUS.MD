@@ -12,6 +12,7 @@
 
 - [x] Milestone 1 landed.
 - [x] Implement Milestone 2 next.
+- [x] If custom fonts or icon-font merging are near-term product requirements, implement Milestone 3 immediately after Milestone 2.
 
 ## Status Table
 
@@ -19,16 +20,17 @@
 | --- | --- | --- | --- | --- |
 | Input platform contract | Must have | Delivered / foundation in place | Milestone 2 | Milestone 1 is complete: richer input state, drag/double-click/wheel-X data, `WantCapture*` outputs, IME-friendly text-input metadata, requested cursor routing, and updated example hosts are in place. |
 | Runtime state queries and focus APIs | Must have | Missing / ad hoc | Milestone 2 | Needed to replace simulated item and window status behavior. |
-| Text entry foundation | Must have | Partial | Milestone 3 | Current single-line editing is simple and lacks selection/clipboard/history depth. |
-| Text editor depth | High-value parity | Partial | Milestone 4 | Current editor is useful but not yet editor-grade. |
-| Combo/list/popup composition | Must have | Partial | Milestone 5 | Current combo/list widgets are string-oriented, not retained-content containers. |
-| Layout containers | Must have | Partial by manual bounds | Milestone 6 | Need retained equivalents for practical layout demos and product UI. |
-| Tables 2.0 | Must have | Partial | Milestone 7 | Sorting exists, but resize/reorder/hide/scroll depth does not. |
-| Virtualization / clipper | Must have | Missing | Milestone 8 | Needed for large lists, tables, and trees. |
-| Selection and tree depth | High-value parity | Partial | Milestone 9 | Basic multi-select exists; advanced workflows do not. |
-| Drag/slider/color depth | High-value parity | Partial | Milestone 10 | Functional today, but still shallow compared to Dear ImGui. |
-| Menus, popups, tooltips polish | High-value parity | Partial | Milestone 11 | Behavior exists, but input/capture/nav depth still needs work. |
-| Tooling, style editor, examples cleanup | High-value parity | Partial | Milestone 12 | Best done after the foundations are real. |
+| Font system, atlas, and icon glyph pipeline | Must have | Missing | Milestone 3 | Needed for custom TTF/OTF/WOFF2 fonts, broader glyph coverage, and Dear ImGui-style merged icon fonts such as Font Awesome. Bias validation toward Silk.NET first. Treat HarfBuzz as an optional shaping backend for follow-on international text/layout depth, not a blocker for first-pass custom font and icon-font parity. |
+| Text entry foundation | Must have | Partial | Milestone 4 | Current single-line editing is simple and lacks selection/clipboard/history depth. |
+| Text editor depth | High-value parity | Partial | Milestone 5 | Current editor is useful but not yet editor-grade. |
+| Combo/list/popup composition | Must have | Partial | Milestone 6 | Current combo/list widgets are string-oriented, not retained-content containers. |
+| Layout containers | Must have | Partial by manual bounds | Milestone 7 | Need retained equivalents for practical layout demos and product UI. |
+| Tables 2.0 | Must have | Partial | Milestone 8 | Sorting exists, but resize/reorder/hide/scroll depth does not. |
+| Virtualization / clipper | Must have | Missing | Milestone 9 | Needed for large lists, tables, and trees. |
+| Selection and tree depth | High-value parity | Partial | Milestone 10 | Basic multi-select exists; advanced workflows do not. |
+| Drag/slider/color depth | High-value parity | Partial | Milestone 11 | Functional today, but still shallow compared to Dear ImGui. |
+| Menus, popups, tooltips polish | High-value parity | Partial | Milestone 12 | Behavior exists, but input/capture/nav depth still needs work. |
+| Tooling, style editor, examples cleanup | High-value parity | Partial | Milestone 13 | Best done after the foundations are real. |
 | Legacy columns and exact demo curiosities | Low-priority demo completeness | Deferred | Parking lot | Not worth front-loading. |
 
 ## Tracking Notes

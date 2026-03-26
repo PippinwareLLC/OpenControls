@@ -154,3 +154,4 @@ Planned expansion:
 - OpenControls.Examples now shows real shortcut, capture, and requested-cursor state in the Inputs & Focus demo.
 - A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).
+- Custom TTF/OTF/WOFF2 font loading, merged icon-font support, and optional HarfBuzz-backed shaping are tracked in the parity roadmap; today the shipped path is still `TinyBitmapFont`-based.
