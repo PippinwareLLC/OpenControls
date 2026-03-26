@@ -218,8 +218,9 @@ public sealed class UiTextField : UiElement
             return;
         }
 
-        Text = Text.Remove(CaretIndex - 1, 1);
-        SetCaret(CaretIndex - 1);
+        int caretIndex = CaretIndex;
+        Text = Text.Remove(caretIndex - 1, 1);
+        SetCaret(caretIndex - 1);
     }
 
     private void Delete()
