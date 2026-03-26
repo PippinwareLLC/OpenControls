@@ -97,6 +97,8 @@ public sealed class UiInputState
             UiKey.Right => Navigation.MoveRight,
             UiKey.Up => Navigation.MoveUp,
             UiKey.Down => Navigation.MoveDown,
+            UiKey.PageUp => Navigation.PageUp,
+            UiKey.PageDown => Navigation.PageDown,
             UiKey.Home => Navigation.Home,
             UiKey.End => Navigation.End,
             UiKey.Backspace => Navigation.Backspace,

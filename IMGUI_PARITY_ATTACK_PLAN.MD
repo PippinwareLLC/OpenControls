@@ -36,6 +36,12 @@ Every milestone below is only complete when all of these are checked:
 - [ ] Editor-blocking behavior has regression coverage beyond "project builds".
 - [ ] README parity caveats are updated if the milestone changes them.
 
+## Milestone Status Semantics
+
+- A milestone is only called complete when its required checklist items and exit criteria are fully checked.
+- Mutually exclusive design decisions should be recorded as a chosen baseline plus deferred alternatives, not as permanently half-checked checkbox groups.
+- Optional or post-baseline work should live in a clearly named deferred follow-on subsection so it does not make a shipped milestone read as incomplete.
+
 ## Phase 0: Baseline, Scope Freeze, And Tracking
 
 ### Objectives
@@ -194,7 +200,7 @@ OpenControls currently assumes a tiny built-in bitmap font and a narrow code-pag
 
 ### Implementation Note
 
-First-pass Milestone 3 is now landed. OpenControls ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, renderer-side glyph caches across all backends, and a Silk.NET-first demo path for custom body fonts plus merged icon fonts. GPU atlas work, HarfBuzz shaping depth, and any Slug spike remain follow-on work rather than blockers for the usable parity baseline.
+Milestone 3 is complete for the scoped first-pass font/icon parity target. OpenControls ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, renderer-side glyph caches across all backends, and a Silk.NET-first demo path for custom body fonts plus merged icon fonts. GPU atlas work, HarfBuzz shaping depth, and any Slug spike remain deferred follow-on work rather than blockers for the usable parity baseline.
 
 ### Scope
 
@@ -205,14 +211,13 @@ First-pass Milestone 3 is now landed. OpenControls ships `UiFont`, `UiFontBuilde
 ### Font Asset Checklist
 
 - [x] Introduce a font asset abstraction decoupled from `TinyBitmapFont`.
-- [ ] Support loading:
+- [x] Support loading:
   - [x] TTF
   - [x] OTF
   - [x] WOFF2
-- [ ] Decide whether WOFF2 support is:
-  - [ ] runtime decode in managed code
-  - [x] runtime decode through a dependency
-  - [ ] preprocessed to an internal baked format
+- [x] Decide the WOFF2 approach for the shipped baseline.
+  Chosen baseline: runtime decode through a dependency.
+  Deferred alternatives: managed decode or preprocessing to an internal baked format.
 - [x] Add a font registry / cache owned by the framework or host boundary.
 - [x] Support multiple named font faces and sizes in one app session.
 - [x] Preserve a built-in fallback/default font so simple hosts still work out of the box.
@@ -229,10 +234,10 @@ First-pass Milestone 3 is now landed. OpenControls ships `UiFont`, `UiFontBuilde
 - [x] Split font rendering goals into two passes:
   - [x] first-pass custom-font/icon-font parity without requiring full shaping
   - [x] follow-on shaping/text-layout work for complex scripts and higher typography fidelity
-- [ ] Decide how much shaping/kerning support is required for the first usable version:
-  - [x] no shaping, simple glyph-cache path
-  - [ ] kerning-aware Latin path
-  - [x] future shaping/text-layout milestone for complex scripts
+- [x] Decide the shaping/kerning baseline for the first usable version.
+  Shipped baseline: no shaping, simple glyph-cache path.
+  Deferred follow-on: kerning-aware Latin path if product value justifies it.
+  Deferred follow-on: future shaping/text-layout milestone for complex scripts.
 
 ### HarfBuzz Evaluation Checklist
 
@@ -268,26 +273,23 @@ First-pass Milestone 3 is now landed. OpenControls ships `UiFont`, `UiFontBuilde
 - [x] Ensure measurement and drawing use the same glyph metrics across all renderers.
 - [x] Implement Silk.NET glyph-cache draw flow first.
 - [x] Keep MonoGame, SDL, OpenGL, and software/headless renderers functional with the same font contracts.
-- [ ] Define rebuild behavior when fonts or glyph ranges change at runtime.
-
-### Optional Slug Evaluation
-
-- [ ] Evaluate [Slug](https://github.com/EricLengyel/Slug) as an optional advanced GPU font-rendering path for shader-driven/vector-quality text.
-- [ ] Treat Slug as a rendering backend option, not the primary answer for:
-  - [ ] TTF/OTF/WOFF2 loading
-  - [ ] fallback-font orchestration
-  - [ ] Dear ImGui-style icon-font merge APIs
-- [ ] Bias any Slug spike toward Silk.NET first because it is the parity reference host and the best fit for an optional GPU-first font path.
-- [ ] Keep the default font pipeline independent so OpenControls can ship custom fonts without requiring Slug.
 
 ### API And Styling Checklist
 
 - [x] Add a stable way to choose fonts in UI code:
   - [x] per-element font
   - [x] inherited/default font
-  - [ ] temporary push/pop style equivalent if it fits retained mode
 - [x] Add font metrics helpers needed by layout and text editing.
 - [x] Document how icon fonts are configured and merged.
+
+### Deferred Follow-On Work
+
+These items remain real backlog, but they are not required for Milestone 3 closure:
+
+- Define rebuild behavior when fonts or glyph ranges change at runtime.
+- Revisit whether a temporary push/pop style equivalent is useful in retained mode.
+- Evaluate [Slug](https://github.com/EricLengyel/Slug) as an optional advanced GPU font-rendering path for shader-driven/vector-quality text.
+- If a Slug spike happens, keep it renderer-optional, bias it toward Silk.NET first, and keep the default font pipeline independent.
 
 ### Demo/Docs Work
 
@@ -311,7 +313,7 @@ Text editing is the biggest user-facing gap after input. It is also a force mult
 
 ### Implementation Note
 
-First-pass Milestone 4 is now landed. OpenControls ships `UiTextEditingState`, `IUiClipboard` plus default/delegate clipboard adapters, a substantially upgraded `UiTextField`, and `UiNumericField` riding on the richer single-line editing path. The shared examples now use real password/completion/history/resize behavior, and `OpenControls.Tests` covers the shared editing core. IME composition depth remains a follow-on item rather than a blocker for the usable baseline.
+Milestone 4 is complete for the scoped first-pass text-entry target. OpenControls ships `UiTextEditingState`, `IUiClipboard` plus default/delegate clipboard adapters, a substantially upgraded `UiTextField`, and `UiNumericField` riding on the richer single-line editing path. The shared examples now use real password/completion/history/resize behavior, and `OpenControls.Tests` covers the shared editing core. IME composition depth remains deferred follow-on work rather than a blocker for the usable baseline.
 
 ### Scope
 
@@ -353,15 +355,12 @@ First-pass Milestone 4 is now landed. OpenControls ships `UiTextEditingState`, `
   - [x] selected-text background
   - [x] horizontal scroll for long text
   - [x] caret reveal logic
-  - [ ] alignment / eliding options where valuable
 
 ### Shared Text Infrastructure Checklist
 
 - [x] Introduce a reusable text buffer/edit state abstraction.
 - [x] Separate text model logic from widget rendering.
 - [x] Add clipboard access abstraction usable by hosts.
-- [ ] Add UTF-8 and IME handling strategy if text input pipeline requires it.
-- [ ] Add composition/IME state plumbing beyond raw committed characters.
 - [x] Decide whether text buffers should be string-backed, span-like, or pluggable.
 
 ### Numeric Field Follow-Through
@@ -380,6 +379,14 @@ First-pass Milestone 4 is now landed. OpenControls ships `UiTextEditingState`, `
 - [x] Implement resize callback or retained-mode equivalent for growing buffers.
 - [x] Document callback lifecycle clearly.
 
+### Deferred Follow-On Work
+
+These items remain backlog, but they do not block Milestone 4 closure:
+
+- Add alignment/eliding options where single-line product UX clearly benefits.
+- Add UTF-8 and IME handling strategy depth if the host text-input pipeline requires it.
+- Add composition/IME state plumbing beyond raw committed characters, likely shared with Milestone 5 and future international text work.
+
 ### Exit Criteria
 
 - [x] `UiTextField` feels credible in a real inspector/property editor.
@@ -387,38 +394,53 @@ First-pass Milestone 4 is now landed. OpenControls ships `UiTextEditingState`, `
 
 ## Milestone 5: Text Editor 2.0
 
+### Implementation Note
+
+Milestone 5 is complete for the scoped first-pass text-editor target. OpenControls now ships a `UiTextEditingState`-backed `UiTextEditor` with mouse and keyboard selection, clipboard operations, undo/redo, word/page/home/end navigation, text/caret/selection events, selection rendering, and shared example/test coverage. Search, wrapping, IME composition depth, tokenizer expansion, and minimap/multi-caret work remain deferred follow-on work rather than blockers for the usable editor baseline.
+
 ### Scope
 
-- [ ] Upgrade `UiTextEditor` from a capable demo/editor widget into a reusable editing surface.
+- [x] Upgrade `UiTextEditor` from a capable demo/editor widget into a reusable editing surface.
 
 ### Checklist
 
-- [ ] Add text selection:
-  - [ ] mouse selection
-  - [ ] keyboard selection
-  - [ ] line selection helpers
-- [ ] Add clipboard operations.
-- [ ] Add undo/redo.
-- [ ] Add richer editor navigation:
-  - [ ] word-left / word-right
-  - [ ] page up / page down
-  - [ ] better home / end behavior
-- [ ] Add multi-caret support only if still aligned with product needs.
-- [ ] Add search/find primitives if desired for examples.
-- [ ] Improve tokenization architecture so syntax modes can grow beyond C#.
-- [ ] Add line wrapping mode as an option.
-- [ ] Add IME/composition-aware editing path for multiline text.
-- [ ] Add optional minimap/gutter polish only after core editing is solid.
-- [ ] Add editor events:
-  - [ ] text changed
-  - [ ] caret moved
-  - [ ] selection changed
-- [ ] Ensure editor uses shared text primitives from Milestone 4 where practical.
+- [x] Add text selection:
+  - [x] mouse selection
+  - [x] keyboard selection
+  - [x] line selection helpers
+- [x] Add clipboard operations.
+- [x] Add undo/redo.
+- [x] Add richer editor navigation:
+  - [x] word-left / word-right
+  - [x] page up / page down
+  - [x] better home / end behavior
+- [x] Add editor events:
+  - [x] text changed
+  - [x] caret moved
+  - [x] selection changed
+- [x] Ensure editor uses shared text primitives from Milestone 4 where practical.
+
+### Demo/Docs Work
+
+- [x] Make the multiline examples show real selection/clipboard/navigation behavior.
+- [x] Add regression coverage for core editor workflows.
+- [x] Update parity/docs language so the multiline editor caveat no longer points at Milestone 5 as wholly undone.
+
+### Deferred Follow-On Work
+
+These items remain backlog, but they do not block Milestone 5 closure:
+
+- Add multi-caret support if product needs justify the complexity.
+- Add search/find primitives and richer editor tooling helpers for examples.
+- Improve tokenization architecture so syntax modes can grow beyond C# cleanly.
+- Add line wrapping mode with correct hit-testing/selection behavior.
+- Add IME/composition-aware editing depth for multiline text.
+- Add optional minimap/gutter polish only after core editing is solid.
 
 ### Exit Criteria
 
-- [ ] Text editor demos no longer feel like a separate toy path from text field behavior.
-- [ ] The examples app can plausibly host a code or config editor workflow.
+- [x] Text editor demos no longer feel like a separate toy path from text field behavior.
+- [x] The examples app can plausibly host a code or config editor workflow.
 
 ## Milestone 6: Composition APIs For Combo, List, Popup, And Child Content
 

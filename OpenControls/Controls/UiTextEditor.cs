@@ -10,6 +10,13 @@ public enum UiTextEditorSyntaxMode
 
 public sealed class UiTextEditor : UiElement
 {
+    private enum CharacterClass
+    {
+        Whitespace,
+        Word,
+        Symbol
+    }
+
     private sealed class TextEditorView : UiElement
     {
         private readonly UiTextEditor _owner;
@@ -21,7 +28,7 @@ public sealed class UiTextEditor : UiElement
 
         public override bool IsFocusable => true;
         public override bool HandlesTabInput => _owner.AllowTabInput;
-        public override bool WantsTextInput => true;
+        public override bool WantsTextInput => ! _owner.ReadOnly;
 
         public override void Update(UiUpdateContext context)
         {
@@ -33,14 +40,16 @@ public sealed class UiTextEditor : UiElement
             UiInputState input = context.Input;
             if (input.LeftClicked && Bounds.Contains(input.MousePosition))
             {
-                _owner.RegisterPointerClick();
-                context.Focus.RequestFocus(this);
-                _owner.SetCaretFromPoint(input.MousePosition);
+                _owner.HandlePointerPressed(context, input);
+            }
+            else
+            {
+                _owner.UpdatePointerSelection(input);
             }
 
             if (context.Focus.Focused == this)
             {
-                _owner.HandleInput(input);
+                _owner.HandleInput(context, input);
             }
         }
 
@@ -78,6 +87,12 @@ public sealed class UiTextEditor : UiElement
 
         protected internal override bool TryGetTextInputRequest(out UiTextInputRequest request)
         {
+            if (_owner.ReadOnly)
+            {
+                request = default;
+                return false;
+            }
+
             request = new UiTextInputRequest(Bounds, isMultiLine: true);
             return true;
         }
@@ -132,12 +147,12 @@ public sealed class UiTextEditor : UiElement
 
     private readonly UiScrollPanel _scrollPanel;
     private readonly TextEditorView _view;
+    private readonly UiTextEditingState _editingState = new();
     private readonly List<string> _lines = new();
+    private readonly List<int> _lineStartIndices = new();
     private readonly List<List<LineToken>?> _tokenCache = new();
     private readonly List<bool> _lineStartsInBlockComment = new();
 
-    private string _text = string.Empty;
-    private bool _textDirty;
     private int _maxLineLength;
     private int _caretLine;
     private int _caretColumn;
@@ -150,6 +165,12 @@ public sealed class UiTextEditor : UiElement
     private bool _hasFocus;
     private bool _clickedThisFrame;
     private bool _editedThisFrame;
+    private bool _dragSelecting;
+    private bool _dragSelectingWholeLines;
+    private int _dragSelectionAnchor;
+    private int _dragSelectionAnchorLine;
+    private float _caretTimer;
+    private bool _caretVisible = true;
 
     public UiTextEditor()
     {
@@ -161,8 +182,7 @@ public sealed class UiTextEditor : UiElement
         _view = new TextEditorView(this);
         _scrollPanel.AddChild(_view);
         AddChild(_scrollPanel);
-        EnsureLines();
-        RebuildCaches();
+        RebuildDocumentFromText();
     }
 
     public UiColor Background { get; set; } = new UiColor(20, 22, 28);
@@ -179,6 +199,7 @@ public sealed class UiTextEditor : UiElement
     public UiColor LineNumberBackground { get; set; } = new UiColor(18, 20, 28);
     public UiColor CaretColor { get; set; } = UiColor.White;
     public UiColor CurrentLineHighlight { get; set; } = new UiColor(32, 36, 48, 140);
+    public UiColor SelectionBackground { get; set; } = new UiColor(72, 114, 196, 180);
 
     public bool HighlightCurrentLine { get; set; } = true;
     public bool ShowLineNumbers { get; set; } = true;
@@ -188,6 +209,7 @@ public sealed class UiTextEditor : UiElement
     public int LineSpacing { get; set; } = 2;
     public int TabSize { get; set; } = 4;
     public bool AllowTabInput { get; set; } = true;
+    public bool ReadOnly { get; set; }
     public int MinLineNumberDigits { get; set; } = 3;
     public UiTextEditorSyntaxMode SyntaxMode { get; set; } = UiTextEditorSyntaxMode.CSharp;
 
@@ -212,42 +234,75 @@ public sealed class UiTextEditor : UiElement
     public int LineCount => _lines.Count;
     public int CaretLine => _caretLine;
     public int CaretColumn => _caretColumn;
+    public int CaretIndex => _editingState.CaretIndex;
+    public bool HasSelection => _editingState.HasSelection;
+    public int SelectionStart => _editingState.SelectionStart;
+    public int SelectionEnd => _editingState.SelectionEnd;
+    public int SelectionLength => _editingState.SelectionLength;
+    public string SelectedText => _editingState.GetSelectedText();
+    public bool CanUndo => _editingState.CanUndo;
+    public bool CanRedo => _editingState.CanRedo;
 
     public string Text
     {
-        get
-        {
-            if (_textDirty)
-            {
-                _text = string.Join("\n", _lines);
-                _textDirty = false;
-            }
-
-            return _text;
-        }
+        get => _editingState.Text;
         set => SetText(value);
     }
 
     public event Action? TextChanged;
+    public event Action? CaretMoved;
+    public event Action? SelectionChanged;
 
     public void SetText(string text)
     {
-        _text = NormalizeText(text);
-        _textDirty = false;
-        _lines.Clear();
-        using StringReader reader = new(_text);
-        string? line;
-        while ((line = reader.ReadLine()) != null)
-        {
-            _lines.Add(line);
-        }
+        string normalized = NormalizeText(text);
+        int previousCaret = _editingState.CaretIndex;
+        int previousSelectionStart = _editingState.SelectionStart;
+        int previousSelectionEnd = _editingState.SelectionEnd;
 
-        EnsureLines();
-        _caretLine = Math.Clamp(_caretLine, 0, _lines.Count - 1);
-        _caretColumn = Math.Clamp(_caretColumn, 0, _lines[_caretLine].Length);
-        _preferredColumn = _caretColumn;
-        RebuildCaches();
+        _editingState.SetText(normalized);
+        RebuildDocumentFromText();
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+
         TextChanged?.Invoke();
+        NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
+        ResetCaretBlink();
+    }
+
+    public void SetCaretIndex(int index)
+    {
+        int previousCaret = _editingState.CaretIndex;
+        int previousSelectionStart = _editingState.SelectionStart;
+        int previousSelectionEnd = _editingState.SelectionEnd;
+        _editingState.SetCaret(index);
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+        EnsureCaretVisible();
+        NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
+        ResetCaretBlink();
+    }
+
+    public void SelectAllText()
+    {
+        int previousCaret = _editingState.CaretIndex;
+        int previousSelectionStart = _editingState.SelectionStart;
+        int previousSelectionEnd = _editingState.SelectionEnd;
+        _editingState.SelectAll();
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+        EnsureCaretVisible();
+        NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
+        ResetCaretBlink();
+    }
+
+    public void SelectRange(int anchorIndex, int caretIndex)
+    {
+        int previousCaret = _editingState.CaretIndex;
+        int previousSelectionStart = _editingState.SelectionStart;
+        int previousSelectionEnd = _editingState.SelectionEnd;
+        _editingState.SelectRange(anchorIndex, caretIndex);
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+        EnsureCaretVisible();
+        NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
+        ResetCaretBlink();
     }
 
     public override void Update(UiUpdateContext context)
@@ -267,6 +322,11 @@ public sealed class UiTextEditor : UiElement
         _scrollPanel.CornerRadius = CornerRadius;
         _scrollPanel.Bounds = Bounds;
         _scrollPanel.Update(context);
+
+        if (_hasFocus)
+        {
+            UpdateCaretBlink(context.DeltaSeconds);
+        }
     }
 
     public override void Render(UiRenderContext context)
@@ -289,19 +349,11 @@ public sealed class UiTextEditor : UiElement
         _scrollPanel.RenderOverlay(context);
     }
 
-    private void EnsureLines()
-    {
-        if (_lines.Count == 0)
-        {
-            _lines.Add(string.Empty);
-        }
-    }
-
     private void RefreshLayout(UiFont font)
     {
         _layoutFont = font;
         _glyphWidth = GetGlyphWidth(font, TextScale);
-        _lineHeight = GetLineHeight(font, TextScale);
+        _lineHeight = GetLineHeight(font, TextScale) + Math.Max(0, LineSpacing);
 
         int digits = Math.Max(MinLineNumberDigits, _lines.Count.ToString().Length);
         _lineNumberWidth = ShowLineNumbers
@@ -314,107 +366,576 @@ public sealed class UiTextEditor : UiElement
         _view.Bounds = new UiRect(0, 0, contentWidth, contentHeight);
     }
 
-    private void HandleInput(UiInputState input)
+    private void HandlePointerPressed(UiUpdateContext context, UiInputState input)
     {
-        bool textChanged = false;
+        _clickedThisFrame = true;
+        bool hadFocus = _hasFocus;
+        context.Focus.RequestFocus(_view);
 
-        if (input.Navigation.Enter || input.Navigation.KeypadEnter)
-        {
-            InsertText("\n");
-            textChanged = true;
-        }
+        int previousCaret = _editingState.CaretIndex;
+        int previousSelectionStart = _editingState.SelectionStart;
+        int previousSelectionEnd = _editingState.SelectionEnd;
 
-        if (input.Navigation.Tab)
+        if (ShowLineNumbers && input.MousePosition.X < _textStartX)
         {
-            InsertText(new string(' ', Math.Max(1, TabSize)));
-            textChanged = true;
-        }
-
-        if (input.Navigation.Backspace)
-        {
-            textChanged |= Backspace();
-        }
-
-        if (input.Navigation.Delete)
-        {
-            textChanged |= Delete();
-        }
-
-        if (input.TextInput.Count > 0)
-        {
-            foreach (char character in input.TextInput)
+            int line = GetLineFromPoint(input.MousePosition.Y);
+            if (input.ShiftDown && hadFocus)
             {
-                if (character == '\r' || character == '\n')
-                {
-                    InsertText("\n");
-                }
-                else if (character == '\t')
-                {
-                    InsertText(new string(' ', Math.Max(1, TabSize)));
-                }
-                else
-                {
-                    InsertText(character.ToString());
-                }
-                textChanged = true;
+                SelectWholeLineRange(GetLineFromIndex(_editingState.SelectionAnchor), line);
+            }
+            else
+            {
+                SelectWholeLineRange(line, line);
+            }
+
+            _dragSelectionAnchorLine = input.ShiftDown && hadFocus
+                ? GetLineFromIndex(_editingState.SelectionAnchor)
+                : line;
+            _dragSelecting = true;
+            _dragSelectingWholeLines = true;
+        }
+        else
+        {
+            int index = GetTextIndexFromPoint(input.MousePosition);
+            if (input.LeftDoubleClicked)
+            {
+                _editingState.SelectWordAt(index);
+                _dragSelecting = false;
+                _dragSelectingWholeLines = false;
+            }
+            else
+            {
+                _editingState.SetCaret(index, extendSelection: input.ShiftDown && hadFocus);
+                _dragSelectionAnchor = _editingState.SelectionAnchor;
+                _dragSelecting = true;
+                _dragSelectingWholeLines = false;
             }
         }
 
-        bool moved = false;
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+        EnsureCaretVisible();
+        NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
+        ResetCaretBlink();
+    }
+
+    private void UpdatePointerSelection(UiInputState input)
+    {
+        if (!_dragSelecting)
+        {
+            return;
+        }
+
+        if (!input.LeftDown)
+        {
+            _dragSelecting = false;
+            _dragSelectingWholeLines = false;
+            return;
+        }
+
+        int previousCaret = _editingState.CaretIndex;
+        int previousSelectionStart = _editingState.SelectionStart;
+        int previousSelectionEnd = _editingState.SelectionEnd;
+
+        if (_dragSelectingWholeLines)
+        {
+            int line = GetLineFromPoint(input.MousePosition.Y);
+            SelectWholeLineRange(_dragSelectionAnchorLine, line);
+        }
+        else
+        {
+            int index = GetTextIndexFromPoint(input.MousePosition);
+            _editingState.SelectRange(_dragSelectionAnchor, index);
+        }
+
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+        EnsureCaretVisible();
+        NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
+        ResetCaretBlink();
+    }
+
+    private void HandleInput(UiUpdateContext context, UiInputState input)
+    {
+        int previousCaret = _editingState.CaretIndex;
+        int previousSelectionStart = _editingState.SelectionStart;
+        int previousSelectionEnd = _editingState.SelectionEnd;
+        bool textChanged = false;
+        bool caretOrSelectionChanged = false;
+
+        caretOrSelectionChanged |= HandleShortcutInput(context, input, ref textChanged);
+
+        bool extendSelection = input.ShiftDown;
+        bool byWord = input.CtrlDown || input.AltDown;
+
         if (input.Navigation.MoveLeft)
         {
-            MoveLeft();
-            moved = true;
+            if (input.SuperDown && !byWord)
+            {
+                MoveLineHome(extendSelection, smartHome: true);
+            }
+            else
+            {
+                MoveLeft(extendSelection, byWord);
+            }
+
+            caretOrSelectionChanged = true;
         }
+
         if (input.Navigation.MoveRight)
         {
-            MoveRight();
-            moved = true;
+            if (input.SuperDown && !byWord)
+            {
+                MoveLineEnd(extendSelection);
+            }
+            else
+            {
+                MoveRight(extendSelection, byWord);
+            }
+
+            caretOrSelectionChanged = true;
         }
+
         if (input.Navigation.MoveUp)
         {
-            MoveUp();
-            moved = true;
+            if (input.SuperDown)
+            {
+                MoveDocumentBoundary(toEnd: false, extendSelection);
+            }
+            else
+            {
+                MoveVertical(-1, extendSelection);
+            }
+
+            caretOrSelectionChanged = true;
         }
+
         if (input.Navigation.MoveDown)
         {
-            MoveDown();
-            moved = true;
+            if (input.SuperDown)
+            {
+                MoveDocumentBoundary(toEnd: true, extendSelection);
+            }
+            else
+            {
+                MoveVertical(1, extendSelection);
+            }
+
+            caretOrSelectionChanged = true;
         }
+
         if (input.Navigation.Home)
         {
-            _caretColumn = 0;
-            _preferredColumn = _caretColumn;
-            moved = true;
+            if (input.CtrlDown || input.SuperDown)
+            {
+                MoveDocumentBoundary(toEnd: false, extendSelection);
+            }
+            else
+            {
+                MoveLineHome(extendSelection, smartHome: true);
+            }
+
+            caretOrSelectionChanged = true;
         }
+
         if (input.Navigation.End)
         {
-            _caretColumn = _lines[_caretLine].Length;
-            _preferredColumn = _caretColumn;
-            moved = true;
+            if (input.CtrlDown || input.SuperDown)
+            {
+                MoveDocumentBoundary(toEnd: true, extendSelection);
+            }
+            else
+            {
+                MoveLineEnd(extendSelection);
+            }
+
+            caretOrSelectionChanged = true;
+        }
+
+        if (input.Navigation.PageUp)
+        {
+            MovePage(-1, extendSelection);
+            caretOrSelectionChanged = true;
+        }
+
+        if (input.Navigation.PageDown)
+        {
+            MovePage(1, extendSelection);
+            caretOrSelectionChanged = true;
+        }
+
+        if (!ReadOnly && input.Navigation.Backspace)
+        {
+            textChanged |= Backspace(byWord);
+        }
+
+        if (!ReadOnly && input.Navigation.Delete)
+        {
+            textChanged |= Delete(byWord);
+        }
+
+        if (!ReadOnly && AllowTabInput && input.Navigation.Tab)
+        {
+            textChanged |= InsertText(new string(' ', Math.Max(1, TabSize)));
+        }
+
+        if (!ReadOnly && (input.Navigation.Enter || input.Navigation.KeypadEnter))
+        {
+            textChanged |= InsertText("\n");
+        }
+
+        if (!ReadOnly && input.TextInput.Count > 0)
+        {
+            textChanged |= HandleTextInput(input.TextInput);
         }
 
         if (textChanged)
         {
+            RebuildDocumentFromText();
+            UpdateCaretFromIndex(updatePreferredColumn: true);
             _editedThisFrame = true;
             TextChanged?.Invoke();
         }
+        else if (caretOrSelectionChanged)
+        {
+            UpdateCaretFromIndex(updatePreferredColumn: false);
+        }
 
-        if (textChanged || moved)
+        if (textChanged || caretOrSelectionChanged)
         {
             EnsureCaretVisible();
+            NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
+            ResetCaretBlink();
         }
     }
 
-    private void SetCaretFromPoint(UiPoint point)
+    private bool HandleShortcutInput(UiUpdateContext context, UiInputState input, ref bool textChanged)
     {
-        int lineIndex = (point.Y - Padding) / Math.Max(1, _lineHeight);
-        _caretLine = Math.Clamp(lineIndex, 0, _lines.Count - 1);
+        bool changed = false;
+        if (input.IsPrimaryShortcutPressed(UiKey.A))
+        {
+            _editingState.SelectAll();
+            changed = true;
+        }
 
-        int column = FindColumnFromPoint(_lines[_caretLine], point.X - _textStartX);
+        if (input.IsPrimaryShortcutPressed(UiKey.C))
+        {
+            CopySelection(context.Clipboard);
+        }
+
+        if (!ReadOnly && input.IsPrimaryShortcutPressed(UiKey.X))
+        {
+            textChanged |= CutSelection(context.Clipboard);
+        }
+
+        if (!ReadOnly && input.IsPrimaryShortcutPressed(UiKey.V))
+        {
+            textChanged |= PasteFromClipboard(context.Clipboard);
+        }
+
+        if (!ReadOnly && input.IsPrimaryShortcutPressed(UiKey.Z, shift: true))
+        {
+            textChanged |= _editingState.Redo();
+        }
+        else if (!ReadOnly && input.IsPrimaryShortcutPressed(UiKey.Z))
+        {
+            textChanged |= _editingState.Undo();
+        }
+        else if (!ReadOnly && input.IsPrimaryShortcutPressed(UiKey.Y))
+        {
+            textChanged |= _editingState.Redo();
+        }
+
+        return changed;
+    }
+
+    private bool HandleTextInput(IReadOnlyList<char> characters)
+    {
+        if (characters.Count == 0)
+        {
+            return false;
+        }
+
+        StringBuilder builder = new();
+        for (int i = 0; i < characters.Count; i++)
+        {
+            char character = characters[i];
+            if (character == '\r' || character == '\n')
+            {
+                builder.Append('\n');
+            }
+            else if (character == '\t')
+            {
+                builder.Append(new string(' ', Math.Max(1, TabSize)));
+            }
+            else if (!char.IsControl(character))
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.Length > 0 && InsertText(builder.ToString());
+    }
+
+    private bool InsertText(string text)
+    {
+        string normalized = NormalizeText(text);
+        return !string.IsNullOrEmpty(normalized) && _editingState.InsertText(normalized);
+    }
+
+    private bool Backspace(bool byWord)
+    {
+        if (!byWord)
+        {
+            return _editingState.Backspace();
+        }
+
+        if (_editingState.HasSelection)
+        {
+            return _editingState.DeleteSelection();
+        }
+
+        int start = FindPreviousBoundary(Text, _editingState.CaretIndex);
+        if (start == _editingState.CaretIndex)
+        {
+            return false;
+        }
+
+        _editingState.SelectRange(start, _editingState.CaretIndex);
+        return _editingState.DeleteSelection();
+    }
+
+    private bool Delete(bool byWord)
+    {
+        if (!byWord)
+        {
+            return _editingState.Delete();
+        }
+
+        if (_editingState.HasSelection)
+        {
+            return _editingState.DeleteSelection();
+        }
+
+        int end = FindNextBoundary(Text, _editingState.CaretIndex);
+        if (end == _editingState.CaretIndex)
+        {
+            return false;
+        }
+
+        _editingState.SelectRange(_editingState.CaretIndex, end);
+        return _editingState.DeleteSelection();
+    }
+
+    private void CopySelection(IUiClipboard clipboard)
+    {
+        if (!_editingState.HasSelection)
+        {
+            return;
+        }
+
+        clipboard.SetText(_editingState.GetSelectedText());
+    }
+
+    private bool CutSelection(IUiClipboard clipboard)
+    {
+        if (!_editingState.HasSelection)
+        {
+            return false;
+        }
+
+        clipboard.SetText(_editingState.GetSelectedText());
+        return _editingState.DeleteSelection();
+    }
+
+    private bool PasteFromClipboard(IUiClipboard clipboard)
+    {
+        return InsertText(clipboard.GetText());
+    }
+
+    private void MoveLeft(bool extendSelection, bool byWord)
+    {
+        if (!extendSelection && _editingState.HasSelection)
+        {
+            _editingState.SetCaret(_editingState.SelectionStart);
+            UpdateCaretFromIndex(updatePreferredColumn: true);
+            return;
+        }
+
+        int next = byWord
+            ? FindPreviousBoundary(Text, _editingState.CaretIndex)
+            : Math.Max(0, _editingState.CaretIndex - 1);
+        _editingState.SetCaret(next, extendSelection);
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+    }
+
+    private void MoveRight(bool extendSelection, bool byWord)
+    {
+        if (!extendSelection && _editingState.HasSelection)
+        {
+            _editingState.SetCaret(_editingState.SelectionEnd);
+            UpdateCaretFromIndex(updatePreferredColumn: true);
+            return;
+        }
+
+        int next = byWord
+            ? FindNextBoundary(Text, _editingState.CaretIndex)
+            : Math.Min(Text.Length, _editingState.CaretIndex + 1);
+        _editingState.SetCaret(next, extendSelection);
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+    }
+
+    private void MoveVertical(int deltaLines, bool extendSelection)
+    {
+        int nextLine = Math.Clamp(_caretLine + deltaLines, 0, _lines.Count - 1);
+        int nextColumn = Math.Min(_lines[nextLine].Length, _preferredColumn);
+        _editingState.SetCaret(GetTextIndex(nextLine, nextColumn), extendSelection);
+        UpdateCaretFromIndex(updatePreferredColumn: false);
+    }
+
+    private void MovePage(int direction, bool extendSelection)
+    {
+        int viewportHeight = Math.Max(1, _scrollPanel.ViewportBounds.Height - Padding * 2);
+        int linesPerPage = Math.Max(1, viewportHeight / Math.Max(1, _lineHeight));
+        int nextLine = Math.Clamp(_caretLine + direction * linesPerPage, 0, _lines.Count - 1);
+        int nextColumn = Math.Min(_lines[nextLine].Length, _preferredColumn);
+        _editingState.SetCaret(GetTextIndex(nextLine, nextColumn), extendSelection);
+        UpdateCaretFromIndex(updatePreferredColumn: false);
+        _scrollPanel.ScrollY = Math.Max(0, _scrollPanel.ScrollY + direction * viewportHeight);
+    }
+
+    private void MoveLineHome(bool extendSelection, bool smartHome)
+    {
+        string line = _lines[_caretLine];
+        int firstNonWhitespace = 0;
+        while (firstNonWhitespace < line.Length && char.IsWhiteSpace(line[firstNonWhitespace]))
+        {
+            firstNonWhitespace++;
+        }
+
+        int targetColumn = 0;
+        if (smartHome && _caretColumn != firstNonWhitespace)
+        {
+            targetColumn = firstNonWhitespace;
+        }
+
+        _editingState.SetCaret(GetTextIndex(_caretLine, targetColumn), extendSelection);
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+    }
+
+    private void MoveLineEnd(bool extendSelection)
+    {
+        _editingState.SetCaret(GetTextIndex(_caretLine, _lines[_caretLine].Length), extendSelection);
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+    }
+
+    private void MoveDocumentBoundary(bool toEnd, bool extendSelection)
+    {
+        if (toEnd)
+        {
+            _editingState.MoveEnd(extendSelection);
+        }
+        else
+        {
+            _editingState.MoveHome(extendSelection);
+        }
+
+        UpdateCaretFromIndex(updatePreferredColumn: true);
+    }
+
+    private void SelectWholeLineRange(int anchorLine, int caretLine)
+    {
+        anchorLine = Math.Clamp(anchorLine, 0, _lines.Count - 1);
+        caretLine = Math.Clamp(caretLine, 0, _lines.Count - 1);
+
+        if (caretLine >= anchorLine)
+        {
+            _editingState.SelectRange(GetLineStartIndex(anchorLine), GetLineSelectionEndIndex(caretLine));
+        }
+        else
+        {
+            _editingState.SelectRange(GetLineSelectionEndIndex(anchorLine), GetLineStartIndex(caretLine));
+        }
+    }
+
+    private int GetTextIndexFromPoint(UiPoint point)
+    {
+        int line = GetLineFromPoint(point.Y);
+        int localX = point.X - _textStartX;
+        int column = FindColumnFromPoint(_lines[line], localX);
+        return GetTextIndex(line, column);
+    }
+
+    private int GetLineFromPoint(int y)
+    {
+        int lineIndex = (y - Padding) / Math.Max(1, _lineHeight);
+        return Math.Clamp(lineIndex, 0, _lines.Count - 1);
+    }
+
+    private int GetTextIndex(int line, int column)
+    {
+        int clampedLine = Math.Clamp(line, 0, _lines.Count - 1);
+        int clampedColumn = Math.Clamp(column, 0, _lines[clampedLine].Length);
+        return _lineStartIndices[clampedLine] + clampedColumn;
+    }
+
+    private int GetLineStartIndex(int line)
+    {
+        return _lineStartIndices[Math.Clamp(line, 0, _lineStartIndices.Count - 1)];
+    }
+
+    private int GetLineEndIndex(int line)
+    {
+        int clampedLine = Math.Clamp(line, 0, _lines.Count - 1);
+        return _lineStartIndices[clampedLine] + _lines[clampedLine].Length;
+    }
+
+    private int GetLineSelectionEndIndex(int line)
+    {
+        int end = GetLineEndIndex(line);
+        if (line < _lines.Count - 1)
+        {
+            return Math.Min(Text.Length, end + 1);
+        }
+
+        return end;
+    }
+
+    private int GetLineFromIndex(int index)
+    {
+        int clamped = Math.Clamp(index, 0, Text.Length);
+        int low = 0;
+        int high = _lineStartIndices.Count - 1;
+        while (low <= high)
+        {
+            int mid = low + ((high - low) / 2);
+            int lineStart = _lineStartIndices[mid];
+            int nextStart = mid + 1 < _lineStartIndices.Count ? _lineStartIndices[mid + 1] : Text.Length + 1;
+            if (clamped < lineStart)
+            {
+                high = mid - 1;
+            }
+            else if (clamped >= nextStart)
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                return mid;
+            }
+        }
+
+        return Math.Clamp(low, 0, _lineStartIndices.Count - 1);
+    }
+
+    private void UpdateCaretFromIndex(bool updatePreferredColumn)
+    {
+        int line = GetLineFromIndex(_editingState.CaretIndex);
+        int column = _editingState.CaretIndex - GetLineStartIndex(line);
+        _caretLine = Math.Clamp(line, 0, _lines.Count - 1);
         _caretColumn = Math.Clamp(column, 0, _lines[_caretLine].Length);
-        _preferredColumn = _caretColumn;
-        EnsureCaretVisible();
+        if (updatePreferredColumn)
+        {
+            _preferredColumn = _caretColumn;
+        }
     }
 
     private void RenderEditor(UiRenderContext context)
@@ -441,6 +962,8 @@ public sealed class UiTextEditor : UiElement
             {
                 context.Renderer.FillRect(new UiRect(0, lineY, _view.Bounds.Width, lineHeight), CurrentLineHighlight);
             }
+
+            DrawSelection(context, i, lineY, lineHeight);
 
             if (ShowLineNumbers)
             {
@@ -470,7 +993,7 @@ public sealed class UiTextEditor : UiElement
             }
         }
 
-        if (_hasFocus)
+        if (_hasFocus && _caretVisible)
         {
             string line = _lines[_caretLine];
             int caretX = _textStartX + MeasureLinePrefixWidth(line, _caretColumn);
@@ -478,6 +1001,46 @@ public sealed class UiTextEditor : UiElement
             int caretWidth = GetCaretWidth(line, _caretColumn);
             context.Renderer.FillRect(new UiRect(caretX, caretY, caretWidth, lineHeight), CaretColor);
         }
+    }
+
+    private void DrawSelection(UiRenderContext context, int lineIndex, int lineY, int lineHeight)
+    {
+        if (!_editingState.HasSelection)
+        {
+            return;
+        }
+
+        int lineStart = GetLineStartIndex(lineIndex);
+        int lineSelectionEnd = GetLineSelectionEndIndex(lineIndex);
+        if (_editingState.SelectionEnd <= lineStart || _editingState.SelectionStart >= lineSelectionEnd)
+        {
+            return;
+        }
+
+        string line = _lines[lineIndex];
+        int lineEnd = GetLineEndIndex(lineIndex);
+        int startColumn = Math.Clamp(_editingState.SelectionStart - lineStart, 0, line.Length);
+        int endColumn = Math.Clamp(_editingState.SelectionEnd - lineStart, 0, line.Length);
+
+        if (_editingState.SelectionStart < lineStart)
+        {
+            startColumn = 0;
+        }
+
+        if (_editingState.SelectionEnd > lineEnd && lineIndex < _lines.Count - 1)
+        {
+            endColumn = line.Length;
+        }
+
+        int selectionX = _textStartX + MeasureLinePrefixWidth(line, startColumn);
+        int selectionEndX = _textStartX + MeasureLinePrefixWidth(line, endColumn);
+        int selectionWidth = selectionEndX - selectionX;
+        if (selectionWidth <= 0)
+        {
+            selectionWidth = Math.Max(1, GetCaretWidth(line, startColumn));
+        }
+
+        context.Renderer.FillRect(new UiRect(selectionX, lineY, selectionWidth, lineHeight), SelectionBackground);
     }
 
     private List<LineToken> GetLineTokens(int lineIndex)
@@ -551,6 +1114,7 @@ public sealed class UiTextEditor : UiElement
                 {
                     index++;
                 }
+
                 tokens.Add(new LineToken(start, index - start, NumberColor));
                 continue;
             }
@@ -583,6 +1147,33 @@ public sealed class UiTextEditor : UiElement
         return tokens;
     }
 
+    private void RebuildDocumentFromText()
+    {
+        _lines.Clear();
+        _lineStartIndices.Clear();
+
+        string[] parts = Text.Split('\n');
+        int offset = 0;
+        for (int i = 0; i < parts.Length; i++)
+        {
+            _lines.Add(parts[i]);
+            _lineStartIndices.Add(offset);
+            offset += parts[i].Length;
+            if (i < parts.Length - 1)
+            {
+                offset++;
+            }
+        }
+
+        if (_lines.Count == 0)
+        {
+            _lines.Add(string.Empty);
+            _lineStartIndices.Add(0);
+        }
+
+        RebuildCaches();
+    }
+
     private void RebuildCaches()
     {
         _maxLineLength = 0;
@@ -597,154 +1188,6 @@ public sealed class UiTextEditor : UiElement
             _lineStartsInBlockComment.Add(inBlockComment);
             inBlockComment = AdvanceBlockCommentState(line, inBlockComment);
         }
-    }
-
-    private bool Backspace()
-    {
-        if (_caretColumn > 0)
-        {
-            string line = _lines[_caretLine];
-            _lines[_caretLine] = line.Remove(_caretColumn - 1, 1);
-            _caretColumn--;
-            _preferredColumn = _caretColumn;
-            MarkTextChanged();
-            return true;
-        }
-
-        if (_caretLine == 0)
-        {
-            return false;
-        }
-
-        string previous = _lines[_caretLine - 1];
-        string current = _lines[_caretLine];
-        int newColumn = previous.Length;
-        _lines[_caretLine - 1] = previous + current;
-        _lines.RemoveAt(_caretLine);
-        _caretLine--;
-        _caretColumn = newColumn;
-        _preferredColumn = _caretColumn;
-        MarkTextChanged();
-        return true;
-    }
-
-    private bool Delete()
-    {
-        string line = _lines[_caretLine];
-        if (_caretColumn < line.Length)
-        {
-            _lines[_caretLine] = line.Remove(_caretColumn, 1);
-            MarkTextChanged();
-            return true;
-        }
-
-        if (_caretLine >= _lines.Count - 1)
-        {
-            return false;
-        }
-
-        string next = _lines[_caretLine + 1];
-        _lines[_caretLine] = line + next;
-        _lines.RemoveAt(_caretLine + 1);
-        MarkTextChanged();
-        return true;
-    }
-
-    private void InsertText(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return;
-        }
-
-        string normalized = NormalizeText(text);
-        string line = _lines[_caretLine];
-        string prefix = line.Substring(0, _caretColumn);
-        string suffix = line.Substring(_caretColumn);
-
-        if (!normalized.Contains('\n'))
-        {
-            _lines[_caretLine] = prefix + normalized + suffix;
-            _caretColumn += normalized.Length;
-            _preferredColumn = _caretColumn;
-            MarkTextChanged();
-            return;
-        }
-
-        string[] parts = normalized.Split('\n');
-        _lines[_caretLine] = prefix + parts[0];
-        int insertIndex = _caretLine + 1;
-        for (int i = 1; i < parts.Length; i++)
-        {
-            string segment = parts[i];
-            if (i == parts.Length - 1)
-            {
-                _lines.Insert(insertIndex, segment + suffix);
-            }
-            else
-            {
-                _lines.Insert(insertIndex, segment);
-            }
-            insertIndex++;
-        }
-
-        _caretLine += parts.Length - 1;
-        _caretColumn = parts[^1].Length;
-        _preferredColumn = _caretColumn;
-        MarkTextChanged();
-    }
-
-    private void MoveLeft()
-    {
-        if (_caretColumn > 0)
-        {
-            _caretColumn--;
-        }
-        else if (_caretLine > 0)
-        {
-            _caretLine--;
-            _caretColumn = _lines[_caretLine].Length;
-        }
-
-        _preferredColumn = _caretColumn;
-    }
-
-    private void MoveRight()
-    {
-        string line = _lines[_caretLine];
-        if (_caretColumn < line.Length)
-        {
-            _caretColumn++;
-        }
-        else if (_caretLine < _lines.Count - 1)
-        {
-            _caretLine++;
-            _caretColumn = 0;
-        }
-
-        _preferredColumn = _caretColumn;
-    }
-
-    private void MoveUp()
-    {
-        if (_caretLine <= 0)
-        {
-            return;
-        }
-
-        _caretLine--;
-        _caretColumn = Math.Min(_lines[_caretLine].Length, _preferredColumn);
-    }
-
-    private void MoveDown()
-    {
-        if (_caretLine >= _lines.Count - 1)
-        {
-            return;
-        }
-
-        _caretLine++;
-        _caretColumn = Math.Min(_lines[_caretLine].Length, _preferredColumn);
     }
 
     private void EnsureCaretVisible()
@@ -838,21 +1281,48 @@ public sealed class UiTextEditor : UiElement
         return Math.Max(Math.Max(1, TextScale), _glyphWidth);
     }
 
-    private void MarkTextChanged()
+    private void NotifyCaretAndSelectionChanges(int previousCaret, int previousSelectionStart, int previousSelectionEnd)
     {
-        _textDirty = true;
-        EnsureLines();
-        RebuildCaches();
-    }
+        if (_editingState.CaretIndex != previousCaret)
+        {
+            CaretMoved?.Invoke();
+        }
 
-    private void RegisterPointerClick()
-    {
-        _clickedThisFrame = true;
+        if (_editingState.SelectionStart != previousSelectionStart || _editingState.SelectionEnd != previousSelectionEnd)
+        {
+            SelectionChanged?.Invoke();
+        }
     }
 
     private void SetFocusState(bool focused)
     {
         _hasFocus = focused;
+        if (!focused)
+        {
+            _dragSelecting = false;
+            _dragSelectingWholeLines = false;
+            _caretVisible = false;
+            _caretTimer = 0f;
+            return;
+        }
+
+        ResetCaretBlink();
+    }
+
+    private void UpdateCaretBlink(float deltaSeconds)
+    {
+        _caretTimer += Math.Max(0f, deltaSeconds);
+        if (_caretTimer >= 0.5f)
+        {
+            _caretTimer = 0f;
+            _caretVisible = !_caretVisible;
+        }
+    }
+
+    private void ResetCaretBlink()
+    {
+        _caretTimer = 0f;
+        _caretVisible = true;
     }
 
     private string NormalizeText(string text)
@@ -873,9 +1343,69 @@ public sealed class UiTextEditor : UiElement
         return normalized;
     }
 
+    private static int FindPreviousBoundary(string text, int index)
+    {
+        int i = Math.Clamp(index, 0, text.Length);
+        if (i <= 0)
+        {
+            return 0;
+        }
+
+        i--;
+        while (i > 0 && char.IsWhiteSpace(text[i]))
+        {
+            i--;
+        }
+
+        CharacterClass kind = Classify(text[i]);
+        while (i > 0 && Classify(text[i - 1]) == kind && kind != CharacterClass.Whitespace)
+        {
+            i--;
+        }
+
+        return i;
+    }
+
+    private static int FindNextBoundary(string text, int index)
+    {
+        int i = Math.Clamp(index, 0, text.Length);
+        if (i >= text.Length)
+        {
+            return text.Length;
+        }
+
+        CharacterClass kind = Classify(text[i]);
+        while (i < text.Length && Classify(text[i]) == kind && kind != CharacterClass.Whitespace)
+        {
+            i++;
+        }
+
+        while (i < text.Length && char.IsWhiteSpace(text[i]))
+        {
+            i++;
+        }
+
+        return i;
+    }
+
+    private static CharacterClass Classify(char character)
+    {
+        if (char.IsWhiteSpace(character))
+        {
+            return CharacterClass.Whitespace;
+        }
+
+        if (char.IsLetterOrDigit(character) || character == '_')
+        {
+            return CharacterClass.Word;
+        }
+
+        return CharacterClass.Symbol;
+    }
+
     private static int GetLineHeight(UiFont font, int scale)
     {
-        return font.MeasureTextHeight(Math.Max(1, scale)) + 2;
+        return font.MeasureTextHeight(Math.Max(1, scale));
     }
 
     private static int GetGlyphWidth(UiFont font, int scale)

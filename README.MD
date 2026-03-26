@@ -54,7 +54,7 @@ The Widgets window in `OpenControls.Examples` mirrors the structure of the refer
 Parity deviations (documented and intentional):
 - Shortcut routing depth: `UiContext` now exposes scoped shortcut helpers with focused/hovered/global precedence, but `UiMenuBar.MenuItem.Shortcut` remains display-only and app command binding is still app-defined.
 - Drag/slider flags: the demo toggles whole-number snapping and step size; advanced flags like logarithmic and always-clamp are not available.
-- Multiline editor depth: `UiTextField` now has selection, clipboard, undo/redo, password/read-only/filtering, completion/history hooks, and resize callbacks, but `UiTextEditor` still needs the deeper editor pass tracked in Milestone 5.
+- Multiline editor depth: `UiTextEditor` now shares the same editing core as `UiTextField`, including selection, clipboard, undo/redo, word/page/home/end navigation, and real example coverage. Deferred follow-on work is now editor polish depth such as wrapping, tokenizer expansion, and richer IME/composition handling.
 - WantCapture overrides: `UiContext` now exposes actual `WantCaptureMouse`, `WantCaptureKeyboard`, and `WantTextInput` outputs, but manual override toggles are not part of the core API.
 - Image demos: `UiImage` and `UiImageButton` rely on renderer-supplied textures, so hosts without texture bindings will show placeholders.
 

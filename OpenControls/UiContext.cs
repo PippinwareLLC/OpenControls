@@ -454,6 +454,8 @@ public sealed class UiContext
             MoveRight = input.Navigation.MoveRight,
             MoveUp = input.Navigation.MoveUp,
             MoveDown = input.Navigation.MoveDown,
+            PageUp = input.Navigation.PageUp,
+            PageDown = input.Navigation.PageDown,
             Home = input.Navigation.Home,
             End = input.Navigation.End,
             Backspace = input.Navigation.Backspace,

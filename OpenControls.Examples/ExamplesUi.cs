@@ -54,6 +54,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _font = font ?? new TinyBitmapFont();
     }
+
+    // Try: drag-select, Ctrl/Cmd+C/V/X, Ctrl/Cmd+Z/Y, Alt/Ctrl+Arrow, PageUp/PageDown.
 }";
     private static readonly string SampleEditorTextLarge = BuildSampleEditorTextLarge();
     private static readonly float[] WaveformSamples = BuildWaveformSamples();
@@ -373,6 +375,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private string _lastTextFilter = string.Empty;
     private UiLabel? _textInputLabel;
     private UiTextEditor? _multiLineInput;
+    private UiLabel? _multiLineInputStatusLabel;
     private UiLabel? _filteredInputLabel;
     private UiTextField? _filteredInputField;
     private UiLabel? _passwordInputLabel;
@@ -2437,7 +2440,14 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             SyntaxMode = UiTextEditorSyntaxMode.CSharp
         };
         _multiLineInput.Font = _bitmapUiFont;
-        _multiLineInput.SetText("Line 1: multi-line input\nLine 2: supports scrolling\nLine 3: editable text");
+        _multiLineInput.SetText("Line 1: drag to select text\nLine 2: Ctrl/Cmd+C, V, X, Z, Y\nLine 3: Alt/Ctrl+Left/Right, PageUp/PageDown");
+
+        _multiLineInputStatusLabel = new UiLabel
+        {
+            Text = "Caret: 1:1 | Selection: none | Undo/Redo: false/false",
+            Color = new UiColor(160, 170, 190),
+            Scale = FontScale
+        };
 
         _filteredInputLabel = new UiLabel
         {
@@ -3384,6 +3394,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _widgetsTextInputTree.AddChild(_textInputLabel);
         _widgetsTextInputTree.AddChild(_multiLineInput);
+        _widgetsTextInputTree.AddChild(_multiLineInputStatusLabel);
         _widgetsTextInputTree.AddChild(_filteredInputLabel);
         _widgetsTextInputTree.AddChild(_filteredInputField);
         _widgetsTextInputTree.AddChild(_passwordInputLabel);
@@ -3993,7 +4004,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _textColoredLabel != null && _textColoredSample != null && _textFontSizeLabel != null && _textFontSizeSmall != null && _textFontSizeLarge != null
             && _textWrappedBlock != null && _textUtf8Label != null && _textLink != null
             && _textFilterLabel != null && _textFilterField != null && _textFilterList != null && _textFilterStatusLabel != null
-            && _textInputLabel != null && _multiLineInput != null && _filteredInputLabel != null && _filteredInputField != null && _passwordInputLabel != null && _passwordField != null && _passwordMaskLabel != null && _passwordHintLabel != null
+            && _textInputLabel != null && _multiLineInput != null && _multiLineInputStatusLabel != null && _filteredInputLabel != null && _filteredInputField != null && _passwordInputLabel != null && _passwordField != null && _passwordMaskLabel != null && _passwordHintLabel != null
             && _completionInputLabel != null && _completionField != null && _completionHintLabel != null && _completionHistoryLabel != null && _resizeInputLabel != null && _resizeInputField != null
             && _elidingInputLabel != null && _elidingInputField != null && _elidingResultLabel != null && _miscInputLabel != null && _miscInputField != null
             && _imagesLabel != null && _imagePreview != null && _imageButton != null && _imageButtonStatus != null
@@ -4239,6 +4250,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             int editorHeight = Math.Max(120, labelHeight * 6);
             _multiLineInput.Bounds = new UiRect(0, textInputY, textInputContentWidth, editorHeight);
             textInputY += editorHeight + 8;
+            _multiLineInputStatusLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 8;
             _filteredInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
             textInputY += labelHeight + 4;
             _filteredInputField.Bounds = new UiRect(0, textInputY, textInputContentWidth, 22);
@@ -5396,6 +5409,15 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
             _windowStatusLabel.Text =
                 $"Container: {DescribeElement(containerState.Element)} Kind {FormatContainerKind(containerState.Kind)} Hovered {FormatBool(containerState.Hovered)} Focused {FormatBool(containerState.Focused)} Open {FormatBool(containerState.Open)} ActiveTab {FormatBool(containerState.ActiveTab)} ActivePopup {FormatBool(containerState.ActivePopup)}";
+        }
+
+        if (_multiLineInputStatusLabel != null && _multiLineInput != null)
+        {
+            string selection = _multiLineInput.HasSelection
+                ? $"{_multiLineInput.SelectionLength} chars"
+                : "none";
+            _multiLineInputStatusLabel.Text =
+                $"Caret: {_multiLineInput.CaretLine + 1}:{_multiLineInput.CaretColumn + 1} | Selection: {selection} | Undo/Redo: {_multiLineInput.CanUndo}/{_multiLineInput.CanRedo}";
         }
     }
 

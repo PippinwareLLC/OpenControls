@@ -16,6 +16,72 @@ public sealed class EditorGame : Game
     private const int Padding = 10;
     private const string DefaultLayoutFile = "opencontrols-editor.json";
 
+    private static readonly (Keys Key, UiKey UiKey)[] KeyMap =
+    [
+        (Keys.A, UiKey.A),
+        (Keys.B, UiKey.B),
+        (Keys.C, UiKey.C),
+        (Keys.D, UiKey.D),
+        (Keys.E, UiKey.E),
+        (Keys.F, UiKey.F),
+        (Keys.G, UiKey.G),
+        (Keys.H, UiKey.H),
+        (Keys.I, UiKey.I),
+        (Keys.J, UiKey.J),
+        (Keys.K, UiKey.K),
+        (Keys.L, UiKey.L),
+        (Keys.M, UiKey.M),
+        (Keys.N, UiKey.N),
+        (Keys.O, UiKey.O),
+        (Keys.P, UiKey.P),
+        (Keys.Q, UiKey.Q),
+        (Keys.R, UiKey.R),
+        (Keys.S, UiKey.S),
+        (Keys.T, UiKey.T),
+        (Keys.U, UiKey.U),
+        (Keys.V, UiKey.V),
+        (Keys.W, UiKey.W),
+        (Keys.X, UiKey.X),
+        (Keys.Y, UiKey.Y),
+        (Keys.Z, UiKey.Z),
+        (Keys.D0, UiKey.D0),
+        (Keys.D1, UiKey.D1),
+        (Keys.D2, UiKey.D2),
+        (Keys.D3, UiKey.D3),
+        (Keys.D4, UiKey.D4),
+        (Keys.D5, UiKey.D5),
+        (Keys.D6, UiKey.D6),
+        (Keys.D7, UiKey.D7),
+        (Keys.D8, UiKey.D8),
+        (Keys.D9, UiKey.D9),
+        (Keys.F1, UiKey.F1),
+        (Keys.F2, UiKey.F2),
+        (Keys.F3, UiKey.F3),
+        (Keys.F4, UiKey.F4),
+        (Keys.F5, UiKey.F5),
+        (Keys.F6, UiKey.F6),
+        (Keys.F7, UiKey.F7),
+        (Keys.F8, UiKey.F8),
+        (Keys.F9, UiKey.F9),
+        (Keys.F10, UiKey.F10),
+        (Keys.F11, UiKey.F11),
+        (Keys.F12, UiKey.F12),
+        (Keys.Left, UiKey.Left),
+        (Keys.Right, UiKey.Right),
+        (Keys.Up, UiKey.Up),
+        (Keys.Down, UiKey.Down),
+        (Keys.PageUp, UiKey.PageUp),
+        (Keys.PageDown, UiKey.PageDown),
+        (Keys.Home, UiKey.Home),
+        (Keys.End, UiKey.End),
+        (Keys.Back, UiKey.Backspace),
+        (Keys.Delete, UiKey.Delete),
+        (Keys.Tab, UiKey.Tab),
+        (Keys.Enter, UiKey.Enter),
+        (Keys.Space, UiKey.Space),
+        (Keys.Escape, UiKey.Escape)
+    ];
+
     private readonly GraphicsDeviceManager _graphics;
     private readonly IUiClipboard _clipboard = new UiMemoryClipboard();
     private readonly List<char> _textInputBuffer = new();
@@ -1478,14 +1544,22 @@ public sealed class EditorGame : Game
             LeftReleased = currentMouse.LeftButton == ButtonState.Released && previousMouse.LeftButton == ButtonState.Pressed,
             ShiftDown = IsShiftPressed(currentKeyboard),
             CtrlDown = IsCtrlPressed(currentKeyboard),
+            AltDown = currentKeyboard.IsKeyDown(Keys.LeftAlt) || currentKeyboard.IsKeyDown(Keys.RightAlt),
+            SuperDown = currentKeyboard.IsKeyDown(Keys.LeftWindows) || currentKeyboard.IsKeyDown(Keys.RightWindows),
+            ScrollDeltaX = 0,
             ScrollDelta = currentMouse.ScrollWheelValue - previousMouse.ScrollWheelValue,
             TextInput = textInput,
+            KeysDown = MapKeys(currentKeyboard.GetPressedKeys()),
+            KeysPressed = MapKeys(GetPressedKeys(currentKeyboard, previousKeyboard)),
+            KeysReleased = MapKeys(GetReleasedKeys(currentKeyboard, previousKeyboard)),
             Navigation = new UiNavigationInput
             {
                 MoveLeft = IsPressed(currentKeyboard, previousKeyboard, Keys.Left),
                 MoveRight = IsPressed(currentKeyboard, previousKeyboard, Keys.Right),
                 MoveUp = IsPressed(currentKeyboard, previousKeyboard, Keys.Up),
                 MoveDown = IsPressed(currentKeyboard, previousKeyboard, Keys.Down),
+                PageUp = IsPressed(currentKeyboard, previousKeyboard, Keys.PageUp),
+                PageDown = IsPressed(currentKeyboard, previousKeyboard, Keys.PageDown),
                 Home = IsPressed(currentKeyboard, previousKeyboard, Keys.Home),
                 End = IsPressed(currentKeyboard, previousKeyboard, Keys.End),
                 Backspace = IsPressed(currentKeyboard, previousKeyboard, Keys.Back),
@@ -1540,6 +1614,57 @@ public sealed class EditorGame : Game
     private static bool IsPressed(KeyboardState current, KeyboardState previous, Keys key)
     {
         return current.IsKeyDown(key) && previous.IsKeyUp(key);
+    }
+
+    private static UiKey[] MapKeys(IEnumerable<Keys> keys)
+    {
+        List<UiKey> mapped = new();
+        foreach (Keys key in keys)
+        {
+            if (TryMapKey(key, out UiKey uiKey) && !mapped.Contains(uiKey))
+            {
+                mapped.Add(uiKey);
+            }
+        }
+
+        return mapped.ToArray();
+    }
+
+    private static IEnumerable<Keys> GetPressedKeys(KeyboardState current, KeyboardState previous)
+    {
+        foreach ((Keys key, _) in KeyMap)
+        {
+            if (current.IsKeyDown(key) && previous.IsKeyUp(key))
+            {
+                yield return key;
+            }
+        }
+    }
+
+    private static IEnumerable<Keys> GetReleasedKeys(KeyboardState current, KeyboardState previous)
+    {
+        foreach ((Keys key, _) in KeyMap)
+        {
+            if (current.IsKeyUp(key) && previous.IsKeyDown(key))
+            {
+                yield return key;
+            }
+        }
+    }
+
+    private static bool TryMapKey(Keys key, out UiKey uiKey)
+    {
+        foreach ((Keys mappedKey, UiKey mappedUiKey) in KeyMap)
+        {
+            if (mappedKey == key)
+            {
+                uiKey = mappedUiKey;
+                return true;
+            }
+        }
+
+        uiKey = UiKey.Unknown;
+        return false;
     }
 
     private static bool IsShiftPressed(KeyboardState state)

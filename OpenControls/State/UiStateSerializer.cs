@@ -61,6 +61,14 @@ public static class UiStateSerializer
                     field.SetCaretIndex(state.CaretIndex.Value);
                 }
             }
+            else if (element is UiTextEditor editor && state.Text != null)
+            {
+                editor.Text = state.Text;
+                if (state.CaretIndex.HasValue)
+                {
+                    editor.SetCaretIndex(state.CaretIndex.Value);
+                }
+            }
         }
 
         foreach (UiDockWorkspaceState workspaceState in snapshot.DockWorkspaces)
@@ -144,6 +152,11 @@ public static class UiStateSerializer
             {
                 state.Text = field.Text;
                 state.CaretIndex = field.CaretIndex;
+            }
+            else if (element is UiTextEditor editor)
+            {
+                state.Text = editor.Text;
+                state.CaretIndex = editor.CaretIndex;
             }
 
             snapshot.Elements.Add(state);

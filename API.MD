@@ -69,7 +69,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiScrollPanel`: scrollable panel with auto/always scrollbars and clipped content.
 - `UiDisabledGroup`: container that disables interaction for its children and optionally draws a dimming overlay.
 - `UiTextField`: editable single-line text field with selection, copy/cut/paste, undo/redo, password/read-only/filtering modes, completion/history hooks, resize callbacks, and horizontal caret reveal.
-- `UiTextEditor`: multi-line text editor with line numbers, scrolling, and optional syntax highlighting.
+- `UiTextEditor`: multi-line text editor with line numbers, scrolling, optional syntax highlighting, shared selection/clipboard/undo/redo behavior, and editor-style navigation.
 - `UiWindow`: window container with optional title bar, clipping to content bounds, resize grip, and optional scroll panel support (title text can be bold).
 - `UiTabBar`, `UiTabItem`: tab strip container and tab content items for retained-mode tabbed layouts (tab text can be bold).
 - `UiDockHost`: hosts `UiWindow` instances in a tabbed dock area, with optional drag reordering/detach (tab text can be bold).
@@ -231,11 +231,12 @@ This is a brief overview of the current OpenControls surface area.
 - Inactive tab items are skipped during focus traversal.
 
 ## Text Editor Notes
-- `UiTextEditor.Text` holds the full document; `LineCount`, `CaretLine`, and `CaretColumn` expose current state.
+- `UiTextEditor.Text` holds the full document; `LineCount`, `CaretLine`, `CaretColumn`, `CaretIndex`, `SelectionStart`, `SelectionEnd`, and `SelectedText` expose current state.
 - `SyntaxMode` toggles highlighting (`None` or `CSharp`).
 - `ShowLineNumbers` and `MinLineNumberDigits` control the line gutter.
 - `HorizontalScrollbar`/`VerticalScrollbar` mirror `UiScrollPanel` behavior for large files.
 - `AllowTabInput` lets Tab insert spaces instead of moving focus.
+- `TextChanged`, `CaretMoved`, and `SelectionChanged` expose editor-state changes.
 
 ## Tooltip Notes
 - `UiTooltipRegion` uses `UiInputState.ScreenMousePosition` to place tooltips in screen space.

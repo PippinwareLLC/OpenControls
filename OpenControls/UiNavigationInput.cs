@@ -6,6 +6,8 @@ public readonly struct UiNavigationInput
     public bool MoveRight { get; init; }
     public bool MoveUp { get; init; }
     public bool MoveDown { get; init; }
+    public bool PageUp { get; init; }
+    public bool PageDown { get; init; }
     public bool Home { get; init; }
     public bool End { get; init; }
     public bool Backspace { get; init; }
