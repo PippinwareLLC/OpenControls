@@ -82,6 +82,8 @@ This is a brief overview of the current OpenControls surface area.
 - `UiPopup`: overlay popup panel with outside-click/escape close behavior.
 - `UiModal`: modal popup with a backdrop overlay.
 - `UiModalHost`: container that blocks input to non-modal children when a modal is open.
+- `UiCombo`, `UiListView`, `UiSelectableRow`, and `UiChildRegion`: retained composition APIs for rich combo/list/popup content and embedded clipped child regions.
+- `IUiImageSource` and `UiDelegateImageSource`: reusable image adapters for thumbnail/icon rows and other repeated draw surfaces.
 
 ## Notes
 - All bounds are absolute (`UiRect`), so layout is explicit.
@@ -91,6 +93,7 @@ This is a brief overview of the current OpenControls surface area.
 - Use `UiContext.DefaultFont` for inherited font selection and `UiElement.Font` for per-element overrides.
 - Set `UiContext.Clipboard` when a host wants system clipboard integration; otherwise the default in-memory clipboard still enables copy/cut/paste within the UI session.
 - The shipped first-pass runtime uses shared renderer glyph caches for custom fonts and inline icon text; HarfBuzz-backed shaping and Slug-backed GPU text rendering remain optional follow-on work in `IMGUI_PARITY_ATTACK_PLAN.MD`.
+- `UiPopup.OpenAttached(...)` and `UiPopup.OpenContext(...)` are the preferred helpers for anchored and point-based popup opening in retained demos.
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.
 - `UiContext.Render` performs an overlay pass; `UiMenuBar` dropdowns draw there so they render above other controls.

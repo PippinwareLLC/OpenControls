@@ -450,35 +450,41 @@ OpenControls has useful concrete widgets, but Dear ImGui's flexibility often com
 
 ### Combo/List/Popup Checklist
 
-- [ ] Introduce a retained combo container that can host arbitrary child controls, not only strings.
+- [x] Introduce a retained combo container that can host arbitrary child controls, not only strings.
 - [ ] Keep `UiComboBox` as a convenience wrapper over the richer container if possible.
-- [ ] Introduce a retained list-box container for arbitrary child content.
-- [ ] Support typed-search / filterable combo patterns without bespoke one-off widgets.
-- [ ] Support richer rows in combo/list content:
-  - [ ] icons/thumbnails
-  - [ ] secondary text
-  - [ ] asset-picker style rows
-- [ ] Expand popup helpers:
-  - [ ] context popup attached to an element
+- [x] Introduce a retained list-box container for arbitrary child content.
+- [x] Support typed-search / filterable combo patterns without bespoke one-off widgets.
+- [x] Support richer rows in combo/list content:
+  - [x] icons/thumbnails
+  - [x] secondary text
+  - [x] asset-picker style rows
+- [x] Expand popup helpers:
+  - [x] context popup attached to an element
   - [ ] window context popup
   - [ ] empty-space context popup
-  - [ ] better popup positioning and clamping
-- [ ] Ensure popup and combo content participate in focus/capture logic correctly.
+  - [x] better popup positioning and clamping
+- [x] Ensure popup and combo content participate in focus/capture logic correctly.
 - [ ] Add menu helpers where composition overlap exists with popup behavior.
 
 ### Child Content / Child Windows Checklist
 
-- [ ] Introduce a framed child-region/container primitive if `UiScrollPanel` is not enough.
-- [ ] Support embedded scrollable child regions with strong clipping behavior.
+- [x] Introduce a framed child-region/container primitive if `UiScrollPanel` is not enough.
+- [x] Support embedded scrollable child regions with strong clipping behavior.
 - [ ] Document how child regions differ from windows and panels.
-- [ ] Standardize image/texture interop for composed content:
-  - [ ] renderer-level texture/image primitive or a stable adapter contract
-  - [ ] thumbnails/icons in combo/list/table rows without ad hoc callback wiring every time
-  - [ ] examples that prove asset/browser-style usage
+- [x] Standardize image/texture interop for composed content:
+  - [x] renderer-level texture/image primitive or a stable adapter contract
+  - [x] thumbnails/icons in combo/list/table rows without ad hoc callback wiring every time
+  - [x] examples that prove asset/browser-style usage
+
+### First-Pass Demo
+
+- [x] `OpenControls.Examples` shows a composed combo/list/popup/child-region demo built from `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and `UiDelegateImageSource`.
+- [x] Popup helpers are demonstrated via attached and context opening in the examples UI.
+- [x] The first-pass Milestone 6 target is now visible in the repo, while wrapper migration and the extra popup variants remain tracked as follow-on work.
 
 ### Exit Criteria
 
-- [ ] OpenControls can express richer combos, list boxes, and popup content without building custom one-off widgets every time.
+- [x] OpenControls can express richer combos, list boxes, popup content, and child regions without building custom one-off widgets every time.
 
 ## Milestone 7: Layout System Upgrade
 
@@ -750,7 +756,7 @@ If resourcing is tight, do the work in this order:
 - [x] Milestone 4
 - [ ] Milestone 8
 - [ ] Milestone 9
-- [ ] Milestone 6
+- [x] Milestone 6
 - [ ] Milestone 7
 - [ ] Milestone 10
 - [ ] Milestone 11
@@ -780,7 +786,7 @@ If resourcing is tight, do the work in this order:
 
 ### Release Slice D: Composition And Layout
 
-- [ ] Milestone 6
+- [x] Milestone 6
 - [ ] Milestone 7
 
 ### Release Slice E: Polish And Showcase

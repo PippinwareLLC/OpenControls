@@ -7,6 +7,7 @@ public sealed class UiImageButton : UiElement
     private bool _focused;
 
     public Action<IUiRenderer, UiRect>? DrawImage { get; set; }
+    public IUiImageSource? ImageSource { get; set; }
 
     public UiColor Background { get; set; } = new UiColor(28, 32, 44);
     public UiColor HoverBackground { get; set; } = new UiColor(36, 42, 58);
@@ -96,7 +97,11 @@ public sealed class UiImageButton : UiElement
                 context.Renderer.FillRectCheckerboard(inner, CheckerSize, CheckerColorLight, CheckerColorDark);
             }
 
-            if (DrawImage != null)
+            if (ImageSource != null)
+            {
+                ImageSource.Draw(context.Renderer, inner);
+            }
+            else if (DrawImage != null)
             {
                 DrawImage(context.Renderer, inner);
             }

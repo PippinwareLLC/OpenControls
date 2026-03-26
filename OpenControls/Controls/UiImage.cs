@@ -3,6 +3,7 @@ namespace OpenControls.Controls;
 public sealed class UiImage : UiElement
 {
     public Action<IUiRenderer, UiRect>? DrawImage { get; set; }
+    public IUiImageSource? ImageSource { get; set; }
 
     public UiColor Background { get; set; } = UiColor.Transparent;
     public UiColor Border { get; set; } = UiColor.Transparent;
@@ -47,7 +48,11 @@ public sealed class UiImage : UiElement
                 context.Renderer.FillRectCheckerboard(inner, CheckerSize, CheckerColorLight, CheckerColorDark);
             }
 
-            if (DrawImage != null)
+            if (ImageSource != null)
+            {
+                ImageSource.Draw(context.Renderer, inner);
+            }
+            else if (DrawImage != null)
             {
                 DrawImage(context.Renderer, inner);
             }

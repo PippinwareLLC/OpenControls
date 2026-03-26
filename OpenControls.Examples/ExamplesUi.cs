@@ -234,6 +234,21 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiLabel? _comboLabel;
     private UiComboBox? _sceneComboBox;
     private UiLabel? _comboSelectionLabel;
+    private UiTreeNode? _widgetsCompositionTree;
+    private UiLabel? _compositionLabel;
+    private UiLabel? _compositionComboLabel;
+    private UiCombo? _compositionCombo;
+    private UiLabel? _compositionComboStatusLabel;
+    private UiLabel? _compositionListLabel;
+    private UiListView? _compositionList;
+    private UiLabel? _compositionListStatusLabel;
+    private UiLabel? _compositionChildRegionLabel;
+    private UiChildRegion? _compositionChildRegion;
+    private UiLabel? _compositionChildRegionStatusLabel;
+    private UiSelectionModel? _compositionSelectionModel;
+    private UiSelectableRow? _compositionChildRow1;
+    private UiSelectableRow? _compositionChildRow2;
+    private UiSelectableRow? _compositionChildRow3;
     private UiLabel? _tableLabel;
     private UiTable? _sceneTable;
     private UiLabel? _tableSelectionLabel;
@@ -315,6 +330,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiLabel? _layoutWrapLabel;
     private UiTextBlock? _layoutWrapBlock;
     private UiButton? _popupButton;
+    private UiButton? _popupContextButton;
     private UiButton? _modalButton;
     private UiLabel? _menuPopupLabel;
     private UiButton? _menuPopupButton;
@@ -327,6 +343,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiTooltip? _tooltip;
     private UiPopup? _popup;
     private UiLabel? _popupLabel;
+    private UiChildRegion? _popupChildRegion;
+    private UiSelectableRow? _popupActionRow1;
+    private UiSelectableRow? _popupActionRow2;
+    private UiSelectableRow? _popupActionRow3;
     private UiButton? _popupCloseButton;
     private UiModal? _modal;
     private UiLabel? _modalLabel;
@@ -2057,9 +2077,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _modal.AddChild(_modalLabel);
         _modal.AddChild(_modalCloseButton);
 
-        _popupButton.Clicked += () => _popup?.Open();
+        _popupButton.Clicked += () => _popup?.OpenAttached(_popupButton.Bounds, new UiPoint(240, 148));
         _modalButton.Clicked += () => _modal?.Open();
         _menuPopupButton.Clicked += () => _menuPopup?.TogglePopup();
+
+        InitializeCompositionDemo();
 
         _hierarchyLabel = new UiLabel
         {
@@ -3508,6 +3530,19 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsComboTree.AddChild(_sceneComboBox);
         _widgetsComboTree.AddChild(_comboSelectionLabel);
 
+        _widgetsCompositionTree.AddChild(_compositionLabel);
+        _widgetsCompositionTree.AddChild(_compositionComboLabel);
+        _widgetsCompositionTree.AddChild(_compositionCombo);
+        _widgetsCompositionTree.AddChild(_compositionComboStatusLabel);
+        _widgetsCompositionTree.AddChild(_compositionListLabel);
+        _widgetsCompositionTree.AddChild(_compositionList);
+        _widgetsCompositionTree.AddChild(_compositionListStatusLabel);
+        _widgetsCompositionTree.AddChild(_compositionChildRegionLabel);
+        _widgetsCompositionTree.AddChild(_compositionChildRegion);
+        _widgetsCompositionTree.AddChild(_compositionChildRegionStatusLabel);
+        _widgetsCompositionTree.AddChild(_popupButton);
+        _widgetsCompositionTree.AddChild(_popupContextButton);
+
         _widgetsTableTree.AddChild(_tableLabel);
         _widgetsTableTree.AddChild(_sceneTable);
         _widgetsTableTree.AddChild(_tableSelectionLabel);
@@ -3597,7 +3632,6 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsPopupTree.AddChild(_menuPopupButton);
         _widgetsPopupTree.AddChild(_menuPopupStatus);
         _widgetsPopupTree.AddChild(_menuPopup);
-        _widgetsPopupTree.AddChild(_popupButton);
         _widgetsPopupTree.AddChild(_modalButton);
 
         _widgetsTreeHeaderTree.AddChild(_hierarchyLabel);
@@ -3621,6 +3655,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _widgetsTree.AddChild(_widgetsListTree);
         _widgetsTree.AddChild(_widgetsMultiSelectTree);
         _widgetsTree.AddChild(_widgetsComboTree);
+        _widgetsTree.AddChild(_widgetsCompositionTree);
         _widgetsTree.AddChild(_widgetsTableTree);
         _widgetsTree.AddChild(_widgetsPlotTree);
         _widgetsTree.AddChild(_widgetsWaveformTree);
@@ -4027,7 +4062,12 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _sliderFloat2 != null && _sliderFloat3 != null && _sliderFloat4 != null && _sliderInt2 != null && _sliderInt3 != null && _sliderInt4 != null && _multiComponentStatusLabel != null
             && _sceneLabel != null && _sceneList != null && _sceneSelectionLabel != null && _multiSelectLabel != null
             && _multiSelectHintLabel != null && _multiSelectList != null && _multiSelectSelectionLabel != null && _comboLabel != null
-            && _sceneComboBox != null && _comboSelectionLabel != null && _tableLabel != null && _sceneTable != null
+            && _sceneComboBox != null && _comboSelectionLabel != null && _widgetsCompositionTree != null && _compositionLabel != null
+            && _compositionComboLabel != null && _compositionCombo != null && _compositionComboStatusLabel != null && _compositionListLabel != null
+            && _compositionList != null && _compositionListStatusLabel != null && _compositionChildRegionLabel != null && _compositionChildRegion != null
+            && _compositionChildRegionStatusLabel != null && _compositionSelectionModel != null && _compositionChildRow1 != null
+            && _compositionChildRow2 != null && _compositionChildRow3 != null && _popupContextButton != null
+            && _tableLabel != null && _sceneTable != null
             && _tableSelectionLabel != null && _plotLabel != null && _plotPanel != null && _waveformLabel != null && _waveform != null && _colorEditLabel != null && _colorEdit != null && _colorPickerLabel != null
             && _colorPicker != null && _colorSelectionLabel != null && _colorButtonLabel != null && _asciiLabel != null && _asciiPageLabel != null && _asciiPageCombo != null
             && _asciiTable != null && _selectablesLabel != null && _selectablesHintLabel != null
@@ -4598,6 +4638,66 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _widgetsComboTree.Bounds = new UiRect(0, categoryY, rootContentWidth, comboHeight);
             categoryY += comboHeight + categorySpacing;
 
+            int compositionContentWidth = Math.Max(0, rootContentWidth - _widgetsCompositionTree.Indent);
+            int compositionPadding = Math.Max(0, _widgetsCompositionTree.ContentPadding);
+            int compositionY = 0;
+            _compositionLabel.Bounds = new UiRect(0, compositionY, compositionContentWidth, labelHeight);
+            compositionY += labelHeight + 6;
+
+            _compositionComboLabel.Bounds = new UiRect(0, compositionY, compositionContentWidth, labelHeight);
+            compositionY += labelHeight + 4;
+            _compositionCombo.Bounds = new UiRect(0, compositionY, Math.Min(320, compositionContentWidth), 34);
+            compositionY += _compositionCombo.Bounds.Height + 6;
+            _compositionComboStatusLabel.Bounds = new UiRect(0, compositionY, compositionContentWidth, labelHeight);
+            compositionY += labelHeight + 8;
+
+            _compositionListLabel.Bounds = new UiRect(0, compositionY, compositionContentWidth, labelHeight);
+            compositionY += labelHeight + 4;
+            _compositionList.Bounds = new UiRect(0, compositionY, compositionContentWidth, 168);
+            compositionY += _compositionList.Bounds.Height + 6;
+            _compositionListStatusLabel.Bounds = new UiRect(0, compositionY, compositionContentWidth, labelHeight);
+            compositionY += labelHeight + 8;
+
+            _compositionChildRegionLabel.Bounds = new UiRect(0, compositionY, compositionContentWidth, labelHeight);
+            compositionY += labelHeight + 4;
+            _compositionChildRegion.Bounds = new UiRect(0, compositionY, compositionContentWidth, 124);
+            _compositionChildRow1.Bounds = new UiRect(0, 0, compositionContentWidth - 8, 34);
+            _compositionChildRow2.Bounds = new UiRect(0, 38, compositionContentWidth - 8, 34);
+            _compositionChildRow3.Bounds = new UiRect(0, 76, compositionContentWidth - 8, 34);
+            compositionY += _compositionChildRegion.Bounds.Height + 6;
+            _compositionChildRegionStatusLabel.Bounds = new UiRect(0, compositionY, compositionContentWidth, labelHeight);
+            compositionY += labelHeight + 4;
+
+            _popupButton.Bounds = new UiRect(0, compositionY, Math.Min(220, compositionContentWidth), 24);
+            compositionY += 30;
+            _popupContextButton.Bounds = new UiRect(0, compositionY, Math.Min(220, compositionContentWidth), 24);
+            compositionY += 30;
+
+            int compositionHeight = treeHeaderHeight + (_widgetsCompositionTree.IsOpen ? compositionPadding + compositionY : 0);
+            _widgetsCompositionTree.HeaderHeight = treeHeaderHeight;
+            _widgetsCompositionTree.Bounds = new UiRect(0, categoryY, rootContentWidth, compositionHeight);
+            categoryY += compositionHeight + categorySpacing;
+
+            if (_popup != null && _popupLabel != null && _popupChildRegion != null && _popupCloseButton != null
+                && _popupActionRow1 != null && _popupActionRow2 != null && _popupActionRow3 != null)
+            {
+                UiRect popupBounds = _popup.Bounds;
+                if (popupBounds.Width <= 0 || popupBounds.Height <= 0)
+                {
+                    popupBounds = new UiRect(_popupButton.Bounds.X, _popupButton.Bounds.Bottom + 4, 240, 148);
+                }
+
+                _popup.Bounds = popupBounds;
+                int popupBodyPadding = 8;
+                int popupInnerWidth = Math.Max(0, popupBounds.Width - popupBodyPadding * 2);
+                _popupLabel.Bounds = new UiRect(popupBounds.X + popupBodyPadding, popupBounds.Y + popupBodyPadding, popupInnerWidth, labelHeight);
+                _popupChildRegion.Bounds = new UiRect(popupBounds.X + popupBodyPadding, _popupLabel.Bounds.Bottom + 6, popupInnerWidth, 84);
+                _popupActionRow1.Bounds = new UiRect(0, 0, Math.Max(0, popupInnerWidth - 8), 34);
+                _popupActionRow2.Bounds = new UiRect(0, 38, Math.Max(0, popupInnerWidth - 8), 34);
+                _popupActionRow3.Bounds = new UiRect(0, 76, Math.Max(0, popupInnerWidth - 8), 34);
+                _popupCloseButton.Bounds = new UiRect(popupBounds.Right - popupBodyPadding - 80, popupBounds.Bottom - popupBodyPadding - 24, 80, 24);
+            }
+
             int tableContentWidth = Math.Max(0, rootContentWidth - _widgetsTableTree.Indent);
             int tablePadding = Math.Max(0, _widgetsTableTree.ContentPadding);
             int tableY = 0;
@@ -4925,10 +5025,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
             _menuPopup.Bounds = new UiRect(_menuPopupButton.Bounds.X, _menuPopupButton.Bounds.Bottom + 4, _menuPopupButton.Bounds.Width, 0);
 
-            _popupButton.Bounds = new UiRect(0, popupCategoryY, Math.Max(0, popupButtonWidth), buttonHeight);
-            popupCategoryY += buttonHeight + 6;
             _modalButton.Bounds = new UiRect(0, popupCategoryY, Math.Max(0, popupButtonWidth), buttonHeight);
-            popupCategoryY += buttonHeight + 4;
+            popupCategoryY += buttonHeight + 6;
             int popupTreeHeight = treeHeaderHeight + (_widgetsPopupTree.IsOpen ? popupPadding + popupCategoryY : 0);
             _widgetsPopupTree.HeaderHeight = treeHeaderHeight;
             _widgetsPopupTree.Bounds = new UiRect(0, categoryY, rootContentWidth, popupTreeHeight);
@@ -5162,6 +5260,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
                 : "None";
             _comboSelectionLabel.Text = $"Combo: {selection}";
         }
+
+        UpdateCompositionStatus();
 
         if (_tableSelectionLabel != null && _sceneTable != null)
         {
@@ -5575,6 +5675,323 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _completionHistoryCursor = _completionHistory.Count;
     }
 
+    private void InitializeCompositionDemo()
+    {
+        _widgetsCompositionTree = new UiTreeNode
+        {
+            Text = "Composition APIs",
+            TextScale = FontScale,
+            ArrowColor = UiColor.White,
+            ContentPadding = 4,
+            IsOpen = false
+        };
+
+        _compositionLabel = new UiLabel
+        {
+            Text = "Retained combo, list, popup, and child-region samples",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _compositionComboLabel = new UiLabel
+        {
+            Text = "Rich Combo",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _compositionCombo = new UiCombo
+        {
+            Placeholder = "Choose asset",
+            FilterPlaceholder = "Filter assets",
+            TextScale = FontScale,
+            DropdownWidth = 320,
+            DropdownMaxHeight = 220,
+            ShowFilterField = true,
+            CloseOnSelection = true
+        };
+        _compositionCombo.DisplayTextSelector = row => row.Text;
+        _compositionCombo.SelectionChanged += _ => UpdateCompositionStatus();
+
+        _compositionComboStatusLabel = new UiLabel
+        {
+            Text = "Combo: None",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _compositionListLabel = new UiLabel
+        {
+            Text = "Rich List",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _compositionSelectionModel = new UiSelectionModel();
+        _compositionSelectionModel.SetSelected(1, true);
+
+        _compositionList = new UiListView
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            ItemHeight = 40,
+            ItemSpacing = 2,
+            AllowDeselect = true,
+            SelectionModel = _compositionSelectionModel,
+            EmptyText = "No assets"
+        };
+        _compositionList.SelectionChanged += _ => UpdateCompositionStatus();
+
+        _compositionListStatusLabel = new UiLabel
+        {
+            Text = "List: Inventory",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _compositionChildRegionLabel = new UiLabel
+        {
+            Text = "Child Region",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale
+        };
+
+        _compositionChildRegion = new UiChildRegion
+        {
+            Background = new UiColor(20, 24, 34),
+            Border = new UiColor(70, 80, 100),
+            BorderThickness = 1,
+            CornerRadius = 4,
+            HorizontalScrollbar = UiScrollbarVisibility.Disabled,
+            VerticalScrollbar = UiScrollbarVisibility.Auto,
+            ScrollWheelStep = 24
+        };
+
+        _compositionChildRegionStatusLabel = new UiLabel
+        {
+            Text = "Child region: scrollable clipped retained content",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale
+        };
+
+        _compositionChildRow1 = CreatePopupActionRow("Framed Content", "Retained rows inside a child region", new UiColor(94, 150, 228));
+        _compositionChildRow2 = CreatePopupActionRow("Manual Bounds", "Each child still gets explicit bounds", new UiColor(220, 150, 90));
+        _compositionChildRow3 = CreatePopupActionRow("Reusable Primitive", "Same path works in windows and popups", new UiColor(120, 190, 130));
+        _compositionChildRow1.Invoked += _ => UpdateCompositionStatus();
+        _compositionChildRow2.Invoked += _ => UpdateCompositionStatus();
+        _compositionChildRow3.Invoked += _ => UpdateCompositionStatus();
+        _compositionChildRegion.AddContentChild(_compositionChildRow1);
+        _compositionChildRegion.AddContentChild(_compositionChildRow2);
+        _compositionChildRegion.AddContentChild(_compositionChildRow3);
+
+        _popupContextButton = new UiButton
+        {
+            Text = "Open Context Popup",
+            TextScale = FontScale
+        };
+        _popupContextButton.Clicked += () => _popup?.OpenContext(_lastMousePosition, new UiPoint(240, 148));
+
+        _popup = new UiPopup
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            ClampToParent = true
+        };
+
+        _popupLabel = new UiLabel
+        {
+            Text = "Popup content",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _popupChildRegion = new UiChildRegion
+        {
+            Background = new UiColor(14, 18, 28),
+            Border = new UiColor(60, 70, 90),
+            BorderThickness = 1,
+            CornerRadius = 4,
+            VerticalScrollbar = UiScrollbarVisibility.Auto
+        };
+
+        _popupActionRow1 = CreatePopupActionRow("Inspect", "Open the inspector", new UiColor(110, 180, 240));
+        _popupActionRow2 = CreatePopupActionRow("Pin", "Keep this popup around", new UiColor(220, 160, 90));
+        _popupActionRow3 = CreatePopupActionRow("Close", "Dismiss the popup", new UiColor(180, 110, 110));
+        _popupActionRow1.Invoked += row =>
+        {
+            if (_popupLabel != null)
+            {
+                _popupLabel.Text = $"Popup: {row.Text}";
+            }
+
+            _popup?.Close();
+        };
+        _popupActionRow2.Invoked += row =>
+        {
+            if (_popupLabel != null)
+            {
+                _popupLabel.Text = $"Popup: {row.Text}";
+            }
+
+            _popup?.Close();
+        };
+        _popupActionRow3.Invoked += row =>
+        {
+            if (_popupLabel != null)
+            {
+                _popupLabel.Text = $"Popup: {row.Text}";
+            }
+
+            _popup?.Close();
+        };
+
+        _popupChildRegion.AddContentChild(_popupActionRow1);
+        _popupChildRegion.AddContentChild(_popupActionRow2);
+        _popupChildRegion.AddContentChild(_popupActionRow3);
+
+        _popupCloseButton = new UiButton
+        {
+            Text = "Close",
+            TextScale = FontScale
+        };
+        _popupCloseButton.Clicked += () => _popup?.Close();
+
+        _popup.AddChild(_popupLabel);
+        _popup.AddChild(_popupChildRegion);
+        _popup.AddChild(_popupCloseButton);
+
+        PopulateCompositionAssets();
+        UpdateCompositionStatus();
+    }
+
+    private void PopulateCompositionAssets()
+    {
+        if (_compositionCombo == null || _compositionList == null)
+        {
+            return;
+        }
+
+        (string Name, string Secondary, string Search, UiColor Accent)[] assets =
+        {
+            ("Scene Graph", "Hierarchy view", "scene graph hierarchy asset tree", new UiColor(84, 146, 238)),
+            ("Inventory", "Item browser", "inventory items equipment browser", new UiColor(220, 150, 80)),
+            ("Inspector", "Properties and metadata", "inspector properties metadata", new UiColor(110, 180, 120)),
+            ("Console", "Command log and filters", "console log command filters", new UiColor(180, 120, 220)),
+            ("Telemetry", "Frame-time charts", "telemetry graphs profiling", new UiColor(200, 90, 90))
+        };
+
+        _compositionCombo.ClearItems();
+        _compositionList.ClearItems();
+
+        foreach (var asset in assets)
+        {
+            UiSelectableRow comboRow = CreateAssetRow(asset.Name, asset.Secondary, asset.Search, asset.Accent, 34);
+            UiSelectableRow listRow = CreateAssetRow(asset.Name, asset.Secondary, asset.Search, asset.Accent, 40);
+            _compositionCombo.AddItem(comboRow);
+            _compositionList.AddItem(listRow);
+        }
+
+        _compositionCombo.SelectedIndex = 0;
+
+        if (_compositionList.Items.Count > 0)
+        {
+            _compositionList.SelectedIndex = 1;
+        }
+    }
+
+    private UiSelectableRow CreateAssetRow(string text, string secondaryText, string searchText, UiColor accent, int height)
+    {
+        return new UiSelectableRow
+        {
+            Text = text,
+            SecondaryText = secondaryText,
+            SearchText = searchText,
+            ImageSource = CreateBadgeSource(accent),
+            ImageSize = 18,
+            ImageTextGap = 8,
+            Padding = 6,
+            TextScale = FontScale,
+            SecondaryTextScale = 1,
+            AllowToggle = false,
+            Background = new UiColor(18, 22, 32),
+            HoverBackground = new UiColor(36, 42, 58),
+            SelectedBackground = new UiColor(70, 80, 100),
+            Border = new UiColor(60, 70, 90),
+            BorderThickness = 1,
+            TextColor = UiColor.White,
+            SecondaryTextColor = new UiColor(170, 180, 200),
+            SelectedTextColor = UiColor.White,
+            CornerRadius = 4,
+            Bounds = new UiRect(0, 0, 0, height)
+        };
+    }
+
+    private UiSelectableRow CreatePopupActionRow(string text, string secondaryText, UiColor accent)
+    {
+        return new UiSelectableRow
+        {
+            Text = text,
+            SecondaryText = secondaryText,
+            SearchText = $"{text} {secondaryText}",
+            ImageSource = CreateBadgeSource(accent),
+            ImageSize = 16,
+            ImageTextGap = 8,
+            Padding = 6,
+            TextScale = FontScale,
+            SecondaryTextScale = 1,
+            AllowToggle = false,
+            Background = new UiColor(18, 22, 32),
+            HoverBackground = new UiColor(36, 42, 58),
+            SelectedBackground = new UiColor(70, 80, 100),
+            Border = UiColor.Transparent,
+            TextColor = UiColor.White,
+            SecondaryTextColor = new UiColor(170, 180, 200),
+            CornerRadius = 4,
+            Bounds = new UiRect(0, 0, 0, 34)
+        };
+    }
+
+    private static IUiImageSource CreateBadgeSource(UiColor color)
+    {
+        return new UiDelegateImageSource((renderer, bounds) =>
+        {
+            renderer.FillRect(bounds, color);
+            renderer.DrawRect(bounds, new UiColor(12, 12, 14), 1);
+        });
+    }
+
+    private void UpdateCompositionStatus()
+    {
+        if (_compositionComboStatusLabel != null && _compositionCombo != null)
+        {
+            string selection = _compositionCombo.SelectedItem != null ? _compositionCombo.SelectedItem.Text : "None";
+            _compositionComboStatusLabel.Text = $"Combo: {selection}";
+        }
+
+        if (_compositionListStatusLabel != null && _compositionList != null)
+        {
+            if (_compositionList.SelectedIndices.Count == 0)
+            {
+                _compositionListStatusLabel.Text = "List: None";
+            }
+            else
+            {
+                List<string> items = new();
+                foreach (int index in _compositionList.SelectedIndices)
+                {
+                    if (index >= 0 && index < _compositionList.Items.Count)
+                    {
+                        items.Add(_compositionList.Items[index].Text);
+                    }
+                }
+
+                _compositionListStatusLabel.Text = items.Count == 0
+                    ? "List: None"
+                    : $"List: {string.Join(", ", items)}";
+            }
+        }
+    }
+
     private string BuildElidedText(string text, int maxWidth, int scale)
     {
         if (_renderer == null || string.IsNullOrEmpty(text) || maxWidth <= 0)
@@ -5662,8 +6079,13 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             UiTreeNode node => DescribeText("Tree", node.Text),
             UiTabItem tab => DescribeText("Tab", tab.Text),
             UiSelectable selectable => DescribeText("Selectable", selectable.Text),
+            UiCombo => "Rich Combo",
             UiComboBox => "Combo Box",
+            UiListView => "List View",
             UiListBox => "List Box",
+            UiSelectableRow row => DescribeText("Row", row.Text),
+            UiChildRegion => "Child Region",
+            UiPopup => "Popup",
             UiMenuBar => "Menu Bar",
             _ when !string.IsNullOrWhiteSpace(element.Id) => $"{element.GetType().Name} {element.Id}",
             _ => element.GetType().Name

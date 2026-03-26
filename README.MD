@@ -137,6 +137,8 @@ Planned expansion:
 - Color edit and color picker controls include gradient SV, alpha bars, and checkerboard transparency.
 - Multi-select selection model for list boxes and selectables (Ctrl/Shift range) is available.
 - Scroll panels support auto/always scrollbars for overflowing content.
+- `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and popup open helpers now power the composed combo/list/popup demo in `OpenControls.Examples`.
+- `IUiImageSource` plus `UiDelegateImageSource` provide a reusable adapter path for repeated thumbnail/icon drawing inside rich rows and popup content.
 - Windows can host optional scroll panels for overflow content (shown in docked/floating examples).
 - Window and dock host controls support tabbed layouts with close buttons and overflow scrolling.
 - Tab bars support `UiTabItemButton` with leading/trailing placement.
@@ -148,7 +150,7 @@ Planned expansion:
 - Text editor control supports line numbers, scrolling, and syntax highlighting.
 - Text fields now support selection, copy/cut/paste, undo/redo, commit/cancel hooks, password/read-only/filtering modes, completion/history callbacks, resize callbacks, and placeholder text.
 - Numeric input fields (`UiInputFloat/Int/Double`, `UiNumericField`, and vector variants) and vector sliders (`UiSliderFloat2/3/4`, `UiSliderInt2/3/4`, `UiSliderVector`) are available.
-- Image widgets (`UiImage`, `UiImageButton`) support renderer-specific draw callbacks for texture-backed UI.
+- Image widgets (`UiImage`, `UiImageButton`) support renderer-specific draw callbacks, and can also consume reusable image-source adapters for texture-backed UI.
 - Splitter control provides draggable horizontal/vertical splits for manual layouts.
 - Arrow glyph helper (`UiArrow`) keeps tree/combo/menu indicators consistent.
 - Common controls support rounded corners and masking for clipped children via `CornerRadius` and `UiRenderHelpers` helpers.

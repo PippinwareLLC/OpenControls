@@ -13,6 +13,7 @@ public class UiPopup : UiElement
     public UiColor Border { get; set; } = new UiColor(70, 80, 100);
     public int BorderThickness { get; set; } = 1;
     public int CornerRadius { get; set; }
+    public bool ClampToParent { get; set; } = true;
     public bool CloseOnOutsideClick { get; set; } = true;
     public bool CloseOnEscape { get; set; } = true;
 
@@ -36,8 +37,20 @@ public class UiPopup : UiElement
 
     public void Open(UiRect bounds)
     {
-        Bounds = bounds;
+        Bounds = ClampToParent ? UiPopupLayout.Clamp(this, bounds) : bounds;
         Open();
+    }
+
+    public void OpenAttached(UiRect anchorBounds, UiPoint size, UiPopupPlacement placement = UiPopupPlacement.BottomLeft)
+    {
+        UiRect bounds = UiPopupLayout.BuildBounds(anchorBounds, size, placement);
+        Open(bounds);
+    }
+
+    public void OpenContext(UiPoint point, UiPoint size)
+    {
+        UiRect bounds = UiPopupLayout.BuildContextBounds(point, size);
+        Open(bounds);
     }
 
     public void Close()
