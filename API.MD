@@ -3,7 +3,7 @@
 This is a brief overview of the current OpenControls surface area.
 
 ## Core Types
-- `UiContext`: owns the root element and focus manager, publishes host-facing hover/capture/cursor outputs after each `Update`, exposes per-frame item/container query snapshots, and provides scoped shortcut-query plus focus-helper methods.
+- `UiContext`: owns the root element and focus manager, publishes host-facing hover/capture/cursor outputs after each `Update`, exposes per-frame item/container query snapshots, provides scoped shortcut-query plus focus-helper methods, and carries the active clipboard adapter for text controls.
 - `UiElement`: base class for all UI elements; handles visibility, enablement, child hierarchy, hit tests, IDs, child clipping, overlay rendering, and optional text-input/pointer-capture/cursor hints.
 - `UiFocusManager`: tracks focused element and handles focus transitions.
 - `UiInputState`: host-provided input snapshot (mouse buttons, clicks, modifiers, scroll delta, text input, named key state, and navigation).
@@ -13,6 +13,8 @@ This is a brief overview of the current OpenControls surface area.
 - `UiContainerKind`, `UiContainerStateSnapshot`: per-frame container/window-like state model for windows, popups, modals, menu bars, tab items/bars, dock hosts, and modal hosts.
 - `UiMouseCursor`: host-facing cursor request enum returned by `UiContext`.
 - `UiTextInputRequest`: focused text-input metadata for IME/on-screen-keyboard friendly hosts.
+- `IUiClipboard`, `UiMemoryClipboard`, `UiDelegateClipboard`: clipboard abstraction plus default in-memory and delegate-backed implementations for copy/cut/paste aware controls.
+- `UiTextEditingState`: shared single-line text editing primitive with selection, undo/redo, word movement, and session cancel/commit support.
 - `UiInputHostHelpers`: shared helper methods for host-side double-click and drag-origin tracking.
 - `IUiRenderer`: rendering abstraction; hosts implement this for their graphics API (includes clip stack, gradient, and checkerboard fills).
 - `UiRect`, `UiPoint`, `UiColor`: lightweight geometry and color structs.
@@ -66,7 +68,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiSplitter`: draggable horizontal/vertical splitter for manual layouts.
 - `UiScrollPanel`: scrollable panel with auto/always scrollbars and clipped content.
 - `UiDisabledGroup`: container that disables interaction for its children and optionally draws a dimming overlay.
-- `UiTextField`: editable text field with caret, text input, navigation handling, and text clipping to its bounds.
+- `UiTextField`: editable single-line text field with selection, copy/cut/paste, undo/redo, password/read-only/filtering modes, completion/history hooks, resize callbacks, and horizontal caret reveal.
 - `UiTextEditor`: multi-line text editor with line numbers, scrolling, and optional syntax highlighting.
 - `UiWindow`: window container with optional title bar, clipping to content bounds, resize grip, and optional scroll panel support (title text can be bold).
 - `UiTabBar`, `UiTabItem`: tab strip container and tab content items for retained-mode tabbed layouts (tab text can be bold).
@@ -87,6 +89,7 @@ This is a brief overview of the current OpenControls surface area.
 - `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame, SDL2-CS, Silk.NET, and OpenGL adapters (Latin-1/CP437).
 - `UiFont`, `UiFontBuilder`, `UiFontRegistry`, and `UiCodePointRange` are the core font APIs for custom font files, fallback chains, and merged icon ranges.
 - Use `UiContext.DefaultFont` for inherited font selection and `UiElement.Font` for per-element overrides.
+- Set `UiContext.Clipboard` when a host wants system clipboard integration; otherwise the default in-memory clipboard still enables copy/cut/paste within the UI session.
 - The shipped first-pass runtime uses shared renderer glyph caches for custom fonts and inline icon text; HarfBuzz-backed shaping and Slug-backed GPU text rendering remain optional follow-on work in `IMGUI_PARITY_ATTACK_PLAN.MD`.
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.

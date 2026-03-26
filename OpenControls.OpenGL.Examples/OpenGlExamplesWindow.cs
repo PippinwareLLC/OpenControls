@@ -12,6 +12,26 @@ namespace OpenControls.OpenGL.Examples;
 
 public sealed class OpenGlExamplesWindow : GameWindow
 {
+    private sealed class OpenTkClipboard : IUiClipboard
+    {
+        private readonly OpenGlExamplesWindow _window;
+
+        public OpenTkClipboard(OpenGlExamplesWindow window)
+        {
+            _window = window;
+        }
+
+        public string GetText()
+        {
+            return _window.ClipboardString ?? string.Empty;
+        }
+
+        public void SetText(string text)
+        {
+            _window.ClipboardString = text ?? string.Empty;
+        }
+    }
+
     private const int DragThreshold = 6;
 
     private static readonly (Keys Key, UiKey UiKey)[] KeyMap =
@@ -120,6 +140,7 @@ public sealed class OpenGlExamplesWindow : GameWindow
         _font = new TinyBitmapFont();
         _renderer = new OpenGLUiRenderer(_font);
         _ui = new ExamplesUi(_renderer, _font);
+        _ui.Clipboard = new OpenTkClipboard(this);
         _ui.SetTitleText("OpenControls OpenGL Examples");
         _ui.ExitRequested += Close;
 

@@ -11,6 +11,26 @@ namespace OpenControls.SilkNet.Examples;
 
 public sealed class SilkExamplesApp : IDisposable
 {
+    private sealed class SilkKeyboardClipboard : IUiClipboard
+    {
+        private readonly IKeyboard _keyboard;
+
+        public SilkKeyboardClipboard(IKeyboard keyboard)
+        {
+            _keyboard = keyboard;
+        }
+
+        public string GetText()
+        {
+            return _keyboard.ClipboardText ?? string.Empty;
+        }
+
+        public void SetText(string text)
+        {
+            _keyboard.ClipboardText = text ?? string.Empty;
+        }
+    }
+
     private const int DragThreshold = 6;
 
     private static readonly Dictionary<Key, UiKey> KeyMap = new()
@@ -212,6 +232,7 @@ public sealed class SilkExamplesApp : IDisposable
         _font = new TinyBitmapFont();
         _renderer = new SilkNetUiRenderer(_gl, _font);
         _ui = new ExamplesUi(_renderer, _font);
+        _ui.Clipboard = _keyboard != null ? new SilkKeyboardClipboard(_keyboard) : new UiMemoryClipboard();
         _ui.SetTitleText("OpenControls Silk.NET Examples");
         _ui.ExitRequested += CloseWindow;
 

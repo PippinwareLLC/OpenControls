@@ -17,6 +17,8 @@ public class UiNumericField : UiElement
     {
         _field = new UiTextField();
         _field.CharacterFilter = IsCharacterAllowed;
+        _field.Submitted += HandleFieldSubmitted;
+        _field.Cancelled += HandleFieldCancelled;
         AddChild(_field);
         SyncText();
     }
@@ -102,6 +104,12 @@ public class UiNumericField : UiElement
     {
         get => _field.MaxLength;
         set => _field.MaxLength = value;
+    }
+
+    public bool ReadOnly
+    {
+        get => _field.ReadOnly;
+        set => _field.ReadOnly = value;
     }
 
     public UiColor Background
@@ -326,5 +334,21 @@ public class UiNumericField : UiElement
         }
 
         return false;
+    }
+
+    private void HandleFieldSubmitted()
+    {
+        if (TryParse(_field.Text, out double parsed))
+        {
+            SetValueInternal(parsed, updateText: true);
+            return;
+        }
+
+        SyncText();
+    }
+
+    private void HandleFieldCancelled()
+    {
+        SyncText();
     }
 }

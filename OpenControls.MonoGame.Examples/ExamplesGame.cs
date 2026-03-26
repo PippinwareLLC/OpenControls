@@ -77,6 +77,7 @@ public sealed class ExamplesGame : Game
     ];
 
     private readonly GraphicsDeviceManager _graphics;
+    private readonly IUiClipboard _clipboard = new UiMemoryClipboard();
     private readonly RasterizerState _uiRasterizer = new() { ScissorTestEnable = true };
     private readonly List<char> _textInputBuffer = new();
     private SpriteBatch? _spriteBatch;
@@ -125,6 +126,7 @@ public sealed class ExamplesGame : Game
         _font = new TinyBitmapFont();
         _renderer = new MonoGameUiRenderer(_spriteBatch, _pixel, _font);
         _ui = new ExamplesUi(_renderer, _font);
+        _ui.Clipboard = _clipboard;
         _ui.SetTitleText("OpenControls MonoGame Examples");
         _ui.ExitRequested += Exit;
     }

@@ -17,6 +17,7 @@ public sealed class EditorGame : Game
     private const string DefaultLayoutFile = "opencontrols-editor.json";
 
     private readonly GraphicsDeviceManager _graphics;
+    private readonly IUiClipboard _clipboard = new UiMemoryClipboard();
     private readonly List<char> _textInputBuffer = new();
     private readonly List<EditorControlEntry> _controls = new();
 
@@ -406,7 +407,10 @@ public sealed class EditorGame : Game
         _rootPanel.AddChild(_statusLabel);
 
         _root.AddChild(_rootPanel);
-        _context = new UiContext(_root);
+        _context = new UiContext(_root)
+        {
+            Clipboard = _clipboard
+        };
         UpdateAlignButtons();
     }
 

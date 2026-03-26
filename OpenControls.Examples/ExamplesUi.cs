@@ -98,6 +98,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiFont _defaultUiFont;
     private bool _hasIconFont;
     private string _fontStatusText = "Font pipeline: TinyBitmap fallback only";
+    private IUiClipboard _clipboard = new UiMemoryClipboard();
     private UiContext? _context;
 
     private UiModalHost? _root;
@@ -383,6 +384,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiLabel? _completionHintLabel;
     private UiLabel? _completionHistoryLabel;
     private readonly List<string> _completionHistory = new();
+    private int _completionHistoryCursor = -1;
     private UiLabel? _resizeInputLabel;
     private UiTextField? _resizeInputField;
     private UiLabel? _elidingInputLabel;
@@ -530,6 +532,18 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     public bool WantCaptureKeyboard => _context?.WantCaptureKeyboard ?? false;
     public bool WantTextInput => _context?.WantTextInput ?? false;
     public UiMouseCursor RequestedMouseCursor => _context?.RequestedMouseCursor ?? UiMouseCursor.Arrow;
+    public IUiClipboard Clipboard
+    {
+        get => _clipboard;
+        set
+        {
+            _clipboard = value ?? new UiMemoryClipboard();
+            if (_context != null)
+            {
+                _context.Clipboard = _clipboard;
+            }
+        }
+    }
 
     public void Update(UiInputState input, float deltaSeconds, int width, int height, bool saveRequested, bool loadRequested)
     {
@@ -2453,21 +2467,20 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             TextScale = FontScale,
             Placeholder = "Enter password",
             MaxLength = 24,
-            TextColor = UiColor.Transparent,
-            CaretColor = UiColor.White,
+            PasswordMode = true,
             CaretIndexFromPoint = GetCaretIndexFromPoint
         };
 
         _passwordMaskLabel = new UiLabel
         {
-            Text = string.Empty,
+            Text = "Stored length: 0",
             Color = new UiColor(220, 220, 230),
             Scale = FontScale
         };
 
         _passwordHintLabel = new UiLabel
         {
-            Text = "Mask overlay is shown above the input field.",
+            Text = "Uses real masking, selection, and clipboard-aware editing.",
             Color = new UiColor(160, 170, 190),
             Scale = FontScale
         };
@@ -2484,8 +2497,12 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             TextScale = FontScale,
             Placeholder = "Type 'he' or 'lo'",
             MaxLength = 32,
+            AllowTabInput = true,
             CaretIndexFromPoint = GetCaretIndexFromPoint
         };
+        _completionField.CompletionRequested += HandleCompletionRequested;
+        _completionField.HistoryRequested += HandleCompletionHistoryRequested;
+        _completionField.Submitted += CommitCompletionHistory;
 
         _completionHintLabel = new UiLabel
         {
@@ -2513,6 +2530,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Text = "Auto width",
             TextScale = FontScale,
             MaxLength = 48,
+            ResizeCallback = static (field, requiredLength) => Math.Max(field.MaxLength * 2, requiredLength),
             CaretIndexFromPoint = GetCaretIndexFromPoint
         };
 
@@ -3874,7 +3892,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _root.AddChild(_modal);
         }
 
-        _context = new UiContext(_root);
+        _context = new UiContext(_root)
+        {
+            Clipboard = _clipboard
+        };
         _context.DefaultFont = _defaultUiFont;
         ApplyBitmapDemoFonts();
         SetActiveExample(ExamplePanel.Custom);
@@ -4225,9 +4246,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _passwordInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
             textInputY += labelHeight + 4;
             _passwordField.Bounds = new UiRect(0, textInputY, textInputContentWidth, 22);
-            int passwordPadding = Math.Max(0, _passwordField.Padding);
-            _passwordMaskLabel.Bounds = new UiRect(_passwordField.Bounds.X + passwordPadding, _passwordField.Bounds.Y + passwordPadding, Math.Max(0, _passwordField.Bounds.Width - passwordPadding * 2), labelHeight);
             textInputY += 30;
+            _passwordMaskLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
+            textInputY += labelHeight + 4;
             _passwordHintLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
             textInputY += labelHeight + 6;
             _completionInputLabel.Bounds = new UiRect(0, textInputY, textInputContentWidth, labelHeight);
@@ -5178,7 +5199,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         if (_passwordField != null && _passwordMaskLabel != null)
         {
             int length = _passwordField.Text.Length;
-            _passwordMaskLabel.Text = length > 0 ? new string('*', length) : string.Empty;
+            _passwordMaskLabel.Text = $"Stored length: {length}";
         }
 
         if (_completionField != null && _completionHintLabel != null)
@@ -5376,22 +5397,6 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _windowStatusLabel.Text =
                 $"Container: {DescribeElement(containerState.Element)} Kind {FormatContainerKind(containerState.Kind)} Hovered {FormatBool(containerState.Hovered)} Focused {FormatBool(containerState.Focused)} Open {FormatBool(containerState.Open)} ActiveTab {FormatBool(containerState.ActiveTab)} ActivePopup {FormatBool(containerState.ActivePopup)}";
         }
-
-        UiElement? focused = focusedState.Element;
-        if (_completionField != null && focused == _completionField && (input.Navigation.Enter || input.Navigation.KeypadEnter))
-        {
-            string text = _completionField.Text.Trim();
-            if (!string.IsNullOrEmpty(text))
-            {
-                _completionHistory.Remove(text);
-                _completionHistory.Add(text);
-                const int maxHistory = 5;
-                while (_completionHistory.Count > maxHistory)
-                {
-                    _completionHistory.RemoveAt(0);
-                }
-            }
-        }
     }
 
     private void UpdateSliderFlags()
@@ -5482,6 +5487,70 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         }
 
         return matches.Count == 0 ? "(none)" : string.Join(", ", matches);
+    }
+
+    private void HandleCompletionRequested(UiTextField field)
+    {
+        string text = field.Text.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        foreach (string option in CompletionHints)
+        {
+            if (option.StartsWith(text, StringComparison.OrdinalIgnoreCase))
+            {
+                field.Text = option;
+                field.SetCaretIndex(option.Length);
+                return;
+            }
+        }
+    }
+
+    private void HandleCompletionHistoryRequested(UiTextField field, int direction)
+    {
+        if (_completionHistory.Count == 0)
+        {
+            return;
+        }
+
+        if (_completionHistoryCursor < 0 || _completionHistoryCursor >= _completionHistory.Count)
+        {
+            _completionHistoryCursor = direction < 0 ? _completionHistory.Count - 1 : 0;
+        }
+        else
+        {
+            _completionHistoryCursor = Math.Clamp(_completionHistoryCursor + direction, 0, _completionHistory.Count - 1);
+        }
+
+        string entry = _completionHistory[_completionHistoryCursor];
+        field.Text = entry;
+        field.SetCaretIndex(entry.Length);
+    }
+
+    private void CommitCompletionHistory()
+    {
+        if (_completionField == null)
+        {
+            return;
+        }
+
+        string text = _completionField.Text.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        _completionHistory.Remove(text);
+        _completionHistory.Add(text);
+        const int maxHistory = 5;
+        while (_completionHistory.Count > maxHistory)
+        {
+            _completionHistory.RemoveAt(0);
+        }
+
+        _completionHistoryCursor = _completionHistory.Count;
     }
 
     private string BuildElidedText(string text, int maxWidth, int scale)
@@ -6511,7 +6580,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             return field.Text.Length;
         }
 
-        int relativeX = point.X - (field.Bounds.X + field.Padding);
+        string displayText = field.GetDisplayText();
+        int relativeX = point.X - (field.Bounds.X + field.Padding) + field.HorizontalScrollOffset;
         if (relativeX <= 0)
         {
             return 0;
@@ -6519,9 +6589,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         UiFont font = field.Font ?? _renderer.DefaultFont;
         int previousWidth = 0;
-        for (int index = 1; index <= field.Text.Length; index++)
+        for (int index = 1; index <= displayText.Length; index++)
         {
-            int width = _renderer.MeasureTextWidth(field.Text.Substring(0, index), field.TextScale, font);
+            int width = _renderer.MeasureTextWidth(displayText.Substring(0, index), field.TextScale, font);
             int midpoint = previousWidth + (width - previousWidth) / 2;
             if (relativeX < midpoint)
             {
@@ -6531,7 +6601,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             previousWidth = width;
         }
 
-        return field.Text.Length;
+        return displayText.Length;
     }
 
 }

@@ -187,6 +187,7 @@ ui.Render(renderer);
 
 ## Notes
 - `UiTextField` and `UiTextEditor` expect `TextInput` and `Navigation` for editing.
+- `UiTextField` now includes selection, copy/cut/paste, undo/redo, password/read-only/filtering modes, completion/history callbacks, and resize callbacks for single-line editor workflows.
 - Additional controls include `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiProgressBar`, `UiListBox`, `UiComboBox`, `UiTable`, `UiPlotPanel`, `UiWaveform`, `UiGrid`, `UiCanvas`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiSelectable`, `UiSeparator`, `UiSplitter`, `UiScrollPanel`, `UiTextEditor`, `UiTreeNode`, `UiCollapsingHeader`, `UiPopup`, `UiModal`, `UiModalHost`, and `UiTooltip`.
 - Use `UiArrow.DrawTriangle` when you want arrow indicators that match built-in controls.
 - Use `UiWindow.EnsureScrollPanel()` plus `AddContentChild` when window content needs scrollbars.
@@ -197,6 +198,7 @@ ui.Render(renderer);
 - There is no layout engine; you set bounds each frame or on resize.
 - Use `UiFocusManager` (via `UiContext.Focus`) to drive focus if needed.
 - Use `UiContext` runtime-query helpers like `HoveredItemState`, `FocusedContainerState`, `GetItemState`, `TryGetVisibleBounds`, and the focus helpers (`RequestFocusById`, `RequestFocusFirst`, `RequestFocusChild`) when you need real item/window status or code-driven focus.
+- Set `UiContext.Clipboard` when you want text controls to use a host/system clipboard instead of the default in-memory clipboard.
 - Set `UiMenuBar.DisplayMode = Popup` and call `OpenPopup` to build context menus anchored to the menu `Bounds`.
 - TinyBitmapFont lives in OpenControls and renderers can switch `CodePage` between Latin-1 and CP437; the Widgets demo includes an ASCII table.
 - Use `UiFontBuilder.AddFile(...)` plus `UiFontRegistry` to register custom font files and optional icon-font layers, then assign them through `UiContext.DefaultFont` or `UiElement.Font`.

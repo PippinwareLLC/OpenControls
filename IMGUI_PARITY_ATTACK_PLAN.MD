@@ -309,77 +309,81 @@ First-pass Milestone 3 is now landed. OpenControls ships `UiFont`, `UiFontBuilde
 
 Text editing is the biggest user-facing gap after input. It is also a force multiplier for property editors, command palettes, filters, inspectors, and tool windows.
 
+### Implementation Note
+
+First-pass Milestone 4 is now landed. OpenControls ships `UiTextEditingState`, `IUiClipboard` plus default/delegate clipboard adapters, a substantially upgraded `UiTextField`, and `UiNumericField` riding on the richer single-line editing path. The shared examples now use real password/completion/history/resize behavior, and `OpenControls.Tests` covers the shared editing core. IME composition depth remains a follow-on item rather than a blocker for the usable baseline.
+
 ### Scope
 
-- [ ] Upgrade `UiTextField` from simple insert/delete to production-grade single-line editing.
-- [ ] Build shared text editing primitives that `UiNumericField` and `UiTextEditor` can reuse.
+- [x] Upgrade `UiTextField` from simple insert/delete to production-grade single-line editing.
+- [x] Build shared text editing primitives that `UiNumericField` and `UiTextEditor` can reuse.
 
 ### Single-Line Text Field Checklist
 
-- [ ] Text selection support:
-  - [ ] click-drag selection
-  - [ ] shift+arrow selection
-  - [ ] double-click word select
-  - [ ] select all
-- [ ] Clipboard support:
-  - [ ] copy
-  - [ ] cut
-  - [ ] paste
-- [ ] Better caret movement:
-  - [ ] word-left / word-right
-  - [ ] home / end variants
-  - [ ] selection-preserving navigation
-- [ ] Editing history:
-  - [ ] undo
-  - [ ] redo
-- [ ] Commit / cancel behavior:
-  - [ ] submit/accept callback or command hook
-  - [ ] cancel/revert path for inspector-style editing
-- [ ] Input modes:
-  - [ ] normal text
-  - [ ] password mode
-  - [ ] read-only mode
-  - [ ] filtered mode using callbacks or pluggable rules
-- [ ] Callback/event hooks:
-  - [ ] edit callback
-  - [ ] completion callback
-  - [ ] history callback
-  - [ ] resize/grow callback or owned-buffer equivalent
-- [ ] Rendering polish:
-  - [ ] selected-text background
-  - [ ] horizontal scroll for long text
-  - [ ] caret reveal logic
+- [x] Text selection support:
+  - [x] click-drag selection
+  - [x] shift+arrow selection
+  - [x] double-click word select
+  - [x] select all
+- [x] Clipboard support:
+  - [x] copy
+  - [x] cut
+  - [x] paste
+- [x] Better caret movement:
+  - [x] word-left / word-right
+  - [x] home / end variants
+  - [x] selection-preserving navigation
+- [x] Editing history:
+  - [x] undo
+  - [x] redo
+- [x] Commit / cancel behavior:
+  - [x] submit/accept callback or command hook
+  - [x] cancel/revert path for inspector-style editing
+- [x] Input modes:
+  - [x] normal text
+  - [x] password mode
+  - [x] read-only mode
+  - [x] filtered mode using callbacks or pluggable rules
+- [x] Callback/event hooks:
+  - [x] edit callback
+  - [x] completion callback
+  - [x] history callback
+  - [x] resize/grow callback or owned-buffer equivalent
+- [x] Rendering polish:
+  - [x] selected-text background
+  - [x] horizontal scroll for long text
+  - [x] caret reveal logic
   - [ ] alignment / eliding options where valuable
 
 ### Shared Text Infrastructure Checklist
 
-- [ ] Introduce a reusable text buffer/edit state abstraction.
-- [ ] Separate text model logic from widget rendering.
-- [ ] Add clipboard access abstraction usable by hosts.
+- [x] Introduce a reusable text buffer/edit state abstraction.
+- [x] Separate text model logic from widget rendering.
+- [x] Add clipboard access abstraction usable by hosts.
 - [ ] Add UTF-8 and IME handling strategy if text input pipeline requires it.
 - [ ] Add composition/IME state plumbing beyond raw committed characters.
-- [ ] Decide whether text buffers should be string-backed, span-like, or pluggable.
+- [x] Decide whether text buffers should be string-backed, span-like, or pluggable.
 
 ### Numeric Field Follow-Through
 
-- [ ] Rebase `UiNumericField` on the new text editing primitives.
-- [ ] Preserve clamp/step behavior while gaining:
-  - [ ] selection
-  - [ ] copy/paste
-  - [ ] undo/redo
-  - [ ] better parsing lifecycle
+- [x] Rebase `UiNumericField` on the new text editing primitives.
+- [x] Preserve clamp/step behavior while gaining:
+  - [x] selection
+  - [x] copy/paste
+  - [x] undo/redo
+  - [x] better parsing lifecycle
 
 ### Demo/Docs Work
 
-- [ ] Make the completion/history demo real instead of simulated.
-- [ ] Implement password input properly.
-- [ ] Implement resize callback or retained-mode equivalent for growing buffers.
-- [ ] Document callback lifecycle clearly.
+- [x] Make the completion/history demo real instead of simulated.
+- [x] Implement password input properly.
+- [x] Implement resize callback or retained-mode equivalent for growing buffers.
+- [x] Document callback lifecycle clearly.
 
 ### Exit Criteria
 
-- [ ] `UiTextField` feels credible in a real inspector/property editor.
-- [ ] The README caveat about text callbacks can be removed or narrowed substantially.
+- [x] `UiTextField` feels credible in a real inspector/property editor.
+- [x] The README caveat about text callbacks can be removed or narrowed substantially.
 
 ## Milestone 5: Text Editor 2.0
 
@@ -721,7 +725,7 @@ If resourcing is tight, do the work in this order:
 - [x] Milestone 1
 - [x] Milestone 2
 - [x] Milestone 3
-- [ ] Milestone 4
+- [x] Milestone 4
 - [ ] Milestone 8
 - [ ] Milestone 9
 - [ ] Milestone 6
@@ -743,7 +747,7 @@ If resourcing is tight, do the work in this order:
 ### Release Slice B: Text And Editing
 
 - [x] Milestone 3
-- [ ] Milestone 4
+- [x] Milestone 4
 - [ ] Milestone 5
 
 ### Release Slice C: Data Views
@@ -768,5 +772,5 @@ If resourcing is tight, do the work in this order:
 - [x] If only one thing happens next, it should be Milestone 1.
 - [x] If only one thing happens next after Milestone 1, it should be Milestone 2.
 - [x] If custom fonts and icon-font parity matter for the near-term product, Milestone 3 should happen immediately after Milestone 2.
-- [ ] If only one user-facing thing happens after that, it should be Milestone 4 or Milestone 8 depending on whether your near-term product is more editor-heavy or data-view-heavy.
-- [ ] Re-audit after Milestone 4 and again after Milestone 8 before committing to the entire tail of the roadmap.
+- [ ] If only one user-facing thing happens after that, it should be Milestone 5 or Milestone 8 depending on whether your near-term product is more editor-heavy or data-view-heavy.
+- [ ] Re-audit after Milestone 5 and again after Milestone 8 before committing to the entire tail of the roadmap.

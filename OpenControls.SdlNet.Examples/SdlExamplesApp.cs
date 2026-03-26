@@ -11,6 +11,19 @@ namespace OpenControls.SdlNet.Examples;
 
 public sealed class SdlExamplesApp : IDisposable
 {
+    private sealed class SdlClipboard : IUiClipboard
+    {
+        public string GetText()
+        {
+            return SDL.SDL_GetClipboardText() ?? string.Empty;
+        }
+
+        public void SetText(string text)
+        {
+            SDL.SDL_SetClipboardText(text ?? string.Empty);
+        }
+    }
+
     private const int DragThreshold = 6;
 
     private static readonly (SDL.SDL_Scancode Scancode, UiKey UiKey)[] KeyMap =
@@ -194,6 +207,7 @@ public sealed class SdlExamplesApp : IDisposable
         _font = new TinyBitmapFont();
         _renderer = new SdlUiRenderer(_rendererHandle, _font);
         _ui = new ExamplesUi(_renderer, _font);
+        _ui.Clipboard = new SdlClipboard();
         _ui.SetTitleText("OpenControls SDL Examples");
         _ui.ExitRequested += () => _quit = true;
     }

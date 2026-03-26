@@ -13,16 +13,17 @@
 - [x] Milestone 1 landed.
 - [x] Milestone 2 landed.
 - [x] Milestone 3 landed as a first-pass custom-font and icon-font pipeline.
-- [x] Milestone 4 is the next recommended implementation target.
+- [x] Milestone 4 landed as a first-pass text-entry foundation pass.
+- [x] Milestone 5 is the next recommended implementation target.
 
 ## Status Table
 
 | Area | Bucket | Current State | Next Milestone | Notes |
 | --- | --- | --- | --- | --- |
-| Input platform contract | Must have | Delivered / foundation in place | Milestone 4 | Milestone 1 is complete: richer input state, drag/double-click/wheel-X data, `WantCapture*` outputs, IME-friendly text-input metadata, requested cursor routing, and updated example hosts are in place. |
-| Runtime state queries and focus APIs | Must have | Delivered / foundation in place | Milestone 4 | Milestone 2 is complete: `UiContext` now exposes item/container snapshots, visible-bounds helpers, focus-by-id/next-frame helpers, popup/modal default focus, and the examples use the real query APIs. |
-| Font system, atlas, and icon glyph pipeline | Must have | Delivered / first pass | Milestone 4 | Milestone 3 is landed: `UiFont`/`UiFontBuilder`/`UiFontRegistry`, per-element and inherited font selection, renderer-side glyph caches, custom font loading, fallback chains, and merged icon-font ranges are all in place. `OpenControls.SilkNet.Examples` is the reference validation host, the Widgets text demo shows custom fonts plus inline icons, and bitmap fallback is preserved for the ASCII/code-page and editor demos. HarfBuzz and Slug stay optional follow-on work. |
-| Text entry foundation | Must have | Partial | Milestone 4 | Current single-line editing is simple and lacks selection/clipboard/history depth. |
+| Input platform contract | Must have | Delivered / foundation in place | Milestone 5 | Milestone 1 is complete: richer input state, drag/double-click/wheel-X data, `WantCapture*` outputs, IME-friendly text-input metadata, requested cursor routing, and updated example hosts are in place. |
+| Runtime state queries and focus APIs | Must have | Delivered / foundation in place | Milestone 5 | Milestone 2 is complete: `UiContext` now exposes item/container snapshots, visible-bounds helpers, focus-by-id/next-frame helpers, popup/modal default focus, and the examples use the real query APIs. |
+| Font system, atlas, and icon glyph pipeline | Must have | Delivered / first pass | Milestone 5 | Milestone 3 is landed: `UiFont`/`UiFontBuilder`/`UiFontRegistry`, per-element and inherited font selection, renderer-side glyph caches, custom font loading, fallback chains, and merged icon-font ranges are all in place. `OpenControls.SilkNet.Examples` is the reference validation host, the Widgets text demo shows custom fonts plus inline icons, and bitmap fallback is preserved for the ASCII/code-page and editor demos. HarfBuzz and Slug stay optional follow-on work. |
+| Text entry foundation | Must have | Delivered / first pass | Milestone 5 | Milestone 4 is landed: `UiTextField` now supports selection, clipboard, undo/redo, commit/cancel hooks, password/read-only/filtering modes, resize/completion/history callbacks, shared `UiTextEditingState`, and a clipboard abstraction on `UiContext`. `UiNumericField` inherits the richer text-entry behavior, the Widgets text demos are real, and `OpenControls.Tests` covers the shared editing core. IME composition depth remains follow-on work. |
 | Text editor depth | High-value parity | Partial | Milestone 5 | Current editor is useful but not yet editor-grade. |
 | Combo/list/popup composition | Must have | Partial | Milestone 6 | Current combo/list widgets are string-oriented, not retained-content containers. |
 | Layout containers | Must have | Partial by manual bounds | Milestone 7 | Need retained equivalents for practical layout demos and product UI. |

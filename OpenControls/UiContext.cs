@@ -37,16 +37,19 @@ public sealed class UiContext
     private FocusRequest _pendingFocusRequest;
     private Dictionary<UiElement, UiItemStateSnapshot> _itemStates = new();
     private Dictionary<UiElement, UiContainerStateSnapshot> _containerStates = new();
+    private readonly UiMemoryClipboard _fallbackClipboard = new();
 
     public UiContext(UiElement root)
     {
         Root = root ?? throw new ArgumentNullException(nameof(root));
+        Clipboard = _fallbackClipboard;
     }
 
     public UiElement Root { get; }
     public UiFocusManager Focus { get; } = new();
     public UiDragDropContext DragDrop { get; } = new();
     public UiFont DefaultFont { get; set; } = UiFont.Default;
+    public IUiClipboard Clipboard { get; set; }
     public UiElement? Hovered { get; private set; }
     public UiElement? ActiveInputLayer => _activeInputLayer;
     public UiElement? PointerCaptureTarget { get; private set; }
@@ -78,7 +81,7 @@ public sealed class UiContext
         }
 
         DragDrop.BeginFrame(effectiveInput);
-        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont));
+        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont, Clipboard));
         DragDrop.EndFrame();
         RefreshOutputs(effectiveInput);
     }

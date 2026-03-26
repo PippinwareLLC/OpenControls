@@ -37,6 +37,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - `OpenControls.SilkNet.Examples`: runnable Silk.NET host for the shared examples UI. This is the primary parity/reference host.
 - `OpenControls.OpenGL`: OpenGL renderer adapter library (OpenTK).
 - `OpenControls.OpenGL.Examples`: runnable OpenGL host for the shared examples UI.
+- `OpenControls.Tests`: regression tests for editor-blocking shared behavior.
 - `OpenControls.SdlNet.Examples`: SDL2-CS renderer example that mirrors the OpenControls.Examples UI (requires SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable).
 
 ## Usage
@@ -44,6 +45,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - Run the MonoGame examples: `dotnet run --project OpenControls.MonoGame.Examples/OpenControls.MonoGame.Examples.csproj`
 - Run the OpenGL examples: `dotnet run --project OpenControls.OpenGL.Examples/OpenControls.OpenGL.Examples.csproj`
 - Run the Silk.NET examples: `dotnet run --project OpenControls.SilkNet.Examples/OpenControls.SilkNet.Examples.csproj`
+- Run the shared regression tests: `dotnet test OpenControls.Tests/OpenControls.Tests.csproj`
 - Run the current Phase 0 verification hook: `bash scripts/verify-phase0.sh`
 
 ## Demo Parity (OpenControls.Examples)
@@ -52,7 +54,7 @@ The Widgets window in `OpenControls.Examples` mirrors the structure of the refer
 Parity deviations (documented and intentional):
 - Shortcut routing depth: `UiContext` now exposes scoped shortcut helpers with focused/hovered/global precedence, but `UiMenuBar.MenuItem.Shortcut` remains display-only and app command binding is still app-defined.
 - Drag/slider flags: the demo toggles whole-number snapping and step size; advanced flags like logarithmic and always-clamp are not available.
-- Text input callbacks: completion/history is simulated; OpenControls does not expose edit callbacks.
+- Multiline editor depth: `UiTextField` now has selection, clipboard, undo/redo, password/read-only/filtering, completion/history hooks, and resize callbacks, but `UiTextEditor` still needs the deeper editor pass tracked in Milestone 5.
 - WantCapture overrides: `UiContext` now exposes actual `WantCaptureMouse`, `WantCaptureKeyboard`, and `WantTextInput` outputs, but manual override toggles are not part of the core API.
 - Image demos: `UiImage` and `UiImageButton` rely on renderer-supplied textures, so hosts without texture bindings will show placeholders.
 
@@ -93,6 +95,7 @@ Historical note:
 | `OpenControls.SilkNet.Examples` | Host app | Active | Silk.NET windowing/input host. |
 | `OpenControls.OpenGL` | Renderer adapter | Active | OpenTK compatibility-profile adapter. |
 | `OpenControls.OpenGL.Examples` | Host app | Active | OpenTK OpenGL host. |
+| `OpenControls.Tests` | Test project | Active | Regression coverage for shared editor-blocking primitives. |
 
 ## Supported Widgets
 - Core: `UiPanel`, `UiLabel`, `UiTextBlock`, `UiTextLink`, `UiBullet`, `UiBulletText`, `UiButton`, `UiArrowButton`, `UiSeparator`, `UiSeparatorText`, `UiSpacer`, `UiDisabledGroup`.
@@ -121,6 +124,7 @@ Planned expansion:
 - `UiInputState` now supports left/right/middle mouse buttons, Alt/Super modifiers, named keys, and per-key down/pressed/released state.
 - `UiContext` now exposes `Hovered`, `PointerCaptureTarget`, `WantCaptureMouse`, `WantCaptureKeyboard`, `WantTextInput`, and `RequestedMouseCursor`, and the example hosts consume those outputs.
 - `UiContext` now also exposes per-frame item/container query snapshots (`LastItemState`, hovered/focused item, containing container, active input layer), visible-bounds helpers, and stronger focus APIs such as focus-by-id and next-frame focus requests.
+- `UiContext` now also exposes `Clipboard`, with a default in-memory implementation plus host-swappable clipboard adapters for copy/cut/paste-aware controls.
 - `UiInputState` also carries double-click state, drag origins/thresholds, and horizontal wheel deltas for richer host input plumbing.
 - Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented, radial), list box, combo box, selectable, color button, and separator controls are available.
 - Table controls with column headers and selectable rows are available.
@@ -141,7 +145,7 @@ Planned expansion:
 - Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, and embedded content.
 - Tree nodes, collapsing headers, tooltips, popups, and modals are available.
 - Text editor control supports line numbers, scrolling, and syntax highlighting.
-- Text fields support placeholder text via `UiTextField.Placeholder` and `UiTextField.PlaceholderColor`.
+- Text fields now support selection, copy/cut/paste, undo/redo, commit/cancel hooks, password/read-only/filtering modes, completion/history callbacks, resize callbacks, and placeholder text.
 - Numeric input fields (`UiInputFloat/Int/Double`, `UiNumericField`, and vector variants) and vector sliders (`UiSliderFloat2/3/4`, `UiSliderInt2/3/4`, `UiSliderVector`) are available.
 - Image widgets (`UiImage`, `UiImageButton`) support renderer-specific draw callbacks for texture-backed UI.
 - Splitter control provides draggable horizontal/vertical splits for manual layouts.
