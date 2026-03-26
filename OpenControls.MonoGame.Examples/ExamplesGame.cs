@@ -83,9 +83,11 @@ public sealed class ExamplesGame : Game
     private readonly RasterizerState _uiRasterizer = new() { ScissorTestEnable = true };
     private readonly List<char> _textInputBuffer = new();
     private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
+    private readonly UiDpiCompensation _dpiCompensation = new();
     private SpriteBatch? _spriteBatch;
     private Texture2D? _pixel;
     private MonoGameUiRenderer? _renderer;
+    private UiScaledRenderer? _scaledRenderer;
     private TinyBitmapFont? _font;
     private ExamplesUi? _ui;
     private KeyboardState _previousKeyboard;
@@ -114,6 +116,12 @@ public sealed class ExamplesGame : Game
         Window.Title = "OpenControls MonoGame Examples";
     }
 
+    public bool EnableDpiCompensation
+    {
+        get => _dpiCompensation.Enabled;
+        set => _dpiCompensation.Enabled = value;
+    }
+
     protected override void Initialize()
     {
         Window.TextInput += HandleTextInput;
@@ -128,7 +136,9 @@ public sealed class ExamplesGame : Game
 
         _font = new TinyBitmapFont();
         _renderer = new MonoGameUiRenderer(_spriteBatch, _pixel, _font);
-        _ui = new ExamplesUi(_renderer, _font);
+        UpdateDpiCompensation();
+        _scaledRenderer = new UiScaledRenderer(_renderer, _dpiCompensation);
+        _ui = new ExamplesUi(_scaledRenderer, _font);
         _ui.Clipboard = _clipboard;
         _ui.SetTitleText("OpenControls MonoGame Examples");
         _ui.ExitRequested += Exit;
@@ -144,9 +154,13 @@ public sealed class ExamplesGame : Game
 
         KeyboardState currentKeyboard = Keyboard.GetState();
         MouseState currentMouse = Mouse.GetState();
+        UpdateDpiCompensation();
 
         bool saveRequested = IsPressed(currentKeyboard, _previousKeyboard, Keys.F5);
         bool loadRequested = IsPressed(currentKeyboard, _previousKeyboard, Keys.F9);
+        Rectangle clientBounds = Window.ClientBounds;
+        int logicalWidth = clientBounds.Width > 0 ? clientBounds.Width : GraphicsDevice.Viewport.Width;
+        int logicalHeight = clientBounds.Height > 0 ? clientBounds.Height : GraphicsDevice.Viewport.Height;
 
         UiInputState input = BuildInputState(
             currentKeyboard,
@@ -157,8 +171,8 @@ public sealed class ExamplesGame : Game
         _ui.Update(
             input,
             (float)gameTime.ElapsedGameTime.TotalSeconds,
-            GraphicsDevice.Viewport.Width,
-            GraphicsDevice.Viewport.Height,
+            logicalWidth,
+            logicalHeight,
             saveRequested,
             loadRequested);
 
@@ -285,6 +299,14 @@ public sealed class ExamplesGame : Game
 
         _wantTextInput = _ui.WantTextInput;
         ApplyMouseCursor(_ui.RequestedMouseCursor);
+    }
+
+    private void UpdateDpiCompensation()
+    {
+        Rectangle clientBounds = Window.ClientBounds;
+        int logicalWidth = clientBounds.Width > 0 ? clientBounds.Width : GraphicsDevice.Viewport.Width;
+        int logicalHeight = clientBounds.Height > 0 ? clientBounds.Height : GraphicsDevice.Viewport.Height;
+        _dpiCompensation.SetScaleFromContentSize(logicalWidth, logicalHeight, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
     }
 
     private void ApplyMouseCursor(UiMouseCursor cursor)

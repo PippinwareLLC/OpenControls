@@ -87,10 +87,11 @@ public sealed class EditorGame : Game
     private readonly List<char> _textInputBuffer = new();
     private readonly List<EditorControlEntry> _controls = new();
     private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
+    private readonly UiDpiCompensation _dpiCompensation = new();
 
     private SpriteBatch? _spriteBatch;
     private Texture2D? _pixel;
-    private MonoGameUiRenderer? _renderer;
+    private IUiRenderer? _renderer;
     private UiContext? _context;
 
     private UiModalHost? _root;
@@ -167,6 +168,12 @@ public sealed class EditorGame : Game
         IsMouseVisible = true;
     }
 
+    public bool EnableDpiCompensation
+    {
+        get => _dpiCompensation.Enabled;
+        set => _dpiCompensation.Enabled = value;
+    }
+
     protected override void Initialize()
     {
         base.Initialize();
@@ -178,7 +185,9 @@ public sealed class EditorGame : Game
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _pixel = new Texture2D(GraphicsDevice, 1, 1);
         _pixel.SetData(new[] { Color.White });
-        _renderer = new MonoGameUiRenderer(_spriteBatch, _pixel, new TinyBitmapFont());
+        MonoGameUiRenderer baseRenderer = new MonoGameUiRenderer(_spriteBatch, _pixel, new TinyBitmapFont());
+        UpdateDpiCompensation();
+        _renderer = new UiScaledRenderer(baseRenderer, _dpiCompensation);
 
         BuildUi();
         LoadLayoutFromFile(GetLayoutPath(), silent: true);
@@ -195,6 +204,10 @@ public sealed class EditorGame : Game
 
         KeyboardState keyboardState = Keyboard.GetState();
         MouseState mouseState = Mouse.GetState();
+        UpdateDpiCompensation();
+        Rectangle clientBounds = Window.ClientBounds;
+        int logicalWidth = clientBounds.Width > 0 ? clientBounds.Width : GraphicsDevice.Viewport.Width;
+        int logicalHeight = clientBounds.Height > 0 ? clientBounds.Height : GraphicsDevice.Viewport.Height;
 
         if (IsPressed(keyboardState, _previousKeyboard, Keys.Escape))
         {
@@ -211,7 +224,7 @@ public sealed class EditorGame : Game
             LoadLayout();
         }
 
-        UpdateLayout(GraphicsDevice.Viewport);
+        UpdateLayout(logicalWidth, logicalHeight);
         UiInputState input = BuildInputState(keyboardState, _previousKeyboard, mouseState, _previousMouse, gameTime.TotalGameTime.TotalSeconds);
         HandleDesignSurfaceSelection(input);
         _context.Update(input, (float)gameTime.ElapsedGameTime.TotalSeconds);
@@ -481,7 +494,7 @@ public sealed class EditorGame : Game
         UpdateAlignButtons();
     }
 
-    private void UpdateLayout(Viewport viewport)
+    private void UpdateLayout(int width, int height)
     {
         if (_renderer == null || _root == null || _rootPanel == null || _topBar == null || _dockWorkspace == null || _statusLabel == null)
         {
@@ -492,18 +505,26 @@ public sealed class EditorGame : Game
         int topBarHeight = fontHeight + Padding * 2;
         int statusHeight = fontHeight + Padding;
 
-        UiRect rootBounds = new UiRect(0, 0, viewport.Width, viewport.Height);
+        UiRect rootBounds = new UiRect(0, 0, width, height);
         _root.Bounds = rootBounds;
         _rootPanel.Bounds = rootBounds;
 
-        _topBar.Bounds = new UiRect(0, 0, viewport.Width, topBarHeight);
-        _statusLabel.Bounds = new UiRect(Padding, viewport.Height - statusHeight, Math.Max(0, viewport.Width - Padding * 2), fontHeight);
+        _topBar.Bounds = new UiRect(0, 0, width, topBarHeight);
+        _statusLabel.Bounds = new UiRect(Padding, height - statusHeight, Math.Max(0, width - Padding * 2), fontHeight);
 
         int dockTop = _topBar.Bounds.Bottom + Padding;
-        int dockHeight = Math.Max(0, viewport.Height - dockTop - statusHeight - Padding);
-        _dockWorkspace.Bounds = new UiRect(Padding, dockTop, Math.Max(0, viewport.Width - Padding * 2), dockHeight);
+        int dockHeight = Math.Max(0, height - dockTop - statusHeight - Padding);
+        _dockWorkspace.Bounds = new UiRect(Padding, dockTop, Math.Max(0, width - Padding * 2), dockHeight);
 
         LayoutTopBar(_topBar.Bounds);
+    }
+
+    private void UpdateDpiCompensation()
+    {
+        Rectangle clientBounds = Window.ClientBounds;
+        int logicalWidth = clientBounds.Width > 0 ? clientBounds.Width : GraphicsDevice.Viewport.Width;
+        int logicalHeight = clientBounds.Height > 0 ? clientBounds.Height : GraphicsDevice.Viewport.Height;
+        _dpiCompensation.SetScaleFromContentSize(logicalWidth, logicalHeight, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height);
     }
 
     private void LayoutTopBar(UiRect bounds)

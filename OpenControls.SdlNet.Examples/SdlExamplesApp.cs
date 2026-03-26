@@ -105,8 +105,10 @@ public sealed class SdlExamplesApp : IDisposable
     private UiMouseCursor _appliedCursor = UiMouseCursor.Arrow;
 
     private SdlUiRenderer? _renderer;
+    private UiScaledRenderer? _scaledRenderer;
     private TinyBitmapFont? _font;
     private ExamplesUi? _ui;
+    private readonly UiDpiCompensation _dpiCompensation = new();
 
     private byte[] _currentKeyStates = Array.Empty<byte>();
     private byte[] _previousKeyStates = Array.Empty<byte>();
@@ -129,6 +131,12 @@ public sealed class SdlExamplesApp : IDisposable
     private readonly List<char> _textInputBuffer = new();
     private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
     private UiTextCompositionState _composition = UiTextCompositionState.Empty;
+
+    public bool EnableDpiCompensation
+    {
+        get => _dpiCompensation.Enabled;
+        set => _dpiCompensation.Enabled = value;
+    }
 
     public void Run()
     {
@@ -210,7 +218,9 @@ public sealed class SdlExamplesApp : IDisposable
 
         _font = new TinyBitmapFont();
         _renderer = new SdlUiRenderer(_rendererHandle, _font);
-        _ui = new ExamplesUi(_renderer, _font);
+        UpdateDpiCompensation();
+        _scaledRenderer = new UiScaledRenderer(_renderer, _dpiCompensation);
+        _ui = new ExamplesUi(_scaledRenderer, _font);
         _ui.Clipboard = new SdlClipboard();
         _ui.SetTitleText("OpenControls SDL Examples");
         _ui.ExitRequested += () => _quit = true;
@@ -249,6 +259,7 @@ public sealed class SdlExamplesApp : IDisposable
 
             ProcessEvents();
             UpdateKeyStates();
+            UpdateDpiCompensation();
 
             SDL.SDL_GetWindowSize(_window, out int width, out int height);
 
@@ -452,6 +463,13 @@ public sealed class SdlExamplesApp : IDisposable
         SetTextInputActive(_ui.WantTextInput);
         ApplyTextInputRequest(_ui.TextInputRequest);
         ApplyMouseCursor(_ui.RequestedMouseCursor);
+    }
+
+    private void UpdateDpiCompensation()
+    {
+        SDL.SDL_GetWindowSize(_window, out int logicalWidth, out int logicalHeight);
+        SDL.SDL_GetRendererOutputSize(_rendererHandle, out int physicalWidth, out int physicalHeight);
+        _dpiCompensation.SetScaleFromContentSize(logicalWidth, logicalHeight, physicalWidth, physicalHeight);
     }
 
     private void ApplyTextInputRequest(UiTextInputRequest? request)

@@ -67,6 +67,20 @@ public sealed class UiFont
             .Build();
     }
 
+    public UiFont WithPixelSize(int pixelSize, string? name = null)
+    {
+        int resolvedPixelSize = Math.Max(1, pixelSize);
+        if (resolvedPixelSize == PixelSize && string.IsNullOrWhiteSpace(name))
+        {
+            return this;
+        }
+
+        string fontName = string.IsNullOrWhiteSpace(name)
+            ? $"{Name}@{resolvedPixelSize}"
+            : name;
+        return new UiFont(fontName, resolvedPixelSize, _layers.Select(static layer => layer.ToDefinition()));
+    }
+
     internal UiTextLayout LayoutText(string text, int scale = 1)
     {
         int safeScale = Math.Max(1, scale);
@@ -234,6 +248,11 @@ internal sealed class UiFontLayer
     public int AdvanceOffset { get; }
     public bool Monospace { get; }
     public IUiGlyphSource Source { get; }
+
+    public UiFontLayerDefinition ToDefinition()
+    {
+        return new UiFontLayerDefinition(Name, _ranges.Length == 0 ? null : _ranges.ToArray(), BaselineOffset, AdvanceOffset, Monospace, Source);
+    }
 
     public bool Matches(Rune rune)
     {

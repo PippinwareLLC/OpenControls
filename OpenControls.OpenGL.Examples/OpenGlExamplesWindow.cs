@@ -103,7 +103,9 @@ public sealed class OpenGlExamplesWindow : GameWindow
 
     private readonly List<char> _textInputBuffer = new();
     private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
+    private readonly UiDpiCompensation _dpiCompensation = new();
     private OpenGLUiRenderer? _renderer;
+    private UiScaledRenderer? _scaledRenderer;
     private TinyBitmapFont? _font;
     private ExamplesUi? _ui;
     private KeyboardState? _previousKeyboard;
@@ -136,13 +138,21 @@ public sealed class OpenGlExamplesWindow : GameWindow
         VSync = VSyncMode.On;
     }
 
+    public bool EnableDpiCompensation
+    {
+        get => _dpiCompensation.Enabled;
+        set => _dpiCompensation.Enabled = value;
+    }
+
     protected override void OnLoad()
     {
         base.OnLoad();
 
         _font = new TinyBitmapFont();
         _renderer = new OpenGLUiRenderer(_font);
-        _ui = new ExamplesUi(_renderer, _font);
+        UpdateDpiCompensation();
+        _scaledRenderer = new UiScaledRenderer(_renderer, _dpiCompensation);
+        _ui = new ExamplesUi(_scaledRenderer, _font);
         _ui.Clipboard = new OpenTkClipboard(this);
         _ui.SetTitleText("OpenControls OpenGL Examples");
         _ui.ExitRequested += Close;
@@ -162,6 +172,7 @@ public sealed class OpenGlExamplesWindow : GameWindow
     protected override void OnResize(ResizeEventArgs e)
     {
         base.OnResize(e);
+        UpdateDpiCompensation();
         UpdateProjection(e.Width, e.Height);
     }
 
@@ -175,15 +186,18 @@ public sealed class OpenGlExamplesWindow : GameWindow
         }
 
         _elapsedSeconds += args.Time;
+        UpdateDpiCompensation();
         KeyboardState keyboard = KeyboardState;
         MouseState mouse = MouseState;
         KeyboardState previousKeyboard = _previousKeyboard ?? keyboard;
 
         bool saveRequested = IsPressed(keyboard, previousKeyboard, Keys.F5);
         bool loadRequested = IsPressed(keyboard, previousKeyboard, Keys.F9);
+        int logicalWidth = ClientSize.X > 0 ? ClientSize.X : Size.X;
+        int logicalHeight = ClientSize.Y > 0 ? ClientSize.Y : Size.Y;
 
         UiInputState input = BuildInputState(keyboard, previousKeyboard, mouse);
-        _ui.Update(input, (float)args.Time, Size.X, Size.Y, saveRequested, loadRequested);
+        _ui.Update(input, (float)args.Time, logicalWidth, logicalHeight, saveRequested, loadRequested);
         ApplyHostState();
 
         _previousKeyboard = keyboard;
@@ -362,6 +376,17 @@ public sealed class OpenGlExamplesWindow : GameWindow
         }
 
         ApplyMouseCursor(_ui.RequestedMouseCursor);
+    }
+
+    private void UpdateDpiCompensation()
+    {
+        float scale = 1f;
+        if (TryGetCurrentMonitorScale(out float horizontalScale, out float verticalScale))
+        {
+            scale = Math.Max(1f, Math.Max(horizontalScale, verticalScale));
+        }
+
+        _dpiCompensation.SetScaleFactor(scale);
     }
 
     private void ApplyMouseCursor(UiMouseCursor cursor)

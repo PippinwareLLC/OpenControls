@@ -195,3 +195,9 @@ Planned expansion:
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).
 - OpenControls now ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, custom font-file loading, fallback chains, and merged icon-font ranges for Dear ImGui-style inline icon text.
 - The shipped renderer path now uses shared atlas-backed grayscale glyph caches across MonoGame, SDL2-CS, Silk.NET, and OpenGL instead of per-pixel glyph loops; optional HarfBuzz shaping and optional Slug GPU text rendering remain follow-on work in the parity roadmap.
+- OpenControls now also ships `UiDpiCompensation` and `UiScaledRenderer` for default-on DPI-aware rendering from a 96 DPI baseline. The shipped Silk.NET, MonoGame, SDL2-CS, OpenGL, and editor hosts now keep layout/input in logical units while scaling rendering to the host DPI, and custom hosts can opt out by disabling the compensation object.
+
+## DPI Compensation
+- The recommended host pattern is: keep UI bounds and input in logical coordinates, derive a content scale from logical window size vs physical framebuffer/backbuffer size (or monitor DPI), and render through `UiScaledRenderer`.
+- `UiDpiCompensation` defaults to `TargetDpi = 96` and `Enabled = true`, with a default minimum scale of `1.0` so low-DPI hosts do not shrink below the current baseline.
+- Disable DPI compensation by setting `UiDpiCompensation.Enabled = false`, or by flipping the host convenience property where the shipped example/editor hosts expose one.

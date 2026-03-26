@@ -19,6 +19,8 @@ This is a brief overview of the current OpenControls surface area.
 - `UiInputHostHelpers`: shared helper methods for host-side double-click and drag-origin tracking.
 - `UiClipRange`, `UiClipper`: fixed-height virtualization math helpers for large sequential item ranges.
 - `IUiRenderer`: rendering abstraction; hosts implement this for their graphics API (includes clip stack, gradient, and checkerboard fills).
+- `UiDpiCompensation`: shared 96 DPI baseline scaler for converting between logical UI units and physical pixels.
+- `UiScaledRenderer`: `IUiRenderer` wrapper that applies `UiDpiCompensation` to geometry, clip rects, and font rendering so control chrome and text scale together.
 - `UiRect`, `UiPoint`, `UiColor`: lightweight geometry and color structs.
 - `UiRenderHelpers`: helper methods for gradients, checkerboard fills, rounded rectangles, and bold text.
 - `UiStateSnapshot`, `UiStateSerializer`, `IUiStatefulElement`: serialize/restore richer UI state to JSON for persistence, including built-in editor/view state plus custom-control extensions.
@@ -107,6 +109,7 @@ This is a brief overview of the current OpenControls surface area.
 - Set `UiContext.Clipboard` when a host wants system clipboard integration; otherwise the default in-memory clipboard still enables copy/cut/paste within the UI session.
 - The shipped first-pass runtime now uses shared atlas-backed renderer glyph caches for custom fonts and inline icon text; HarfBuzz-backed shaping and Slug-backed GPU text rendering remain optional follow-on work in `IMGUI_PARITY_ATTACK_PLAN.MD`.
 - `UiInputState.Composition` and `UiTextInputRequest` are the core hooks for host-side IME/preedit integration; the SDL example host currently provides the concrete native candidate-rect reference path.
+- `UiDpiCompensation` is the recommended host-side path for DPI-aware UI. Feed the UI logical bounds/input, scale rendering through `UiScaledRenderer`, and convert `UiTextInputRequest` back to physical pixels only when the platform API expects physical coordinates.
 - `UiPopup.OpenAttached(...)` and `UiPopup.OpenContext(...)` are the preferred helpers for anchored and point-based popup opening in retained demos.
 - `UiMenuBar.OpenAttached(...)` and `UiMenuBar.OpenContext(...)` provide the same anchored and point-based helpers for popup-mode menus.
 - `UiChildRegion` is an embedded clipped viewport inside an existing parent; use it for framed sub-content, and use `UiWindow` when the content needs independent title/chrome/focus behavior.

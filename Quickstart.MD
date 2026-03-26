@@ -20,6 +20,29 @@ public sealed class MyRenderer : IUiRenderer
 }
 ```
 
+## 1a) Wrap it for DPI compensation
+The recommended setup is to keep your UI in logical units and wrap the renderer so text and control chrome scale together from a 96 DPI baseline.
+
+```csharp
+MyRenderer baseRenderer = new MyRenderer();
+UiDpiCompensation dpi = new UiDpiCompensation();
+IUiRenderer renderer = new UiScaledRenderer(baseRenderer, dpi);
+```
+
+Each frame, update the scale from your logical window size and physical framebuffer/backbuffer size, or from a known monitor DPI:
+
+```csharp
+dpi.SetScaleFromContentSize(logicalWidth, logicalHeight, physicalWidth, physicalHeight);
+// or:
+// dpi.CurrentDpi = monitorDpi;
+```
+
+Disable it by setting:
+
+```csharp
+dpi.Enabled = false;
+```
+
 ## 2) Build the UI tree
 Create a root element and add controls. Bounds are explicit.
 
@@ -185,12 +208,16 @@ UiInputState input = new UiInputState
     }
 };
 
-ui.Update(input, deltaSeconds);
+UiInputState logicalInput = dpi.ToLogical(input); // Skip this transform if your host already reports logical window coordinates.
+ui.Update(logicalInput, deltaSeconds);
 ui.Render(renderer);
 ```
 
 ## Notes
 - `UiTextField` and `UiTextEditor` expect `TextInput` and `Navigation` for editing.
+- For DPI-aware hosts, pass logical mouse positions/window sizes into `UiContext.Update(...)` and `ExamplesUi.Update(...)`, not physical framebuffer pixels.
+- `UiScaledRenderer` scales control rendering as well as fonts, so borders, padding-driven chrome, clip rects, checkerboards, and text stay visually consistent together.
+- If a platform API expects physical text-input rectangles, convert `ui.TextInputRequest` or `context.TextInputRequest` back with `dpi.ToPhysical(...)`.
 - `UiInputState.Composition` carries in-progress IME/preedit text when a host supports it, and `UiContext.TextInputRequest` now exposes overall/caret/candidate bounds plus composition support so hosts can place on-screen keyboards or candidate windows.
 - Shipped example/editor hosts now generate held-key repeat for repeatable navigation/editing keys like arrows, backspace/delete, home/end, and page up/down; activation keys like enter/space stay one-shot.
 - `UiSlider`, `UiVSlider`, and the drag widgets now support inline numeric entry on Ctrl/Cmd+click or double-click unless `NoInput` is set, and their first-pass flag depth now includes always-clamp, wrap-around, and no-round-to-format behavior.

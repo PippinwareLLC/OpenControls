@@ -113,12 +113,14 @@ public sealed class SilkExamplesApp : IDisposable
     private readonly Dictionary<Key, bool> _currentKeyStates = new();
     private readonly List<char> _textInputBuffer = new();
     private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
+    private readonly UiDpiCompensation _dpiCompensation = new();
 
     private GL? _gl;
     private IInputContext? _input;
     private IKeyboard? _keyboard;
     private IMouse? _mouse;
     private SilkNetUiRenderer? _renderer;
+    private UiScaledRenderer? _scaledRenderer;
     private TinyBitmapFont? _font;
     private ExamplesUi? _ui;
     private bool _previousLeftDown;
@@ -160,6 +162,12 @@ public sealed class SilkExamplesApp : IDisposable
         _window.Update += OnUpdate;
         _window.Render += OnRender;
         _window.FramebufferResize += OnFramebufferResize;
+    }
+
+    public bool EnableDpiCompensation
+    {
+        get => _dpiCompensation.Enabled;
+        set => _dpiCompensation.Enabled = value;
     }
 
     public void Run()
@@ -234,7 +242,9 @@ public sealed class SilkExamplesApp : IDisposable
 
         _font = new TinyBitmapFont();
         _renderer = new SilkNetUiRenderer(_gl, _font);
-        _ui = new ExamplesUi(_renderer, _font);
+        UpdateDpiCompensation();
+        _scaledRenderer = new UiScaledRenderer(_renderer, _dpiCompensation);
+        _ui = new ExamplesUi(_scaledRenderer, _font);
         _ui.Clipboard = _keyboard != null ? new SilkKeyboardClipboard(_keyboard) : new UiMemoryClipboard();
         _ui.SetTitleText("OpenControls Silk.NET Examples");
         _ui.ExitRequested += CloseWindow;
@@ -252,12 +262,13 @@ public sealed class SilkExamplesApp : IDisposable
 
         _elapsedSeconds += deltaSeconds;
         CaptureKeyboardState();
-        Vector2D<int> framebufferSize = _window.FramebufferSize;
+        UpdateDpiCompensation();
+        Vector2D<int> logicalSize = _window.Size;
         bool saveRequested = WasPressed(Key.F5);
         bool loadRequested = WasPressed(Key.F9);
 
         UiInputState input = BuildInputState();
-        _ui.Update(input, (float)deltaSeconds, framebufferSize.X, framebufferSize.Y, saveRequested, loadRequested);
+        _ui.Update(input, (float)deltaSeconds, logicalSize.X, logicalSize.Y, saveRequested, loadRequested);
         ApplyHostState();
 
         _scrollDeltaX = 0;
@@ -287,6 +298,7 @@ public sealed class SilkExamplesApp : IDisposable
             return;
         }
 
+        UpdateDpiCompensation();
         UpdateProjection(size);
     }
 
@@ -307,10 +319,9 @@ public sealed class SilkExamplesApp : IDisposable
     private UiInputState BuildInputState()
     {
         Vector2 clientPosition = _mouse?.Position ?? Vector2.Zero;
-        Vector2D<int> clientPoint = new(
+        UiPoint mousePoint = new(
             (int)Math.Round(clientPosition.X),
             (int)Math.Round(clientPosition.Y));
-        Vector2D<int> framebufferPoint = _window.PointToFramebuffer(clientPoint);
 
         bool leftDown = _mouse?.IsButtonPressed(MouseButton.Left) == true;
         bool leftClicked = leftDown && !_previousLeftDown;
@@ -322,7 +333,6 @@ public sealed class SilkExamplesApp : IDisposable
         bool middleClicked = middleDown && !_previousMiddleDown;
         bool middleReleased = !middleDown && _previousMiddleDown;
 
-        UiPoint mousePoint = new(framebufferPoint.X, framebufferPoint.Y);
         bool leftDoubleClicked = UiInputHostHelpers.DetectDoubleClick(leftClicked, mousePoint, _elapsedSeconds, ref _lastLeftClickTimeSeconds, ref _lastLeftClickPosition);
         bool rightDoubleClicked = UiInputHostHelpers.DetectDoubleClick(rightClicked, mousePoint, _elapsedSeconds, ref _lastRightClickTimeSeconds, ref _lastRightClickPosition);
         bool middleDoubleClicked = UiInputHostHelpers.DetectDoubleClick(middleClicked, mousePoint, _elapsedSeconds, ref _lastMiddleClickTimeSeconds, ref _lastMiddleClickPosition);
@@ -393,6 +403,13 @@ public sealed class SilkExamplesApp : IDisposable
 
         SetTextInputActive(_ui.WantTextInput);
         ApplyMouseCursor(_ui.RequestedMouseCursor);
+    }
+
+    private void UpdateDpiCompensation()
+    {
+        Vector2D<int> logicalSize = _window.Size;
+        Vector2D<int> framebufferSize = _window.FramebufferSize;
+        _dpiCompensation.SetScaleFromContentSize(logicalSize.X, logicalSize.Y, framebufferSize.X, framebufferSize.Y);
     }
 
     private void SetTextInputActive(bool enabled)
