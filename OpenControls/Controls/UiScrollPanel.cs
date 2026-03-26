@@ -1,3 +1,5 @@
+using OpenControls.State;
+
 namespace OpenControls.Controls;
 
 public enum UiScrollbarVisibility
@@ -7,7 +9,7 @@ public enum UiScrollbarVisibility
     Always
 }
 
-public sealed class UiScrollPanel : UiElement
+public sealed class UiScrollPanel : UiElement, IUiStatefulElement
 {
     private sealed class OffsetRenderer : IUiRenderer
     {
@@ -151,6 +153,25 @@ public sealed class UiScrollPanel : UiElement
     public UiPoint ContentSize => _contentSize;
     public UiRect ViewportBounds => new UiRect(Bounds.X, Bounds.Y, _viewportSize.X, _viewportSize.Y);
     public override bool CapturesPointerInput => true;
+
+    public void CaptureState(UiElementState state)
+    {
+        state.ScrollX = _scrollX;
+        state.ScrollY = _scrollY;
+    }
+
+    public void ApplyState(UiElementState state)
+    {
+        if (state.ScrollX.HasValue)
+        {
+            _scrollX = Math.Max(0, state.ScrollX.Value);
+        }
+
+        if (state.ScrollY.HasValue)
+        {
+            _scrollY = Math.Max(0, state.ScrollY.Value);
+        }
+    }
 
     public override void Update(UiUpdateContext context)
     {
@@ -606,6 +627,7 @@ public sealed class UiScrollPanel : UiElement
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
             TextInput = input.TextInput,
+            Composition = input.Composition,
             KeysDown = input.KeysDown,
             KeysPressed = input.KeysPressed,
             KeysReleased = input.KeysReleased,

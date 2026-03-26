@@ -679,57 +679,116 @@ OpenControls already covers these areas reasonably well. This phase is about dep
 
 ### Drag/Slider Checklist
 
-- [ ] Expand drag/slider flags:
-  - [ ] always clamp
-  - [ ] no input / disable text entry path if desired
-  - [ ] no round to format precision
-  - [ ] wrap-around behavior
-  - [ ] color markers for multi-component numeric controls if valuable
-- [ ] Decide on the retained-mode equivalent of ImGui's Ctrl+Click-to-input behavior.
-- [ ] Ensure all vector/scalar variants inherit shared semantics consistently.
+- [x] Expand drag/slider flags:
+  - [x] always clamp
+  - [x] no input / disable text entry path if desired
+  - [x] no round to format precision
+  - [x] wrap-around behavior
+- [x] Decide on the retained-mode equivalent of ImGui's Ctrl+Click-to-input behavior.
+- [x] Ensure all vector/scalar variants inherit shared semantics consistently.
 
 ### Color Checklist
 
-- [ ] Expand `UiColorEdit` options:
-  - [ ] RGB / HSV / Hex display modes
-  - [ ] float vs byte display
-  - [ ] optional picker popup integration
-  - [ ] option menu or retained settings surface
-- [ ] Expand `UiColorPicker` options:
-  - [ ] hue bar vs hue wheel if desired
-  - [ ] side preview options
-  - [ ] no-input / no-preview modes
-  - [ ] drag/drop of colors
-- [ ] Ensure color widgets share data conversion logic.
+- [x] Expand `UiColorEdit` options:
+  - [x] RGB / HSV / Hex display modes
+  - [x] float vs byte display
+  - [x] optional picker popup integration
+  - [x] option menu or retained settings surface
+- [x] Expand `UiColorPicker` options:
+  - [x] side preview options
+  - [x] no-input / no-preview modes
+  - [x] drag/drop of colors
+- [x] Ensure color widgets share data conversion logic.
 
 ### Exit Criteria
 
-- [ ] Color and numeric widgets feel configurable rather than fixed-function.
+- [x] Color and numeric widgets feel configurable rather than fixed-function.
+
+Milestone 11 is now complete for the shipped first-pass scope: sliders and drags now expose configurable clamp/wrap/direct-input/precision behavior, vector and range variants inherit the same semantics, `UiColorEdit` now covers RGB/HSV/Hex plus byte/float displays and picker-popup integration, `UiColorPicker` now exposes preview/input toggles plus color drag/drop, and the Widget Gallery has a dedicated Milestone 11 demo section plus regression coverage in `OpenControls.Tests`.
+
+### Deferred Follow-On Work
+
+These items remain backlog, but they do not block Milestone 11 closure:
+
+- Multi-component color markers are still optional polish; add them only if they prove genuinely valuable in editor workflows.
+- Hue-wheel picker variants remain optional renderer/UI polish; the shipped first-pass scope standardizes on the hue-bar path.
 
 ## Milestone 12: Menus, Popups, Tooltips, And Overlay Polish
 
 ### Checklist
 
-- [ ] Add item-attached context menu helpers.
-- [ ] Add a real menu command model instead of shortcut labels being display-only.
-- [ ] Parse and dispatch menu shortcuts through the shared shortcut routing from Milestone 1.
-- [ ] Support menu items that can be invoked consistently from:
-  - [ ] mouse activation
-  - [ ] keyboard shortcut activation
-  - [ ] programmatic command activation
-- [ ] Add better tooltip trigger policies:
-  - [ ] delayed hover
-  - [ ] keyboard-focus tooltip path
-  - [ ] tooltip suppression during drag where appropriate
-- [ ] Improve popup nesting and dismissal rules.
-- [ ] Add more robust menu keyboard navigation.
-- [ ] Ensure overlays cooperate with capture and focus rules from Milestones 1 and 2.
+- [x] Add item-attached context menu helpers.
+- [x] Add a real menu command model instead of shortcut labels being display-only.
+- [x] Parse and dispatch menu shortcuts through the shared shortcut routing from Milestone 1.
+- [x] Support menu items that can be invoked consistently from:
+  - [x] mouse activation
+  - [x] keyboard shortcut activation
+  - [x] programmatic command activation
+- [x] Add better tooltip trigger policies:
+  - [x] delayed hover
+  - [x] keyboard-focus tooltip path
+  - [x] tooltip suppression during drag where appropriate
+- [x] Improve popup nesting and dismissal rules.
+- [x] Add more robust menu keyboard navigation.
+- [x] Ensure overlays cooperate with capture and focus rules from Milestones 1 and 2.
 
 ### Exit Criteria
 
-- [ ] Overlay behavior feels predictable across menus, popups, modals, and tooltips.
+- [x] Overlay behavior feels predictable across menus, popups, modals, and tooltips.
 
-## Milestone 13: Tooling, Style Editor, And Examples Parity
+Milestone 12 is now complete for the shipped first-pass scope: `UiMenuBar` now exposes a real command path through `CommandId`, `Invoked`, `TryInvokeCommand(...)`, parsed shortcut dispatch, and keyboard navigation; `UiContextMenuRegion` provides reusable item-attached popup/menu helpers; `UiTooltipRegion` now supports delayed hover, focus-target tooltips, and drag suppression; popup/menu hit testing now respects open overlay content; and the Widget Gallery plus `OpenControls.Tests` both include explicit overlay-polish coverage.
+
+## Milestone 13: Renderer, Text Backend, And Editor Readiness
+
+### Why This Is Its Own Phase
+
+The latest Alliance-focused audit changed the priority order. Widget breadth is no longer the main blocker; the remaining swap risk is now concentrated in renderer/text sophistication, host IME/composition contracts, persistence depth, and a few editor-facing API breadth gaps.
+
+Milestone 13 is now complete for the shipped first-pass Alliance-readiness target. The shipping renderers no longer walk glyph alpha buffers pixel-by-pixel; they share atlas-backed textured glyph draws, the core text-input contract now carries composition/preedit plus caret/candidate bounds, persistence now restores richer editor/view state through `IUiStatefulElement`, and the editor-facing picker/image story now has an explicit convenience surface through `UiPicker` plus a stabilized image-adapter contract.
+
+### Checklist
+
+- [x] Replace the current per-pixel glyph drawing hot path in the shipping renderers with a more scalable backend text path:
+  - [x] keep Silk.NET as the reference rendering host first
+  - [x] move toward atlas-backed textured glyph draws instead of pixel-by-pixel loops
+  - [x] ensure measurement and draw metrics stay aligned across all hosts
+  - [x] keep MonoGame, SDL, OpenGL, and headless/software paths aligned with the same contracts
+- [x] Strengthen text backend maturity for editor use:
+  - [x] validate custom-font and merged-icon rendering under the newer backend path
+  - [x] tighten baseline / spacing / metric consistency where current approximations show through
+  - [x] document the boundary between "usable Unicode rendering" and optional future shaping depth
+- [x] Expand the host text-input / IME contract:
+  - [x] composition / preedit text state
+  - [x] committed-vs-composing input separation
+  - [x] candidate window / composition bounds requests
+  - [x] ship the broader host contract in core and provide a concrete native composition-rect reference path in the SDL example host while Silk.NET remains the parity validation host overall
+- [x] Broaden persistence and session restore beyond the current thin baseline:
+  - [x] text selection ranges
+  - [x] scroll positions
+  - [x] table view state
+  - [x] combo/list selection state
+  - [x] richer `UiTextEditor` state
+  - [x] extension hooks for custom-control state
+- [x] Decide and stabilize the editor-facing picker / image abstraction story:
+  - [x] keep `UiComboBox` as the simple string-list convenience wrapper
+  - [x] add a richer convenience picker surface for editor workflows if the existing composition path is still too low-level
+  - [x] formalize image adapters as the intended renderer contract for now instead of adding a first-class renderer texture primitive in this milestone
+- [x] Add regression coverage around the remaining Alliance-readiness risks:
+  - [x] renderer/text sanity checks where automation is practical
+  - [x] persistence round-trips for richer state
+  - [x] IME/host-input contract tests or harness coverage where feasible
+
+### Exit Criteria
+
+- [x] The remaining Alliance-readiness risks are no longer per-pixel text rendering, ultra-thin IME request metadata, or ultra-narrow persistence fundamentals.
+
+### Deferred Follow-On Work
+
+- HarfBuzz shaping, bidi/RTL layout depth, and Slug evaluation remain follow-on text-system work rather than blockers for this milestone.
+- SDL currently provides the concrete native composition/candidate-rect example path; bringing the same level of platform IME integration to Silk.NET, MonoGame, OpenGL, and Alliance hosts remains host-specific follow-on work.
+- If Alliance later needs a first-class renderer texture primitive beyond the stabilized image-adapter contract, that decision can be revisited with real integration pressure instead of preemptive API churn.
+
+## Milestone 14: Tooling, Style Editor, And Examples Parity
 
 ### Why This Is Its Own Phase
 
@@ -752,12 +811,6 @@ Once the infrastructure and core widgets are stronger, the examples app can stop
   - [ ] focus/capture behavior
   - [ ] advanced text input
   - [ ] cursor changes
-- [ ] Broaden state persistence and session recovery:
-  - [ ] `UiTextEditor` state
-  - [ ] combo/list selection state
-  - [ ] generic scroll positions
-  - [ ] table view state
-  - [ ] extension hooks for custom-control state
 - [ ] Add repo-native regression coverage for editor-blocking workflows:
   - [ ] text field editing
   - [ ] text editor editing
@@ -797,9 +850,10 @@ If resourcing is tight, do the work in this order:
 - [x] Milestone 8
 - [x] Milestone 9
 - [x] Milestone 10
-- [ ] Milestone 11
-- [ ] Milestone 12
-- [ ] Milestone 13
+- [x] Milestone 11
+- [x] Milestone 12
+- [x] Milestone 13
+- [ ] Milestone 14
 
 ## Suggested Release Slices
 
@@ -826,11 +880,15 @@ If resourcing is tight, do the work in this order:
 - [x] Milestone 6
 - [x] Milestone 7
 
-### Release Slice E: Polish And Showcase
+### Release Slice E: Backend And Editor Readiness
 
-- [ ] Milestone 11
-- [ ] Milestone 12
-- [ ] Milestone 13
+- [x] Milestone 13
+
+### Release Slice F: Polish And Showcase
+
+- [x] Milestone 11
+- [x] Milestone 12
+- [ ] Milestone 14
 
 ## Final Notes
 
@@ -838,4 +896,6 @@ If resourcing is tight, do the work in this order:
 - [x] If only one thing happens next after Milestone 1, it should be Milestone 2.
 - [x] If custom fonts and icon-font parity matter for the near-term product, Milestone 3 should happen immediately after Milestone 2.
 - [x] If only one user-facing thing happened after the early foundations, it was correct to prioritize Milestone 5 and then Milestones 8-9 for editor/data-view parity.
-- [ ] Re-audit after Milestone 11 before committing to the rest of the roadmap tail.
+- [x] Re-audit after Milestone 11 before committing to the rest of the roadmap tail.
+- [x] That re-audit changed the next priority: backend/text maturity should land before tooling/showcase cleanup.
+- [x] With Milestone 13 landed, the definitive next milestone is Milestone 14.

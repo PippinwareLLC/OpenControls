@@ -2,7 +2,8 @@ namespace OpenControls.Controls;
 
 public sealed class UiColorPicker : UiElement
 {
-    private UiColor _color = new UiColor(255, 0, 0);
+    private readonly UiColorEdit? _inputEdit;
+    private UiColor _color = new(255, 0, 0);
     private float _h;
     private float _s = 1f;
     private float _v = 1f;
@@ -10,6 +11,30 @@ public sealed class UiColorPicker : UiElement
     private bool _draggingSv;
     private bool _draggingHue;
     private bool _draggingAlpha;
+    private bool _previewPressed;
+    private UiPoint _previewPressPosition;
+    private bool _syncingInputEdit;
+
+    public UiColorPicker()
+        : this(createInputEdit: true)
+    {
+    }
+
+    internal UiColorPicker(bool createInputEdit)
+    {
+        if (createInputEdit)
+        {
+            _inputEdit = new UiColorEdit(createPickerPopup: false)
+            {
+                Visible = false,
+                ShowPreview = false,
+                EnablePickerPopup = false
+            };
+            _inputEdit.ColorChanged += HandleInputEditColorChanged;
+            AddChild(_inputEdit);
+        }
+    }
+
     public UiColor Color
     {
         get => _color;
@@ -19,16 +44,27 @@ public sealed class UiColorPicker : UiElement
     public int Padding { get; set; } = 4;
     public int HueBarWidth { get; set; } = 12;
     public bool ShowAlpha { get; set; }
+    public bool ShowPreview { get; set; } = true;
+    public bool ShowInputFields { get; set; } = true;
+    public bool AllowColorDragDrop { get; set; } = true;
+    public string DragPayloadType { get; set; } = "color";
+    public UiColorDisplayMode InputDisplayMode { get; set; } = UiColorDisplayMode.Rgb;
+    public UiColorValueDisplayMode InputValueDisplayMode { get; set; } = UiColorValueDisplayMode.Byte;
+    public int SidePanelWidth { get; set; } = 168;
+    public int SidePanelGap { get; set; } = 8;
     public int AlphaBarHeight { get; set; } = 10;
     public int CheckerSize { get; set; } = 6;
-    public UiColor CheckerColorLight { get; set; } = new UiColor(80, 90, 110);
-    public UiColor CheckerColorDark { get; set; } = new UiColor(50, 60, 80);
+    public UiColor CheckerColorLight { get; set; } = new(80, 90, 110);
+    public UiColor CheckerColorDark { get; set; } = new(50, 60, 80);
     public int GridSize { get; set; }
     public int HueSegments { get; set; }
-    public UiColor Background { get; set; } = new UiColor(24, 28, 38);
-    public UiColor Border { get; set; } = new UiColor(60, 70, 90);
+    public UiColor Background { get; set; } = new(24, 28, 38);
+    public UiColor Border { get; set; } = new(60, 70, 90);
     public UiColor SelectionBorder { get; set; } = UiColor.White;
-    public UiColor SelectionShadow { get; set; } = new UiColor(0, 0, 0);
+    public UiColor SelectionShadow { get; set; } = new(0, 0, 0);
+    public UiColor PreviewBorder { get; set; } = new(70, 80, 100);
+    public UiColor PreviewTextColor { get; set; } = UiColor.White;
+    public int PreviewHeight { get; set; } = 52;
     public int CornerRadius { get; set; }
 
     public event Action<UiColor>? ColorChanged;
@@ -46,6 +82,10 @@ public sealed class UiColorPicker : UiElement
         UiRect svRect = GetSvRect();
         UiRect hueRect = GetHueRect(svRect);
         UiRect alphaRect = ShowAlpha ? GetAlphaRect(svRect, hueRect) : default;
+        UiRect sideRect = GetSidePanelRect(svRect, hueRect, alphaRect);
+        UiRect previewRect = GetPreviewRect(sideRect);
+
+        HandlePreviewDragDrop(context, input, previewRect);
 
         if (input.LeftClicked)
         {
@@ -97,6 +137,7 @@ public sealed class UiColorPicker : UiElement
             _draggingAlpha = false;
         }
 
+        SyncInputEdit(sideRect, previewRect);
         base.Update(context);
     }
 
@@ -116,6 +157,8 @@ public sealed class UiColorPicker : UiElement
         UiRect svRect = GetSvRect();
         UiRect hueRect = GetHueRect(svRect);
         UiRect alphaRect = ShowAlpha ? GetAlphaRect(svRect, hueRect) : default;
+        UiRect sideRect = GetSidePanelRect(svRect, hueRect, alphaRect);
+        UiRect previewRect = GetPreviewRect(sideRect);
 
         if (svRect.Width <= 0 || svRect.Height <= 0)
         {
@@ -136,6 +179,24 @@ public sealed class UiColorPicker : UiElement
             DrawAlphaSelection(context, alphaRect);
         }
 
+        if (ShowPreview && previewRect.Width > 0 && previewRect.Height > 0)
+        {
+            context.Renderer.FillRectCheckerboard(previewRect, CheckerSize, CheckerColorLight, CheckerColorDark);
+            context.Renderer.FillRect(previewRect, _color);
+            if (PreviewBorder.A > 0)
+            {
+                context.Renderer.DrawRect(previewRect, PreviewBorder, 1);
+            }
+
+            string hex = UiColorConversion.ToHex(_color, ShowAlpha);
+            int textHeight = context.Renderer.MeasureTextHeight(1);
+            int textY = previewRect.Bottom + 4;
+            if (textY + textHeight <= sideRect.Bottom)
+            {
+                context.Renderer.DrawText(hex, new UiPoint(sideRect.X, textY), PreviewTextColor, 1);
+            }
+        }
+
         base.Render(context);
     }
 
@@ -148,14 +209,91 @@ public sealed class UiColorPicker : UiElement
         _draggingSv = false;
         _draggingHue = false;
         _draggingAlpha = false;
+        _previewPressed = false;
+    }
+
+    private void HandlePreviewDragDrop(UiUpdateContext context, UiInputState input, UiRect previewRect)
+    {
+        if (!AllowColorDragDrop)
+        {
+            return;
+        }
+
+        if (ShowPreview && previewRect.Contains(input.MousePosition) && input.LeftClicked)
+        {
+            _previewPressed = true;
+            _previewPressPosition = input.MousePosition;
+        }
+
+        if (_previewPressed && input.LeftDown)
+        {
+            int dx = Math.Abs(input.MousePosition.X - _previewPressPosition.X);
+            int dy = Math.Abs(input.MousePosition.Y - _previewPressPosition.Y);
+            int threshold = Math.Max(0, input.DragThreshold);
+            if ((dx >= threshold || dy >= threshold) && !context.DragDrop.IsDragging)
+            {
+                context.DragDrop.BeginDrag(this, new UiDragDropPayload(DragPayloadType, _color), _previewPressPosition);
+            }
+        }
+
+        if (context.DragDrop.IsDragging && Bounds.Contains(input.MousePosition))
+        {
+            context.DragDrop.SetHoveredTarget(this);
+            if (context.DragDrop.IsDropRequested)
+            {
+                UiDragDropPayload? payload = context.DragDrop.AcceptPayload(this, DragPayloadType);
+                if (payload?.Data is UiColor dropped)
+                {
+                    SetColor(dropped);
+                }
+            }
+        }
+
+        if (input.LeftReleased)
+        {
+            _previewPressed = false;
+        }
+    }
+
+    private void SyncInputEdit(UiRect sideRect, UiRect previewRect)
+    {
+        if (_inputEdit == null)
+        {
+            return;
+        }
+
+        _inputEdit.Visible = ShowInputFields && sideRect.Width > 0;
+        _inputEdit.ShowAlpha = ShowAlpha;
+        _inputEdit.DisplayMode = InputDisplayMode;
+        _inputEdit.ValueDisplayMode = InputValueDisplayMode;
+        _inputEdit.Bounds = GetInputEditRect(sideRect, previewRect);
+
+        if (!_syncingInputEdit)
+        {
+            _syncingInputEdit = true;
+            _inputEdit.Color = _color;
+            _syncingInputEdit = false;
+        }
+    }
+
+    private void HandleInputEditColorChanged(UiColor color)
+    {
+        if (_syncingInputEdit)
+        {
+            return;
+        }
+
+        SetColor(color);
     }
 
     private UiRect GetSvRect()
     {
         int padding = Math.Max(0, Padding);
         int barWidth = Math.Max(0, HueBarWidth);
+        int sideWidth = GetReservedSideWidth();
+        int sideGap = sideWidth > 0 ? Math.Max(0, SidePanelGap) : 0;
         int alphaHeight = ShowAlpha ? Math.Max(0, AlphaBarHeight) + padding : 0;
-        int availableWidth = Math.Max(0, Bounds.Width - padding * 3 - barWidth);
+        int availableWidth = Math.Max(0, Bounds.Width - padding * 3 - barWidth - sideGap - sideWidth);
         int availableHeight = Math.Max(0, Bounds.Height - padding * 2 - alphaHeight);
         int size = Math.Max(0, Math.Min(availableWidth, availableHeight));
         int x = Bounds.X + padding;
@@ -167,8 +305,7 @@ public sealed class UiColorPicker : UiElement
     {
         int padding = Math.Max(0, Padding);
         int width = Math.Max(0, HueBarWidth);
-        int x = svRect.Right + padding;
-        return new UiRect(x, svRect.Y, width, svRect.Height);
+        return new UiRect(svRect.Right + padding, svRect.Y, width, svRect.Height);
     }
 
     private UiRect GetAlphaRect(UiRect svRect, UiRect hueRect)
@@ -179,6 +316,55 @@ public sealed class UiColorPicker : UiElement
         int x = svRect.X;
         int y = svRect.Bottom + padding;
         return new UiRect(x, y, Math.Max(0, width), height);
+    }
+
+    private UiRect GetSidePanelRect(UiRect svRect, UiRect hueRect, UiRect alphaRect)
+    {
+        int sideWidth = GetReservedSideWidth();
+        if (sideWidth <= 0)
+        {
+            return default;
+        }
+
+        int padding = Math.Max(0, Padding);
+        int x = hueRect.Right + Math.Max(0, SidePanelGap);
+        int y = Bounds.Y + padding;
+        int width = Math.Max(0, Math.Min(sideWidth, Bounds.Right - x - padding));
+        int bottom = alphaRect.Height > 0 ? alphaRect.Bottom : svRect.Bottom;
+        return new UiRect(x, y, width, Math.Max(0, bottom - y));
+    }
+
+    private UiRect GetPreviewRect(UiRect sideRect)
+    {
+        if (!ShowPreview || sideRect.Width <= 0)
+        {
+            return default;
+        }
+
+        int height = Math.Max(32, PreviewHeight);
+        return new UiRect(sideRect.X, sideRect.Y, sideRect.Width, Math.Min(height, sideRect.Height));
+    }
+
+    private UiRect GetInputEditRect(UiRect sideRect, UiRect previewRect)
+    {
+        if (sideRect.Width <= 0)
+        {
+            return default;
+        }
+
+        int y = sideRect.Y;
+        if (ShowPreview && previewRect.Height > 0)
+        {
+            y = previewRect.Bottom + 22;
+        }
+
+        int height = sideRect.Bottom - y;
+        return new UiRect(sideRect.X, y, sideRect.Width, Math.Max(0, height));
+    }
+
+    private int GetReservedSideWidth()
+    {
+        return (ShowPreview || ShowInputFields) ? Math.Max(120, SidePanelWidth) : 0;
     }
 
     private void SetSvFromPoint(UiRect svRect, UiPoint point)
@@ -215,8 +401,7 @@ public sealed class UiColorPicker : UiElement
         }
 
         float t = (point.X - alphaRect.X) / (float)(alphaRect.Width - 1);
-        t = Math.Clamp(t, 0f, 1f);
-        byte alpha = (byte)Math.Round(t * 255f);
+        byte alpha = (byte)Math.Round(Math.Clamp(t, 0f, 1f) * 255f);
         if (_alpha == alpha)
         {
             return;
@@ -245,7 +430,7 @@ public sealed class UiColorPicker : UiElement
             {
                 int colWidth = col == columns - 1 ? rect.Right - x : cellWidth;
                 float s = columns == 1 ? _s : col / (float)(columns - 1);
-                UiColor color = HsvToColor(_h, s, v, drawAlpha);
+                UiColor color = UiColorConversion.HsvToColor(_h, s, v, drawAlpha);
                 context.Renderer.FillRect(new UiRect(x, y, colWidth, rowHeight), color);
                 x += colWidth;
             }
@@ -270,7 +455,7 @@ public sealed class UiColorPicker : UiElement
         {
             int height = i == segments - 1 ? rect.Bottom - y : segmentHeight;
             float h = segments == 1 ? _h : i / (float)(segments - 1);
-            UiColor color = HsvToColor(h, 1f, 1f, drawAlpha);
+            UiColor color = UiColorConversion.HsvToColor(h, 1f, 1f, drawAlpha);
             context.Renderer.FillRect(new UiRect(rect.X, y, rect.Width, height), color);
             y += height;
         }
@@ -285,9 +470,9 @@ public sealed class UiColorPicker : UiElement
 
         context.Renderer.FillRectCheckerboard(rect, CheckerSize, CheckerColorLight, CheckerColorDark);
 
-        UiColor baseColor = HsvToColor(_h, _s, _v, 255);
-        UiColor left = new UiColor(baseColor.R, baseColor.G, baseColor.B, 0);
-        UiColor right = new UiColor(baseColor.R, baseColor.G, baseColor.B, 255);
+        UiColor baseColor = UiColorConversion.HsvToColor(_h, _s, _v, 255);
+        UiColor left = new(baseColor.R, baseColor.G, baseColor.B, 0);
+        UiColor right = new(baseColor.R, baseColor.G, baseColor.B, 255);
         context.Renderer.FillRectGradient(rect, left, right, left, right);
 
         if (Border.A > 0)
@@ -330,7 +515,7 @@ public sealed class UiColorPicker : UiElement
         int x = rect.X + (int)Math.Round((_alpha / 255f) * Math.Max(0, rect.Width - 1));
         int markerWidth = 3;
         int markerX = Math.Clamp(x - markerWidth / 2, rect.X, rect.Right - markerWidth);
-        UiRect marker = new UiRect(markerX, rect.Y, markerWidth, rect.Height);
+        UiRect marker = new(markerX, rect.Y, markerWidth, rect.Height);
         context.Renderer.FillRect(marker, SelectionBorder);
         if (SelectionShadow.A > 0)
         {
@@ -342,12 +527,13 @@ public sealed class UiColorPicker : UiElement
     {
         int size = 5;
         int half = size / 2;
-        UiRect rect = new UiRect(x - half, y - half, size, size);
+        UiRect rect = new(x - half, y - half, size, size);
         if (SelectionShadow.A > 0)
         {
             context.Renderer.DrawRect(rect, SelectionShadow, 1);
         }
-        UiRect inner = new UiRect(rect.X + 1, rect.Y + 1, Math.Max(0, rect.Width - 2), Math.Max(0, rect.Height - 2));
+
+        UiRect inner = new(rect.X + 1, rect.Y + 1, Math.Max(0, rect.Width - 2), Math.Max(0, rect.Height - 2));
         context.Renderer.DrawRect(inner, SelectionBorder, 1);
     }
 
@@ -360,122 +546,33 @@ public sealed class UiColorPicker : UiElement
 
         _color = value;
         _alpha = value.A;
-        RgbToHsv(value, out _h, out _s, out _v);
+        UiColorConversion.RgbToHsv(value, out _h, out _s, out _v);
+        if (_inputEdit != null)
+        {
+            _syncingInputEdit = true;
+            _inputEdit.Color = value;
+            _syncingInputEdit = false;
+        }
+
         ColorChanged?.Invoke(_color);
     }
 
     private void UpdateColorFromHsv()
     {
-        UiColor next = HsvToColor(_h, _s, _v, _alpha);
+        UiColor next = UiColorConversion.HsvToColor(_h, _s, _v, _alpha);
         if (_color.R == next.R && _color.G == next.G && _color.B == next.B && _color.A == next.A)
         {
             return;
         }
 
         _color = next;
+        if (_inputEdit != null)
+        {
+            _syncingInputEdit = true;
+            _inputEdit.Color = next;
+            _syncingInputEdit = false;
+        }
+
         ColorChanged?.Invoke(_color);
-    }
-
-    private static void RgbToHsv(UiColor color, out float h, out float s, out float v)
-    {
-        float r = color.R / 255f;
-        float g = color.G / 255f;
-        float b = color.B / 255f;
-
-        float max = Math.Max(r, Math.Max(g, b));
-        float min = Math.Min(r, Math.Min(g, b));
-        float delta = max - min;
-
-        v = max;
-        if (max <= 0f)
-        {
-            s = 0f;
-            h = 0f;
-            return;
-        }
-
-        s = delta <= 0f ? 0f : delta / max;
-        if (delta <= 0f)
-        {
-            h = 0f;
-            return;
-        }
-
-        if (max == r)
-        {
-            h = (g - b) / delta;
-        }
-        else if (max == g)
-        {
-            h = (b - r) / delta + 2f;
-        }
-        else
-        {
-            h = (r - g) / delta + 4f;
-        }
-
-        h /= 6f;
-        if (h < 0f)
-        {
-            h += 1f;
-        }
-    }
-
-    private static UiColor HsvToColor(float h, float s, float v, byte alpha)
-    {
-        h = h - MathF.Floor(h);
-        float c = v * s;
-        float x = c * (1f - MathF.Abs((h * 6f) % 2f - 1f));
-        float m = v - c;
-
-        float r;
-        float g;
-        float b;
-
-        int segment = (int)MathF.Floor(h * 6f);
-        switch (segment)
-        {
-            case 0:
-                r = c;
-                g = x;
-                b = 0f;
-                break;
-            case 1:
-                r = x;
-                g = c;
-                b = 0f;
-                break;
-            case 2:
-                r = 0f;
-                g = c;
-                b = x;
-                break;
-            case 3:
-                r = 0f;
-                g = x;
-                b = c;
-                break;
-            case 4:
-                r = x;
-                g = 0f;
-                b = c;
-                break;
-            default:
-                r = c;
-                g = 0f;
-                b = x;
-                break;
-        }
-
-        byte rb = ToByte(r + m);
-        byte gb = ToByte(g + m);
-        byte bb = ToByte(b + m);
-        return new UiColor(rb, gb, bb, alpha);
-    }
-
-    private static byte ToByte(float value)
-    {
-        float clamped = Math.Clamp(value, 0f, 1f);
-        return (byte)Math.Round(clamped * 255f);
     }
 }

@@ -523,6 +523,7 @@ public sealed class UiContext
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
             TextInput = textInput,
+            Composition = input.Composition,
             KeysDown = input.KeysDown,
             KeysPressed = FilterKey(input.KeysPressed, UiKey.Tab),
             KeysReleased = input.KeysReleased,

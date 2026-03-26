@@ -187,7 +187,9 @@ ui.Render(renderer);
 
 ## Notes
 - `UiTextField` and `UiTextEditor` expect `TextInput` and `Navigation` for editing.
+- `UiInputState.Composition` carries in-progress IME/preedit text when a host supports it, and `UiContext.TextInputRequest` now exposes overall/caret/candidate bounds plus composition support so hosts can place on-screen keyboards or candidate windows.
 - Shipped example/editor hosts now generate held-key repeat for repeatable navigation/editing keys like arrows, backspace/delete, home/end, and page up/down; activation keys like enter/space stay one-shot.
+- `UiSlider`, `UiVSlider`, and the drag widgets now support inline numeric entry on Ctrl/Cmd+click or double-click unless `NoInput` is set, and their first-pass flag depth now includes always-clamp, wrap-around, and no-round-to-format behavior.
 - `UiTextField` now includes selection, copy/cut/paste, undo/redo, password/read-only/filtering modes, completion/history callbacks, and resize callbacks for single-line editor workflows.
 - `UiTextEditor` now includes mouse/keyboard selection, copy/cut/paste, undo/redo, word/page/home/end navigation, and editor events for multiline workflows.
 - Additional controls include `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiProgressBar`, `UiListBox`, `UiComboBox`, `UiListView`, `UiCombo`, `UiSelectable`, `UiSelectableRow`, `UiChildRegion`, `UiStack`, `UiWrapPanel`, `UiGroup`, `UiTable`, `UiTreeView`, `UiPlotPanel`, `UiWaveform`, `UiGrid`, `UiCanvas`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiSeparator`, `UiSplitter`, `UiScrollPanel`, `UiTextEditor`, `UiTreeNode`, `UiCollapsingHeader`, `UiPopup`, `UiModal`, `UiModalHost`, and `UiTooltip`.
@@ -201,20 +203,27 @@ ui.Render(renderer);
 - Use `UiSelectionModel` with `UiListBox`, `UiSelectable`, `UiTable`, and `UiTreeView` for shared or isolated multi-select; `SelectionScope`, `DeleteSelected(...)`, `RemoveRange(...)`, and `AnchorPersistence` now cover the first-pass editor-style selection workflows.
 - `UiTreeView` now exposes `ExpandAll()`, `CollapseAll()`, `SetOpen(...)`, `ToggleOpen(...)`, and `RevealItem(...)` so editors can drive tree open-state from code instead of simulating clicks.
 - Use `UiCombo`, `UiListView`, `UiSelectableRow`, and `UiChildRegion` when you want composed combo/list/popup content or embedded clipped child regions instead of string-only widgets; `UiComboBox` stays available as the convenience wrapper for plain string data.
+- `UiColorEdit` now supports RGB / HSV / HEX display modes, byte-vs-float value surfaces, and optional picker popup integration; `UiColorPicker` now supports side preview/input toggles and color drag/drop.
 - Use `UiStack` for retained row/column layout, `UiWrapPanel` for wrapped inline rows, and `UiGroup` when several controls should read and behave as one retained region.
 - Use `IUiImageSource`/`UiDelegateImageSource` for repeated thumbnails and icon-like row artwork without wiring a fresh draw callback everywhere.
+- Use `UiPicker` when you want a higher-level labeled/detail/icon picker surface without hand-building every combo row from `UiCombo` and `UiListView`.
 - Use `UiPopup.OpenAttached(...)` and `UiPopup.OpenContext(...)` for anchored popup demos and context menus.
+- Use `UiContextMenuRegion` when you want a reusable item-attached popup or popup-mode menu helper instead of hand-writing right-click hit testing.
 - Use `UiChildRegion` for embedded framed subviews inside an existing window, panel, or popup; use `UiWindow` when the content needs its own chrome, title bar, or independent window-like focus surface.
 - OpenControls still uses explicit retained bounds overall, but `UiStack`, `UiWrapPanel`, and `UiGroup` now cover the common row/column/wrap/group layout cases without dropping into immediate-mode cursor APIs.
 - Use `UiFocusManager` (via `UiContext.Focus`) to drive focus if needed.
 - Use `UiContext` runtime-query helpers like `HoveredItemState`, `FocusedContainerState`, `GetItemState`, `TryGetVisibleBounds`, and the focus helpers (`RequestFocusById`, `RequestFocusFirst`, `RequestFocusChild`) when you need real item/window status or code-driven focus.
 - Set `UiContext.Clipboard` when you want text controls to use a host/system clipboard instead of the default in-memory clipboard.
 - Set `UiMenuBar.DisplayMode = Popup` and call `OpenPopup`, `OpenAttached(...)`, or `OpenContext(...)` to build popup-mode menus from explicit bounds, element anchors, or cursor positions.
+- Set `UiMenuBar.EnableShortcutDispatch = true` when a menu should parse `MenuItem.Shortcut` text into real shortcut activation, and use `MenuItem.CommandId` plus `TryInvokeCommand(...)` when the same menu action also needs a programmatic path.
+- Use `UiTooltipRegion.HoverTarget` / `FocusTarget` for delayed hover tooltips and keyboard-focus tooltips without wrapping the target in a manual overlay element.
 - `UiDockWorkspace` now shows draggable splitters between dock panes, updates split ratios live, and persists those ratios through workspace state capture/apply.
 - TinyBitmapFont lives in OpenControls and renderers can switch `CodePage` between Latin-1 and CP437; the Widgets demo includes an ASCII table.
 - Use `UiFontBuilder.AddFile(...)` plus `UiFontRegistry` to register custom font files and optional icon-font layers, then assign them through `UiContext.DefaultFont` or `UiElement.Font`.
 - The shared examples app now demonstrates custom body fonts plus merged Font Awesome-style icons in the Widgets text section; ASCII/code-page and text-editor demos intentionally keep using `TinyBitmapFont` fallback.
-- The shared examples app also includes a composed combo/list/popup demo built from `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and `UiDelegateImageSource`, plus element/window/empty-space context popup examples and retained layout container samples.
+- The shared examples app also includes a composed combo/list/popup demo built from `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and `UiDelegateImageSource`, plus element/window/empty-space context popup examples, the Milestone 12 overlay/menu polish gallery section, and retained layout container samples.
+- The shared examples app also shows live text-input request diagnostics in `Inputs & Focus`, including caret bounds, candidate bounds, and preedit/composition text, and the Widget Gallery now includes a `UiPicker` example beside the richer combo/list surfaces.
+- `UiStateSerializer` now restores richer editor/view state such as text selection, scroll offsets, table column/view state, combo/list selection/filter state, and custom control state through `IUiStatefulElement`.
 - Optional HarfBuzz integration is still treated as shaping/layout depth rather than a blocker for first-pass font parity, and Slug remains an optional GPU text-rendering path to evaluate.
 - Run `dotnet run --project OpenControls.MonoGame.Examples` to launch the MonoGame examples app.
 - Run `dotnet run --project OpenControls.SdlNet.Examples` to launch the SDL2-CS example (requires SDL2 native; on Windows place `SDL2.dll` on PATH or beside the executable).

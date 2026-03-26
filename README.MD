@@ -52,7 +52,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 ## Demo Parity (OpenControls.Examples)
 The Widgets window in `OpenControls.Examples` mirrors the structure of the reference demo source. Every demo marker was replaced with a working OpenControls demo panel so the tree now maps to the same sections (Help & Configuration, Menu, Basic widgets, Text, Sliders, Drag & Drop, Tables, Layout, Inputs & Focus, Tools, Examples, etc.).
 
-The Widgets layout now also docks a dedicated `Widget Gallery` window beside the original `Widgets` tree. That gallery is where the option-level gap-filling lives for controls that were previously easy to miss, including `UiArrowButton`, `UiSeparatorText`, `UiBullet`, `UiInputDouble`, `UiNumericField`, `UiNumericVector`, `UiSliderVector`, empty-state list/combo/list-view paths, a dedicated Tables 2.0 demo (resize/reorder/hide/scroll/custom headers/rich cells), explicit `UiScrollPanel`, weighted/spanning `UiGrid`, retained layout alignment variants, and a dedicated Milestone 10 selection/tree section for shared scopes, dual list boxes, anchor persistence, and `UiTreeView` open-state helpers.
+The Widgets layout now also docks a dedicated `Widget Gallery` window beside the original `Widgets` tree. That gallery is where the option-level gap-filling lives for controls that were previously easy to miss, including `UiArrowButton`, `UiSeparatorText`, `UiBullet`, `UiInputDouble`, `UiNumericField`, `UiNumericVector`, `UiSliderVector`, `UiPicker`, empty-state list/combo/list-view paths, a dedicated Tables 2.0 demo (resize/reorder/hide/scroll/custom headers/rich cells), explicit `UiScrollPanel`, weighted/spanning `UiGrid`, retained layout alignment variants, a dedicated Milestone 10 selection/tree section for shared scopes, dual list boxes, anchor persistence, and `UiTreeView` open-state helpers, plus a dedicated Milestone 12 overlay section for command IDs, shortcut dispatch, keyboard menu navigation, attached context helpers, delayed tooltips, and nested popup dismissal.
 
 The `Clipping` window is now the large-data proof surface for Milestone 9. It still includes the original clipped/resizable panel demo, and now also shows a 4,000-row `UiListBox`, a 6,000-row multi-select list, a 2,500-row `UiTable`, and an 8,040-row `UiTreeView`, all driven by the shared `UiClipper` / `UiClipRange` fixed-height virtualization layer with live visible-range status readouts.
 
@@ -62,11 +62,16 @@ Exhaustive demo coverage is now a tracked requirement, not an informal goal:
 - New public widgets or meaningful widget options should update the matrix in the same change that introduces them.
 
 Parity deviations (documented and intentional):
-- Shortcut routing depth: `UiContext` now exposes scoped shortcut helpers with focused/hovered/global precedence, but `UiMenuBar.MenuItem.Shortcut` remains display-only and app command binding is still app-defined.
-- Drag/slider flags: the demo toggles whole-number snapping and step size; advanced flags like logarithmic and always-clamp are not available.
-- Multiline editor depth: `UiTextEditor` now shares the same editing core as `UiTextField`, including selection, clipboard, undo/redo, word/page/home/end navigation, and real example coverage. Deferred follow-on work is now editor polish depth such as wrapping, tokenizer expansion, and richer IME/composition handling.
+- Menu shortcut routing is now real, but it is opt-in per menu through `UiMenuBar.EnableShortcutDispatch` so multiple menu bars do not all claim the same shortcuts by default.
+- Drag/slider polish tail: Milestone 11 landed the first-pass flag depth (`AlwaysClamp`, `NoInput`, `NoRoundToFormat`, `WrapAround`) plus direct numeric input on Ctrl/Cmd+click or double-click. Optional follow-on polish like hue-wheel color picking and multi-component color markers remains deferred.
+- Multiline editor depth: `UiTextEditor` now shares the same editing core as `UiTextField`, including selection, clipboard, undo/redo, word/page/home/end navigation, composition/preedit rendering, richer text-input requests, and real example coverage. Deferred follow-on work is now editor polish depth such as wrapping, tokenizer expansion, and deeper host-native IME integration across every backend.
 - WantCapture overrides: `UiContext` now exposes actual `WantCaptureMouse`, `WantCaptureKeyboard`, and `WantTextInput` outputs, but manual override toggles are not part of the core API.
-- Image demos: `UiImage` and `UiImageButton` rely on renderer-supplied textures, so hosts without texture bindings will show placeholders.
+- Image demos: `UiImage` and `UiImageButton` intentionally rely on the stabilized image-adapter contract (`IUiImageSource` / draw callbacks), so hosts without texture bindings will show placeholders instead of pretending there is a first-class texture API today.
+
+Current roadmap priority after the latest Alliance-focused re-audit:
+- Milestone 13 is now complete for the shipped first-pass backend/editor-readiness target.
+- The next major milestone is Milestone 14: tooling, style-editor, and examples cleanup.
+- Remaining follow-on caveats are now mostly advanced text-system depth like HarfBuzz/bidi/RTL work, host-specific IME polish beyond the current SDL reference path, and general demo/tooling cleanup rather than per-pixel rendering or ultra-thin persistence fundamentals.
 
 ## Parity Tracking
 Phase 0 parity tracking now lives in checked-in markdown files:
@@ -140,19 +145,20 @@ Planned expansion:
 - `UiInputState` also carries double-click state, drag origins/thresholds, and horizontal wheel deltas for richer host input plumbing.
 - The shipped example and editor hosts now generate held-key repeat for repeatable navigation/editing keys like arrows, backspace/delete, home/end, and page up/down.
 - Shared fixed-height virtualization now lives in `UiClipper` / `UiClipRange`, and the shipped examples use it for large `UiListBox`, `UiTable`, and `UiTreeView` datasets in the `Clipping` window.
-- Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented, radial), list box, combo box, selectable, color button, and separator controls are available.
+- Checkbox, radio, slider, and drag controls now cover scalar/vector/range editing, log scaling where relevant, wrap/no-input/no-round flag depth, and temporary direct numeric entry via Ctrl/Cmd+click or double-click where allowed.
 - Table controls now include runtime column/view state, row selection, resize/reorder/hide, X/Y scrolling, row clipping, row-height hooks, per-cell styling hooks, and richer header/cell content via `UiTableCell`, `UiTableColumnState`, and `UiTableViewState`.
 - Table headers support angled labels, sortable columns via `UiTable.SortSpecs`, and built-in header context menus for hide/show/reset workflows.
 - Plotting panel control supports axes, tick labels, grid lines, and zoom/pan input.
 - Waveform control renders sample buffers with min/max or line modes and an optional zero line.
 - Grid layout control assigns children to rows/columns with spacing and padding.
 - Canvas control supports pan/zoom with optional grid and origin helpers.
-- Color edit and color picker controls include gradient SV, alpha bars, and checkerboard transparency.
+- Color edit and color picker controls now cover RGB / HSV / HEX workflows, byte-vs-float value displays, picker-popup integration, side preview/input toggles, alpha bars, checkerboard transparency, and color drag/drop.
 - Multi-select selection model for list boxes and selectables (Ctrl/Shift range) is available.
 - Scroll panels support auto/always scrollbars for overflowing content.
 - `UiStack`, `UiWrapPanel`, `UiGroup`, `UiThickness`, and `UiLayoutLength` now provide retained row/column/wrap/group layout primitives with padding, gap, baseline alignment, and fixed/fill/percentage sizing.
 - `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, and popup open helpers now power the composed combo/list/popup demo in `OpenControls.Examples`, and `UiComboBox` remains as a string-list convenience wrapper over that richer combo path.
 - `IUiImageSource` plus `UiDelegateImageSource` provide a reusable adapter path for repeated thumbnail/icon drawing inside rich rows and popup content.
+- `UiPicker` provides a richer editor-facing convenience surface for labeled/detail/icon picker rows while `UiComboBox` remains the simple string-list wrapper.
 - `UiChildRegion` is the embedded, clipped, scrollable viewport primitive for content inside an existing window, panel, or popup; use `UiWindow` when you need independent title/chrome/focus behavior instead of an in-place framed region.
 - Windows can host optional scroll panels for overflow content (shown in docked/floating examples).
 - Window and dock host controls support tabbed layouts with close buttons and overflow scrolling.
@@ -160,8 +166,8 @@ Planned expansion:
 - Tabs, window titles, table headers, tree node headers, and labels can render bold text.
 - Dock workspaces support drag previews, drop targets, floating windows, and draggable persisted splitters with minimum pane clamping.
 - Drag/drop payloads are supported via `UiDragDropSource`, `UiDragDropTarget`, and `UiDragDropContext`.
-- Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, embedded content, and attached/context opening helpers for popup-mode composition.
-- Tree nodes, `UiTreeView`, collapsing headers, tooltips, popups, and modals are available.
+- Menu bar control supports dropdowns, command IDs, shortcut dispatch, keyboard navigation, checkable items, nested submenus, popup menus, embedded content, and attached/context opening helpers for popup-mode composition.
+- Tree nodes, `UiTreeView`, collapsing headers, tooltips, popups, and modals are available, and tooltip/context helpers now support delayed hover, focus-target tooltips, and item-attached popup/menu opening.
 - Text editor control supports line numbers, scrolling, and syntax highlighting.
 - Text fields now support selection, copy/cut/paste, undo/redo, commit/cancel hooks, password/read-only/filtering modes, completion/history callbacks, resize callbacks, and placeholder text.
 - Numeric input fields (`UiInputFloat/Int/Double`, `UiNumericField`, and vector variants) and vector sliders (`UiSliderFloat2/3/4`, `UiSliderInt2/3/4`, `UiSliderVector`) are available.
@@ -170,7 +176,7 @@ Planned expansion:
 - Arrow glyph helper (`UiArrow`) keeps tree/combo/menu indicators consistent.
 - Common controls support rounded corners and masking for clipped children via `CornerRadius` and `UiRenderHelpers` helpers.
 - Panels and windows support child clipping and resize grips.
-- UI state serialization is available for layout persistence.
+- UI state serialization now restores richer editor/view state including selection, scroll, table view, combo/list state, and custom extension hooks through `IUiStatefulElement`.
 - OpenControls.MonoGame.Examples renders the shared examples UI using MonoGame DesktopGL (via OpenControls.MonoGame).
 - OpenControls.SdlNet.Examples renders the shared examples UI using SDL2-CS (via OpenControls.SdlNet).
 - OpenControls.SilkNet provides a Silk.NET-based renderer adapter using legacy OpenGL bindings.
@@ -181,9 +187,10 @@ Planned expansion:
 - OpenControls.Examples includes a dedicated Text Editor demo window.
 - OpenControls.Examples widgets window groups controls into categorized tree nodes (collapsed by default, with header spacing).
 - OpenControls.Examples now shows real shortcut, capture, and requested-cursor state in the Inputs & Focus demo.
+- OpenControls.Examples now also shows text-input request details including caret bounds, candidate bounds, composition support, and live preedit/composition text in the Inputs & Focus demo.
 - OpenControls.Examples now includes a custom-font and merged-icon demo in the Widgets text section, with Silk.NET as the reference parity host.
 - OpenControls.Examples now also includes a dedicated `Widget Gallery` window for the option-level coverage pass that complements the original `Widgets` tree, `Text Editor`, `Docking`, and `Clipping` windows.
 - A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).
 - OpenControls now ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, custom font-file loading, fallback chains, and merged icon-font ranges for Dear ImGui-style inline icon text.
-- The shipped renderer path currently uses shared grayscale glyph caches across MonoGame, SDL2-CS, Silk.NET, and OpenGL; optional HarfBuzz shaping and optional Slug GPU text rendering remain follow-on work in the parity roadmap.
+- The shipped renderer path now uses shared atlas-backed grayscale glyph caches across MonoGame, SDL2-CS, Silk.NET, and OpenGL instead of per-pixel glyph loops; optional HarfBuzz shaping and optional Slug GPU text rendering remain follow-on work in the parity roadmap.

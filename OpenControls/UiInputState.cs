@@ -27,6 +27,7 @@ public sealed class UiInputState
     public int ScrollDeltaX { get; init; }
     public int ScrollDelta { get; init; }
     public IReadOnlyList<char> TextInput { get; init; } = Array.Empty<char>();
+    public UiTextCompositionState Composition { get; init; }
     public IReadOnlyList<UiKey> KeysDown { get; init; } = Array.Empty<UiKey>();
     public IReadOnlyList<UiKey> KeysPressed { get; init; } = Array.Empty<UiKey>();
     public IReadOnlyList<UiKey> KeysReleased { get; init; } = Array.Empty<UiKey>();

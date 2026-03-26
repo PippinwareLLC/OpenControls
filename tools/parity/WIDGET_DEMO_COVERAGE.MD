@@ -11,7 +11,7 @@ Use this matrix as the working checklist for turning the shared example app into
 ## Live Coverage Map
 
 - `Widgets` window: the original broad sampler and milestone 1-7 reference surface.
-- `Widget Gallery` window: option-level gap fill for widgets and states that were previously easy to miss, including the dedicated Milestone 10 selection/tree workflows section.
+- `Widget Gallery` window: option-level gap fill for widgets and states that were previously easy to miss, including the dedicated Milestone 10 selection/tree workflows section, the dedicated Milestone 11 numeric/color depth section, the dedicated Milestone 12 overlay/menu polish section, and the richer picker/image convenience demos.
 - `Text Editor` window: multiline editing deep dive and editor-focused regression surface.
 - `Docking` layout: `UiDockHost`, `UiDockWorkspace`, floating windows, drag/drop docking, and split resizing.
 - `Clipping` window: explicit `UiPanel` clipping/resize behavior plus shared large-data virtualization demos for `UiListBox`, `UiTable`, and `UiTreeView`.
@@ -73,26 +73,26 @@ A widget is only considered demo-complete when all applicable items are true:
 
 ## Sliders / Drags
 
-- [ ] `UiSlider`: min/max, whole numbers, step size, disabled state, keyboard or drag interaction behavior.
+- [x] `UiSlider`: min/max, whole numbers, step size, wrap/no-input flags, direct-input entry, disabled state, keyboard or drag interaction behavior.
 - [ ] `UiSliderFloat2`: multi-component slider behavior.
-- [ ] `UiSliderFloat3`: multi-component slider behavior.
+- [x] `UiSliderFloat3`: multi-component slider behavior and shared slider flag semantics.
 - [ ] `UiSliderFloat4`: multi-component slider behavior.
 - [ ] `UiSliderInt2`: multi-component slider behavior.
 - [ ] `UiSliderInt3`: multi-component slider behavior.
 - [ ] `UiSliderInt4`: multi-component slider behavior.
-- [ ] `UiSliderVector`: vector slider convenience surface.
+- [x] `UiSliderVector`: vector slider convenience surface and shared slider flag semantics.
 - [ ] `UiVSlider`: vertical orientation, value display/status, disabled state.
 - [ ] `UiSliderAngle`: degree display, radian storage, min/max degree variants.
-- [ ] `UiDragFloat`: speed, min/max clamp, log mode, slow/fast modifier behavior.
+- [x] `UiDragFloat`: speed, min/max clamp, log mode, slow/fast modifier behavior, direct-input entry, and no-round semantics.
 - [ ] `UiDragInt`: speed, min/max clamp, log mode where relevant.
 - [ ] `UiDragFloat2`: multi-component drag behavior.
-- [ ] `UiDragFloat3`: multi-component drag behavior.
+- [x] `UiDragFloat3`: multi-component drag behavior and shared direct-input / wrap semantics.
 - [ ] `UiDragFloat4`: multi-component drag behavior.
 - [ ] `UiDragInt2`: multi-component drag behavior.
 - [ ] `UiDragInt3`: multi-component drag behavior.
 - [ ] `UiDragInt4`: multi-component drag behavior.
 - [ ] `UiDragFloatRange`: min/max editing, ensure-order behavior.
-- [ ] `UiDragIntRange`: min/max editing, ensure-order behavior.
+- [x] `UiDragIntRange`: min/max editing, ensure-order behavior, and shared wrap/direct-input semantics.
 
 ## Lists / Selection / Composition
 
@@ -100,6 +100,7 @@ A widget is only considered demo-complete when all applicable items are true:
 - [ ] `UiSelectable`: hover, selected, disabled, keyboard activation.
 - [ ] `UiSelectableRow`: icons/thumbnails, secondary text, selected/hover visuals, invoked state.
 - [ ] `UiComboBox`: basic string-list path, scroll-wheel behavior, empty state, compatibility wrapper path.
+- [x] `UiPicker`: labeled/detail/icon rows, filterable rich picker behavior, selection, and stable image-adapter usage.
 - [ ] `UiCombo`: composed content, filtering, selection, close-on-selection variants, popup clamping.
 - [ ] `UiListView`: arbitrary child rows, scrolling, selection model variants, empty state.
 - [ ] `UiChildRegion`: framed embedded content, clipping, scrollbars, nested retained content.
@@ -112,9 +113,9 @@ A widget is only considered demo-complete when all applicable items are true:
 - [ ] `UiWaveform`: min/max mode, line mode, auto-scale, start/count windowing.
 - [ ] `UiImage`: placeholder vs real image-source path, sizing, empty/missing image behavior.
 - [ ] `UiImageButton`: click behavior, image-source path, placeholder behavior.
-- [ ] `UiColorEdit`: RGB vs RGBA editing, alpha behavior, preview.
-- [ ] `UiColorPicker`: hue/saturation/value editing, alpha bar, checkerboard background.
-- [ ] `UiColorButton`: swatch display, alpha checkerboard, click behavior.
+- [x] `UiColorEdit`: RGB / HSV / HEX editing, alpha behavior, preview, byte/float modes, picker popup, and retained option surface.
+- [x] `UiColorPicker`: hue/saturation/value editing, alpha bar, checkerboard background, preview/input toggles, and color drag/drop.
+- [x] `UiColorButton`: swatch display, alpha checkerboard, click behavior, and optional color drag/drop source/target behavior.
 
 ## Layout / Containers
 
@@ -136,12 +137,12 @@ A widget is only considered demo-complete when all applicable items are true:
 - [x] `UiTreeView`: large fixed-height trees, open/close, hierarchy lines, expand/collapse/reveal helpers, wheel scrolling, keyboard navigation, selection, and visible-range status.
 - [ ] `UiTreeNode`: open/close, nested content, keyboard activation.
 - [ ] `UiCollapsingHeader`: open/close, nested content, keyboard activation.
-- [ ] `UiTooltip`: tooltip content, hover trigger timing/placement if configurable.
-- [ ] `UiTooltipRegion`: invisible region hit target, tooltip association.
-- [ ] `UiPopup`: attached open, context open, close-on-outside-click, close-on-escape, clamping behavior.
-- [ ] `UiModal`: backdrop, modal blocking, close behavior, focus defaults.
-- [ ] `UiModalHost`: active modal behavior and blocked background interaction.
-- [ ] `UiMenuBar`: bar mode, popup mode, nested menus, separators, checkable items, embedded content, shortcut labels, attached/context opening helpers.
+- [x] `UiTooltip`: tooltip content, delayed hover placement, and focus-target trigger path.
+- [x] `UiTooltipRegion`: invisible region hit target, tooltip association, hit-test transparency, and focus-target routing.
+- [x] `UiPopup`: attached open, context open, close-on-outside-click, close-on-escape, clamping behavior, and nested-popup dismissal.
+- [x] `UiModal`: backdrop, modal blocking, close behavior, focus defaults.
+- [x] `UiModalHost`: active modal behavior and blocked background interaction.
+- [x] `UiMenuBar`: bar mode, popup mode, nested menus, separators, checkable items, embedded content, shortcut labels, command IDs, shortcut dispatch, keyboard navigation, and attached/context opening helpers.
 
 ## Drag And Drop
 
@@ -162,7 +163,7 @@ A widget is only considered demo-complete when all applicable items are true:
 - [ ] Requested mouse cursor changes are visibly demonstrated.
 - [ ] Shortcut routing examples show focused/hovered/global scope behavior where supported.
 - [ ] Clipboard integration path is demonstrated with the host-supplied clipboard in at least one host.
-- [ ] Text input request / IME request state is visible in the examples UI.
+- [x] Text input request / IME request state is visible in the examples UI.
 
 ## Omission Notes
 

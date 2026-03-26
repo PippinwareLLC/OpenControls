@@ -94,7 +94,7 @@ public class UiPopup : UiElement
         {
             _suppressOutsideClick = false;
         }
-        else if (CloseOnOutsideClick && input.LeftClicked && !Bounds.Contains(input.MousePosition))
+        else if (CloseOnOutsideClick && IsOutsideClick(input) && !ContainsOverlayPoint(input.MousePosition))
         {
             Close();
             return;
@@ -110,7 +110,22 @@ public class UiPopup : UiElement
             return null;
         }
 
-        return base.HitTest(point);
+        for (int i = Children.Count - 1; i >= 0; i--)
+        {
+            UiElement child = Children[i];
+            UiElement? childHit = child.HitTest(point);
+            if (childHit != null)
+            {
+                return childHit;
+            }
+        }
+
+        if (!Bounds.Contains(point))
+        {
+            return null;
+        }
+
+        return this;
     }
 
     public override void Render(UiRenderContext context)
@@ -172,5 +187,15 @@ public class UiPopup : UiElement
         }
 
         return status;
+    }
+
+    private bool ContainsOverlayPoint(UiPoint point)
+    {
+        return HitTest(point) != null;
+    }
+
+    private static bool IsOutsideClick(UiInputState input)
+    {
+        return input.LeftClicked || input.RightClicked || input.MiddleClicked;
     }
 }

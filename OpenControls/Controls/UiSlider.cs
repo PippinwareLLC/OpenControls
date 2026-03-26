@@ -4,12 +4,28 @@ namespace OpenControls.Controls;
 
 public sealed class UiSlider : UiElement
 {
+    private readonly UiInputFloat _inputField;
     private bool _dragging;
     private bool _hovered;
     private bool _focused;
+    private bool _inputMode;
+    private bool _pendingFocusSelf;
+    private float _inputSnapshotValue;
     private float _value;
     private float _min;
     private float _max = 1f;
+
+    public UiSlider()
+    {
+        _inputField = new UiInputFloat
+        {
+            Visible = false
+        };
+        _inputField.ValueChanged += value => SetValue(value);
+        _inputField.Submitted += HandleInputSubmitted;
+        _inputField.Cancelled += HandleInputCancelled;
+        AddChild(_inputField);
+    }
 
     public float Min
     {
@@ -39,6 +55,7 @@ public sealed class UiSlider : UiElement
 
     public float Step { get; set; }
     public bool WholeNumbers { get; set; }
+    public UiSliderFlags Flags { get; set; } = UiSliderFlags.AlwaysClamp;
     public bool ShowValue { get; set; } = true;
     public string ValueFormat { get; set; } = "0.##";
     public int TextScale { get; set; } = 1;
@@ -65,9 +82,41 @@ public sealed class UiSlider : UiElement
 
         UiInputState input = context.Input;
         _hovered = Bounds.Contains(input.MousePosition);
+        SyncInputFieldOptions();
+
+        if (_inputMode)
+        {
+            _inputField.Bounds = Bounds;
+            _inputField.Visible = true;
+            base.Update(context);
+
+            if (context.Focus.Focused != _inputField.TextField)
+            {
+                _inputMode = false;
+                _inputField.Visible = false;
+            }
+
+            if (_pendingFocusSelf)
+            {
+                _pendingFocusSelf = false;
+                context.Focus.RequestFocus(this);
+            }
+
+            return;
+        }
 
         UiRect trackRect = GetTrackRect();
         UiRect thumbRect = GetThumbRect(trackRect);
+        if (!Flags.HasFlag(UiSliderFlags.NoInput) &&
+            input.LeftClicked &&
+            Bounds.Contains(input.MousePosition) &&
+            (input.LeftDoubleClicked || input.PrimaryShortcutDown))
+        {
+            EnterInputMode(context);
+            base.Update(context);
+            return;
+        }
+
         if (input.LeftClicked && (thumbRect.Contains(input.MousePosition) || trackRect.Contains(input.MousePosition)))
         {
             _dragging = true;
@@ -108,6 +157,7 @@ public sealed class UiSlider : UiElement
             }
         }
 
+        _inputField.Visible = false;
         base.Update(context);
     }
 
@@ -115,6 +165,12 @@ public sealed class UiSlider : UiElement
     {
         if (!Visible)
         {
+            return;
+        }
+
+        if (_inputMode)
+        {
+            base.Render(context);
             return;
         }
 
@@ -166,6 +222,46 @@ public sealed class UiSlider : UiElement
         _dragging = false;
     }
 
+    private void EnterInputMode(UiUpdateContext context)
+    {
+        _dragging = false;
+        _inputMode = true;
+        _inputSnapshotValue = _value;
+        _inputField.Visible = true;
+        _inputField.Bounds = Bounds;
+        _inputField.Value = _value;
+        _inputField.SelectAllText();
+        context.Focus.RequestFocus(_inputField.TextField);
+    }
+
+    private void HandleInputSubmitted()
+    {
+        _inputMode = false;
+        _inputField.Visible = false;
+        _pendingFocusSelf = true;
+    }
+
+    private void HandleInputCancelled()
+    {
+        SetValue(_inputSnapshotValue);
+        _inputMode = false;
+        _inputField.Visible = false;
+        _pendingFocusSelf = true;
+    }
+
+    private void SyncInputFieldOptions()
+    {
+        _inputField.Min = _min;
+        _inputField.Max = _max;
+        _inputField.Clamp = Flags.HasFlag(UiSliderFlags.AlwaysClamp) && !Flags.HasFlag(UiSliderFlags.WrapAround);
+        _inputField.WholeNumbers = WholeNumbers;
+        _inputField.Step = Step;
+        _inputField.StepFast = Step > 0f ? Step * 10f : 0f;
+        _inputField.ValueFormat = ValueFormat;
+        _inputField.TextScale = TextScale;
+        _inputField.Padding = Padding;
+    }
+
     private void SetValueFromMouse(UiRect trackRect, int mouseX)
     {
         if (trackRect.Width <= 0)
@@ -208,16 +304,15 @@ public sealed class UiSlider : UiElement
 
     private void SetValue(float value)
     {
-        float clamped = ClampValue(value);
-        if (WholeNumbers)
-        {
-            clamped = MathF.Round(clamped);
-        }
-
-        if (Step > 0f)
-        {
-            clamped = SnapToStep(clamped);
-        }
+        float clamped = UiNumericValueHelpers.ApplyFloatConstraints(
+            value,
+            _min,
+            _max,
+            Step,
+            WholeNumbers,
+            ValueFormat,
+            clampByDefault: true,
+            UiNumericValueHelpers.ToModifierFlags(Flags));
 
         if (Math.Abs(_value - clamped) <= float.Epsilon)
         {
@@ -226,27 +321,6 @@ public sealed class UiSlider : UiElement
 
         _value = clamped;
         ValueChanged?.Invoke(_value);
-    }
-
-    private float ClampValue(float value)
-    {
-        if (_max <= _min)
-        {
-            return _min;
-        }
-
-        return Math.Clamp(value, _min, _max);
-    }
-
-    private float SnapToStep(float value)
-    {
-        if (Step <= 0f)
-        {
-            return value;
-        }
-
-        float steps = MathF.Round((value - _min) / Step);
-        return _min + steps * Step;
     }
 
     private float GetNormalizedValue()

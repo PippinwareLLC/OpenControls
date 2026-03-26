@@ -5,7 +5,15 @@ namespace OpenControls.OpenGL;
 
 public sealed class OpenGLUiRenderer : IUiRenderer
 {
+    private sealed class AtlasPageTexture
+    {
+        public int TextureId { get; set; }
+        public int Version { get; set; } = -1;
+    }
+
     private readonly Stack<UiRect> _clipStack = new();
+    private readonly UiGlyphAtlas _glyphAtlas = new();
+    private readonly Dictionary<int, AtlasPageTexture> _atlasTextures = new();
     private bool _scissorEnabled;
 
     public OpenGLUiRenderer(UiFont? defaultFont = null)
@@ -102,13 +110,41 @@ public sealed class OpenGLUiRenderer : IUiRenderer
             return;
         }
 
-        BeginQuads();
+        GL.Enable(EnableCap.Texture2D);
+        SetColor(color);
+        int activePageIndex = -1;
         for (int i = 0; i < layout.Glyphs.Count; i++)
         {
             UiPositionedGlyph glyph = layout.Glyphs[i];
-            EmitGlyph(glyph.Glyph, position.X + glyph.X, position.Y + glyph.Y, color);
+            UiGlyphAtlasEntry entry = _glyphAtlas.GetOrAdd(glyph.Glyph);
+            if (!entry.IsValid)
+            {
+                continue;
+            }
+
+            if (entry.PageIndex != activePageIndex)
+            {
+                if (activePageIndex >= 0)
+                {
+                    End();
+                }
+
+                AtlasPageTexture pageTexture = EnsureAtlasTexture(entry.PageIndex);
+                GL.BindTexture(TextureTarget.Texture2D, pageTexture.TextureId);
+                BeginQuads();
+                activePageIndex = entry.PageIndex;
+            }
+
+            EmitTexturedQuad(position.X + glyph.X, position.Y + glyph.Y, glyph.Glyph.Width, glyph.Glyph.Height, entry);
         }
-        End();
+
+        if (activePageIndex >= 0)
+        {
+            End();
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+        }
+
+        GL.Disable(EnableCap.Texture2D);
     }
 
     public int MeasureTextWidth(string text, int scale = 1)
@@ -184,29 +220,39 @@ public sealed class OpenGLUiRenderer : IUiRenderer
         GL.End();
     }
 
-    private void EmitGlyph(UiRasterizedGlyph glyph, int x, int y, UiColor color)
+    private AtlasPageTexture EnsureAtlasTexture(int pageIndex)
     {
-        for (int row = 0; row < glyph.Height; row++)
+        UiGlyphAtlasPage page = _glyphAtlas.GetPage(pageIndex);
+        if (!_atlasTextures.TryGetValue(pageIndex, out AtlasPageTexture? texture))
         {
-            int rowStart = row * glyph.Width;
-            for (int col = 0; col < glyph.Width; col++)
+            texture = new AtlasPageTexture
             {
-                byte alpha = glyph.Alpha[rowStart + col];
-                if (alpha == 0)
-                {
-                    continue;
-                }
-
-                SetColor(ApplyAlpha(color, alpha));
-                EmitQuad(x + col, y + row, 1, 1);
-            }
+                TextureId = GL.GenTexture()
+            };
+            _atlasTextures[pageIndex] = texture;
         }
-    }
 
-    private static UiColor ApplyAlpha(UiColor color, byte alpha)
-    {
-        int scaledAlpha = color.A * alpha / 255;
-        return new UiColor(color.R, color.G, color.B, (byte)scaledAlpha);
+        if (texture.Version != page.Version)
+        {
+            GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+            GL.TexImage2D(
+                TextureTarget.Texture2D,
+                0,
+                PixelInternalFormat.Rgba,
+                page.Width,
+                page.Height,
+                0,
+                PixelFormat.Rgba,
+                PixelType.UnsignedByte,
+                page.Pixels);
+            texture.Version = page.Version;
+        }
+
+        return texture;
     }
 
     private static void EmitQuad(int x, int y, int width, int height)
@@ -219,6 +265,29 @@ public sealed class OpenGLUiRenderer : IUiRenderer
         GL.Vertex2(left, top);
         GL.Vertex2(right, top);
         GL.Vertex2(right, bottom);
+        GL.Vertex2(left, bottom);
+    }
+
+    private void EmitTexturedQuad(int x, int y, int width, int height, UiGlyphAtlasEntry entry)
+    {
+        UiGlyphAtlasPage page = _glyphAtlas.GetPage(entry.PageIndex);
+        float u1 = entry.SourceRect.X / (float)page.Width;
+        float v1 = entry.SourceRect.Y / (float)page.Height;
+        float u2 = entry.SourceRect.Right / (float)page.Width;
+        float v2 = entry.SourceRect.Bottom / (float)page.Height;
+
+        float left = x;
+        float top = y;
+        float right = x + width;
+        float bottom = y + height;
+
+        GL.TexCoord2(u1, v1);
+        GL.Vertex2(left, top);
+        GL.TexCoord2(u2, v1);
+        GL.Vertex2(right, top);
+        GL.TexCoord2(u2, v2);
+        GL.Vertex2(right, bottom);
+        GL.TexCoord2(u1, v2);
         GL.Vertex2(left, bottom);
     }
 

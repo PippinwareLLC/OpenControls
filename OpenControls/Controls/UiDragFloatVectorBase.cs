@@ -5,12 +5,17 @@ namespace OpenControls.Controls;
 public abstract class UiDragFloatVectorBase : UiElement
 {
     private readonly float[] _values;
+    private readonly UiInputFloat[] _inputFields;
     private bool _dragging;
     private bool _focused;
+    private bool _inputMode;
+    private bool _pendingFocusSelf;
     private int _dragStartX;
+    private float _inputSnapshotValue;
     private float _dragStartValue;
     private int _activeIndex = -1;
     private int _hoverIndex = -1;
+    private int _inputIndex = -1;
     private float _min;
     private float _max = 1f;
 
@@ -22,7 +27,22 @@ public abstract class UiDragFloatVectorBase : UiElement
         }
 
         _values = new float[components];
+        _inputFields = new UiInputFloat[components];
         ComponentLabels = defaultLabels ?? Array.Empty<string>();
+
+        for (int i = 0; i < components; i++)
+        {
+            int index = i;
+            UiInputFloat field = new()
+            {
+                Visible = false
+            };
+            field.ValueChanged += value => SetValueInternal(index, value);
+            field.Submitted += () => HandleInputSubmitted(index);
+            field.Cancelled += () => HandleInputCancelled(index);
+            AddChild(field);
+            _inputFields[i] = field;
+        }
     }
 
     public float Min
@@ -91,6 +111,40 @@ public abstract class UiDragFloatVectorBase : UiElement
 
         UiInputState input = context.Input;
         _hoverIndex = GetIndexAt(input.MousePosition);
+        SyncInputFieldOptions();
+
+        if (_inputMode && _inputIndex >= 0 && _inputIndex < _inputFields.Length)
+        {
+            UiInputFloat field = _inputFields[_inputIndex];
+            field.Bounds = GetPartRect(_inputIndex);
+            field.Visible = true;
+            base.Update(context);
+
+            if (context.Focus.Focused != field.TextField)
+            {
+                _inputMode = false;
+                _inputIndex = -1;
+                field.Visible = false;
+            }
+
+            if (_pendingFocusSelf)
+            {
+                _pendingFocusSelf = false;
+                context.Focus.RequestFocus(this);
+            }
+
+            return;
+        }
+
+        if (!Flags.HasFlag(UiDragFlags.NoInput) &&
+            input.LeftClicked &&
+            _hoverIndex >= 0 &&
+            (input.LeftDoubleClicked || input.PrimaryShortcutDown))
+        {
+            EnterInputMode(context, _hoverIndex);
+            base.Update(context);
+            return;
+        }
 
         if (input.LeftClicked && _hoverIndex >= 0)
         {
@@ -140,6 +194,7 @@ public abstract class UiDragFloatVectorBase : UiElement
             }
         }
 
+        HideAllInputFields();
         base.Update(context);
     }
 
@@ -152,6 +207,11 @@ public abstract class UiDragFloatVectorBase : UiElement
 
         for (int i = 0; i < _values.Length; i++)
         {
+            if (_inputMode && _inputIndex == i)
+            {
+                continue;
+            }
+
             UiRect rect = GetPartRect(i);
             UiColor fill = Background;
             if (_dragging && _activeIndex == i)
@@ -189,6 +249,79 @@ public abstract class UiDragFloatVectorBase : UiElement
     {
         _focused = false;
         _dragging = false;
+    }
+
+    private void EnterInputMode(UiUpdateContext context, int index)
+    {
+        if (index < 0 || index >= _inputFields.Length)
+        {
+            return;
+        }
+
+        _dragging = false;
+        _activeIndex = index;
+        _inputIndex = index;
+        _inputMode = true;
+        _inputSnapshotValue = _values[index];
+
+        UiInputFloat field = _inputFields[index];
+        field.Visible = true;
+        field.Bounds = GetPartRect(index);
+        field.Value = _values[index];
+        field.SelectAllText();
+        context.Focus.RequestFocus(field.TextField);
+    }
+
+    private void HandleInputSubmitted(int index)
+    {
+        if (_inputIndex != index)
+        {
+            return;
+        }
+
+        _inputMode = false;
+        _inputIndex = -1;
+        _inputFields[index].Visible = false;
+        _pendingFocusSelf = true;
+    }
+
+    private void HandleInputCancelled(int index)
+    {
+        if (_inputIndex != index)
+        {
+            return;
+        }
+
+        SetValueInternal(index, _inputSnapshotValue);
+        _inputMode = false;
+        _inputIndex = -1;
+        _inputFields[index].Visible = false;
+        _pendingFocusSelf = true;
+    }
+
+    private void SyncInputFieldOptions()
+    {
+        for (int i = 0; i < _inputFields.Length; i++)
+        {
+            UiInputFloat field = _inputFields[i];
+            field.Min = _min;
+            field.Max = _max;
+            field.Clamp = Flags.HasFlag(UiDragFlags.AlwaysClamp) && !Flags.HasFlag(UiDragFlags.WrapAround);
+            field.WholeNumbers = WholeNumbers;
+            field.Step = Step;
+            field.StepFast = Step > 0f ? Step * 10f : 0f;
+            field.ValueFormat = ValueFormat;
+            field.TextScale = TextScale;
+            field.Padding = Padding;
+        }
+    }
+
+    private void HideAllInputFields()
+    {
+        for (int i = 0; i < _inputFields.Length; i++)
+        {
+            _inputFields[i].Visible = false;
+        }
     }
 
     private void ClampAll()
@@ -333,34 +466,15 @@ public abstract class UiDragFloatVectorBase : UiElement
 
     private float ApplyConstraints(float value)
     {
-        float next = value;
-        if (Flags.HasFlag(UiDragFlags.Clamp) && HasRange())
-        {
-            next = Math.Clamp(next, _min, _max);
-        }
-
-        if (WholeNumbers)
-        {
-            next = MathF.Round(next);
-        }
-
-        if (Step > 0f)
-        {
-            next = SnapToStep(next);
-        }
-
-        return next;
-    }
-
-    private float SnapToStep(float value)
-    {
-        if (Step <= 0f)
-        {
-            return value;
-        }
-
-        float steps = MathF.Round((value - _min) / Step);
-        return _min + steps * Step;
+        return UiNumericValueHelpers.ApplyFloatConstraints(
+            value,
+            _min,
+            _max,
+            Step,
+            WholeNumbers,
+            ValueFormat,
+            clampByDefault: false,
+            UiNumericValueHelpers.ToModifierFlags(Flags));
     }
 
     private string FormatComponentText(int index, float value)

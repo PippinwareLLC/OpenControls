@@ -1,3 +1,5 @@
+using OpenControls.State;
+
 namespace OpenControls.Controls;
 
 public sealed class UiTableColumn
@@ -97,7 +99,7 @@ public sealed class UiTableRow
     }
 }
 
-public sealed class UiTable : UiElement
+public sealed class UiTable : UiElement, IUiStatefulElement
 {
     private sealed class ContentPlacement
     {
@@ -356,6 +358,73 @@ public sealed class UiTable : UiElement
         }
 
         return _columnStates[columnIndex];
+    }
+
+    public void CaptureState(UiElementState state)
+    {
+        state.SelectedIndex = SelectedIndex;
+        state.SelectedIndices = SelectedIndices.ToList();
+        UiTableElementState tableState = new()
+        {
+            ScrollX = _scrollX,
+            ScrollY = _scrollY
+        };
+
+        for (int i = 0; i < ColumnStates.Count; i++)
+        {
+            UiTableColumnState columnState = ColumnStates[i];
+            tableState.Columns.Add(new UiTableColumnSnapshot
+            {
+                ColumnIndex = columnState.ColumnIndex,
+                DisplayIndex = columnState.DisplayIndex,
+                WidthMode = columnState.WidthMode,
+                Width = columnState.Width,
+                StretchWeight = columnState.StretchWeight,
+                Visible = columnState.Visible
+            });
+        }
+
+        state.Table = tableState;
+    }
+
+    public void ApplyState(UiElementState state)
+    {
+        if (state.Table != null)
+        {
+            _scrollX = Math.Max(0, state.Table.ScrollX);
+            _scrollY = Math.Max(0, state.Table.ScrollY);
+
+            foreach (UiTableColumnSnapshot snapshot in state.Table.Columns)
+            {
+                if (snapshot.ColumnIndex < 0 || snapshot.ColumnIndex >= ColumnStates.Count)
+                {
+                    continue;
+                }
+
+                UiTableColumnState columnState = ColumnStates[snapshot.ColumnIndex];
+                columnState.DisplayIndex = snapshot.DisplayIndex;
+                columnState.WidthMode = snapshot.WidthMode;
+                columnState.Width = snapshot.Width;
+                columnState.StretchWeight = snapshot.StretchWeight;
+                columnState.Visible = snapshot.Visible;
+            }
+        }
+
+        if (state.SelectedIndices.Count > 0)
+        {
+            if (SelectionModel != null)
+            {
+                SelectionModel.SetSelection(state.SelectedIndices, state.SelectedIndex ?? -1, state.SelectedIndex ?? -1, SelectionScope);
+            }
+            else
+            {
+                SelectedIndex = state.SelectedIndex ?? state.SelectedIndices[^1];
+            }
+        }
+        else if (state.SelectedIndex.HasValue)
+        {
+            SelectedIndex = state.SelectedIndex.Value;
+        }
     }
 
     public void ResetColumnStates()
@@ -1090,6 +1159,7 @@ public sealed class UiTable : UiElement
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
             TextInput = input.TextInput,
+            Composition = input.Composition,
             KeysDown = input.KeysDown,
             KeysPressed = input.KeysPressed,
             KeysReleased = input.KeysReleased,

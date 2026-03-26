@@ -4,14 +4,30 @@ namespace OpenControls.Controls;
 
 public sealed class UiDragFloat : UiElement
 {
+    private readonly UiInputFloat _inputField;
     private bool _dragging;
     private bool _hovered;
     private bool _focused;
+    private bool _inputMode;
+    private bool _pendingFocusSelf;
     private int _dragStartX;
+    private float _inputSnapshotValue;
     private float _dragStartValue;
     private float _value;
     private float _min;
     private float _max = 1f;
+
+    public UiDragFloat()
+    {
+        _inputField = new UiInputFloat
+        {
+            Visible = false
+        };
+        _inputField.ValueChanged += value => SetValue(value);
+        _inputField.Submitted += HandleInputSubmitted;
+        _inputField.Cancelled += HandleInputCancelled;
+        AddChild(_inputField);
+    }
 
     public float Min
     {
@@ -69,6 +85,38 @@ public sealed class UiDragFloat : UiElement
 
         UiInputState input = context.Input;
         _hovered = Bounds.Contains(input.MousePosition);
+        SyncInputFieldOptions();
+
+        if (_inputMode)
+        {
+            _inputField.Bounds = Bounds;
+            _inputField.Visible = true;
+            base.Update(context);
+
+            if (context.Focus.Focused != _inputField.TextField)
+            {
+                _inputMode = false;
+                _inputField.Visible = false;
+            }
+
+            if (_pendingFocusSelf)
+            {
+                _pendingFocusSelf = false;
+                context.Focus.RequestFocus(this);
+            }
+
+            return;
+        }
+
+        if (!Flags.HasFlag(UiDragFlags.NoInput) &&
+            input.LeftClicked &&
+            _hovered &&
+            (input.LeftDoubleClicked || input.PrimaryShortcutDown))
+        {
+            EnterInputMode(context);
+            base.Update(context);
+            return;
+        }
 
         if (input.LeftClicked && _hovered)
         {
@@ -113,6 +161,7 @@ public sealed class UiDragFloat : UiElement
             }
         }
 
+        _inputField.Visible = false;
         base.Update(context);
     }
 
@@ -120,6 +169,12 @@ public sealed class UiDragFloat : UiElement
     {
         if (!Visible)
         {
+            return;
+        }
+
+        if (_inputMode)
+        {
+            base.Render(context);
             return;
         }
 
@@ -149,6 +204,46 @@ public sealed class UiDragFloat : UiElement
     {
         _focused = false;
         _dragging = false;
+    }
+
+    private void EnterInputMode(UiUpdateContext context)
+    {
+        _dragging = false;
+        _inputMode = true;
+        _inputSnapshotValue = _value;
+        _inputField.Visible = true;
+        _inputField.Bounds = Bounds;
+        _inputField.Value = _value;
+        _inputField.SelectAllText();
+        context.Focus.RequestFocus(_inputField.TextField);
+    }
+
+    private void HandleInputSubmitted()
+    {
+        _inputMode = false;
+        _inputField.Visible = false;
+        _pendingFocusSelf = true;
+    }
+
+    private void HandleInputCancelled()
+    {
+        SetValue(_inputSnapshotValue);
+        _inputMode = false;
+        _inputField.Visible = false;
+        _pendingFocusSelf = true;
+    }
+
+    private void SyncInputFieldOptions()
+    {
+        _inputField.Min = _min;
+        _inputField.Max = _max;
+        _inputField.Clamp = Flags.HasFlag(UiDragFlags.AlwaysClamp) && !Flags.HasFlag(UiDragFlags.WrapAround);
+        _inputField.WholeNumbers = WholeNumbers;
+        _inputField.Step = Step;
+        _inputField.StepFast = Step > 0f ? Step * 10f : 0f;
+        _inputField.ValueFormat = ValueFormat;
+        _inputField.TextScale = TextScale;
+        _inputField.Padding = Padding;
     }
 
     private bool HasRange()
@@ -244,21 +339,15 @@ public sealed class UiDragFloat : UiElement
 
     private void SetValue(float value)
     {
-        float next = value;
-        if (Flags.HasFlag(UiDragFlags.Clamp) && HasRange())
-        {
-            next = Math.Clamp(next, _min, _max);
-        }
-
-        if (WholeNumbers)
-        {
-            next = MathF.Round(next);
-        }
-
-        if (Step > 0f)
-        {
-            next = SnapToStep(next);
-        }
+        float next = UiNumericValueHelpers.ApplyFloatConstraints(
+            value,
+            _min,
+            _max,
+            Step,
+            WholeNumbers,
+            ValueFormat,
+            clampByDefault: false,
+            UiNumericValueHelpers.ToModifierFlags(Flags));
 
         if (Math.Abs(_value - next) <= float.Epsilon)
         {
@@ -267,17 +356,6 @@ public sealed class UiDragFloat : UiElement
 
         _value = next;
         ValueChanged?.Invoke(_value);
-    }
-
-    private float SnapToStep(float value)
-    {
-        if (Step <= 0f)
-        {
-            return value;
-        }
-
-        float steps = MathF.Round((value - _min) / Step);
-        return _min + steps * Step;
     }
 
     private string FormatValue(float value)

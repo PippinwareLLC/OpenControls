@@ -53,7 +53,11 @@ public static class UiStateSerializer
             element.Visible = state.Visible;
             element.Enabled = state.Enabled;
 
-            if (element is UiTextField field && state.Text != null)
+            if (element is IUiStatefulElement stateful)
+            {
+                stateful.ApplyState(state);
+            }
+            else if (element is UiTextField field && state.Text != null)
             {
                 field.Text = state.Text;
                 if (state.CaretIndex.HasValue)
@@ -148,7 +152,11 @@ public static class UiStateSerializer
                 Enabled = element.Enabled
             };
 
-            if (element is UiTextField field)
+            if (element is IUiStatefulElement stateful)
+            {
+                stateful.CaptureState(state);
+            }
+            else if (element is UiTextField field)
             {
                 state.Text = field.Text;
                 state.CaretIndex = field.CaretIndex;

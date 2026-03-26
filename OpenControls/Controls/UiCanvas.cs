@@ -343,6 +343,7 @@ public sealed class UiCanvas : UiElement
             ScrollDeltaX = 0,
             ScrollDelta = allowMouse ? input.ScrollDelta : 0,
             TextInput = input.TextInput,
+            Composition = input.Composition,
             KeysDown = input.KeysDown,
             KeysPressed = input.KeysPressed,
             KeysReleased = input.KeysReleased,

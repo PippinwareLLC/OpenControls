@@ -7,12 +7,13 @@ This is a brief overview of the current OpenControls surface area.
 - `UiElement`: base class for all UI elements; handles visibility, enablement, child hierarchy, hit tests, IDs, child clipping, overlay rendering, and optional text-input/pointer-capture/cursor hints.
 - `UiFocusManager`: tracks focused element and handles focus transitions.
 - `UiInputState`: host-provided input snapshot (mouse buttons, clicks, modifiers, scroll delta, text input, named key state, and navigation).
+- `UiTextCompositionState`: host-provided composition/preedit snapshot for IME-aware text entry.
 - `UiNavigationInput`: directional/navigation key flags (arrows, Home/End, Backspace/Delete, Tab, Enter/KeypadEnter, Space).
 - `UiKey`, `UiModifierKeys`, `UiKeyChord`, `UiShortcutScope`: named key and shortcut types for richer keyboard input and scoped routing.
 - `UiItemStatusFlags`, `UiItemStateSnapshot`: per-frame item interaction/status model (`Hovered`, `Active`, `Pressed`, `Dragging`, `Edited`, `Activated`, `Deactivated`, `Clicked`, plus bounds/clip-bounds).
 - `UiContainerKind`, `UiContainerStateSnapshot`: per-frame container/window-like state model for windows, popups, modals, menu bars, tab items/bars, dock hosts, and modal hosts.
 - `UiMouseCursor`: host-facing cursor request enum returned by `UiContext`.
-- `UiTextInputRequest`: focused text-input metadata for IME/on-screen-keyboard friendly hosts.
+- `UiTextInputRequest`: focused text-input metadata for IME/on-screen-keyboard friendly hosts, including overall bounds, caret bounds, candidate bounds, and composition support.
 - `IUiClipboard`, `UiMemoryClipboard`, `UiDelegateClipboard`: clipboard abstraction plus default in-memory and delegate-backed implementations for copy/cut/paste aware controls.
 - `UiTextEditingState`: shared single-line text editing primitive with selection, undo/redo, word movement, and session cancel/commit support.
 - `UiInputHostHelpers`: shared helper methods for host-side double-click and drag-origin tracking.
@@ -20,7 +21,7 @@ This is a brief overview of the current OpenControls surface area.
 - `IUiRenderer`: rendering abstraction; hosts implement this for their graphics API (includes clip stack, gradient, and checkerboard fills).
 - `UiRect`, `UiPoint`, `UiColor`: lightweight geometry and color structs.
 - `UiRenderHelpers`: helper methods for gradients, checkerboard fills, rounded rectangles, and bold text.
-- `UiStateSnapshot`, `UiStateSerializer`: serialize/restore UI state to JSON for persistence.
+- `UiStateSnapshot`, `UiStateSerializer`, `IUiStatefulElement`: serialize/restore richer UI state to JSON for persistence, including built-in editor/view state plus custom-control extensions.
 - `UiScrollbarVisibility`: scrollbar visibility options for scroll panels.
 - `UiSelectionModel`: manages multi-selection state, scoped selections, delete-friendly mutations, and anchor persistence for list/selectable/table/tree controls.
 - `UiSelectionAnchorPersistence`: controls how range anchors behave after destructive selection updates.
@@ -28,7 +29,10 @@ This is a brief overview of the current OpenControls surface area.
 - `UiArrow`: helper for drawing consistent arrow indicators in custom controls.
 - `UiProgressBarStyle`: progress bar style (linear or radial).
 - `UiProgressBarFillDirection`: progress bar fill direction (left/right/top/bottom).
-- `UiDragFlags`: drag widget behavior flags (clamping, log scaling, and speed modifiers).
+- `UiDragFlags`: drag widget behavior flags (always-clamp, no-input, no-round-to-format, wrap-around, log scaling, and slow/fast modifier control).
+- `UiSliderFlags`: slider widget behavior flags (always-clamp, no-input, no-round-to-format, and wrap-around).
+- `UiColorDisplayMode`, `UiColorValueDisplayMode`: shared color-widget mode enums for RGB/HSV/Hex and byte/float value display.
+- `UiColorConversion`: shared RGB/HSV/hex conversion helpers used by the color widgets.
 - `UiTableColumn`, `UiTableRow`, `UiTableCell`, `UiTableColumnState`, `UiTableViewState`, `UiTableCellContext`: table definition, content, runtime state, and styling objects for `UiTable`.
 - `UiTreeViewItem`: retained tree data item for `UiTreeView`.
 - `UiPlotPoint`, `UiPlotSeries`: data objects for `UiPlotPanel` plotting series.
@@ -48,16 +52,17 @@ This is a brief overview of the current OpenControls surface area.
 - `UiInvisibleButton`: invisible hit target for custom-drawn widgets; exposes hover/pressed state and `Clicked`.
 - `UiCheckbox`: boolean toggle with label; exposes `CheckedChanged`.
 - `UiRadioButton`: grouped option selector (use `GroupId`); exposes `CheckedChanged`.
-- `UiSlider`: draggable value control with optional step/whole-number snapping.
+- `UiSlider`: draggable value control with optional step/whole-number snapping, flag-controlled wrap/clamp/direct-input behavior, and Ctrl/Cmd+click or double-click inline numeric entry.
 - `UiVSlider`: vertical slider variant with the same value behavior.
 - `UiSliderAngle`: angle slider that stores radians while displaying degrees.
-- `UiDragFloat`, `UiDragInt`: drag-to-adjust value fields with optional clamping and speed modifiers.
+- `UiDragFloat`, `UiDragInt`: drag-to-adjust value fields with optional inline numeric entry, wrap/clamp/precision flags, and slow/fast or logarithmic behavior where relevant.
 - `UiDragFloat2/3/4`, `UiDragInt2/3/4`: multi-component drag widgets for vector values.
 - `UiDragFloatRange`, `UiDragIntRange`: two-value drag controls for min/max ranges.
 - `UiProgressBar`: value bar with optional overlay text (horizontal/vertical, segmented, radial).
 - `UiListBox`: list selector with hover/selected states.
 - `UiSelectable`: selectable row with hover/selected states.
 - `UiComboBox`: string-list convenience wrapper over `UiCombo` and `UiListView`.
+- `UiPicker`, `UiPickerItem`: richer editor-facing convenience picker surface over `UiCombo` for labeled/detail/icon rows.
 - `UiTable`: grid/table control with column headers, selectable rows, runtime column/view state, scrolling, resize/reorder/hide, and richer header/cell content.
 - `UiTreeView`: virtualized retained tree control for large fixed-height tree datasets with open/close, selection, wheel scrolling, and keyboard navigation.
 - `UiPlotPanel`: plotting panel with axes, tick labels, grid lines, and zoom/pan input.
@@ -67,9 +72,9 @@ This is a brief overview of the current OpenControls surface area.
 - `UiWrapPanel`: retained flow layout container for wrapped rows of child content.
 - `UiGroup`: logical grouped region for treating multiple children as one retained section.
 - `UiCanvas`: pannable/zoomable canvas that renders child elements with an optional grid and origin.
-- `UiColorEdit`: RGB(A) editor with per-channel sliders and a preview swatch.
-- `UiColorPicker`: hue/saturation/value picker with a gradient SV area, hue bar, and optional alpha bar.
-- `UiColorButton`: clickable color swatch with optional alpha checkerboard.
+- `UiColorEdit`: RGB/HSV/Hex color editor with per-channel sliders or hex entry, byte/float value displays, preview swatch, retained option surface, and optional picker popup integration.
+- `UiColorPicker`: HSV picker with a gradient SV area, hue bar, optional alpha bar, side preview, optional embedded `UiColorEdit`, and color drag/drop support.
+- `UiColorButton`: clickable color swatch with optional alpha checkerboard plus optional color drag/drop source/target behavior.
 - `UiSeparator`: horizontal or vertical line separator.
 - `UiSeparatorText`: separator line with centered label text.
 - `UiSplitter`: draggable horizontal/vertical splitter for manual layouts.
@@ -81,25 +86,27 @@ This is a brief overview of the current OpenControls surface area.
 - `UiTabBar`, `UiTabItem`: tab strip container and tab content items for retained-mode tabbed layouts (tab text can be bold).
 - `UiDockHost`: hosts `UiWindow` instances in a tabbed dock area, with optional drag reordering/detach (tab text can be bold).
 - `UiDockWorkspace`: manages dock hosts, drag previews, drop targets, floating windows, and empty-host collapse.
-- `UiMenuBar`: top-level menu control with dropdowns, separators, checkable items, nested submenus, and popup mode support.
+- `UiMenuBar`: top-level menu control with dropdowns, separators, checkable items, nested submenus, command IDs, shortcut dispatch, keyboard navigation, and popup mode support.
 - `UiTreeNode`: expandable tree node with indented child content (header text can be bold).
 - `UiCollapsingHeader`: expandable header for grouping child content.
 - `UiTooltip`: overlay tooltip panel for hover hints.
-- `UiTooltipRegion`: invisible hover region that triggers a tooltip.
+- `UiTooltipRegion`: invisible hover/focus helper that triggers a tooltip without stealing hit tests from the target control.
+- `UiContextMenuRegion`: invisible helper that opens an attached popup or popup-mode menu for a target element.
 - `UiPopup`: overlay popup panel with outside-click/escape close behavior.
 - `UiModal`: modal popup with a backdrop overlay.
 - `UiModalHost`: container that blocks input to non-modal children when a modal is open.
 - `UiCombo`, `UiListView`, `UiSelectableRow`, and `UiChildRegion`: retained composition APIs for rich combo/list/popup content and embedded clipped child regions.
-- `IUiImageSource` and `UiDelegateImageSource`: reusable image adapters for thumbnail/icon rows and other repeated draw surfaces.
+- `IUiImageSource` and `UiDelegateImageSource`: reusable image adapters for thumbnail/icon rows and other repeated draw surfaces, with optional debug-name and intrinsic-size metadata.
 
 ## Notes
 - All bounds are absolute (`UiRect`), so layout is explicit.
 - Controls are renderer-agnostic; rendering is done by the host adapter.
-- `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame, SDL2-CS, Silk.NET, and OpenGL adapters (Latin-1/CP437).
+- `TinyBitmapFont` is a renderer-agnostic bitmap font helper used for ASCII/code-page fallback and legacy demos (Latin-1/CP437).
 - `UiFont`, `UiFontBuilder`, `UiFontRegistry`, and `UiCodePointRange` are the core font APIs for custom font files, fallback chains, and merged icon ranges.
 - Use `UiContext.DefaultFont` for inherited font selection and `UiElement.Font` for per-element overrides.
 - Set `UiContext.Clipboard` when a host wants system clipboard integration; otherwise the default in-memory clipboard still enables copy/cut/paste within the UI session.
-- The shipped first-pass runtime uses shared renderer glyph caches for custom fonts and inline icon text; HarfBuzz-backed shaping and Slug-backed GPU text rendering remain optional follow-on work in `IMGUI_PARITY_ATTACK_PLAN.MD`.
+- The shipped first-pass runtime now uses shared atlas-backed renderer glyph caches for custom fonts and inline icon text; HarfBuzz-backed shaping and Slug-backed GPU text rendering remain optional follow-on work in `IMGUI_PARITY_ATTACK_PLAN.MD`.
+- `UiInputState.Composition` and `UiTextInputRequest` are the core hooks for host-side IME/preedit integration; the SDL example host currently provides the concrete native candidate-rect reference path.
 - `UiPopup.OpenAttached(...)` and `UiPopup.OpenContext(...)` are the preferred helpers for anchored and point-based popup opening in retained demos.
 - `UiMenuBar.OpenAttached(...)` and `UiMenuBar.OpenContext(...)` provide the same anchored and point-based helpers for popup-mode menus.
 - `UiChildRegion` is an embedded clipped viewport inside an existing parent; use it for framed sub-content, and use `UiWindow` when the content needs independent title/chrome/focus behavior.
@@ -148,11 +155,19 @@ This is a brief overview of the current OpenControls surface area.
 - Use `UiContext.RequestFocus`, `RequestFocusById`, `RequestFocusFirst`, and `RequestFocusChild` for code-driven focus changes, including next-frame focus.
 
 ## Menu Notes
-- `UiMenuBar.MenuItem`: data objects describing menu entries, separators, shortcuts, and submenus.
+- `UiMenuBar.MenuItem`: data objects describing menu entries, separators, shortcuts, command IDs, and submenus.
+- `MenuItem.CommandId` and `UiMenuBar.TryInvokeCommand(...)` let callers route the same menu item from mouse, keyboard shortcut, or programmatic command paths.
+- `MenuItem.Invoked` and `UiMenuBar.ItemInvoked` report the activation source through `UiMenuItemActivationSource`.
 - `UiMenuBar.MeasureTextWidth/MeasureTextHeight`: set these when you need accurate sizing for a custom renderer.
+- Set `UiMenuBar.EnableShortcutDispatch = true` when the menu should parse and dispatch `MenuItem.Shortcut` text instead of rendering it as a label only.
 - Set `UiMenuBar.DisplayMode` to `Popup` and call `OpenPopup`/`ClosePopup`/`TogglePopup` for context-style menus anchored to `Bounds`.
 - `MenuItem.Content` can host custom controls (tables, sliders, panels); use `ContentWidth`/`ContentHeight` and `ContentPadding` to size the row, and `ContentClip`/`ContentCapturesInput` to control input behavior.
 - Menu dropdowns clamp to the nearest scroll panel viewport when present, otherwise to ancestor bounds in local coordinates.
+
+## Overlay Notes
+- `UiContextMenuRegion.Target` lets a popup or popup-mode menu follow a separate control without needing a manual overlay wrapper element in the layout tree.
+- `UiTooltipRegion.HoverTarget` and `FocusTarget` support delayed hover tooltips plus keyboard-focus tooltips for the same target control.
+- `UiTooltipRegion` is hit-test transparent, so it can sit beside interactive controls without stealing pointer input.
 
 ## Modal Notes
 - `UiModalHost.ActiveModal` returns the topmost open modal when one is blocking input.

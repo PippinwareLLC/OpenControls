@@ -11,7 +11,7 @@ public sealed class ExamplesUi
     private const int FontScale = 2;
     private const int Padding = 12;
     private const int SplitterSize = 6;
-    private const int WidgetGalleryContentHeight = 3520;
+    private const int WidgetGalleryContentHeight = 4080;
     private const string IconGear = "\uf013";
     private const string IconFolderOpen = "\uf07c";
     private const string IconSave = "\uf0c7";
@@ -579,6 +579,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     public bool WantCaptureMouse => _context?.WantCaptureMouse ?? false;
     public bool WantCaptureKeyboard => _context?.WantCaptureKeyboard ?? false;
     public bool WantTextInput => _context?.WantTextInput ?? false;
+    public UiTextInputRequest? TextInputRequest => _context?.TextInputRequest;
     public UiMouseCursor RequestedMouseCursor => _context?.RequestedMouseCursor ?? UiMouseCursor.Arrow;
     public IUiClipboard Clipboard
     {
@@ -679,7 +680,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _serializationLabel = new UiLabel
         {
-            Text = "UI State: Press F5 to save, F9 to load.",
+            Text = "UI State: Press F5 to save, F9 to load richer editor state.",
             Color = UiColor.White,
             Scale = FontScale
         };
@@ -3828,21 +3829,23 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _menuBar = new UiMenuBar
         {
             TextScale = FontScale,
-            BarHeight = 24
+            BarHeight = 24,
+            EnableShortcutDispatch = true,
+            AllowShortcutsDuringTextInput = true
         };
         _menuBar.MeasureTextWidth = (text, scale) => MeasureElementTextWidth(_menuBar, text, scale);
         _menuBar.MeasureTextHeight = scale => MeasureElementTextHeight(_menuBar, scale);
 
         UiMenuBar.MenuItem fileMenu = new() { Text = "File" };
-        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "New", Shortcut = "Ctrl+N", Clicked = item => _menuStatus = $"Menu: {item.Text}" });
-        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Open", Shortcut = "Ctrl+O", Clicked = item => _menuStatus = $"Menu: {item.Text}" });
-        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Save", Shortcut = "Ctrl+S", Clicked = item => _menuStatus = $"Menu: {item.Text}" });
-        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Save As", Shortcut = "Ctrl+Shift+S", Clicked = item => _menuStatus = $"Menu: {item.Text}" });
+        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "New", CommandId = "app.file.new", Shortcut = "Ctrl+N", Clicked = item => _menuStatus = $"Menu: {item.Text}" });
+        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Open", CommandId = "app.file.open", Shortcut = "Ctrl+O", Clicked = item => _menuStatus = $"Menu: {item.Text}" });
+        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Save", CommandId = "app.file.save", Shortcut = "Ctrl+S", Clicked = item => _menuStatus = $"Menu: {item.Text}" });
+        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Save As", CommandId = "app.file.save-as", Shortcut = "Ctrl+Shift+S", Clicked = item => _menuStatus = $"Menu: {item.Text}" });
         fileMenu.Items.Add(UiMenuBar.MenuItem.Separator());
-        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Exit", Clicked = _ => ExitRequested?.Invoke() });
+        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Exit", CommandId = "app.file.exit", Clicked = _ => ExitRequested?.Invoke() });
 
         UiMenuBar.MenuItem viewMenu = new() { Text = "View" };
-        UiMenuBar.MenuItem showHelp = new() { Text = "Show Help", IsCheckable = true, Checked = true };
+        UiMenuBar.MenuItem showHelp = new() { Text = "Show Help", CommandId = "app.view.help", IsCheckable = true, Checked = true };
         showHelp.Clicked = item =>
         {
             if (_helpLabel != null)
@@ -3853,7 +3856,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _menuStatus = $"Menu: {item.Text} {(item.Checked ? "On" : "Off")}";
         };
 
-        UiMenuBar.MenuItem showStatus = new() { Text = "Show Status Bar", IsCheckable = true, Checked = true };
+        UiMenuBar.MenuItem showStatus = new() { Text = "Show Status Bar", CommandId = "app.view.status", IsCheckable = true, Checked = true };
         showStatus.Clicked = item =>
         {
             if (_statusLabel != null)
@@ -5556,7 +5559,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         if (_serializationLabel != null)
         {
-            _serializationLabel.Text = $"UI State: Press F5 to save, F9 to load. ({GetStatePath()})";
+            _serializationLabel.Text = $"UI State: Press F5 to save, F9 to load richer editor state. ({GetStatePath()})";
         }
     }
 
@@ -5852,9 +5855,12 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             string buttons = $"Buttons {FormatMouseButtons(input)}";
             string scrollText = $"Scroll ({input.ScrollDeltaX},{input.ScrollDelta})";
             string textInput = input.TextInput.Count > 0 ? $"Text '{input.TextInput[input.TextInput.Count - 1]}'" : "Text -";
+            string composition = input.Composition.IsActive
+                ? $"Preedit '{input.Composition.Text}'"
+                : "Preedit -";
             string pressedKeys = FormatPressedKeys(input.KeysPressed);
             string clickInfo = FormatClickInfo(input);
-            _inputInfoLabel.Text = $"Input: Mouse ({input.MousePosition.X},{input.MousePosition.Y}) {scrollText} {buttons} {clickInfo} Mods {modifiers} {textInput} Keys {pressedKeys}";
+            _inputInfoLabel.Text = $"Input: Mouse ({input.MousePosition.X},{input.MousePosition.Y}) {scrollText} {buttons} {clickInfo} Mods {modifiers} {textInput} {composition} Keys {pressedKeys}";
         }
 
         if (_context == null)
@@ -6382,6 +6388,18 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         });
     }
 
+    private static IUiImageSource CreateColorChipSource(UiColor color, int size)
+    {
+        return new UiDelegateImageSource(
+            (renderer, bounds) =>
+            {
+                renderer.FillRect(bounds, color);
+                renderer.DrawRect(bounds, new UiColor(12, 12, 14), 1);
+            },
+            () => new UiPoint(size, size),
+            $"Color chip {color.R},{color.G},{color.B}");
+    }
+
     private static UiElement CreateTableHeaderContent(string title, string subtitle, UiColor accent)
     {
         UiStack root = new()
@@ -6826,6 +6844,520 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         AddSectionChild(numericSection, sliderVectorRow, 52);
         AddGallerySection(_widgetGalleryRoot, numericSection, 206);
 
+        UiStack milestone11Section = CreateGallerySection(
+            "Milestone 11 Numeric And Color Depth",
+            "Ctrl/Cmd+click or double-click enters direct numeric input where allowed. These rows cover clamp vs wrap, rounded vs full-precision values, vector/range parity, and the new RGB / HSV / HEX color workflows with picker popup and drag/drop support.");
+
+        UiStack sliderDepthRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiSlider clampInputSlider = new()
+        {
+            TextScale = FontScale,
+            Min = 0f,
+            Max = 1f,
+            Step = 0.125f,
+            Value = 0.375f,
+            ValueFormat = "0.000",
+            Flags = UiSliderFlags.AlwaysClamp,
+            Bounds = new UiRect(0, 0, 180, 32)
+        };
+        UiSlider wrapSlider = new()
+        {
+            TextScale = FontScale,
+            Min = 0f,
+            Max = 1f,
+            Step = 0.25f,
+            Value = 0.75f,
+            ValueFormat = "0.00",
+            Flags = UiSliderFlags.AlwaysClamp | UiSliderFlags.WrapAround,
+            Bounds = new UiRect(0, 0, 180, 32)
+        };
+        UiSlider noInputSlider = new()
+        {
+            TextScale = FontScale,
+            Min = -1f,
+            Max = 1f,
+            Step = 0.1f,
+            Value = 0.2f,
+            ValueFormat = "0.0",
+            Flags = UiSliderFlags.AlwaysClamp | UiSliderFlags.NoInput,
+            Bounds = new UiRect(0, 0, 180, 32)
+        };
+        UiTextBlock sliderDepthNote = new()
+        {
+            Text =
+                "Left: default direct-input path.\n" +
+                "Middle: wrap-around stays within range.\n" +
+                "Right: NoInput disables the temporary text entry mode.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 56)
+        };
+        AddRowFixedChild(sliderDepthRow, clampInputSlider, 192, 32);
+        AddRowFixedChild(sliderDepthRow, wrapSlider, 192, 32);
+        AddRowFixedChild(sliderDepthRow, noInputSlider, 192, 32);
+        AddRowFillChild(sliderDepthRow, sliderDepthNote, 56);
+        AddSectionChild(milestone11Section, sliderDepthRow, 60);
+
+        UiStack dragPrecisionRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiDragFloat roundedDrag = new()
+        {
+            TextScale = FontScale,
+            Min = 0f,
+            Max = 1f,
+            Speed = 0.005f,
+            Value = 0.333f,
+            ValueFormat = "0.00",
+            Flags = UiDragFlags.AlwaysClamp,
+            Bounds = new UiRect(0, 0, 180, 30)
+        };
+        UiDragFloat preciseDrag = new()
+        {
+            TextScale = FontScale,
+            Min = 0f,
+            Max = 1f,
+            Speed = 0.005f,
+            Value = 0.333f,
+            ValueFormat = "0.00",
+            Flags = UiDragFlags.AlwaysClamp | UiDragFlags.NoRoundToFormat,
+            Bounds = new UiRect(0, 0, 180, 30)
+        };
+        UiLabel dragPrecisionStatus = CreateGalleryInfoLabel(string.Empty);
+        void UpdateDragPrecisionStatus()
+        {
+            dragPrecisionStatus.Text =
+                $"Rounded backing value: {roundedDrag.Value:0.000000} | " +
+                $"NoRound backing value: {preciseDrag.Value:0.000000}";
+        }
+
+        roundedDrag.ValueChanged += _ => UpdateDragPrecisionStatus();
+        preciseDrag.ValueChanged += _ => UpdateDragPrecisionStatus();
+        UpdateDragPrecisionStatus();
+
+        AddRowFixedChild(dragPrecisionRow, roundedDrag, 192, 30);
+        AddRowFixedChild(dragPrecisionRow, preciseDrag, 192, 30);
+        AddRowFillChild(dragPrecisionRow, dragPrecisionStatus, 18);
+        AddSectionChild(milestone11Section, dragPrecisionRow, 34);
+
+        UiStack vectorDepthRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiDragFloat3 vectorDrag = new()
+        {
+            TextScale = FontScale,
+            Min = -1f,
+            Max = 1f,
+            Speed = 0.05f,
+            Step = 0.1f,
+            ValueFormat = "0.0",
+            Flags = UiDragFlags.AlwaysClamp | UiDragFlags.WrapAround | UiDragFlags.NoRoundToFormat,
+            Bounds = new UiRect(0, 0, 280, 36)
+        };
+        vectorDrag.ValueX = -0.4f;
+        vectorDrag.ValueY = 0.1f;
+        vectorDrag.ValueZ = 0.7f;
+        UiSliderFloat3 vectorDepthSlider = new()
+        {
+            TextScale = FontScale,
+            Min = -1f,
+            Max = 1f,
+            Step = 0.25f,
+            ValueFormat = "0.00",
+            Flags = UiSliderFlags.AlwaysClamp | UiSliderFlags.WrapAround,
+            Bounds = new UiRect(0, 0, 280, 40)
+        };
+        vectorDepthSlider.ValueX = -0.5f;
+        vectorDepthSlider.ValueY = 0f;
+        vectorDepthSlider.ValueZ = 0.5f;
+        UiDragIntRange rangeDepth = new()
+        {
+            TextScale = FontScale,
+            Min = 0,
+            Max = 8,
+            ValueMin = 2,
+            ValueMax = 6,
+            Step = 1,
+            Flags = UiDragFlags.AlwaysClamp | UiDragFlags.WrapAround,
+            Bounds = new UiRect(0, 0, 220, 30)
+        };
+        UiTextBlock vectorDepthNote = new()
+        {
+            Text =
+                "Vector drags, vector sliders, and range drags all inherit the same direct-input, wrap, and clamp semantics instead of diverging by widget type.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 52)
+        };
+        AddRowFixedChild(vectorDepthRow, vectorDrag, 292, 36);
+        AddRowFixedChild(vectorDepthRow, vectorDepthSlider, 292, 40);
+        AddRowFixedChild(vectorDepthRow, rangeDepth, 232, 30);
+        AddRowFillChild(vectorDepthRow, vectorDepthNote, 52);
+        AddSectionChild(milestone11Section, vectorDepthRow, 56);
+
+        UiStack colorEditModesRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiColorEdit rgbColorEdit = new()
+        {
+            TextScale = FontScale,
+            ShowAlpha = true,
+            Color = new UiColor(84, 146, 238, 220),
+            DisplayMode = UiColorDisplayMode.Rgb,
+            ValueDisplayMode = UiColorValueDisplayMode.Byte,
+            Bounds = new UiRect(0, 0, 240, 124)
+        };
+        UiColorEdit hsvColorEdit = new()
+        {
+            TextScale = FontScale,
+            ShowAlpha = true,
+            Color = new UiColor(84, 146, 238, 220),
+            DisplayMode = UiColorDisplayMode.Hsv,
+            ValueDisplayMode = UiColorValueDisplayMode.Float,
+            Bounds = new UiRect(0, 0, 240, 124)
+        };
+        UiColorEdit hexColorEdit = new()
+        {
+            TextScale = FontScale,
+            ShowAlpha = true,
+            ShowPreview = false,
+            Color = new UiColor(84, 146, 238, 220),
+            DisplayMode = UiColorDisplayMode.Hex,
+            ValueDisplayMode = UiColorValueDisplayMode.Byte,
+            Bounds = new UiRect(0, 0, 240, 52)
+        };
+        UiTextBlock colorEditNote = new()
+        {
+            Text =
+                "RGB, HSV, and HEX are all live. The header buttons cycle modes/value display, and the picker button opens the embedded popup picker.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 80)
+        };
+        AddRowFixedChild(colorEditModesRow, rgbColorEdit, 252, 124);
+        AddRowFixedChild(colorEditModesRow, hsvColorEdit, 252, 124);
+        AddRowFixedChild(colorEditModesRow, hexColorEdit, 252, 52);
+        AddRowFillChild(colorEditModesRow, colorEditNote, 80);
+        AddSectionChild(milestone11Section, colorEditModesRow, 128);
+
+        UiStack colorPickerDepthRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiColorPicker fullPicker = new()
+        {
+            ShowAlpha = true,
+            ShowPreview = true,
+            ShowInputFields = true,
+            AllowColorDragDrop = true,
+            Color = new UiColor(220, 110, 140, 220),
+            Bounds = new UiRect(0, 0, 300, 220)
+        };
+        UiColorPicker compactPicker = new()
+        {
+            ShowAlpha = true,
+            ShowPreview = false,
+            ShowInputFields = false,
+            AllowColorDragDrop = true,
+            Color = new UiColor(110, 180, 120, 255),
+            Bounds = new UiRect(0, 0, 180, 180)
+        };
+        UiColorButton dragSwatch = new()
+        {
+            Color = new UiColor(255, 180, 80, 220),
+            ShowAlpha = true,
+            AllowColorDragDrop = true,
+            Bounds = new UiRect(0, 0, 40, 40)
+        };
+        UiColorButton dropSwatch = new()
+        {
+            Color = new UiColor(70, 80, 100, 255),
+            ShowAlpha = true,
+            AcceptDroppedColors = true,
+            Bounds = new UiRect(0, 0, 40, 40)
+        };
+        UiTextBlock colorPickerNote = new()
+        {
+            Text =
+                "Left picker shows side preview + embedded input fields. Middle picker demonstrates no-preview / no-input mode. Drag colors from the swatches or full-picker preview, then drop onto either picker body or the target swatch to verify color drag/drop.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 110)
+        };
+        UiStack swatchColumn = new()
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Start,
+            Gap = 12
+        };
+        swatchColumn.AddChild(dragSwatch);
+        swatchColumn.SetLayout(dragSwatch, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(40),
+            CrossLength = UiLayoutLength.Fixed(40)
+        });
+        swatchColumn.AddChild(dropSwatch);
+        swatchColumn.SetLayout(dropSwatch, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(40),
+            CrossLength = UiLayoutLength.Fixed(40)
+        });
+        AddRowFixedChild(colorPickerDepthRow, fullPicker, 312, 220);
+        AddRowFixedChild(colorPickerDepthRow, compactPicker, 192, 180);
+        AddRowFixedChild(colorPickerDepthRow, swatchColumn, 52, 96);
+        AddRowFillChild(colorPickerDepthRow, colorPickerNote, 110);
+        AddSectionChild(milestone11Section, colorPickerDepthRow, 224);
+        AddGallerySection(_widgetGalleryRoot, milestone11Section, 530);
+
+        UiStack milestone12Section = CreateGallerySection(
+            "Milestone 12 Menus, Popups, Tooltips, And Overlay Polish",
+            "This section proves the overlay polish pass: command IDs, parsed shortcuts, keyboard menu navigation, item-attached context helpers, delayed/focus tooltips, and nested popup dismissal.");
+
+        UiLabel overlayStatus = CreateGalleryInfoLabel("Overlay command: ready");
+
+        UiMenuBar commandMenuBar = new()
+        {
+            TextScale = FontScale,
+            BarHeight = 24,
+            EnableShortcutDispatch = true,
+            AllowShortcutsDuringTextInput = true
+        };
+        commandMenuBar.MeasureTextWidth = (text, scale) => MeasureElementTextWidth(commandMenuBar, text, scale);
+        commandMenuBar.MeasureTextHeight = scale => MeasureElementTextHeight(commandMenuBar, scale);
+        commandMenuBar.ItemInvoked += (item, source) =>
+        {
+            string commandId = string.IsNullOrEmpty(item.CommandId) ? item.Text : item.CommandId;
+            overlayStatus.Text = $"Overlay command: {commandId} via {source}";
+        };
+
+        UiMenuBar.MenuItem overlayMenu = new() { Text = "Overlay" };
+        overlayMenu.Items.Add(new UiMenuBar.MenuItem
+        {
+            Text = "Save Layout",
+            CommandId = "gallery.overlay.save",
+            Shortcut = "Ctrl+Alt+S"
+        });
+        overlayMenu.Items.Add(new UiMenuBar.MenuItem
+        {
+            Text = "Open Search",
+            CommandId = "gallery.overlay.search",
+            Shortcut = "Ctrl+Alt+P"
+        });
+        overlayMenu.Items.Add(UiMenuBar.MenuItem.Separator());
+        overlayMenu.Items.Add(new UiMenuBar.MenuItem
+        {
+            Text = "Show Guides",
+            CommandId = "gallery.overlay.guides",
+            Shortcut = "Ctrl+Alt+G",
+            IsCheckable = true,
+            Checked = true
+        });
+
+        UiMenuBar.MenuItem toolsMenu = new() { Text = "Tools" };
+        toolsMenu.Items.Add(new UiMenuBar.MenuItem
+        {
+            Text = "Overlay Inspector",
+            CommandId = "gallery.overlay.inspector",
+            Shortcut = "Ctrl+Alt+I"
+        });
+        toolsMenu.Items.Add(new UiMenuBar.MenuItem
+        {
+            Text = "Focus Debug",
+            CommandId = "gallery.overlay.focus",
+            Shortcut = "Ctrl+Alt+F"
+        });
+
+        commandMenuBar.Items.Add(overlayMenu);
+        commandMenuBar.Items.Add(toolsMenu);
+        AddSectionChild(milestone12Section, commandMenuBar, 24);
+
+        UiStack overlayCommandRow = CreateGalleryRow();
+        UiButton focusMenuButton = new() { Text = "Focus Menu Bar", TextScale = FontScale };
+        focusMenuButton.Clicked += () => _context?.RequestFocus(commandMenuBar);
+        UiButton invokeSaveButton = new() { Text = "Invoke Save Command", TextScale = FontScale };
+        invokeSaveButton.Clicked += () =>
+        {
+            if (!commandMenuBar.TryInvokeCommand("gallery.overlay.save"))
+            {
+                overlayStatus.Text = "Overlay command: save command missing";
+            }
+        };
+        UiTextBlock overlayMenuNote = new()
+        {
+            Text =
+                "Use mouse, Tab + arrows + Enter, Ctrl/Cmd+Alt+S, or the Invoke button. " +
+                "All of those routes land in the same menu command path.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 42)
+        };
+        AddRowFixedChild(overlayCommandRow, focusMenuButton, 144, 28);
+        AddRowFixedChild(overlayCommandRow, invokeSaveButton, 180, 28);
+        AddRowFillChild(overlayCommandRow, overlayMenuNote, 42);
+        AddSectionChild(milestone12Section, overlayCommandRow, 46);
+        AddSectionChild(milestone12Section, overlayStatus, 18);
+
+        UiStack overlayContextRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiButton attachedMenuSurface = new()
+        {
+            Text = "Right-click: Attached Menu",
+            TextScale = FontScale
+        };
+        UiMenuBar attachedMenu = new()
+        {
+            DisplayMode = UiMenuDisplayMode.Popup,
+            TextScale = FontScale,
+            DropdownMinWidth = 200
+        };
+        attachedMenu.MeasureTextWidth = (text, scale) => MeasureElementTextWidth(attachedMenu, text, scale);
+        attachedMenu.MeasureTextHeight = scale => MeasureElementTextHeight(attachedMenu, scale);
+        attachedMenu.ItemInvoked += (item, source) => overlayStatus.Text = $"Overlay command: {item.Text} via {source}";
+        attachedMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Duplicate", CommandId = "gallery.context.duplicate" });
+        attachedMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Rename", CommandId = "gallery.context.rename" });
+        attachedMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Reveal In Finder", CommandId = "gallery.context.reveal" });
+        UiContextMenuRegion attachedMenuRegion = new()
+        {
+            Menu = attachedMenu,
+            Target = attachedMenuSurface
+        };
+        _widgetGalleryWindow.AddChild(attachedMenu);
+        _widgetGalleryWindow.AddChild(attachedMenuRegion);
+
+        UiButton attachedPopupSurface = new()
+        {
+            Text = "Right-click: Attached Popup",
+            TextScale = FontScale
+        };
+        UiPopup parentPopup = new()
+        {
+            Background = new UiColor(20, 24, 34),
+            Border = new UiColor(90, 100, 120),
+            CornerRadius = 6
+        };
+        UiLabel parentPopupLabel = new()
+        {
+            Text = "Parent popup",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+        UiButton nestedPopupButton = new()
+        {
+            Text = "Open Nested Popup",
+            TextScale = FontScale
+        };
+        UiPopup childPopup = new()
+        {
+            Background = new UiColor(24, 28, 38),
+            Border = new UiColor(100, 110, 130),
+            CornerRadius = 6,
+            ClampToParent = false
+        };
+        UiTextBlock childPopupLabel = new()
+        {
+            Text = "Clicks inside this child popup should not immediately dismiss the parent popup anymore.",
+            Color = new UiColor(220, 225, 235),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 6
+        };
+        parentPopup.AddChild(parentPopupLabel);
+        parentPopup.AddChild(nestedPopupButton);
+        parentPopup.AddChild(childPopup);
+        childPopup.AddChild(childPopupLabel);
+        parentPopup.Opened += () =>
+        {
+            UiRect bounds = parentPopup.Bounds;
+            parentPopupLabel.Bounds = new UiRect(bounds.X + 10, bounds.Y + 10, bounds.Width - 20, 18);
+            nestedPopupButton.Bounds = new UiRect(bounds.X + 10, bounds.Bottom - 38, 180, 28);
+        };
+        childPopup.Opened += () =>
+        {
+            UiRect bounds = childPopup.Bounds;
+            childPopupLabel.Bounds = new UiRect(bounds.X + 6, bounds.Y + 6, bounds.Width - 12, bounds.Height - 12);
+        };
+        nestedPopupButton.Clicked += () =>
+        {
+            childPopup.OpenAttached(nestedPopupButton.Bounds, new UiPoint(180, 74), UiPopupPlacement.BottomRight);
+            overlayStatus.Text = "Overlay command: nested popup opened";
+        };
+        UiContextMenuRegion attachedPopupRegion = new()
+        {
+            Popup = parentPopup,
+            PopupSize = new UiPoint(240, 96),
+            Target = attachedPopupSurface
+        };
+        _widgetGalleryWindow.AddChild(parentPopup);
+        _widgetGalleryWindow.AddChild(attachedPopupRegion);
+
+        UiTextBlock overlayContextNote = new()
+        {
+            Text =
+                "Left: attached context menu helper. Right: attached popup helper with nested child popup. " +
+                "These are the reusable item-bound helpers that were missing before this milestone.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 78)
+        };
+        AddRowFixedChild(overlayContextRow, attachedMenuSurface, 232, 36);
+        AddRowFixedChild(overlayContextRow, attachedPopupSurface, 252, 36);
+        AddRowFillChild(overlayContextRow, overlayContextNote, 78);
+        AddSectionChild(milestone12Section, overlayContextRow, 82);
+
+        UiStack tooltipPolicyRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiButton tooltipTargetButton = new()
+        {
+            Text = "Hover Or Focus Me",
+            TextScale = FontScale
+        };
+        UiTooltip galleryTooltip = new()
+        {
+            TextScale = FontScale,
+            Background = new UiColor(20, 24, 34),
+            Border = new UiColor(90, 100, 120),
+            TextColor = UiColor.White
+        };
+        UiTooltipRegion galleryTooltipRegion = new()
+        {
+            Tooltip = galleryTooltip,
+            Text = "Delayed hover, keyboard-focus tooltip path, and drag suppression all come from UiTooltipRegion now.",
+            HoverTarget = tooltipTargetButton,
+            FocusTarget = tooltipTargetButton,
+            HoverDelaySeconds = 0.35f,
+            FocusDelaySeconds = 0.15f
+        };
+        _widgetGalleryWindow.AddChild(galleryTooltip);
+        _widgetGalleryWindow.AddChild(galleryTooltipRegion);
+
+        UiButton focusTooltipButton = new() { Text = "Programmatically Focus", TextScale = FontScale };
+        focusTooltipButton.Clicked += () => _context?.RequestFocus(tooltipTargetButton);
+        UiTextBlock tooltipPolicyNote = new()
+        {
+            Text =
+                "Hover the target for the delayed tooltip path, or focus it with Tab / the button for the keyboard path. " +
+                "The helper region is hit-test transparent, so it does not steal clicks from the button underneath.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 78)
+        };
+        AddRowFixedChild(tooltipPolicyRow, tooltipTargetButton, 242, 36);
+        AddRowFixedChild(tooltipPolicyRow, focusTooltipButton, 210, 28);
+        AddRowFillChild(tooltipPolicyRow, tooltipPolicyNote, 78);
+        AddSectionChild(milestone12Section, tooltipPolicyRow, 82);
+        AddGallerySection(_widgetGalleryRoot, milestone12Section, 286);
+
         UiStack selectionSection = CreateGallerySection(
             "Selection, Combo, And Empty States",
             "The main Widgets tree already covers the standard list and combo paths. These rows add the empty-state, filterable, and standalone row variants.");
@@ -6888,6 +7420,50 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         AddRowFixedChild(richComboRow, filterableCombo, 272, 28);
         AddRowFillChild(richComboRow, richComboStatus, 18);
         AddSectionChild(selectionSection, richComboRow, 32);
+
+        UiStack pickerRow = CreateGalleryRow();
+        UiPicker assetPicker = new()
+        {
+            TextScale = FontScale,
+            Placeholder = "Editor picker",
+            FilterPlaceholder = "Search assets",
+            DropdownWidth = 320,
+            DropdownMaxHeight = 184,
+            Bounds = new UiRect(0, 0, 260, 28),
+            Items =
+            [
+                new UiPickerItem
+                {
+                    Text = "MainScene.world",
+                    SecondaryText = "Scene / World",
+                    SearchText = "main scene world",
+                    ImageSource = CreateColorChipSource(new UiColor(84, 146, 238), 18)
+                },
+                new UiPickerItem
+                {
+                    Text = "Character.material",
+                    SecondaryText = "Material / Shader Graph",
+                    SearchText = "character material shader graph",
+                    ImageSource = CreateColorChipSource(new UiColor(110, 180, 120), 18)
+                },
+                new UiPickerItem
+                {
+                    Text = "Console.layout",
+                    SecondaryText = "Workspace Preset",
+                    SearchText = "console layout workspace preset",
+                    ImageSource = CreateColorChipSource(new UiColor(180, 120, 220), 18)
+                }
+            ]
+        };
+        assetPicker.SelectedIndex = 1;
+        UiLabel pickerStatus = CreateGalleryInfoLabel("Picker: Character.material");
+        assetPicker.SelectionChanged += _ =>
+        {
+            pickerStatus.Text = $"Picker: {assetPicker.SelectedItem?.Text ?? "None"}";
+        };
+        AddRowFixedChild(pickerRow, assetPicker, 272, 28);
+        AddRowFillChild(pickerRow, pickerStatus, 18);
+        AddSectionChild(selectionSection, pickerRow, 32);
 
         UiStack listViewRow = CreateGalleryRow(UiStackAlignment.Start);
         UiListView emptyListView = new()
@@ -8405,7 +8981,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         }
 
         string kind = value.IsMultiLine ? "multi" : "single";
-        return $"{kind}@{value.Bounds.X},{value.Bounds.Y} {value.Bounds.Width}x{value.Bounds.Height}";
+        return
+            $"{kind}@{value.Bounds.X},{value.Bounds.Y} {value.Bounds.Width}x{value.Bounds.Height} " +
+            $"Caret {FormatRect(value.CaretBounds)} Candidate {FormatRect(value.CandidateBounds)} " +
+            $"Compose {FormatBool(value.SupportsComposition)}";
     }
 
     private static void AppendModifier(StringBuilder builder, bool enabled, string label)

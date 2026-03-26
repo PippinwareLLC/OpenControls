@@ -1,9 +1,12 @@
+using OpenControls.State;
+
 namespace OpenControls.Controls;
 
-public sealed class UiTextField : UiElement
+public sealed class UiTextField : UiElement, IUiStatefulElement
 {
     private readonly UiTextEditingState _editingState = new();
     private UiFont _layoutFont = UiFont.Default;
+    private UiTextCompositionState _composition;
     private bool _focused;
     private float _caretTimer;
     private bool _caretVisible = true;
@@ -30,6 +33,7 @@ public sealed class UiTextField : UiElement
     public int SelectionLength => _editingState.SelectionLength;
     public string SelectedText => _editingState.GetSelectedText();
     public int HorizontalScrollOffset => _horizontalScrollOffset;
+    public UiTextCompositionState Composition => _composition;
     public int MaxLength { get; set; } = 200;
     public int Padding { get; set; } = 4;
     public int TextScale { get; set; } = 1;
@@ -45,6 +49,8 @@ public sealed class UiTextField : UiElement
     public UiColor PlaceholderColor { get; set; } = new UiColor(120, 130, 150);
     public UiColor CaretColor { get; set; } = UiColor.White;
     public UiColor SelectionBackground { get; set; } = new UiColor(72, 114, 196, 180);
+    public UiColor CompositionTextColor { get; set; } = new UiColor(224, 228, 240);
+    public UiColor CompositionUnderlineColor { get; set; } = new UiColor(132, 156, 220);
     public int CornerRadius { get; set; }
     public Func<char, bool>? CharacterFilter { get; set; }
     public Func<UiTextField, int, int>? ResizeCallback { get; set; }
@@ -82,6 +88,17 @@ public sealed class UiTextField : UiElement
         ResetCaretBlink();
     }
 
+    public void SelectRange(int anchorIndex, int caretIndex)
+    {
+        _editingState.SelectRange(anchorIndex, caretIndex);
+        ResetCaretBlink();
+    }
+
+    public void SetHorizontalScrollOffset(int offset)
+    {
+        _horizontalScrollOffset = Math.Max(0, offset);
+    }
+
     public override void Update(UiUpdateContext context)
     {
         if (!Visible || !Enabled)
@@ -98,10 +115,15 @@ public sealed class UiTextField : UiElement
 
         if (_focused)
         {
+            _composition = input.Composition;
             HandleShortcutInput(context, input);
             HandleNavigation(context, input);
             HandleTextInput(input.TextInput);
             UpdateCaretBlink(context.DeltaSeconds);
+        }
+        else if (_composition.IsActive)
+        {
+            _composition = UiTextCompositionState.Empty;
         }
 
         base.Update(context);
@@ -149,6 +171,11 @@ public sealed class UiTextField : UiElement
 
         context.Renderer.DrawText(displayText, new UiPoint(textX - _horizontalScrollOffset, textY), displayColor, TextScale, font);
 
+        if (_focused && _composition.IsActive)
+        {
+            DrawComposition(context.Renderer, renderText, textX, textY, font);
+        }
+
         if (_focused && _caretVisible)
         {
             int caretWidth = Math.Max(1, Math.Min(2, TextScale));
@@ -174,6 +201,7 @@ public sealed class UiTextField : UiElement
         _dragSelecting = false;
         _caretVisible = false;
         _caretTimer = 0f;
+        _composition = UiTextCompositionState.Empty;
         _editingState.ClearSelection();
         _editingState.EndSession();
     }
@@ -198,7 +226,11 @@ public sealed class UiTextField : UiElement
             return false;
         }
 
-        request = new UiTextInputRequest(Bounds, isMultiLine: false);
+        UiRect caretBounds = GetCaretBounds(_layoutFont);
+        UiRect candidateBounds = _composition.IsActive
+            ? new UiRect(caretBounds.X, caretBounds.Y, Math.Max(caretBounds.Width, MeasureCompositionWidth(_layoutFont)), caretBounds.Height)
+            : caretBounds;
+        request = new UiTextInputRequest(Bounds, isMultiLine: false, caretBounds: caretBounds, candidateBounds: candidateBounds);
         return true;
     }
 
@@ -586,6 +618,42 @@ public sealed class UiTextField : UiElement
         ResetCaretBlink();
     }
 
+    public void CaptureState(UiElementState state)
+    {
+        state.Text = Text;
+        state.CaretIndex = CaretIndex;
+        state.SelectionAnchor = _editingState.SelectionAnchor;
+        state.SelectionStart = SelectionStart;
+        state.SelectionEnd = SelectionEnd;
+        state.ScrollX = _horizontalScrollOffset;
+    }
+
+    public void ApplyState(UiElementState state)
+    {
+        if (state.Text != null)
+        {
+            Text = state.Text;
+        }
+
+        if (state.SelectionAnchor.HasValue && state.CaretIndex.HasValue)
+        {
+            _editingState.SelectRange(state.SelectionAnchor.Value, state.CaretIndex.Value);
+        }
+        else if (state.SelectionStart.HasValue && state.SelectionEnd.HasValue)
+        {
+            _editingState.SelectRange(state.SelectionStart.Value, state.SelectionEnd.Value);
+        }
+        else if (state.CaretIndex.HasValue)
+        {
+            _editingState.SetCaret(state.CaretIndex.Value);
+        }
+
+        if (state.ScrollX.HasValue)
+        {
+            _horizontalScrollOffset = Math.Max(0, state.ScrollX.Value);
+        }
+    }
+
     private void NotifyTextChanged()
     {
         TextChanged?.Invoke(Text);
@@ -617,6 +685,33 @@ public sealed class UiTextField : UiElement
         }
 
         _horizontalScrollOffset = Math.Clamp(_horizontalScrollOffset, 0, Math.Max(0, fullWidth - clipWidth + 2));
+    }
+
+    private void DrawComposition(IUiRenderer renderer, string renderText, int textX, int textY, UiFont font)
+    {
+        int compositionX = textX - _horizontalScrollOffset + MeasurePrefixWidth(renderer, renderText, CaretIndex, TextScale, font);
+        renderer.DrawText(_composition.Text, new UiPoint(compositionX, textY), CompositionTextColor, TextScale, font);
+        int width = Math.Max(1, renderer.MeasureTextWidth(_composition.Text, TextScale, font));
+        int underlineY = textY + renderer.MeasureTextHeight(TextScale, font) - 1;
+        renderer.FillRect(new UiRect(compositionX, underlineY, width, 1), CompositionUnderlineColor);
+    }
+
+    private UiRect GetCaretBounds(UiFont font)
+    {
+        string renderText = GetDisplayText();
+        int textX = Bounds.X + Padding;
+        int textY = Bounds.Y + Padding;
+        int caretHeight = font.MeasureTextHeight(TextScale);
+        int caretWidth = Math.Max(1, Math.Min(2, TextScale));
+        int caretX = textX - _horizontalScrollOffset + MeasurePrefixWidth(renderText, CaretIndex, TextScale, font);
+        return new UiRect(caretX, textY, caretWidth, caretHeight);
+    }
+
+    private int MeasureCompositionWidth(UiFont font)
+    {
+        return _composition.IsActive
+            ? Math.Max(1, font.MeasureTextWidth(_composition.Text, TextScale))
+            : Math.Max(1, Math.Min(2, TextScale));
     }
 
     private static int MeasurePrefixWidth(IUiRenderer renderer, string text, int index, int textScale, UiFont font)

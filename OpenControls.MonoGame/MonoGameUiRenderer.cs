@@ -6,9 +6,17 @@ namespace OpenControls.MonoGame;
 
 public sealed class MonoGameUiRenderer : IUiRenderer
 {
+    private sealed class AtlasPageTexture
+    {
+        public Texture2D? Texture { get; set; }
+        public int Version { get; set; } = -1;
+    }
+
     private readonly SpriteBatch _spriteBatch;
     private readonly Texture2D _pixel;
     private readonly Stack<Rectangle> _clipStack = new();
+    private readonly UiGlyphAtlas _glyphAtlas = new();
+    private readonly Dictionary<int, AtlasPageTexture> _atlasTextures = new();
     private Texture2D? _gradientTexture;
     private int _gradientWidth;
     private int _gradientHeight;
@@ -126,7 +134,18 @@ public sealed class MonoGameUiRenderer : IUiRenderer
         for (int i = 0; i < layout.Glyphs.Count; i++)
         {
             UiPositionedGlyph glyph = layout.Glyphs[i];
-            DrawGlyph(glyph.Glyph, position.X + glyph.X, position.Y + glyph.Y, color);
+            UiGlyphAtlasEntry entry = _glyphAtlas.GetOrAdd(glyph.Glyph);
+            if (!entry.IsValid)
+            {
+                continue;
+            }
+
+            Texture2D texture = EnsureAtlasTexture(entry.PageIndex);
+            _spriteBatch.Draw(
+                texture,
+                new Rectangle(position.X + glyph.X, position.Y + glyph.Y, glyph.Glyph.Width, glyph.Glyph.Height),
+                new Rectangle(entry.SourceRect.X, entry.SourceRect.Y, entry.SourceRect.Width, entry.SourceRect.Height),
+                ToColor(color));
         }
     }
 
@@ -305,30 +324,28 @@ public sealed class MonoGameUiRenderer : IUiRenderer
         _spriteBatch.GraphicsDevice.ScissorRectangle = clip;
     }
 
-    private void DrawGlyph(UiRasterizedGlyph glyph, int x, int y, UiColor color)
+    private Texture2D EnsureAtlasTexture(int pageIndex)
     {
-        for (int row = 0; row < glyph.Height; row++)
+        UiGlyphAtlasPage page = _glyphAtlas.GetPage(pageIndex);
+        if (!_atlasTextures.TryGetValue(pageIndex, out AtlasPageTexture? atlas))
         {
-            int rowStart = row * glyph.Width;
-            for (int col = 0; col < glyph.Width; col++)
-            {
-                byte alpha = glyph.Alpha[rowStart + col];
-                if (alpha == 0)
-                {
-                    continue;
-                }
-
-                _spriteBatch.Draw(
-                    _pixel,
-                    new Rectangle(x + col, y + row, 1, 1),
-                    ToColor(ApplyAlpha(color, alpha)));
-            }
+            atlas = new AtlasPageTexture();
+            _atlasTextures[pageIndex] = atlas;
         }
-    }
 
-    private static UiColor ApplyAlpha(UiColor color, byte alpha)
-    {
-        int scaledAlpha = color.A * alpha / 255;
-        return new UiColor(color.R, color.G, color.B, (byte)scaledAlpha);
+        if (atlas.Texture == null || atlas.Texture.Width != page.Width || atlas.Texture.Height != page.Height)
+        {
+            atlas.Texture?.Dispose();
+            atlas.Texture = new Texture2D(_spriteBatch.GraphicsDevice, page.Width, page.Height);
+            atlas.Version = -1;
+        }
+
+        if (atlas.Version != page.Version)
+        {
+            atlas.Texture.SetData(page.Pixels);
+            atlas.Version = page.Version;
+        }
+
+        return atlas.Texture;
     }
 }

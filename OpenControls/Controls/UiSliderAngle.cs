@@ -63,6 +63,12 @@ public sealed class UiSliderAngle : UiElement
         set => _slider.WholeNumbers = value;
     }
 
+    public UiSliderFlags Flags
+    {
+        get => _slider.Flags;
+        set => _slider.Flags = value;
+    }
+
     public bool ShowValue
     {
         get => _slider.ShowValue;

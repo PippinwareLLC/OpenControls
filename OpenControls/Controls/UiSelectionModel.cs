@@ -187,6 +187,56 @@ public sealed class UiSelectionModel
         RaiseSelectionChanged(destinationId);
     }
 
+    public void SetSelection(IEnumerable<int>? selectedIndices, int primaryIndex = -1, int anchorIndex = -1, string? scope = null)
+    {
+        ScopeState state = GetScopeState(scope);
+        HashSet<int> nextSelection = new();
+        if (selectedIndices != null)
+        {
+            foreach (int index in selectedIndices)
+            {
+                if (IsIndexValid(index, state.ItemCount))
+                {
+                    nextSelection.Add(index);
+                }
+            }
+        }
+
+        bool changed = state.Selected.Count != nextSelection.Count
+            || !state.Selected.SetEquals(nextSelection)
+            || state.PrimaryIndex != primaryIndex
+            || state.AnchorIndex != anchorIndex;
+
+        if (!changed)
+        {
+            return;
+        }
+
+        state.Selected.Clear();
+        foreach (int index in nextSelection)
+        {
+            state.Selected.Add(index);
+        }
+
+        if (nextSelection.Count == 0)
+        {
+            state.PrimaryIndex = -1;
+            state.AnchorIndex = -1;
+        }
+        else
+        {
+            state.PrimaryIndex = IsIndexValid(primaryIndex, state.ItemCount) && state.Selected.Contains(primaryIndex)
+                ? primaryIndex
+                : nextSelection.Max();
+            state.AnchorIndex = IsIndexValid(anchorIndex, state.ItemCount)
+                ? anchorIndex
+                : state.PrimaryIndex;
+        }
+
+        RefreshSortedIndices(state);
+        RaiseSelectionChanged(scope);
+    }
+
     public void SelectSingle(int index, string? scope = null)
     {
         ScopeState state = GetScopeState(scope);

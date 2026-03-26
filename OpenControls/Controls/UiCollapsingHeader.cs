@@ -316,6 +316,7 @@ public sealed class UiCollapsingHeader : UiElement
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
             TextInput = input.TextInput,
+            Composition = input.Composition,
             KeysDown = input.KeysDown,
             KeysPressed = input.KeysPressed,
             KeysReleased = input.KeysReleased,

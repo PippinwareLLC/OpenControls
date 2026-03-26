@@ -1,4 +1,5 @@
 using System.Text;
+using OpenControls.State;
 
 namespace OpenControls.Controls;
 
@@ -8,7 +9,7 @@ public enum UiTextEditorSyntaxMode
     CSharp
 }
 
-public sealed class UiTextEditor : UiElement
+public sealed class UiTextEditor : UiElement, IUiStatefulElement
 {
     private enum CharacterClass
     {
@@ -93,7 +94,7 @@ public sealed class UiTextEditor : UiElement
                 return false;
             }
 
-            request = new UiTextInputRequest(Bounds, isMultiLine: true);
+            request = _owner.BuildTextInputRequest(_owner._scrollPanel.ViewportBounds);
             return true;
         }
 
@@ -152,6 +153,7 @@ public sealed class UiTextEditor : UiElement
     private readonly List<int> _lineStartIndices = new();
     private readonly List<List<LineToken>?> _tokenCache = new();
     private readonly List<bool> _lineStartsInBlockComment = new();
+    private UiTextCompositionState _composition;
 
     private int _maxLineLength;
     private int _caretLine;
@@ -200,6 +202,8 @@ public sealed class UiTextEditor : UiElement
     public UiColor CaretColor { get; set; } = UiColor.White;
     public UiColor CurrentLineHighlight { get; set; } = new UiColor(32, 36, 48, 140);
     public UiColor SelectionBackground { get; set; } = new UiColor(72, 114, 196, 180);
+    public UiColor CompositionTextColor { get; set; } = new UiColor(224, 228, 240);
+    public UiColor CompositionUnderlineColor { get; set; } = new UiColor(132, 156, 220);
 
     public bool HighlightCurrentLine { get; set; } = true;
     public bool ShowLineNumbers { get; set; } = true;
@@ -242,6 +246,25 @@ public sealed class UiTextEditor : UiElement
     public string SelectedText => _editingState.GetSelectedText();
     public bool CanUndo => _editingState.CanUndo;
     public bool CanRedo => _editingState.CanRedo;
+    public int ScrollX
+    {
+        get => _scrollPanel.ScrollX;
+        set => _scrollPanel.ScrollX = Math.Max(0, value);
+    }
+
+    public int ScrollY
+    {
+        get => _scrollPanel.ScrollY;
+        set => _scrollPanel.ScrollY = Math.Max(0, value);
+    }
+
+    public UiPoint ScrollOffset
+    {
+        get => _scrollPanel.ScrollOffset;
+        set => _scrollPanel.ScrollOffset = new UiPoint(Math.Max(0, value.X), Math.Max(0, value.Y));
+    }
+
+    public UiTextCompositionState Composition => _composition;
 
     public string Text
     {
@@ -455,6 +478,7 @@ public sealed class UiTextEditor : UiElement
 
     private void HandleInput(UiUpdateContext context, UiInputState input)
     {
+        _composition = input.Composition;
         int previousCaret = _editingState.CaretIndex;
         int previousSelectionStart = _editingState.SelectionStart;
         int previousSelectionEnd = _editingState.SelectionEnd;
@@ -999,6 +1023,11 @@ public sealed class UiTextEditor : UiElement
             int caretX = _textStartX + MeasureLinePrefixWidth(line, _caretColumn);
             int caretY = Padding + _caretLine * lineHeight;
             int caretWidth = GetCaretWidth(line, _caretColumn);
+            if (_composition.IsActive)
+            {
+                DrawComposition(context, caretX, caretY, lineHeight);
+            }
+
             context.Renderer.FillRect(new UiRect(caretX, caretY, caretWidth, lineHeight), CaretColor);
         }
     }
@@ -1041,6 +1070,66 @@ public sealed class UiTextEditor : UiElement
         }
 
         context.Renderer.FillRect(new UiRect(selectionX, lineY, selectionWidth, lineHeight), SelectionBackground);
+    }
+
+    public void CaptureState(UiElementState state)
+    {
+        state.Text = Text;
+        state.CaretIndex = CaretIndex;
+        state.SelectionAnchor = _editingState.SelectionAnchor;
+        state.SelectionStart = SelectionStart;
+        state.SelectionEnd = SelectionEnd;
+        state.ScrollX = _scrollPanel.ScrollX;
+        state.ScrollY = _scrollPanel.ScrollY;
+    }
+
+    public void ApplyState(UiElementState state)
+    {
+        if (state.Text != null)
+        {
+            SetText(state.Text);
+        }
+
+        if (state.SelectionAnchor.HasValue && state.CaretIndex.HasValue)
+        {
+            _editingState.SelectRange(state.SelectionAnchor.Value, state.CaretIndex.Value);
+            UpdateCaretFromIndex(updatePreferredColumn: true);
+        }
+        else if (state.SelectionStart.HasValue && state.SelectionEnd.HasValue)
+        {
+            SelectRange(state.SelectionStart.Value, state.SelectionEnd.Value);
+        }
+        else if (state.CaretIndex.HasValue)
+        {
+            SetCaretIndex(state.CaretIndex.Value);
+        }
+
+        if (state.ScrollX.HasValue)
+        {
+            _scrollPanel.ScrollX = Math.Max(0, state.ScrollX.Value);
+        }
+
+        if (state.ScrollY.HasValue)
+        {
+            _scrollPanel.ScrollY = Math.Max(0, state.ScrollY.Value);
+        }
+    }
+
+    private UiTextInputRequest BuildTextInputRequest(UiRect bounds)
+    {
+        UiRect caretBounds = GetCaretBounds(bounds);
+        UiRect candidateBounds = _composition.IsActive
+            ? new UiRect(caretBounds.X, caretBounds.Y, Math.Max(caretBounds.Width, MeasureCompositionWidth()), caretBounds.Height)
+            : caretBounds;
+        return new UiTextInputRequest(bounds, isMultiLine: true, caretBounds: caretBounds, candidateBounds: candidateBounds);
+    }
+
+    private void DrawComposition(UiRenderContext context, int caretX, int caretY, int lineHeight)
+    {
+        context.Renderer.DrawText(_composition.Text, new UiPoint(caretX, caretY), CompositionTextColor, TextScale, _layoutFont);
+        int width = Math.Max(1, MeasureCompositionWidth());
+        int underlineY = caretY + lineHeight - 1;
+        context.Renderer.FillRect(new UiRect(caretX, underlineY, width, 1), CompositionUnderlineColor);
     }
 
     private List<LineToken> GetLineTokens(int lineIndex)
@@ -1190,6 +1279,24 @@ public sealed class UiTextEditor : UiElement
         }
     }
 
+    private UiRect GetCaretBounds(UiRect requestBounds)
+    {
+        string line = _lines[_caretLine];
+        int caretX = _textStartX + MeasureLinePrefixWidth(line, _caretColumn);
+        int caretY = Padding + _caretLine * _lineHeight;
+        int caretWidth = GetCaretWidth(line, _caretColumn);
+        int screenX = requestBounds.X + caretX - _scrollPanel.ScrollX;
+        int screenY = requestBounds.Y + caretY - _scrollPanel.ScrollY;
+        return new UiRect(screenX, screenY, caretWidth, Math.Max(1, _lineHeight));
+    }
+
+    private int MeasureCompositionWidth()
+    {
+        return _composition.IsActive
+            ? Math.Max(1, _layoutFont.MeasureTextWidth(_composition.Text, TextScale))
+            : 1;
+    }
+
     private void EnsureCaretVisible()
     {
         string line = _lines[_caretLine];
@@ -1303,6 +1410,7 @@ public sealed class UiTextEditor : UiElement
             _dragSelectingWholeLines = false;
             _caretVisible = false;
             _caretTimer = 0f;
+            _composition = UiTextCompositionState.Empty;
             return;
         }
 

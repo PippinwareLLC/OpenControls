@@ -5,8 +5,16 @@ namespace OpenControls.SdlNet;
 
 public sealed class SdlUiRenderer : IUiRenderer
 {
+    private sealed class AtlasPageTexture
+    {
+        public IntPtr Texture { get; set; }
+        public int Version { get; set; } = -1;
+    }
+
     private readonly IntPtr _renderer;
     private readonly Stack<SDL.SDL_Rect> _clipStack = new();
+    private readonly UiGlyphAtlas _glyphAtlas = new();
+    private readonly Dictionary<int, AtlasPageTexture> _atlasTextures = new();
 
     public SdlUiRenderer(IntPtr renderer, UiFont? defaultFont = null)
     {
@@ -98,7 +106,24 @@ public sealed class SdlUiRenderer : IUiRenderer
         for (int i = 0; i < layout.Glyphs.Count; i++)
         {
             UiPositionedGlyph glyph = layout.Glyphs[i];
-            DrawGlyph(glyph.Glyph, position.X + glyph.X, position.Y + glyph.Y, color);
+            UiGlyphAtlasEntry entry = _glyphAtlas.GetOrAdd(glyph.Glyph);
+            if (!entry.IsValid)
+            {
+                continue;
+            }
+
+            AtlasPageTexture pageTexture = EnsureAtlasTexture(entry.PageIndex);
+            SDL.SDL_SetTextureColorMod(pageTexture.Texture, color.R, color.G, color.B);
+            SDL.SDL_SetTextureAlphaMod(pageTexture.Texture, color.A);
+            SDL.SDL_Rect source = ToRect(entry.SourceRect);
+            SDL.SDL_Rect destination = new()
+            {
+                x = position.X + glyph.X,
+                y = position.Y + glyph.Y,
+                w = glyph.Glyph.Width,
+                h = glyph.Glyph.Height
+            };
+            SDL.SDL_RenderCopy(_renderer, pageTexture.Texture, ref source, ref destination);
         }
     }
 
@@ -154,36 +179,53 @@ public sealed class SdlUiRenderer : IUiRenderer
         SDL.SDL_RenderSetClipRect(_renderer, ref clip);
     }
 
-    private void DrawGlyph(UiRasterizedGlyph glyph, int x, int y, UiColor color)
+    private AtlasPageTexture EnsureAtlasTexture(int pageIndex)
     {
-        for (int row = 0; row < glyph.Height; row++)
+        UiGlyphAtlasPage page = _glyphAtlas.GetPage(pageIndex);
+        if (!_atlasTextures.TryGetValue(pageIndex, out AtlasPageTexture? texture))
         {
-            int rowStart = row * glyph.Width;
-            for (int col = 0; col < glyph.Width; col++)
+            texture = new AtlasPageTexture
             {
-                byte alpha = glyph.Alpha[rowStart + col];
-                if (alpha == 0)
-                {
-                    continue;
-                }
-
-                SetDrawColor(ApplyAlpha(color, alpha));
-                SDL.SDL_Rect pixel = new()
-                {
-                    x = x + col,
-                    y = y + row,
-                    w = 1,
-                    h = 1
-                };
-                SDL.SDL_RenderFillRect(_renderer, ref pixel);
+                Texture = SDL.SDL_CreateTexture(
+                    _renderer,
+                    SDL.SDL_PIXELFORMAT_RGBA8888,
+                    (int)SDL.SDL_TextureAccess.SDL_TEXTUREACCESS_STATIC,
+                    page.Width,
+                    page.Height)
+            };
+            if (texture.Texture == IntPtr.Zero)
+            {
+                throw new InvalidOperationException($"SDL_CreateTexture failed: {SDL.SDL_GetError()}");
             }
-        }
-    }
 
-    private static UiColor ApplyAlpha(UiColor color, byte alpha)
-    {
-        int scaledAlpha = color.A * alpha / 255;
-        return new UiColor(color.R, color.G, color.B, (byte)scaledAlpha);
+            SDL.SDL_SetTextureBlendMode(texture.Texture, SDL.SDL_BlendMode.SDL_BLENDMODE_BLEND);
+            _atlasTextures[pageIndex] = texture;
+        }
+
+        if (texture.Version != page.Version)
+        {
+            SDL.SDL_Rect pageRect = new()
+            {
+                x = 0,
+                y = 0,
+                w = page.Width,
+                h = page.Height
+            };
+            unsafe
+            {
+                fixed (byte* pixels = page.Pixels)
+                {
+                    if (SDL.SDL_UpdateTexture(texture.Texture, ref pageRect, (IntPtr)pixels, page.Width * 4) != 0)
+                    {
+                        throw new InvalidOperationException($"SDL_UpdateTexture failed: {SDL.SDL_GetError()}");
+                    }
+                }
+            }
+
+            texture.Version = page.Version;
+        }
+
+        return texture;
     }
 
     private void SetDrawColor(UiColor color)

@@ -50,6 +50,7 @@ public abstract class UiSliderVectorBase : UiElement
 
     public float Step { get; set; }
     public bool WholeNumbers { get; set; }
+    public UiSliderFlags Flags { get; set; } = UiSliderFlags.AlwaysClamp;
     public bool ShowValue { get; set; } = true;
     public string ValueFormat { get; set; } = "0.##";
     public int TextScale { get; set; } = 1;
@@ -105,6 +106,7 @@ public abstract class UiSliderVectorBase : UiElement
             slider.Max = _max;
             slider.Step = Step;
             slider.WholeNumbers = WholeNumbers;
+            slider.Flags = Flags;
             slider.ShowValue = ShowValue;
             slider.ValueFormat = ValueFormat;
             slider.TextScale = TextScale;

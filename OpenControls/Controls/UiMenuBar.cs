@@ -15,6 +15,9 @@ public sealed class UiMenuBar : UiElement
     {
         public string Text { get; set; } = string.Empty;
         public string Shortcut { get; set; } = string.Empty;
+        public string CommandId { get; set; } = string.Empty;
+        public UiKeyChord? ShortcutChord { get; set; }
+        public bool AllowShortcutDuringTextInput { get; set; }
         public bool Enabled { get; set; } = true;
         public bool IsCheckable { get; set; }
         public bool Checked { get; set; }
@@ -27,6 +30,7 @@ public sealed class UiMenuBar : UiElement
         public bool ContentCapturesInput { get; set; } = true;
         public List<MenuItem> Items { get; } = new();
         public Action<MenuItem>? Clicked { get; set; }
+        public Action<MenuItem, UiMenuItemActivationSource>? Invoked { get; set; }
 
         public bool HasChildren => Items.Count > 0;
         public bool HasContent => Content != null;
@@ -49,6 +53,169 @@ public sealed class UiMenuBar : UiElement
         public IReadOnlyList<MenuItem> Items { get; }
         public UiRect Bounds { get; }
         public List<UiRect> ItemRects { get; }
+    }
+
+    private readonly struct ShortcutBinding
+    {
+        public ShortcutBinding(UiKey key, UiModifierKeys modifiers, bool usesPrimaryModifier)
+        {
+            Key = key;
+            Modifiers = modifiers;
+            UsesPrimaryModifier = usesPrimaryModifier;
+        }
+
+        public UiKey Key { get; }
+        public UiModifierKeys Modifiers { get; }
+        public bool UsesPrimaryModifier { get; }
+
+        public static bool TryParse(string text, out ShortcutBinding binding)
+        {
+            binding = default;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            string[] parts = text.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length == 0)
+            {
+                return false;
+            }
+
+            UiModifierKeys modifiers = UiModifierKeys.None;
+            bool usesPrimaryModifier = false;
+            UiKey key = UiKey.Unknown;
+
+            for (int i = 0; i < parts.Length; i++)
+            {
+                string token = parts[i].Trim();
+                if (string.IsNullOrEmpty(token))
+                {
+                    continue;
+                }
+
+                if (IsPrimaryModifierToken(token))
+                {
+                    usesPrimaryModifier = true;
+                    continue;
+                }
+
+                if (TryParseModifier(token, out UiModifierKeys modifier))
+                {
+                    modifiers |= modifier;
+                    continue;
+                }
+
+                if (!TryParseKey(token, out key))
+                {
+                    return false;
+                }
+            }
+
+            if (key == UiKey.Unknown)
+            {
+                return false;
+            }
+
+            binding = new ShortcutBinding(key, modifiers, usesPrimaryModifier);
+            return true;
+        }
+
+        private static bool IsPrimaryModifierToken(string token)
+        {
+            return token.Equals("ctrl", StringComparison.OrdinalIgnoreCase) ||
+                   token.Equals("control", StringComparison.OrdinalIgnoreCase) ||
+                   token.Equals("cmd", StringComparison.OrdinalIgnoreCase) ||
+                   token.Equals("command", StringComparison.OrdinalIgnoreCase) ||
+                   token.Equals("cmdorctrl", StringComparison.OrdinalIgnoreCase) ||
+                   token.Equals("commandorcontrol", StringComparison.OrdinalIgnoreCase) ||
+                   token.Equals("primary", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryParseModifier(string token, out UiModifierKeys modifier)
+        {
+            if (token.Equals("shift", StringComparison.OrdinalIgnoreCase))
+            {
+                modifier = UiModifierKeys.Shift;
+                return true;
+            }
+
+            if (token.Equals("alt", StringComparison.OrdinalIgnoreCase) ||
+                token.Equals("option", StringComparison.OrdinalIgnoreCase))
+            {
+                modifier = UiModifierKeys.Alt;
+                return true;
+            }
+
+            if (token.Equals("super", StringComparison.OrdinalIgnoreCase) ||
+                token.Equals("meta", StringComparison.OrdinalIgnoreCase) ||
+                token.Equals("win", StringComparison.OrdinalIgnoreCase) ||
+                token.Equals("windows", StringComparison.OrdinalIgnoreCase))
+            {
+                modifier = UiModifierKeys.Super;
+                return true;
+            }
+
+            modifier = UiModifierKeys.None;
+            return false;
+        }
+
+        private static bool TryParseKey(string token, out UiKey key)
+        {
+            if (token.Length == 1)
+            {
+                char character = char.ToUpperInvariant(token[0]);
+                if (character is >= 'A' and <= 'Z')
+                {
+                    key = (UiKey)((int)UiKey.A + (character - 'A'));
+                    return true;
+                }
+
+                if (character is >= '0' and <= '9')
+                {
+                    key = (UiKey)((int)UiKey.D0 + (character - '0'));
+                    return true;
+                }
+            }
+
+            key = token.ToLowerInvariant() switch
+            {
+                "left" => UiKey.Left,
+                "right" => UiKey.Right,
+                "up" => UiKey.Up,
+                "down" => UiKey.Down,
+                "pageup" => UiKey.PageUp,
+                "pgup" => UiKey.PageUp,
+                "pagedown" => UiKey.PageDown,
+                "pgdn" => UiKey.PageDown,
+                "home" => UiKey.Home,
+                "end" => UiKey.End,
+                "backspace" => UiKey.Backspace,
+                "delete" => UiKey.Delete,
+                "tab" => UiKey.Tab,
+                "enter" => UiKey.Enter,
+                "return" => UiKey.Enter,
+                "space" => UiKey.Space,
+                "spacebar" => UiKey.Space,
+                "escape" => UiKey.Escape,
+                "esc" => UiKey.Escape,
+                "f1" => UiKey.F1,
+                "f2" => UiKey.F2,
+                "f3" => UiKey.F3,
+                "f4" => UiKey.F4,
+                "f5" => UiKey.F5,
+                "f6" => UiKey.F6,
+                "f7" => UiKey.F7,
+                "f8" => UiKey.F8,
+                "f9" => UiKey.F9,
+                "f10" => UiKey.F10,
+                "f11" => UiKey.F11,
+                "f12" => UiKey.F12,
+                _ => UiKey.Unknown
+            };
+
+            return key != UiKey.Unknown;
+        }
     }
 
     private sealed class OffsetRenderer : IUiRenderer
@@ -146,12 +313,18 @@ public sealed class UiMenuBar : UiElement
     private int _hoveredMenuLevel = -1;
     private int _hoveredMenuIndex = -1;
     private bool _popupOpen;
+    private bool _suppressOutsideClick;
+    private UiElement? _focusBeforeOpen;
+    private bool _restoreFocusOnClose;
 
     public List<MenuItem> Items { get; } = new();
 
     public UiMenuDisplayMode DisplayMode { get; set; } = UiMenuDisplayMode.Bar;
     public bool IsPopupOpen => _popupOpen;
     public bool HasOpenMenu => DisplayMode == UiMenuDisplayMode.Popup ? _popupOpen : _openPath.Count > 0;
+    public bool EnableKeyboardNavigation { get; set; } = true;
+    public bool EnableShortcutDispatch { get; set; }
+    public bool AllowShortcutsDuringTextInput { get; set; }
     public bool ClosePopupOnOutsideClick { get; set; } = true;
     public bool ClosePopupOnEscape { get; set; } = true;
     public bool ClosePopupOnItemClick { get; set; } = true;
@@ -186,7 +359,10 @@ public sealed class UiMenuBar : UiElement
     public int FallbackCharHeight { get; set; } = 7;
     public Func<string, int, int>? MeasureTextWidth { get; set; }
     public Func<int, int>? MeasureTextHeight { get; set; }
-    public override bool CapturesPointerInput => true;
+    public override bool IsFocusable => EnableKeyboardNavigation && (DisplayMode != UiMenuDisplayMode.Popup || _popupOpen);
+    public override bool CapturesPointerInput => DisplayMode != UiMenuDisplayMode.Popup || _popupOpen;
+
+    public event Action<MenuItem, UiMenuItemActivationSource>? ItemInvoked;
 
     public void OpenPopup()
     {
@@ -196,7 +372,9 @@ public sealed class UiMenuBar : UiElement
         }
 
         _popupOpen = true;
+        _suppressOutsideClick = true;
         _openPath.Clear();
+        ClearSelection();
     }
 
     public void OpenAttached(UiRect anchorBounds)
@@ -214,14 +392,7 @@ public sealed class UiMenuBar : UiElement
 
     public void ClosePopup()
     {
-        if (!_popupOpen)
-        {
-            return;
-        }
-
-        _popupOpen = false;
-        _openPath.Clear();
-        _openLayouts.Clear();
+        ClosePopup(null);
     }
 
     public void TogglePopup()
@@ -236,6 +407,36 @@ public sealed class UiMenuBar : UiElement
         }
     }
 
+    private void ClosePopup(UiFocusManager? focus)
+    {
+        if (!_popupOpen)
+        {
+            return;
+        }
+
+        _popupOpen = false;
+        _openPath.Clear();
+        _openLayouts.Clear();
+        ClearSelection();
+        RestoreFocus(focus);
+    }
+
+    public bool TryInvokeCommand(string commandId)
+    {
+        if (string.IsNullOrWhiteSpace(commandId))
+        {
+            return false;
+        }
+
+        if (!TryFindCommandItem(Items, commandId, out MenuItem? item) || item == null)
+        {
+            return false;
+        }
+
+        ActivateItem(item, UiMenuItemActivationSource.Programmatic);
+        return true;
+    }
+
     public override void Update(UiUpdateContext context)
     {
         if (!Visible || !Enabled)
@@ -243,9 +444,10 @@ public sealed class UiMenuBar : UiElement
             return;
         }
 
+        bool wasOpen = HasOpenMenu;
         if (DisplayMode == UiMenuDisplayMode.Popup)
         {
-            UpdatePopup(context);
+            UpdatePopup(context, wasOpen);
             return;
         }
 
@@ -255,9 +457,12 @@ public sealed class UiMenuBar : UiElement
         UiPoint mouse = input.MousePosition;
         _hoveredTopIndex = GetTopItemIndex(mouse);
 
+        TryDispatchShortcut(context);
+        BuildLayout();
+
         if (_openPath.Count > 0 && input.Navigation.Escape)
         {
-            CloseMenu();
+            CloseMenu(context.Focus);
             BuildLayout();
         }
 
@@ -267,12 +472,12 @@ public sealed class UiMenuBar : UiElement
         {
             if (_hoveredTopIndex >= 0)
             {
-                HandleTopClick(_hoveredTopIndex);
+                HandleTopClick(_hoveredTopIndex, context.Focus);
                 BuildLayout();
             }
             else if (menuOpen)
             {
-                HandleMenuClick(mouse);
+                HandleMenuClick(mouse, context.Focus);
                 BuildLayout();
             }
         }
@@ -293,9 +498,51 @@ public sealed class UiMenuBar : UiElement
             }
         }
 
+        if (EnableKeyboardNavigation)
+        {
+            HandleKeyboardNavigation(context);
+            BuildLayout();
+        }
+
         UpdateHoveredMenuItem(mouse);
 
         UpdateOpenContent(context);
+
+        if (!wasOpen && HasOpenMenu)
+        {
+            CaptureFocus(context.Focus);
+        }
+        else if (wasOpen && !HasOpenMenu)
+        {
+            RestoreFocus(context.Focus);
+        }
+    }
+
+    public override UiElement? HitTest(UiPoint point)
+    {
+        if (!Visible || (DisplayMode == UiMenuDisplayMode.Popup && !_popupOpen))
+        {
+            return null;
+        }
+
+        if (TryGetMenuContentHit(point, out UiElement? contentHit) && contentHit != null)
+        {
+            return contentHit;
+        }
+
+        if (DisplayMode == UiMenuDisplayMode.Popup)
+        {
+            if (IsPointInOpenLayouts(point))
+            {
+                return this;
+            }
+        }
+        else if (GetBarBounds().Contains(point) || IsPointInOpenLayouts(point))
+        {
+            return this;
+        }
+
+        return base.HitTest(point);
     }
 
     public override void Render(UiRenderContext context)
@@ -420,12 +667,16 @@ public sealed class UiMenuBar : UiElement
         base.RenderOverlay(context);
     }
 
-    private void UpdatePopup(UiUpdateContext context)
+    private void UpdatePopup(UiUpdateContext context, bool wasOpen)
     {
         if (!_popupOpen)
         {
             _openLayouts.Clear();
             _openPath.Clear();
+            if (wasOpen)
+            {
+                RestoreFocus(context.Focus);
+            }
             return;
         }
 
@@ -434,21 +685,43 @@ public sealed class UiMenuBar : UiElement
         UiInputState input = context.Input;
         UiPoint mouse = input.MousePosition;
 
-        if (ClosePopupOnEscape && input.Navigation.Escape)
+        TryDispatchShortcut(context);
+        BuildPopupLayouts();
+        if (!_popupOpen)
         {
-            ClosePopup();
+            if (wasOpen)
+            {
+                RestoreFocus(context.Focus);
+            }
+
             return;
         }
 
-        if (ClosePopupOnOutsideClick && input.LeftClicked && !IsPointInOpenLayouts(mouse))
+        if (ClosePopupOnEscape && input.Navigation.Escape)
         {
-            ClosePopup();
+            ClosePopup(context.Focus);
+            return;
+        }
+
+        if (_suppressOutsideClick)
+        {
+            _suppressOutsideClick = false;
+        }
+        else if (ClosePopupOnOutsideClick && IsAnyMouseClick(input) && !IsPointInOpenLayouts(mouse))
+        {
+            ClosePopup(context.Focus);
             return;
         }
 
         if (input.LeftClicked)
         {
-            HandlePopupClick(mouse);
+            HandlePopupClick(mouse, context.Focus);
+            BuildPopupLayouts();
+        }
+
+        if (EnableKeyboardNavigation)
+        {
+            HandleKeyboardNavigation(context);
             BuildPopupLayouts();
         }
 
@@ -456,6 +729,15 @@ public sealed class UiMenuBar : UiElement
         BuildPopupLayouts();
         UpdateHoveredMenuItem(mouse);
         UpdateOpenContent(context);
+
+        if (!wasOpen && _popupOpen)
+        {
+            CaptureFocus(context.Focus);
+        }
+        else if (wasOpen && !_popupOpen)
+        {
+            RestoreFocus(context.Focus);
+        }
     }
 
     private void BuildLayout()
@@ -786,7 +1068,7 @@ public sealed class UiMenuBar : UiElement
         return false;
     }
 
-    private void HandleTopClick(int index)
+    private void HandleTopClick(int index, UiFocusManager focus)
     {
         if (index < 0 || index >= Items.Count)
         {
@@ -801,7 +1083,7 @@ public sealed class UiMenuBar : UiElement
 
         if (_openPath.Count > 0 && _openPath[0] == index)
         {
-            CloseMenu();
+            CloseMenu(focus);
             return;
         }
 
@@ -809,14 +1091,15 @@ public sealed class UiMenuBar : UiElement
         {
             _openPath.Clear();
             _openPath.Add(index);
+            SelectBoundaryItem(0, first: true);
             return;
         }
 
-        ActivateItem(item);
-        CloseMenu();
+        ActivateItem(item, UiMenuItemActivationSource.Mouse);
+        CloseMenu(focus);
     }
 
-    private void HandleMenuClick(UiPoint point)
+    private void HandleMenuClick(UiPoint point, UiFocusManager focus)
     {
         if (TryGetMenuItemAt(point, out int level, out int index))
         {
@@ -835,24 +1118,26 @@ public sealed class UiMenuBar : UiElement
             if (item.HasChildren)
             {
                 OpenSubmenu(level, index);
+                BuildLayout();
+                SelectBoundaryItem(Math.Min(level + 1, _openLayouts.Count - 1), first: true);
                 return;
             }
 
-            ActivateItem(item);
-            CloseMenu();
+            ActivateItem(item, UiMenuItemActivationSource.Mouse);
+            CloseMenu(focus);
             return;
         }
 
-        CloseMenu();
+        CloseMenu(focus);
     }
 
-    private void HandlePopupClick(UiPoint point)
+    private void HandlePopupClick(UiPoint point, UiFocusManager focus)
     {
         if (!TryGetMenuItemAt(point, out int level, out int index))
         {
             if (ClosePopupOnOutsideClick)
             {
-                ClosePopup();
+                ClosePopup(focus);
             }
 
             return;
@@ -873,13 +1158,15 @@ public sealed class UiMenuBar : UiElement
         if (item.HasChildren)
         {
             OpenSubmenu(level, index);
+            BuildPopupLayouts();
+            SelectBoundaryItem(Math.Min(level + 1, _openLayouts.Count - 1), first: true);
             return;
         }
 
-        ActivateItem(item);
+        ActivateItem(item, UiMenuItemActivationSource.Mouse);
         if (ClosePopupOnItemClick)
         {
-            ClosePopup();
+            ClosePopup(focus);
         }
     }
 
@@ -895,6 +1182,8 @@ public sealed class UiMenuBar : UiElement
         if (item.Enabled && item.HasChildren && !item.IsSeparator)
         {
             _openPath.Add(index);
+            _hoveredMenuLevel = 0;
+            _hoveredMenuIndex = FindNextInteractiveIndex(item.Items, -1, 1);
         }
     }
 
@@ -960,12 +1249,14 @@ public sealed class UiMenuBar : UiElement
         _openPath.RemoveRange(pathIndex + 1, _openPath.Count - (pathIndex + 1));
     }
 
-    private void CloseMenu()
+    private void CloseMenu(UiFocusManager? focus = null)
     {
         _openPath.Clear();
+        ClearSelection();
+        RestoreFocus(focus);
     }
 
-    private void ActivateItem(MenuItem item)
+    private void ActivateItem(MenuItem item, UiMenuItemActivationSource source)
     {
         if (!item.Enabled)
         {
@@ -978,13 +1269,12 @@ public sealed class UiMenuBar : UiElement
         }
 
         item.Clicked?.Invoke(item);
+        item.Invoked?.Invoke(item, source);
+        ItemInvoked?.Invoke(item, source);
     }
 
     private void UpdateHoveredMenuItem(UiPoint point)
     {
-        _hoveredMenuLevel = -1;
-        _hoveredMenuIndex = -1;
-
         if (TryGetMenuItemAt(point, out int level, out int index))
         {
             MenuItem item = _openLayouts[level].Items[index];
@@ -1086,6 +1376,7 @@ public sealed class UiMenuBar : UiElement
                     ScrollDeltaX = allowInput ? input.ScrollDeltaX : 0,
                     ScrollDelta = allowInput ? input.ScrollDelta : 0,
                     TextInput = input.TextInput,
+                    Composition = input.Composition,
                     KeysDown = input.KeysDown,
                     KeysPressed = input.KeysPressed,
                     KeysReleased = input.KeysReleased,
@@ -1095,6 +1386,579 @@ public sealed class UiMenuBar : UiElement
                 item.Content.Update(new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont, context.Clipboard));
             }
         }
+    }
+
+    private void HandleKeyboardNavigation(UiUpdateContext context)
+    {
+        UiInputState input = context.Input;
+        if (DisplayMode == UiMenuDisplayMode.Popup)
+        {
+            if (!_popupOpen)
+            {
+                return;
+            }
+        }
+        else if (_openPath.Count == 0)
+        {
+            if (context.Focus.Focused != this)
+            {
+                return;
+            }
+
+            if (input.Navigation.MoveDown || input.Navigation.Enter || input.Navigation.KeypadEnter || input.Navigation.Space)
+            {
+                int topIndex = FindNextEnabledTopIndex(-1, 1);
+                if (topIndex >= 0)
+                {
+                    _openPath.Clear();
+                    _openPath.Add(topIndex);
+                    BuildLayout();
+                    SelectBoundaryItem(0, first: true);
+                }
+            }
+
+            return;
+        }
+
+        if (_openLayouts.Count == 0)
+        {
+            return;
+        }
+
+        if (input.Navigation.Home)
+        {
+            SelectBoundaryItem(GetSelectedMenuLevel(), first: true);
+            return;
+        }
+
+        if (input.Navigation.End)
+        {
+            SelectBoundaryItem(GetSelectedMenuLevel(), first: false);
+            return;
+        }
+
+        if (input.Navigation.MoveDown)
+        {
+            MoveSelection(1);
+            return;
+        }
+
+        if (input.Navigation.MoveUp)
+        {
+            MoveSelection(-1);
+            return;
+        }
+
+        if (input.Navigation.MoveRight)
+        {
+            NavigateRight();
+            return;
+        }
+
+        if (input.Navigation.MoveLeft)
+        {
+            NavigateLeft(context.Focus);
+            return;
+        }
+
+        if (input.Navigation.Enter || input.Navigation.KeypadEnter || input.Navigation.Space)
+        {
+            ActivateSelection(context.Focus);
+        }
+    }
+
+    private void NavigateRight()
+    {
+        if (_openLayouts.Count == 0)
+        {
+            return;
+        }
+
+        int level = GetSelectedMenuLevel();
+        int index = EnsureSelectedItem(level, first: true);
+        if (index < 0)
+        {
+            return;
+        }
+
+        MenuItem item = _openLayouts[level].Items[index];
+        if (item.HasChildren && IsMenuItemInteractive(item))
+        {
+            OpenSubmenu(level, index);
+            RebuildCurrentLayouts();
+            SelectBoundaryItem(Math.Min(level + 1, _openLayouts.Count - 1), first: true);
+            return;
+        }
+
+        if (DisplayMode != UiMenuDisplayMode.Popup && level == 0 && _openPath.Count > 0)
+        {
+            int nextTopIndex = FindNextEnabledTopIndex(_openPath[0], 1);
+            if (nextTopIndex >= 0)
+            {
+                _openPath.Clear();
+                _openPath.Add(nextTopIndex);
+                RebuildCurrentLayouts();
+                SelectBoundaryItem(0, first: true);
+            }
+        }
+    }
+
+    private void NavigateLeft(UiFocusManager focus)
+    {
+        if (_openLayouts.Count == 0)
+        {
+            return;
+        }
+
+        int level = GetSelectedMenuLevel();
+        if (DisplayMode != UiMenuDisplayMode.Popup && level == 0 && _openPath.Count > 0)
+        {
+            int previousTopIndex = FindNextEnabledTopIndex(_openPath[0], -1);
+            if (previousTopIndex >= 0)
+            {
+                _openPath.Clear();
+                _openPath.Add(previousTopIndex);
+                RebuildCurrentLayouts();
+                SelectBoundaryItem(0, first: true);
+            }
+
+            return;
+        }
+
+        if (DisplayMode == UiMenuDisplayMode.Popup && level == 0)
+        {
+            ClosePopup(focus);
+            return;
+        }
+
+        if (level <= 0)
+        {
+            return;
+        }
+
+        int parentLevel = level - 1;
+        int parentIndex = GetParentItemIndexForLevel(level);
+        CloseSubmenuLevel(level);
+        RebuildCurrentLayouts();
+        if (parentIndex >= 0)
+        {
+            _hoveredMenuLevel = parentLevel;
+            _hoveredMenuIndex = parentIndex;
+        }
+    }
+
+    private void ActivateSelection(UiFocusManager focus)
+    {
+        if (_openLayouts.Count == 0)
+        {
+            return;
+        }
+
+        int level = GetSelectedMenuLevel();
+        int index = EnsureSelectedItem(level, first: true);
+        if (index < 0)
+        {
+            return;
+        }
+
+        MenuItem item = _openLayouts[level].Items[index];
+        if (!item.Enabled || item.IsSeparator)
+        {
+            return;
+        }
+
+        if (item.HasChildren)
+        {
+            OpenSubmenu(level, index);
+            RebuildCurrentLayouts();
+            SelectBoundaryItem(Math.Min(level + 1, _openLayouts.Count - 1), first: true);
+            return;
+        }
+
+        ActivateItem(item, UiMenuItemActivationSource.Keyboard);
+        if (DisplayMode == UiMenuDisplayMode.Popup)
+        {
+            if (ClosePopupOnItemClick)
+            {
+                ClosePopup(focus);
+            }
+        }
+        else
+        {
+            CloseMenu(focus);
+        }
+    }
+
+    private void MoveSelection(int direction)
+    {
+        if (_openLayouts.Count == 0)
+        {
+            return;
+        }
+
+        int level = GetSelectedMenuLevel();
+        int currentIndex = _hoveredMenuLevel == level ? _hoveredMenuIndex : -1;
+        int nextIndex = FindNextInteractiveIndex(_openLayouts[level].Items, currentIndex, direction);
+        if (nextIndex >= 0)
+        {
+            _hoveredMenuLevel = level;
+            _hoveredMenuIndex = nextIndex;
+        }
+    }
+
+    private int GetSelectedMenuLevel()
+    {
+        if (_hoveredMenuLevel >= 0 && _hoveredMenuLevel < _openLayouts.Count)
+        {
+            return _hoveredMenuLevel;
+        }
+
+        return Math.Max(0, _openLayouts.Count - 1);
+    }
+
+    private int EnsureSelectedItem(int level, bool first)
+    {
+        if (level < 0 || level >= _openLayouts.Count)
+        {
+            return -1;
+        }
+
+        if (_hoveredMenuLevel == level &&
+            _hoveredMenuIndex >= 0 &&
+            _hoveredMenuIndex < _openLayouts[level].Items.Count &&
+            IsMenuItemInteractive(_openLayouts[level].Items[_hoveredMenuIndex]))
+        {
+            return _hoveredMenuIndex;
+        }
+
+        int index = first
+            ? FindNextInteractiveIndex(_openLayouts[level].Items, -1, 1)
+            : FindNextInteractiveIndex(_openLayouts[level].Items, _openLayouts[level].Items.Count, -1);
+        if (index >= 0)
+        {
+            _hoveredMenuLevel = level;
+            _hoveredMenuIndex = index;
+        }
+
+        return index;
+    }
+
+    private void SelectBoundaryItem(int level, bool first)
+    {
+        EnsureSelectedItem(level, first);
+    }
+
+    private int FindNextEnabledTopIndex(int startIndex, int direction)
+    {
+        if (Items.Count == 0)
+        {
+            return -1;
+        }
+
+        int index = startIndex;
+        for (int attempt = 0; attempt < Items.Count; attempt++)
+        {
+            index += direction;
+            if (index < 0)
+            {
+                index = Items.Count - 1;
+            }
+            else if (index >= Items.Count)
+            {
+                index = 0;
+            }
+
+            MenuItem item = Items[index];
+            if (item.Enabled && !item.IsSeparator)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int FindNextInteractiveIndex(IReadOnlyList<MenuItem> items, int startIndex, int direction)
+    {
+        if (items.Count == 0)
+        {
+            return -1;
+        }
+
+        int index = startIndex;
+        if (direction > 0 && startIndex < 0)
+        {
+            index = -1;
+        }
+        else if (direction < 0 && startIndex >= items.Count)
+        {
+            index = items.Count;
+        }
+
+        for (int attempt = 0; attempt < items.Count; attempt++)
+        {
+            index += direction;
+            if (index < 0)
+            {
+                index = items.Count - 1;
+            }
+            else if (index >= items.Count)
+            {
+                index = 0;
+            }
+
+            MenuItem item = items[index];
+            if (!item.IsSeparator && item.Enabled && (!item.HasContent || !item.ContentCapturesInput))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private int GetParentItemIndexForLevel(int level)
+    {
+        if (level <= 0)
+        {
+            return -1;
+        }
+
+        int pathIndex = DisplayMode == UiMenuDisplayMode.Popup ? level - 1 : level;
+        if (pathIndex < 0 || pathIndex >= _openPath.Count)
+        {
+            return -1;
+        }
+
+        return _openPath[pathIndex];
+    }
+
+    private void CloseSubmenuLevel(int level)
+    {
+        int removeIndex = DisplayMode == UiMenuDisplayMode.Popup ? level - 1 : level;
+        if (removeIndex >= 0 && removeIndex < _openPath.Count)
+        {
+            _openPath.RemoveRange(removeIndex, _openPath.Count - removeIndex);
+        }
+    }
+
+    private void RebuildCurrentLayouts()
+    {
+        if (DisplayMode == UiMenuDisplayMode.Popup)
+        {
+            BuildPopupLayouts();
+        }
+        else
+        {
+            BuildLayout();
+        }
+    }
+
+    private bool TryDispatchShortcut(UiUpdateContext context)
+    {
+        if (!EnableShortcutDispatch)
+        {
+            return false;
+        }
+
+        if (DisplayMode == UiMenuDisplayMode.Popup && !_popupOpen && context.Focus.Focused != this)
+        {
+            return false;
+        }
+
+        if (!TryFindShortcutItem(Items, context.Input, context.Focus.Focused, out MenuItem? item) || item == null)
+        {
+            return false;
+        }
+
+        ActivateItem(item, UiMenuItemActivationSource.Shortcut);
+        if (DisplayMode == UiMenuDisplayMode.Popup && _popupOpen && ClosePopupOnItemClick)
+        {
+            ClosePopup(context.Focus);
+        }
+        else if (DisplayMode != UiMenuDisplayMode.Popup && HasOpenMenu)
+        {
+            CloseMenu(context.Focus);
+        }
+
+        return true;
+    }
+
+    private bool TryFindShortcutItem(
+        IReadOnlyList<MenuItem> items,
+        UiInputState input,
+        UiElement? focusedElement,
+        out MenuItem? match)
+    {
+        for (int i = 0; i < items.Count; i++)
+        {
+            MenuItem item = items[i];
+            if (!item.Enabled || item.IsSeparator)
+            {
+                continue;
+            }
+
+            if (item.HasChildren)
+            {
+                if (TryFindShortcutItem(item.Items, input, focusedElement, out match))
+                {
+                    return true;
+                }
+            }
+
+            if (item.HasContent)
+            {
+                continue;
+            }
+
+            if (focusedElement?.WantsTextInput == true && !(AllowShortcutsDuringTextInput || item.AllowShortcutDuringTextInput))
+            {
+                continue;
+            }
+
+            if (ShortcutMatches(item, input))
+            {
+                match = item;
+                return true;
+            }
+        }
+
+        match = null;
+        return false;
+    }
+
+    private static bool ShortcutMatches(MenuItem item, UiInputState input)
+    {
+        if (!TryGetShortcutBinding(item, out ShortcutBinding binding))
+        {
+            return false;
+        }
+
+        if (binding.UsesPrimaryModifier)
+        {
+            bool shift = (binding.Modifiers & UiModifierKeys.Shift) != 0;
+            bool alt = (binding.Modifiers & UiModifierKeys.Alt) != 0;
+            return input.IsPrimaryShortcutPressed(binding.Key, shift, alt);
+        }
+
+        return input.IsKeyPressed(binding.Key, binding.Modifiers);
+    }
+
+    private static bool TryFindCommandItem(IReadOnlyList<MenuItem> items, string commandId, out MenuItem? match)
+    {
+        for (int i = 0; i < items.Count; i++)
+        {
+            MenuItem item = items[i];
+            if (item.Enabled && string.Equals(item.CommandId, commandId, StringComparison.OrdinalIgnoreCase))
+            {
+                match = item;
+                return true;
+            }
+
+            if (item.HasChildren && TryFindCommandItem(item.Items, commandId, out match))
+            {
+                return true;
+            }
+        }
+
+        match = null;
+        return false;
+    }
+
+    private static bool TryGetShortcutBinding(MenuItem item, out ShortcutBinding binding)
+    {
+        if (item.ShortcutChord is UiKeyChord shortcutChord)
+        {
+            binding = new ShortcutBinding(shortcutChord.Key, shortcutChord.Modifiers, usesPrimaryModifier: false);
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(item.Shortcut))
+        {
+            binding = default;
+            return false;
+        }
+
+        return ShortcutBinding.TryParse(item.Shortcut, out binding);
+    }
+
+    private bool TryGetMenuContentHit(UiPoint point, out UiElement? hit)
+    {
+        for (int layoutIndex = _openLayouts.Count - 1; layoutIndex >= 0; layoutIndex--)
+        {
+            MenuLayout layout = _openLayouts[layoutIndex];
+            for (int itemIndex = layout.ItemRects.Count - 1; itemIndex >= 0; itemIndex--)
+            {
+                MenuItem item = layout.Items[itemIndex];
+                if (!item.HasContent || !item.ContentCapturesInput || item.Content == null)
+                {
+                    continue;
+                }
+
+                UiRect contentRect = GetContentRect(item, layout.ItemRects[itemIndex]);
+                if (!contentRect.Contains(point))
+                {
+                    continue;
+                }
+
+                EnsureContentBounds(item, contentRect);
+                UiPoint localPoint = new UiPoint(point.X - contentRect.X, point.Y - contentRect.Y);
+                hit = item.Content.HitTest(localPoint) ?? item.Content;
+                return true;
+            }
+        }
+
+        hit = null;
+        return false;
+    }
+
+    private void CaptureFocus(UiFocusManager focus)
+    {
+        if (!EnableKeyboardNavigation)
+        {
+            return;
+        }
+
+        if (!_restoreFocusOnClose)
+        {
+            _focusBeforeOpen = focus.Focused == this ? null : focus.Focused;
+            _restoreFocusOnClose = true;
+        }
+
+        focus.RequestFocus(this);
+    }
+
+    private void RestoreFocus(UiFocusManager? focus)
+    {
+        if (!_restoreFocusOnClose)
+        {
+            return;
+        }
+
+        UiElement? restoreTarget = _focusBeforeOpen;
+        _focusBeforeOpen = null;
+        _restoreFocusOnClose = false;
+
+        if (focus == null)
+        {
+            return;
+        }
+
+        if (restoreTarget != null && (!restoreTarget.Visible || !restoreTarget.Enabled || !restoreTarget.IsFocusable))
+        {
+            restoreTarget = null;
+        }
+
+        if (focus.Focused == this || focus.Focused == null)
+        {
+            focus.RequestFocus(restoreTarget);
+        }
+    }
+
+    private void ClearSelection()
+    {
+        _hoveredMenuLevel = -1;
+        _hoveredMenuIndex = -1;
     }
 
     private static UiPoint? TranslatePoint(UiPoint? point, int offsetX, int offsetY)
@@ -1173,6 +2037,11 @@ public sealed class UiMenuBar : UiElement
         }
 
         return false;
+    }
+
+    private static bool IsAnyMouseClick(UiInputState input)
+    {
+        return input.LeftClicked || input.RightClicked || input.MiddleClicked;
     }
 
     private bool IsMenuItemInteractive(MenuItem item)

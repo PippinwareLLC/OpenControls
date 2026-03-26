@@ -5,8 +5,16 @@ namespace OpenControls.SilkNet;
 
 public sealed class SilkNetUiRenderer : IUiRenderer
 {
+    private sealed class AtlasPageTexture
+    {
+        public uint TextureId { get; set; }
+        public int Version { get; set; } = -1;
+    }
+
     private readonly GL _gl;
     private readonly Stack<UiRect> _clipStack = new();
+    private readonly UiGlyphAtlas _glyphAtlas = new();
+    private readonly Dictionary<int, AtlasPageTexture> _atlasTextures = new();
     private bool _scissorEnabled;
 
     public SilkNetUiRenderer(GL gl, UiFont? defaultFont = null)
@@ -104,13 +112,41 @@ public sealed class SilkNetUiRenderer : IUiRenderer
             return;
         }
 
-        BeginQuads();
+        _gl.Enable(EnableCap.Texture2D);
+        SetColor(color);
+        int activePageIndex = -1;
         for (int i = 0; i < layout.Glyphs.Count; i++)
         {
             UiPositionedGlyph glyph = layout.Glyphs[i];
-            EmitGlyph(glyph.Glyph, position.X + glyph.X, position.Y + glyph.Y, color);
+            UiGlyphAtlasEntry entry = _glyphAtlas.GetOrAdd(glyph.Glyph);
+            if (!entry.IsValid)
+            {
+                continue;
+            }
+
+            if (entry.PageIndex != activePageIndex)
+            {
+                if (activePageIndex >= 0)
+                {
+                    End();
+                }
+
+                AtlasPageTexture pageTexture = EnsureAtlasTexture(entry.PageIndex);
+                _gl.BindTexture(TextureTarget.Texture2D, pageTexture.TextureId);
+                BeginQuads();
+                activePageIndex = entry.PageIndex;
+            }
+
+            EmitTexturedQuad(position.X + glyph.X, position.Y + glyph.Y, glyph.Glyph.Width, glyph.Glyph.Height, entry);
         }
-        End();
+
+        if (activePageIndex >= 0)
+        {
+            End();
+            _gl.BindTexture(TextureTarget.Texture2D, 0);
+        }
+
+        _gl.Disable(EnableCap.Texture2D);
     }
 
     public int MeasureTextWidth(string text, int scale = 1)
@@ -186,29 +222,46 @@ public sealed class SilkNetUiRenderer : IUiRenderer
         _gl.End();
     }
 
-    private void EmitGlyph(UiRasterizedGlyph glyph, int x, int y, UiColor color)
+    private AtlasPageTexture EnsureAtlasTexture(int pageIndex)
     {
-        for (int row = 0; row < glyph.Height; row++)
+        UiGlyphAtlasPage page = _glyphAtlas.GetPage(pageIndex);
+        if (!_atlasTextures.TryGetValue(pageIndex, out AtlasPageTexture? texture))
         {
-            int rowStart = row * glyph.Width;
-            for (int col = 0; col < glyph.Width; col++)
+            texture = new AtlasPageTexture
             {
-                byte alpha = glyph.Alpha[rowStart + col];
-                if (alpha == 0)
-                {
-                    continue;
-                }
-
-                SetColor(ApplyAlpha(color, alpha));
-                EmitQuad(x + col, y + row, 1, 1);
-            }
+                TextureId = _gl.GenTexture()
+            };
+            _atlasTextures[pageIndex] = texture;
         }
-    }
 
-    private static UiColor ApplyAlpha(UiColor color, byte alpha)
-    {
-        int scaledAlpha = color.A * alpha / 255;
-        return new UiColor(color.R, color.G, color.B, (byte)scaledAlpha);
+        if (texture.Version != page.Version)
+        {
+            _gl.BindTexture(TextureTarget.Texture2D, texture.TextureId);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Nearest);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Nearest);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+            unsafe
+            {
+                fixed (byte* pixels = page.Pixels)
+                {
+                    _gl.TexImage2D(
+                        TextureTarget.Texture2D,
+                        0,
+                        (int)InternalFormat.Rgba,
+                        (uint)page.Width,
+                        (uint)page.Height,
+                        0,
+                        PixelFormat.Rgba,
+                        PixelType.UnsignedByte,
+                        pixels);
+                }
+            }
+
+            texture.Version = page.Version;
+        }
+
+        return texture;
     }
 
     private void EmitQuad(int x, int y, int width, int height)
@@ -221,6 +274,29 @@ public sealed class SilkNetUiRenderer : IUiRenderer
         _gl.Vertex2(left, top);
         _gl.Vertex2(right, top);
         _gl.Vertex2(right, bottom);
+        _gl.Vertex2(left, bottom);
+    }
+
+    private void EmitTexturedQuad(int x, int y, int width, int height, UiGlyphAtlasEntry entry)
+    {
+        UiGlyphAtlasPage page = _glyphAtlas.GetPage(entry.PageIndex);
+        float u1 = entry.SourceRect.X / (float)page.Width;
+        float v1 = entry.SourceRect.Y / (float)page.Height;
+        float u2 = entry.SourceRect.Right / (float)page.Width;
+        float v2 = entry.SourceRect.Bottom / (float)page.Height;
+
+        float left = x;
+        float top = y;
+        float right = x + width;
+        float bottom = y + height;
+
+        _gl.TexCoord2(u1, v1);
+        _gl.Vertex2(left, top);
+        _gl.TexCoord2(u2, v1);
+        _gl.Vertex2(right, top);
+        _gl.TexCoord2(u2, v2);
+        _gl.Vertex2(right, bottom);
+        _gl.TexCoord2(u1, v2);
         _gl.Vertex2(left, bottom);
     }
 

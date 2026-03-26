@@ -11,9 +11,14 @@ public sealed class UiDragIntRange : UiElement
         Max
     }
 
+    private readonly UiInputInt _minInputField;
+    private readonly UiInputInt _maxInputField;
     private bool _dragging;
     private bool _focused;
+    private bool _inputMode;
+    private bool _pendingFocusSelf;
     private int _dragStartX;
+    private int _inputSnapshotValue;
     private int _dragStartValue;
     private int _valueMin;
     private int _valueMax;
@@ -23,6 +28,27 @@ public sealed class UiDragIntRange : UiElement
     private bool _hasValueMax;
     private RangePart _activePart;
     private RangePart _hoveredPart;
+    private RangePart _inputPart;
+
+    public UiDragIntRange()
+    {
+        _minInputField = new UiInputInt
+        {
+            Visible = false
+        };
+        _maxInputField = new UiInputInt
+        {
+            Visible = false
+        };
+        _minInputField.ValueChanged += value => SetMin(value);
+        _maxInputField.ValueChanged += value => SetMax(value);
+        _minInputField.Submitted += () => HandleInputSubmitted(RangePart.Min);
+        _maxInputField.Submitted += () => HandleInputSubmitted(RangePart.Max);
+        _minInputField.Cancelled += () => HandleInputCancelled(RangePart.Min);
+        _maxInputField.Cancelled += () => HandleInputCancelled(RangePart.Max);
+        AddChild(_minInputField);
+        AddChild(_maxInputField);
+    }
 
     public int Min
     {
@@ -105,6 +131,30 @@ public sealed class UiDragIntRange : UiElement
         UiRect minRect = GetMinRect();
         UiRect maxRect = GetMaxRect();
         _hoveredPart = RangePart.None;
+        SyncInputFieldOptions();
+
+        if (_inputMode && _inputPart != RangePart.None)
+        {
+            UiNumericField field = GetInputField(_inputPart);
+            field.Bounds = _inputPart == RangePart.Min ? minRect : maxRect;
+            field.Visible = true;
+            base.Update(context);
+
+            if (context.Focus.Focused != field.TextField)
+            {
+                _inputMode = false;
+                _inputPart = RangePart.None;
+                field.Visible = false;
+            }
+
+            if (_pendingFocusSelf)
+            {
+                _pendingFocusSelf = false;
+                context.Focus.RequestFocus(this);
+            }
+
+            return;
+        }
 
         if (minRect.Contains(input.MousePosition))
         {
@@ -113,6 +163,16 @@ public sealed class UiDragIntRange : UiElement
         else if (maxRect.Contains(input.MousePosition))
         {
             _hoveredPart = RangePart.Max;
+        }
+
+        if (!Flags.HasFlag(UiDragFlags.NoInput) &&
+            input.LeftClicked &&
+            _hoveredPart != RangePart.None &&
+            (input.LeftDoubleClicked || input.PrimaryShortcutDown))
+        {
+            EnterInputMode(context, _hoveredPart);
+            base.Update(context);
+            return;
         }
 
         if (input.LeftClicked && _hoveredPart != RangePart.None)
@@ -170,6 +230,7 @@ public sealed class UiDragIntRange : UiElement
             }
         }
 
+        HideInputFields();
         base.Update(context);
     }
 
@@ -182,8 +243,15 @@ public sealed class UiDragIntRange : UiElement
 
         UiRect minRect = GetMinRect();
         UiRect maxRect = GetMaxRect();
-        DrawPart(context, minRect, RangePart.Min, FormatValue(_valueMin));
-        DrawPart(context, maxRect, RangePart.Max, FormatValue(_valueMax));
+        if (!(_inputMode && _inputPart == RangePart.Min))
+        {
+            DrawPart(context, minRect, RangePart.Min, FormatValue(_valueMin));
+        }
+
+        if (!(_inputMode && _inputPart == RangePart.Max))
+        {
+            DrawPart(context, maxRect, RangePart.Max, FormatValue(_valueMax));
+        }
 
         base.Render(context);
     }
@@ -197,6 +265,86 @@ public sealed class UiDragIntRange : UiElement
     {
         _focused = false;
         _dragging = false;
+    }
+
+    private void EnterInputMode(UiUpdateContext context, RangePart part)
+    {
+        _dragging = false;
+        _inputMode = true;
+        _inputPart = part;
+        _activePart = part;
+        _inputSnapshotValue = part == RangePart.Max ? _valueMax : _valueMin;
+
+        UiNumericField field = GetInputField(part);
+        field.Visible = true;
+        field.Bounds = part == RangePart.Min ? GetMinRect() : GetMaxRect();
+        if (part == RangePart.Max)
+        {
+            ((UiInputInt)field).Value = _valueMax;
+        }
+        else
+        {
+            ((UiInputInt)field).Value = _valueMin;
+        }
+
+        field.SelectAllText();
+        context.Focus.RequestFocus(field.TextField);
+    }
+
+    private void HandleInputSubmitted(RangePart part)
+    {
+        if (_inputPart != part)
+        {
+            return;
+        }
+
+        _inputMode = false;
+        _inputPart = RangePart.None;
+        GetInputField(part).Visible = false;
+        _pendingFocusSelf = true;
+    }
+
+    private void HandleInputCancelled(RangePart part)
+    {
+        if (_inputPart != part)
+        {
+            return;
+        }
+
+        SetValue(part, _inputSnapshotValue);
+        _inputMode = false;
+        _inputPart = RangePart.None;
+        GetInputField(part).Visible = false;
+        _pendingFocusSelf = true;
+    }
+
+    private UiNumericField GetInputField(RangePart part)
+    {
+        return part == RangePart.Max ? _maxInputField : _minInputField;
+    }
+
+    private void SyncInputFieldOptions()
+    {
+        ConfigureInputField(_minInputField);
+        ConfigureInputField(_maxInputField);
+    }
+
+    private void ConfigureInputField(UiInputInt field)
+    {
+        field.Min = _min;
+        field.Max = _max;
+        field.Clamp = Flags.HasFlag(UiDragFlags.AlwaysClamp) && !Flags.HasFlag(UiDragFlags.WrapAround);
+        field.Step = Step;
+        field.StepFast = Step > 0 ? Math.Max(1, Step * 10) : 0;
+        field.ValueFormat = ValueFormat;
+        field.TextScale = TextScale;
+        field.Padding = Padding;
+    }
+
+    private void HideInputFields()
+    {
+        _minInputField.Visible = false;
+        _maxInputField.Visible = false;
     }
 
     private void DrawPart(UiRenderContext context, UiRect rect, RangePart part, string text)
@@ -389,29 +537,13 @@ public sealed class UiDragIntRange : UiElement
 
     private int ApplyConstraints(int value)
     {
-        int next = value;
-        if (Flags.HasFlag(UiDragFlags.Clamp) && HasRange())
-        {
-            next = Math.Clamp(next, _min, _max);
-        }
-
-        if (Step > 1)
-        {
-            next = SnapToStep(next);
-        }
-
-        return next;
-    }
-
-    private int SnapToStep(int value)
-    {
-        if (Step <= 1)
-        {
-            return value;
-        }
-
-        int steps = (int)MathF.Round((value - _min) / (float)Step);
-        return _min + steps * Step;
+        return UiNumericValueHelpers.ApplyIntConstraints(
+            value,
+            _min,
+            _max,
+            Step,
+            clampByDefault: false,
+            UiNumericValueHelpers.ToModifierFlags(Flags));
     }
 
     private string FormatValue(int value)

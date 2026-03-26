@@ -1,6 +1,8 @@
+using OpenControls.State;
+
 namespace OpenControls.Controls;
 
-public sealed class UiListView : UiElement
+public sealed class UiListView : UiElement, IUiStatefulElement
 {
     private readonly UiChildRegion _region;
     private readonly UiSelectionModel _internalSelectionModel = new();
@@ -122,6 +124,36 @@ public sealed class UiListView : UiElement
     public event Action<UiSelectableRow, int>? ItemInvoked;
 
     public override bool IsFocusable => true;
+
+    public void CaptureState(UiElementState state)
+    {
+        state.ScrollY = ScrollPanel.ScrollY;
+        state.FilterText = FilterText;
+        state.SelectedIndex = SelectedIndex;
+        state.SelectedIndices = SelectedIndices.ToList();
+    }
+
+    public void ApplyState(UiElementState state)
+    {
+        if (state.FilterText != null)
+        {
+            FilterText = state.FilterText;
+        }
+
+        if (state.ScrollY.HasValue)
+        {
+            ScrollPanel.ScrollY = Math.Max(0, state.ScrollY.Value);
+        }
+
+        if (state.SelectedIndices.Count > 0)
+        {
+            ActiveSelectionModel.SetSelection(state.SelectedIndices, state.SelectedIndex ?? -1, state.SelectedIndex ?? -1, _selectionScope);
+        }
+        else if (state.SelectedIndex.HasValue)
+        {
+            SelectedIndex = state.SelectedIndex.Value;
+        }
+    }
 
     public void AddItem(UiSelectableRow item)
     {

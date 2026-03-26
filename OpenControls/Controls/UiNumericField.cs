@@ -25,6 +25,11 @@ public class UiNumericField : UiElement
 
     public UiTextField TextField => _field;
 
+    public void SelectAllText()
+    {
+        _field.SelectAllText();
+    }
+
     public double Value
     {
         get => _value;
@@ -155,6 +160,17 @@ public class UiNumericField : UiElement
     }
 
     public event Action<double>? ValueChanged;
+    public event Action? Submitted
+    {
+        add => _field.Submitted += value;
+        remove => _field.Submitted -= value;
+    }
+
+    public event Action? Cancelled
+    {
+        add => _field.Cancelled += value;
+        remove => _field.Cancelled -= value;
+    }
 
     public override void Update(UiUpdateContext context)
     {

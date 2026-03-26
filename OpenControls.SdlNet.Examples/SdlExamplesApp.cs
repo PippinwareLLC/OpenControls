@@ -128,6 +128,7 @@ public sealed class SdlExamplesApp : IDisposable
     private int _scrollDelta;
     private readonly List<char> _textInputBuffer = new();
     private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
+    private UiTextCompositionState _composition = UiTextCompositionState.Empty;
 
     public void Run()
     {
@@ -287,6 +288,9 @@ public sealed class SdlExamplesApp : IDisposable
                 case SDL.SDL_EventType.SDL_TEXTINPUT:
                     HandleTextInput(evt.text);
                     break;
+                case SDL.SDL_EventType.SDL_TEXTEDITING:
+                    HandleTextEditing(evt.edit);
+                    break;
             }
         }
     }
@@ -313,6 +317,27 @@ public sealed class SdlExamplesApp : IDisposable
                 _textInputBuffer.Add(character);
             }
         }
+
+        _composition = UiTextCompositionState.Empty;
+    }
+
+    private unsafe void HandleTextEditing(SDL.SDL_TextEditingEvent textEvent)
+    {
+        int length = 0;
+        while (length < SDL.SDL_TEXTEDITINGEVENT_TEXT_SIZE && textEvent.text[length] != 0)
+        {
+            length++;
+        }
+
+        if (length <= 0)
+        {
+            _composition = UiTextCompositionState.Empty;
+            return;
+        }
+
+        byte* textPtr = textEvent.text;
+        string text = Utf8Encoding.GetString(textPtr, length);
+        _composition = new UiTextCompositionState(text, textEvent.start, textEvent.length, textEvent.start + textEvent.length);
     }
 
     private void UpdateKeyStates()
@@ -392,6 +417,7 @@ public sealed class SdlExamplesApp : IDisposable
             ScrollDeltaX = _scrollDeltaX,
             ScrollDelta = _scrollDelta,
             TextInput = _textInputBuffer.Count > 0 ? _textInputBuffer.ToArray() : Array.Empty<char>(),
+            Composition = _composition,
             KeysDown = BuildKeyList(pressedOnly: false, releasedOnly: false),
             KeysPressed = BuildKeyList(pressedOnly: true, releasedOnly: false),
             KeysReleased = BuildKeyList(pressedOnly: false, releasedOnly: true),
@@ -424,7 +450,25 @@ public sealed class SdlExamplesApp : IDisposable
         }
 
         SetTextInputActive(_ui.WantTextInput);
+        ApplyTextInputRequest(_ui.TextInputRequest);
         ApplyMouseCursor(_ui.RequestedMouseCursor);
+    }
+
+    private void ApplyTextInputRequest(UiTextInputRequest? request)
+    {
+        if (request is not UiTextInputRequest value)
+        {
+            return;
+        }
+
+        SDL.SDL_Rect rect = new()
+        {
+            x = value.CandidateBounds.X,
+            y = value.CandidateBounds.Y,
+            w = Math.Max(1, value.CandidateBounds.Width),
+            h = Math.Max(1, value.CandidateBounds.Height)
+        };
+        SDL.SDL_SetTextInputRect(ref rect);
     }
 
     private void SetTextInputActive(bool enabled)

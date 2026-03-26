@@ -1,6 +1,8 @@
+using OpenControls.State;
+
 namespace OpenControls.Controls;
 
-public class UiCombo : UiElement
+public class UiCombo : UiElement, IUiStatefulElement
 {
     private readonly UiPopup _popup;
     private readonly UiTextField _filterField;
@@ -120,6 +122,43 @@ public class UiCombo : UiElement
     public event Action? Closed;
 
     public override bool IsFocusable => true;
+
+    public void CaptureState(UiElementState state)
+    {
+        state.SelectedIndex = SelectedIndex;
+        state.FilterText = _filterField.Text;
+        state.ScrollY = _listView.ScrollPanel.ScrollY;
+        state.IsOpen = _popup.IsOpen;
+    }
+
+    public void ApplyState(UiElementState state)
+    {
+        if (state.FilterText != null)
+        {
+            _filterField.Text = state.FilterText;
+            _listView.FilterText = ShowFilterField ? state.FilterText : string.Empty;
+        }
+
+        if (state.SelectedIndex.HasValue)
+        {
+            SelectedIndex = state.SelectedIndex.Value;
+        }
+
+        if (state.ScrollY.HasValue)
+        {
+            _listView.ScrollPanel.ScrollY = Math.Max(0, state.ScrollY.Value);
+        }
+
+        if (state.IsOpen == true)
+        {
+            Open();
+        }
+        else if (state.IsOpen == false)
+        {
+            LayoutPopup();
+            _popup.Close();
+        }
+    }
 
     public void AddItem(UiSelectableRow item)
     {
