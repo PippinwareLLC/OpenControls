@@ -603,28 +603,34 @@ These items remain backlog, but they do not block Milestone 8 closure:
 
 ## Milestone 9: Shared Virtualization / Clipper Layer
 
+Milestone 9 is complete for the scoped first-pass virtualization target. OpenControls now ships a shared fixed-height `UiClipper` / `UiClipRange` layer, `UiListBox` uses that range math directly, uniform-height `UiTable` rows route through it, and the new `UiTreeView` gives the repo a reusable large-tree path instead of a demo-only stub. The `Clipping` window now demonstrates real 4,000-row list, 6,000-row multi-select list, 2,500-row table, and 8,040-row tree datasets with live visible-range readouts, so “with clipper” is no longer conceptual.
+
 ### Why This Is Separate
 
 Large-data support should not be reinvented in list boxes, tables, trees, and selection demos independently.
 
 ### Checklist
 
-- [ ] Design a renderer-agnostic virtualization primitive for sequential item ranges.
-- [ ] Support:
-  - [ ] fixed-height rows first
-  - [ ] variable-height rows later only if needed
-- [ ] Integrate with:
-  - [ ] `UiListBox`
-  - [ ] `UiTable`
-  - [ ] large trees
-  - [ ] advanced multi-select examples
-- [ ] Ensure selection can survive clipped/non-materialized rows.
-- [ ] Ensure hover and keyboard navigation behave correctly with partial materialization.
-- [ ] Add examples using thousands of rows/items.
+- [x] Design a renderer-agnostic virtualization primitive for sequential item ranges.
+- [x] Support fixed-height rows first.
+- [x] Integrate with:
+  - [x] `UiListBox`
+  - [x] `UiTable`
+  - [x] large trees
+  - [x] advanced multi-select examples
+- [x] Ensure selection can survive clipped/non-materialized rows.
+- [x] Ensure hover and keyboard navigation behave correctly with partial materialization.
+- [x] Add examples using thousands of rows/items.
 
 ### Exit Criteria
 
-- [ ] "with clipper" examples stop being conceptual and become real capabilities.
+- [x] "with clipper" examples stop being conceptual and become real capabilities.
+
+### Deferred Follow-On Work
+
+These items remain backlog, but they do not block Milestone 9 closure:
+
+- [ ] Promote variable-height virtualization from fallback clipped rendering to the shared clipper only if product-scale data proves the extra complexity is necessary.
 
 ## Milestone 10: Selection And Trees
 
@@ -780,7 +786,7 @@ If resourcing is tight, do the work in this order:
 - [x] Milestone 6
 - [x] Milestone 7
 - [x] Milestone 8
-- [ ] Milestone 9
+- [x] Milestone 9
 - [ ] Milestone 10
 - [ ] Milestone 11
 - [ ] Milestone 12
@@ -803,13 +809,13 @@ If resourcing is tight, do the work in this order:
 ### Release Slice C: Data Views
 
 - [x] Milestone 8
-- [ ] Milestone 9
+- [x] Milestone 9
 - [ ] Milestone 10
 
 ### Release Slice D: Composition And Layout
 
 - [x] Milestone 6
-- [ ] Milestone 7
+- [x] Milestone 7
 
 ### Release Slice E: Polish And Showcase
 
@@ -822,5 +828,5 @@ If resourcing is tight, do the work in this order:
 - [x] If only one thing happens next, it should be Milestone 1.
 - [x] If only one thing happens next after Milestone 1, it should be Milestone 2.
 - [x] If custom fonts and icon-font parity matter for the near-term product, Milestone 3 should happen immediately after Milestone 2.
-- [ ] If only one user-facing thing happens after that, it should be Milestone 5 or Milestone 8 depending on whether your near-term product is more editor-heavy or data-view-heavy.
-- [ ] Re-audit after Milestone 5 and again after Milestone 8 before committing to the entire tail of the roadmap.
+- [x] If only one user-facing thing happened after the early foundations, it was correct to prioritize Milestone 5 and then Milestones 8-9 for editor/data-view parity.
+- [ ] Re-audit after Milestone 10 before committing to the rest of the roadmap tail.

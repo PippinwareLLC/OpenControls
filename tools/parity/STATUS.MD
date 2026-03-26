@@ -19,7 +19,8 @@
 - [x] Milestone 7 is complete.
 - [x] `OpenControls.Examples` now has a dedicated `Widget Gallery` window that closes the biggest option-level coverage gaps beside the existing Widgets/Text Editor/Docking/Clipping demos.
 - [x] Milestone 8 is complete for the scoped first-pass table target.
-- [x] Milestone 9 is the next recommended implementation target.
+- [x] Milestone 9 is complete for the scoped first-pass virtualization target.
+- [x] Milestone 10 is the next recommended implementation target.
 
 ## Status Table
 
@@ -34,8 +35,8 @@
 | Layout containers | Must have | Complete | Milestone 8 | Milestone 7 is now fully complete: `UiStack`, `UiWrapPanel`, `UiGroup`, `UiThickness`, and `UiLayoutLength` now cover row/column/wrap/group layout, and the layout demo sections were refit around those retained containers. |
 | Dock split resizing | Must have | Complete | Milestone 8 | `UiDockWorkspace` now exposes draggable splitters with hover/active affordances, minimum pane clamping, live split-ratio updates, and nested resize coverage while continuing to persist split ratios in workspace state. |
 | Widget example coverage | High-value parity | Expanded / gallery in place | Every milestone | `OpenControls.Examples` now combines the original Widgets tree with a dedicated `Widget Gallery` window plus the Text Editor, Docking, and Clipping windows. Use `tools/parity/WIDGET_DEMO_COVERAGE.MD` as the canonical matrix for every public widget, meaningful option, and documented omission. |
-| Tables 2.0 | Must have | Complete / scoped first pass | Milestone 9 | Milestone 8 is complete for the shipped first-pass target: `UiTable` now has `UiTableColumnState`/`UiTableViewState`, resize/reorder/hide, header context menus, X/Y scrolling, row clipping, fixed-vs-stretch widths, row-height hooks, per-cell styling hooks, and richer header/cell content. The Widget Gallery now includes a dedicated Tables 2.0 demo for resize/reorder/hide/scroll/custom-header coverage. |
-| Virtualization / clipper | Must have | Missing | Milestone 9 | Needed for large lists, tables, and trees. |
+| Tables 2.0 | Must have | Complete / scoped first pass | Milestone 10 | Milestone 8 is complete for the shipped first-pass target: `UiTable` now has `UiTableColumnState`/`UiTableViewState`, resize/reorder/hide, header context menus, X/Y scrolling, row clipping, fixed-vs-stretch widths, row-height hooks, per-cell styling hooks, and richer header/cell content. The Widget Gallery now includes a dedicated Tables 2.0 demo for resize/reorder/hide/scroll/custom-header coverage. |
+| Virtualization / clipper | Must have | Complete / scoped first pass | Milestone 10 | Milestone 9 is complete for the shipped first-pass target: shared `UiClipper` / `UiClipRange` math now drives `UiListBox`, uniform-height `UiTable` rows, and the new `UiTreeView`, and the `Clipping` window now demonstrates large list/table/tree datasets with live visible-range status. |
 | Selection and tree depth | High-value parity | Partial | Milestone 10 | Basic multi-select exists; advanced workflows do not. |
 | Drag/slider/color depth | High-value parity | Partial | Milestone 11 | Functional today, but still shallow compared to Dear ImGui. |
 | Menus, popups, tooltips polish | High-value parity | Partial | Milestone 12 | Behavior exists, but input/capture/nav depth still needs work. |

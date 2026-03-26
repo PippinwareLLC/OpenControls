@@ -14,7 +14,7 @@ Use this matrix as the working checklist for turning the shared example app into
 - `Widget Gallery` window: option-level gap fill for widgets and states that were previously easy to miss.
 - `Text Editor` window: multiline editing deep dive and editor-focused regression surface.
 - `Docking` layout: `UiDockHost`, `UiDockWorkspace`, floating windows, drag/drop docking, and split resizing.
-- `Clipping` window: explicit `UiPanel` clipping and resize behavior.
+- `Clipping` window: explicit `UiPanel` clipping/resize behavior plus shared large-data virtualization demos for `UiListBox`, `UiTable`, and `UiTreeView`.
 
 ## Demo-Complete Rule
 
@@ -96,7 +96,7 @@ A widget is only considered demo-complete when all applicable items are true:
 
 ## Lists / Selection / Composition
 
-- [ ] `UiListBox`: single-select, multi-select via `UiSelectionModel`, scroll-wheel behavior, empty state.
+- [x] `UiListBox`: single-select, multi-select via `UiSelectionModel`, scroll-wheel behavior, empty state.
 - [ ] `UiSelectable`: hover, selected, disabled, keyboard activation.
 - [ ] `UiSelectableRow`: icons/thumbnails, secondary text, selected/hover visuals, invoked state.
 - [ ] `UiComboBox`: basic string-list path, scroll-wheel behavior, empty state, compatibility wrapper path.
@@ -133,6 +133,7 @@ A widget is only considered demo-complete when all applicable items are true:
 - [ ] `UiTabBar`: tab switching, active/hover states, overflow, leading/trailing buttons.
 - [ ] `UiTabItem`: active/inactive content behavior, close behavior where applicable.
 - [ ] `UiTabItemButton`: leading/trailing placement, auto size, click status.
+- [x] `UiTreeView`: large fixed-height trees, open/close, wheel scrolling, keyboard navigation, selection, and visible-range status.
 - [ ] `UiTreeNode`: open/close, nested content, keyboard activation.
 - [ ] `UiCollapsingHeader`: open/close, nested content, keyboard activation.
 - [ ] `UiTooltip`: tooltip content, hover trigger timing/placement if configurable.

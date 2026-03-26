@@ -16,6 +16,7 @@ This is a brief overview of the current OpenControls surface area.
 - `IUiClipboard`, `UiMemoryClipboard`, `UiDelegateClipboard`: clipboard abstraction plus default in-memory and delegate-backed implementations for copy/cut/paste aware controls.
 - `UiTextEditingState`: shared single-line text editing primitive with selection, undo/redo, word movement, and session cancel/commit support.
 - `UiInputHostHelpers`: shared helper methods for host-side double-click and drag-origin tracking.
+- `UiClipRange`, `UiClipper`: fixed-height virtualization math helpers for large sequential item ranges.
 - `IUiRenderer`: rendering abstraction; hosts implement this for their graphics API (includes clip stack, gradient, and checkerboard fills).
 - `UiRect`, `UiPoint`, `UiColor`: lightweight geometry and color structs.
 - `UiRenderHelpers`: helper methods for gradients, checkerboard fills, rounded rectangles, and bold text.
@@ -28,6 +29,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiProgressBarFillDirection`: progress bar fill direction (left/right/top/bottom).
 - `UiDragFlags`: drag widget behavior flags (clamping, log scaling, and speed modifiers).
 - `UiTableColumn`, `UiTableRow`, `UiTableCell`, `UiTableColumnState`, `UiTableViewState`, `UiTableCellContext`: table definition, content, runtime state, and styling objects for `UiTable`.
+- `UiTreeViewItem`: retained tree data item for `UiTreeView`.
 - `UiPlotPoint`, `UiPlotSeries`: data objects for `UiPlotPanel` plotting series.
 - `UiWaveformRenderMode`: waveform rendering modes for `UiWaveform` (min/max columns or line plots).
 - `UiGridDefinition`: row/column sizing data for `UiGrid`.
@@ -56,6 +58,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiSelectable`: selectable row with hover/selected states.
 - `UiComboBox`: string-list convenience wrapper over `UiCombo` and `UiListView`.
 - `UiTable`: grid/table control with column headers, selectable rows, runtime column/view state, scrolling, resize/reorder/hide, and richer header/cell content.
+- `UiTreeView`: virtualized retained tree control for large fixed-height tree datasets with open/close, selection, wheel scrolling, and keyboard navigation.
 - `UiPlotPanel`: plotting panel with axes, tick labels, grid lines, and zoom/pan input.
 - `UiWaveform`: waveform panel for rendering sample data with optional zero line.
 - `UiGrid`: grid layout container that assigns children to row/column cells.
@@ -99,6 +102,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiPopup.OpenAttached(...)` and `UiPopup.OpenContext(...)` are the preferred helpers for anchored and point-based popup opening in retained demos.
 - `UiMenuBar.OpenAttached(...)` and `UiMenuBar.OpenContext(...)` provide the same anchored and point-based helpers for popup-mode menus.
 - `UiChildRegion` is an embedded clipped viewport inside an existing parent; use it for framed sub-content, and use `UiWindow` when the content needs independent title/chrome/focus behavior.
+- `UiClipper.FixedHeight(...)` is the shared fixed-height virtualization helper used by large list, table, and tree controls.
 - `UiThickness` is the shared padding/margin-style value object used by the retained layout containers.
 - `UiLayoutLength` is the sizing helper for `UiStack` items (`Auto`, `Fixed`, `Fill`, `Weight`, `Percentage`).
 - Additional controls can be built by subclassing `UiElement`.

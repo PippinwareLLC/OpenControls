@@ -145,6 +145,10 @@ public sealed class UiTable : UiElement
     private int _reorderInsertDisplayIndex = -1;
     private int _visibleRowStartIndex = -1;
     private int _visibleRowEndIndex = -1;
+    private int _materializedRowStartIndex = -1;
+    private int _materializedRowEndIndex = -1;
+    private int _uniformRowHeight;
+    private UiClipRange _rowClipRange;
     private bool _headerContextMenuOpen;
     private UiRect _headerContextMenuBounds;
     private int _hoverHeaderMenuEntry = -1;
@@ -154,6 +158,7 @@ public sealed class UiTable : UiElement
     public IReadOnlyList<UiTableRow> Rows { get; set; } = Array.Empty<UiTableRow>();
 
     public int RowHeight { get; set; } = 22;
+    public int OverscanRows { get; set; } = 1;
     public int HeaderHeight { get; set; } = 24;
     public int CellPadding { get; set; } = 6;
     public int TextScale { get; set; } = 1;
@@ -642,6 +647,7 @@ public sealed class UiTable : UiElement
         _rowTops.Clear();
 
         int top = 0;
+        int uniformHeight = 0;
         for (int i = 0; i < Rows.Count; i++)
         {
             UiTableRow row = Rows[i];
@@ -652,7 +658,18 @@ public sealed class UiTable : UiElement
             _rowHeights.Add(height);
             _rowTops.Add(top);
             top += height;
+
+            if (i == 0)
+            {
+                uniformHeight = height;
+            }
+            else if (uniformHeight != height)
+            {
+                uniformHeight = 0;
+            }
         }
+
+        _uniformRowHeight = Rows.Count > 0 ? uniformHeight : 0;
     }
 
     private void ResolveViewportLayout()
@@ -846,9 +863,22 @@ public sealed class UiTable : UiElement
     {
         _visibleRowStartIndex = -1;
         _visibleRowEndIndex = -1;
+        _materializedRowStartIndex = -1;
+        _materializedRowEndIndex = -1;
+        _rowClipRange = default;
 
         if (_bodyViewport.Height <= 0 || Rows.Count == 0)
         {
+            return;
+        }
+
+        if (_uniformRowHeight > 0)
+        {
+            _rowClipRange = UiClipper.FixedHeight(Rows.Count, _uniformRowHeight, _scrollY, _bodyViewport.Height, OverscanRows);
+            _visibleRowStartIndex = _rowClipRange.FirstVisibleIndex;
+            _visibleRowEndIndex = _rowClipRange.LastVisibleIndex;
+            _materializedRowStartIndex = _rowClipRange.FirstMaterializedIndex;
+            _materializedRowEndIndex = _rowClipRange.LastMaterializedIndex;
             return;
         }
 
@@ -873,6 +903,8 @@ public sealed class UiTable : UiElement
 
         _visibleRowStartIndex = start;
         _visibleRowEndIndex = Math.Max(start, endExclusive - 1);
+        _materializedRowStartIndex = _visibleRowStartIndex;
+        _materializedRowEndIndex = _visibleRowEndIndex;
     }
 
     private void UpdateViewState()
@@ -941,12 +973,12 @@ public sealed class UiTable : UiElement
             }
         }
 
-        if (_visibleRowStartIndex < 0 || _visibleRowEndIndex < 0)
+        if (_materializedRowStartIndex < 0 || _materializedRowEndIndex < 0)
         {
             return;
         }
 
-        for (int rowIndex = _visibleRowStartIndex; rowIndex <= _visibleRowEndIndex; rowIndex++)
+        for (int rowIndex = _materializedRowStartIndex; rowIndex <= _materializedRowEndIndex; rowIndex++)
         {
             UiTableRow row = Rows[rowIndex];
             int rowHeight = _rowHeights[rowIndex];
@@ -1115,12 +1147,12 @@ public sealed class UiTable : UiElement
 
     private void DrawRows(UiRenderContext context, UiFont font, int textHeight)
     {
-        if (_visibleRowStartIndex < 0 || _visibleRowEndIndex < 0)
+        if (_materializedRowStartIndex < 0 || _materializedRowEndIndex < 0)
         {
             return;
         }
 
-        for (int rowIndex = _visibleRowStartIndex; rowIndex <= _visibleRowEndIndex; rowIndex++)
+        for (int rowIndex = _materializedRowStartIndex; rowIndex <= _materializedRowEndIndex; rowIndex++)
         {
             UiTableRow row = Rows[rowIndex];
             int rowHeight = _rowHeights[rowIndex];
@@ -1194,12 +1226,12 @@ public sealed class UiTable : UiElement
             }
         }
 
-        if (_visibleRowStartIndex < 0 || _visibleRowEndIndex < 0)
+        if (_materializedRowStartIndex < 0 || _materializedRowEndIndex < 0)
         {
             return;
         }
 
-        for (int rowIndex = _visibleRowStartIndex; rowIndex <= _visibleRowEndIndex; rowIndex++)
+        for (int rowIndex = _materializedRowStartIndex; rowIndex <= _materializedRowEndIndex; rowIndex++)
         {
             int y = _bodyViewport.Y + _rowTops[rowIndex] + _rowHeights[rowIndex] - _scrollY;
             if (y >= _bodyViewport.Bottom)
@@ -1714,6 +1746,11 @@ public sealed class UiTable : UiElement
         }
 
         int localY = point.Y - _bodyViewport.Y + _scrollY;
+        if (_uniformRowHeight > 0)
+        {
+            return _rowClipRange.GetIndexAtOffset(localY);
+        }
+
         for (int i = _visibleRowStartIndex >= 0 ? _visibleRowStartIndex : 0; i < Rows.Count; i++)
         {
             int top = _rowTops[i];
@@ -1897,6 +1934,12 @@ public sealed class UiTable : UiElement
     {
         if (rowIndex < 0 || rowIndex >= Rows.Count || _bodyViewport.Height <= 0)
         {
+            return;
+        }
+
+        if (_uniformRowHeight > 0)
+        {
+            _scrollY = UiClipper.EnsureVisible(Rows.Count, _uniformRowHeight, _bodyViewport.Height, _scrollY, rowIndex);
             return;
         }
 

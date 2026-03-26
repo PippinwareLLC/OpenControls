@@ -115,6 +115,22 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private string _menuStatus = string.Empty;
     private UiPanel? _clipPanel;
     private UiLabel? _clipLabel;
+    private UiStack? _clippingStack;
+    private UiTextBlock? _clippingInfoBlock;
+    private UiLabel? _virtualListLabel;
+    private UiListBox? _virtualListBox;
+    private UiLabel? _virtualListStatusLabel;
+    private UiLabel? _virtualMultiSelectLabel;
+    private UiListBox? _virtualMultiSelectList;
+    private UiLabel? _virtualMultiSelectStatusLabel;
+    private UiSelectionModel? _virtualMultiSelectModel;
+    private UiLabel? _virtualTableLabel;
+    private UiTable? _virtualTable;
+    private UiLabel? _virtualTableStatusLabel;
+    private UiLabel? _virtualTreeLabel;
+    private UiTreeView? _virtualTree;
+    private UiLabel? _virtualTreeStatusLabel;
+    private UiSelectionModel? _virtualTreeSelectionModel;
     private UiWindow? _basicsWindow;
     private UiWindow? _widgetsWindow;
     private UiWindow? _widgetGalleryWindow;
@@ -508,7 +524,6 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiLabel? _consoleLabel;
     private UiLabel? _inspectorLabel;
     private bool _standaloneInitialized;
-    private bool _clipPanelInitialized;
     private string? _statePath;
     private ExamplePanel _activeExample = ExamplePanel.Custom;
     private readonly List<string> _sceneItems = new()
@@ -604,6 +619,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         UpdateWindowContent();
         UpdateStatusLabel();
         UpdateWidgetPanel();
+        UpdateClippingPanel();
         UpdateInputPanels(input, deltaSeconds);
     }
 
@@ -3932,6 +3948,147 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         };
         _clipPanel.AddChild(_clipLabel);
 
+        _clippingInfoBlock = new UiTextBlock
+        {
+            Text = "Milestone 9: shared virtualization is live here. These demos exercise the same fixed-height clipper across list boxes, tables, and trees with thousands of rows so selection, hover, and keyboard navigation keep working while only the visible slice is materialized.",
+            Color = new UiColor(210, 220, 235),
+            Scale = FontScale,
+            Wrap = true
+        };
+
+        _virtualListLabel = new UiLabel
+        {
+            Text = "Virtualized List Box (4,000 rows)",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _virtualListBox = new UiListBox
+        {
+            Items = Enumerable.Range(0, 4000).Select(static i => $"Asset {i:D4} · Virtualized list row").ToArray(),
+            ItemHeight = 22,
+            ScrollWheelItems = 3,
+            OverscanItems = 1,
+            TextScale = FontScale,
+            Border = new UiColor(70, 80, 100)
+        };
+        _virtualListBox.SelectedIndex = 512;
+
+        _virtualListStatusLabel = new UiLabel
+        {
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale
+        };
+
+        _virtualMultiSelectLabel = new UiLabel
+        {
+            Text = "Virtualized Multi-Select List (6,000 rows)",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _virtualMultiSelectModel = new UiSelectionModel();
+        _virtualMultiSelectList = new UiListBox
+        {
+            Items = Enumerable.Range(0, 6000).Select(static i => $"Entity {i:D4} · Ctrl/Shift selection survives clipping").ToArray(),
+            ItemHeight = 22,
+            ScrollWheelItems = 3,
+            OverscanItems = 1,
+            TextScale = FontScale,
+            SelectionModel = _virtualMultiSelectModel,
+            Border = new UiColor(70, 80, 100)
+        };
+        _virtualMultiSelectModel.SelectSingle(2048);
+
+        _virtualMultiSelectStatusLabel = new UiLabel
+        {
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale
+        };
+
+        _virtualTableLabel = new UiLabel
+        {
+            Text = "Virtualized Table (2,500 rows)",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _virtualTable = new UiTable
+        {
+            RowHeight = 22,
+            HeaderHeight = 24,
+            OverscanRows = 1,
+            ScrollWheelStep = 66,
+            TextScale = FontScale,
+            HeaderTextScale = FontScale,
+            CornerRadius = 4,
+            AllowColumnResize = true,
+            AllowColumnReorder = true,
+            EnableHeaderContextMenu = true
+        };
+        _virtualTable.Columns.Add(new UiTableColumn("Name", weight: 2f));
+        _virtualTable.Columns.Add(new UiTableColumn("Type", weight: 1f));
+        _virtualTable.Columns.Add(new UiTableColumn("Status", weight: 1f));
+        _virtualTable.Columns.Add(new UiTableColumn("Owner", weight: 1.2f));
+        _virtualTable.Rows = Enumerable.Range(0, 2500)
+            .Select(static i => new UiTableRow($"Asset {i:D4}", i % 3 == 0 ? "Scene" : i % 3 == 1 ? "Texture" : "Material", i % 5 == 0 ? "Dirty" : "Ready", $"System {i % 17:D2}"))
+            .ToArray();
+        _virtualTable.SelectedIndex = 640;
+
+        _virtualTableStatusLabel = new UiLabel
+        {
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale
+        };
+
+        _virtualTreeLabel = new UiLabel
+        {
+            Text = "Virtualized Tree View (8,040 visible rows when fully open)",
+            Color = UiColor.White,
+            Scale = FontScale
+        };
+
+        _virtualTreeSelectionModel = new UiSelectionModel();
+        _virtualTree = new UiTreeView
+        {
+            ItemHeight = 22,
+            ScrollWheelItems = 3,
+            OverscanItems = 1,
+            TextScale = FontScale,
+            SelectionModel = _virtualTreeSelectionModel,
+            CornerRadius = 4
+        };
+        BuildVirtualTreeData(_virtualTree);
+        _virtualTree.SelectedIndex = 12;
+
+        _virtualTreeStatusLabel = new UiLabel
+        {
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale
+        };
+
+        _clippingStack = new UiStack
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 8,
+            Padding = UiThickness.Uniform(0)
+        };
+        _clippingStack.AddChild(_clippingInfoBlock);
+        _clippingStack.AddChild(_clipPanel);
+        _clippingStack.AddChild(_virtualListLabel);
+        _clippingStack.AddChild(_virtualListBox);
+        _clippingStack.AddChild(_virtualListStatusLabel);
+        _clippingStack.AddChild(_virtualMultiSelectLabel);
+        _clippingStack.AddChild(_virtualMultiSelectList);
+        _clippingStack.AddChild(_virtualMultiSelectStatusLabel);
+        _clippingStack.AddChild(_virtualTableLabel);
+        _clippingStack.AddChild(_virtualTable);
+        _clippingStack.AddChild(_virtualTableStatusLabel);
+        _clippingStack.AddChild(_virtualTreeLabel);
+        _clippingStack.AddChild(_virtualTree);
+        _clippingStack.AddChild(_virtualTreeStatusLabel);
+
         _basicsWindow = new UiWindow
         {
             Id = "window-basics",
@@ -3968,7 +4125,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             AllowResize = true,
             ShowResizeGrip = true
         };
-        _clippingWindow.AddChild(_clipPanel);
+        _clippingWindow.EnsureScrollPanel();
+        _clippingWindow.AddContentChild(_clippingStack);
 
         _serializationWindow = new UiWindow
         {
@@ -5234,16 +5392,60 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _modalCloseButton.Bounds = new UiRect(modalX + modalWidth - 90 - Padding, modalY + modalHeight - buttonHeight - Padding, 90, buttonHeight);
         }
 
-        if (_clippingWindow != null && _clipPanel != null && _clipLabel != null)
+        if (_clippingWindow != null
+            && _clippingStack != null
+            && _clippingInfoBlock != null
+            && _clipPanel != null
+            && _clipLabel != null
+            && _virtualListLabel != null
+            && _virtualListBox != null
+            && _virtualListStatusLabel != null
+            && _virtualMultiSelectLabel != null
+            && _virtualMultiSelectList != null
+            && _virtualMultiSelectStatusLabel != null
+            && _virtualTableLabel != null
+            && _virtualTable != null
+            && _virtualTableStatusLabel != null
+            && _virtualTreeLabel != null
+            && _virtualTree != null
+            && _virtualTreeStatusLabel != null)
         {
             UiRect content = _clippingWindow.ContentBounds;
-            int maxWidth = Math.Max(0, content.Width - Padding * 2);
-            int maxHeight = Math.Max(0, content.Height - Padding * 2);
-            int width = _clipPanelInitialized ? Math.Min(_clipPanel.Bounds.Width, maxWidth) : Math.Min(220, maxWidth);
-            int height = _clipPanelInitialized ? Math.Min(_clipPanel.Bounds.Height, maxHeight) : Math.Min(40, maxHeight);
+            int stackWidth = Math.Max(0, content.Width - Padding * 2);
 
-            _clipPanel.Bounds = new UiRect(content.X + Padding, content.Y + Padding, Math.Max(0, width), Math.Max(0, height));
-            _clipPanelInitialized = true;
+            _clippingInfoBlock.Bounds = new UiRect(0, 0, stackWidth, labelHeight * 6);
+            _clipPanel.Bounds = new UiRect(0, 0, stackWidth, 40);
+            _virtualListLabel.Bounds = new UiRect(0, 0, stackWidth, labelHeight);
+            _virtualListBox.Bounds = new UiRect(0, 0, stackWidth, 176);
+            _virtualListStatusLabel.Bounds = new UiRect(0, 0, stackWidth, labelHeight);
+            _virtualMultiSelectLabel.Bounds = new UiRect(0, 0, stackWidth, labelHeight);
+            _virtualMultiSelectList.Bounds = new UiRect(0, 0, stackWidth, 176);
+            _virtualMultiSelectStatusLabel.Bounds = new UiRect(0, 0, stackWidth, labelHeight);
+            _virtualTableLabel.Bounds = new UiRect(0, 0, stackWidth, labelHeight);
+            _virtualTable.Bounds = new UiRect(0, 0, stackWidth, 220);
+            _virtualTableStatusLabel.Bounds = new UiRect(0, 0, stackWidth, labelHeight);
+            _virtualTreeLabel.Bounds = new UiRect(0, 0, stackWidth, labelHeight);
+            _virtualTree.Bounds = new UiRect(0, 0, stackWidth, 220);
+            _virtualTreeStatusLabel.Bounds = new UiRect(0, 0, stackWidth, labelHeight);
+
+            int stackHeight =
+                _clippingInfoBlock.Bounds.Height +
+                _clipPanel.Bounds.Height +
+                _virtualListLabel.Bounds.Height +
+                _virtualListBox.Bounds.Height +
+                _virtualListStatusLabel.Bounds.Height +
+                _virtualMultiSelectLabel.Bounds.Height +
+                _virtualMultiSelectList.Bounds.Height +
+                _virtualMultiSelectStatusLabel.Bounds.Height +
+                _virtualTableLabel.Bounds.Height +
+                _virtualTable.Bounds.Height +
+                _virtualTableStatusLabel.Bounds.Height +
+                _virtualTreeLabel.Bounds.Height +
+                _virtualTree.Bounds.Height +
+                _virtualTreeStatusLabel.Bounds.Height +
+                8 * 13;
+
+            _clippingStack.Bounds = new UiRect(0, 0, stackWidth, stackHeight);
             _clipLabel.Bounds = new UiRect(_clipPanel.Bounds.X + 6, _clipPanel.Bounds.Y + 6, Math.Max(0, _clipPanel.Bounds.Width - 12), labelHeight);
         }
 
@@ -5577,6 +5779,49 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             _standaloneWindow.ShowTitleBar = _windowShowTitleCheckbox.Checked;
             _standaloneWindow.AllowDrag = _windowAllowDragCheckbox.Checked;
             _standaloneWindow.ShowResizeGrip = _windowShowGripCheckbox.Checked;
+        }
+    }
+
+    private void UpdateClippingPanel()
+    {
+        if (_virtualListBox != null && _virtualListStatusLabel != null)
+        {
+            _virtualListStatusLabel.Text = FormatVisibleRange(
+                "List",
+                _virtualListBox.FirstVisibleIndex,
+                _virtualListBox.LastVisibleIndex,
+                _virtualListBox.Items.Count,
+                _virtualListBox.SelectedIndex >= 0 ? $"selected {_virtualListBox.SelectedIndex}" : "no selection");
+        }
+
+        if (_virtualMultiSelectList != null && _virtualMultiSelectStatusLabel != null && _virtualMultiSelectModel != null)
+        {
+            _virtualMultiSelectStatusLabel.Text = FormatVisibleRange(
+                "Multi",
+                _virtualMultiSelectList.FirstVisibleIndex,
+                _virtualMultiSelectList.LastVisibleIndex,
+                _virtualMultiSelectList.Items.Count,
+                $"{_virtualMultiSelectModel.SelectedIndices.Count} selected");
+        }
+
+        if (_virtualTable != null && _virtualTableStatusLabel != null)
+        {
+            _virtualTableStatusLabel.Text = FormatVisibleRange(
+                "Table",
+                _virtualTable.ViewState.FirstVisibleRowIndex,
+                _virtualTable.ViewState.LastVisibleRowIndex,
+                _virtualTable.Rows.Count,
+                _virtualTable.SelectedIndex >= 0 ? $"selected {_virtualTable.SelectedIndex}" : "no selection");
+        }
+
+        if (_virtualTree != null && _virtualTreeStatusLabel != null)
+        {
+            _virtualTreeStatusLabel.Text = FormatVisibleRange(
+                "Tree",
+                _virtualTree.FirstVisibleIndex,
+                _virtualTree.LastVisibleIndex,
+                _virtualTree.VisibleItemCount,
+                _virtualTree.SelectedItem?.Text ?? "no selection");
         }
     }
 
@@ -7945,7 +8190,6 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         UiStateSnapshot snapshot = UiStateSerializer.LoadFromFile(path);
         UiStateSerializer.Apply(_root, snapshot);
         _standaloneInitialized = true;
-        _clipPanelInitialized = true;
         _menuStatus = "Menu: UI Loaded";
         SyncExampleSelectionFromWindows();
     }
@@ -8370,6 +8614,37 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         }
 
         return displayText.Length;
+    }
+
+    private static string FormatVisibleRange(string label, int firstVisible, int lastVisible, int totalCount, string detail)
+    {
+        if (totalCount <= 0 || firstVisible < 0 || lastVisible < 0)
+        {
+            return $"{label}: empty";
+        }
+
+        return $"{label}: visible {firstVisible}-{lastVisible} of {totalCount - 1}; {detail}.";
+    }
+
+    private static void BuildVirtualTreeData(UiTreeView tree)
+    {
+        tree.RootItems.Clear();
+        for (int group = 0; group < 120; group++)
+        {
+            UiTreeViewItem root = new($"System {group:D3}") { IsOpen = group < 12 };
+            for (int folder = 0; folder < 6; folder++)
+            {
+                UiTreeViewItem branch = new($"Folder {group:D3}/{folder:D2}") { IsOpen = group < 4 && folder < 2 };
+                for (int item = 0; item < 10; item++)
+                {
+                    branch.Children.Add(new UiTreeViewItem($"Node {group:D3}-{folder:D2}-{item:D2}"));
+                }
+
+                root.Children.Add(branch);
+            }
+
+            tree.RootItems.Add(root);
+        }
     }
 
 }

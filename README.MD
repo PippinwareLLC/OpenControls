@@ -54,6 +54,8 @@ The Widgets window in `OpenControls.Examples` mirrors the structure of the refer
 
 The Widgets layout now also docks a dedicated `Widget Gallery` window beside the original `Widgets` tree. That gallery is where the option-level gap-filling lives for controls that were previously easy to miss, including `UiArrowButton`, `UiSeparatorText`, `UiBullet`, `UiInputDouble`, `UiNumericField`, `UiNumericVector`, `UiSliderVector`, empty-state list/combo/list-view paths, a dedicated Tables 2.0 demo (resize/reorder/hide/scroll/custom headers/rich cells), explicit `UiScrollPanel`, weighted/spanning `UiGrid`, and retained layout alignment variants.
 
+The `Clipping` window is now the large-data proof surface for Milestone 9. It still includes the original clipped/resizable panel demo, and now also shows a 4,000-row `UiListBox`, a 6,000-row multi-select list, a 2,500-row `UiTable`, and an 8,040-row `UiTreeView`, all driven by the shared `UiClipper` / `UiClipRange` fixed-height virtualization layer with live visible-range status readouts.
+
 Exhaustive demo coverage is now a tracked requirement, not an informal goal:
 - `tools/parity/WIDGET_DEMO_COVERAGE.MD` is the canonical checklist for which widgets, options, modes, and interaction paths are visibly demonstrated in `OpenControls.Examples`.
 - "Implemented but not shown" does not count as demo-complete.
@@ -110,7 +112,7 @@ Historical note:
 ## Supported Widgets
 - Core: `UiPanel`, `UiGroup`, `UiLabel`, `UiTextBlock`, `UiTextLink`, `UiBullet`, `UiBulletText`, `UiButton`, `UiArrowButton`, `UiSeparator`, `UiSeparatorText`, `UiSpacer`, `UiDisabledGroup`.
 - Inputs: `UiCheckbox`, `UiRadioButton`, `UiTextField`, `UiTextEditor`, `UiInputFloat/Int/Double`, `UiInputFloat2/3/4`, `UiInputInt2/3/4`, `UiNumericField`, `UiNumericVector`, `UiSlider`, `UiSliderFloat2/3/4`, `UiSliderInt2/3/4`, `UiSliderVector`, `UiVSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`.
-- Lists and tables: `UiListBox`, `UiSelectable`, `UiComboBox`, `UiTable`.
+- Lists and tables: `UiListBox`, `UiSelectable`, `UiComboBox`, `UiTable`, `UiTreeView`.
 - Data display: `UiProgressBar` (horizontal/vertical, segmented, radial), `UiPlotPanel`, `UiWaveform`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiImage`, `UiImageButton`.
 - Layout: `UiStack`, `UiWrapPanel`, `UiGrid`, `UiSplitter`, `UiScrollPanel`, `UiCanvas`, `UiWindow`, `UiDockHost`, `UiDockWorkspace`.
 - Interaction: `UiTabBar`, `UiTabItem`, `UiTabItemButton`, `UiDragDropSource`, `UiDragDropTarget`.
@@ -137,6 +139,7 @@ Planned expansion:
 - `UiContext` now also exposes `Clipboard`, with a default in-memory implementation plus host-swappable clipboard adapters for copy/cut/paste-aware controls.
 - `UiInputState` also carries double-click state, drag origins/thresholds, and horizontal wheel deltas for richer host input plumbing.
 - The shipped example and editor hosts now generate held-key repeat for repeatable navigation/editing keys like arrows, backspace/delete, home/end, and page up/down.
+- Shared fixed-height virtualization now lives in `UiClipper` / `UiClipRange`, and the shipped examples use it for large `UiListBox`, `UiTable`, and `UiTreeView` datasets in the `Clipping` window.
 - Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented, radial), list box, combo box, selectable, color button, and separator controls are available.
 - Table controls now include runtime column/view state, row selection, resize/reorder/hide, X/Y scrolling, row clipping, row-height hooks, per-cell styling hooks, and richer header/cell content via `UiTableCell`, `UiTableColumnState`, and `UiTableViewState`.
 - Table headers support angled labels, sortable columns via `UiTable.SortSpecs`, and built-in header context menus for hide/show/reset workflows.
@@ -158,7 +161,7 @@ Planned expansion:
 - Dock workspaces support drag previews, drop targets, floating windows, and draggable persisted splitters with minimum pane clamping.
 - Drag/drop payloads are supported via `UiDragDropSource`, `UiDragDropTarget`, and `UiDragDropContext`.
 - Menu bar control supports dropdowns, checkable items, nested submenus, popup menus, embedded content, and attached/context opening helpers for popup-mode composition.
-- Tree nodes, collapsing headers, tooltips, popups, and modals are available.
+- Tree nodes, `UiTreeView`, collapsing headers, tooltips, popups, and modals are available.
 - Text editor control supports line numbers, scrolling, and syntax highlighting.
 - Text fields now support selection, copy/cut/paste, undo/redo, commit/cancel hooks, password/read-only/filtering modes, completion/history callbacks, resize callbacks, and placeholder text.
 - Numeric input fields (`UiInputFloat/Int/Double`, `UiNumericField`, and vector variants) and vector sliders (`UiSliderFloat2/3/4`, `UiSliderInt2/3/4`, `UiSliderVector`) are available.

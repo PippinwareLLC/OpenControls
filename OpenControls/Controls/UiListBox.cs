@@ -5,6 +5,8 @@ public sealed class UiListBox : UiElement
     private int _selectedIndex = -1;
     private int _hoverIndex = -1;
     private bool _focused;
+    private int _scrollOffset;
+    private UiClipRange _clipRange;
     private readonly int[] _singleSelection = new int[1];
     private UiSelectionModel? _selectionModel;
 
@@ -78,9 +80,21 @@ public sealed class UiListBox : UiElement
         }
     }
 
-    public int ScrollIndex { get; set; }
+    public int ScrollIndex
+    {
+        get => Math.Max(0, _scrollOffset / Math.Max(1, ItemHeight));
+        set => _scrollOffset = Math.Max(0, value) * Math.Max(1, ItemHeight);
+    }
+
+    public int ScrollOffset
+    {
+        get => _scrollOffset;
+        set => _scrollOffset = Math.Max(0, value);
+    }
+
     public int ItemHeight { get; set; } = 20;
     public int ScrollWheelItems { get; set; } = 1;
+    public int OverscanItems { get; set; } = 1;
     public int Padding { get; set; } = 6;
     public int TextScale { get; set; } = 1;
     public bool AllowDeselect { get; set; }
@@ -91,6 +105,8 @@ public sealed class UiListBox : UiElement
     public UiColor TextColor { get; set; } = UiColor.White;
     public UiColor SelectedTextColor { get; set; } = UiColor.White;
     public int CornerRadius { get; set; }
+    public int FirstVisibleIndex => _clipRange.FirstVisibleIndex;
+    public int LastVisibleIndex => _clipRange.LastVisibleIndex;
 
     public event Action<int>? SelectionChanged;
 
@@ -106,7 +122,8 @@ public sealed class UiListBox : UiElement
         UiInputState input = context.Input;
         _selectionModel?.SetItemCount(Items.Count);
         int itemHeight = Math.Max(1, ItemHeight);
-        int visibleCount = GetVisibleCount(itemHeight);
+        _scrollOffset = UiClipper.ClampScrollOffset(Items.Count, itemHeight, Math.Max(0, Bounds.Height), _scrollOffset);
+        _clipRange = UiClipper.FixedHeight(Items.Count, itemHeight, _scrollOffset, Math.Max(0, Bounds.Height), OverscanItems);
         bool shift = input.ShiftDown;
         bool ctrl = input.CtrlDown;
 
@@ -116,11 +133,12 @@ public sealed class UiListBox : UiElement
             if (steps != 0)
             {
                 int scrollItems = Math.Max(1, ScrollWheelItems);
-                ScrollIndex = ClampScrollIndex(ScrollIndex - steps * scrollItems, visibleCount);
+                _scrollOffset -= steps * scrollItems * itemHeight;
             }
         }
 
-        ScrollIndex = ClampScrollIndex(ScrollIndex, visibleCount);
+        _scrollOffset = UiClipper.ClampScrollOffset(Items.Count, itemHeight, Math.Max(0, Bounds.Height), _scrollOffset);
+        _clipRange = UiClipper.FixedHeight(Items.Count, itemHeight, _scrollOffset, Math.Max(0, Bounds.Height), OverscanItems);
         _hoverIndex = GetIndexAtPoint(input.MousePosition);
 
         if (input.LeftClicked && Bounds.Contains(input.MousePosition))
@@ -183,31 +201,31 @@ public sealed class UiListBox : UiElement
         }
 
         int itemHeight = Math.Max(1, ItemHeight);
-        int visibleCount = GetVisibleCount(itemHeight);
-        int startIndex = ClampScrollIndex(ScrollIndex, visibleCount);
-        int endIndex = Math.Min(Items.Count, startIndex + visibleCount);
+        _clipRange = UiClipper.FixedHeight(Items.Count, itemHeight, _scrollOffset, Math.Max(0, Bounds.Height), OverscanItems);
         UiFont font = ResolveFont(context.DefaultFont);
         int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
 
         context.Renderer.PushClip(Bounds);
-        for (int i = startIndex; i < endIndex; i++)
+        if (_clipRange.HasMaterializedItems)
         {
-            int row = i - startIndex;
-            int y = Bounds.Y + row * itemHeight;
-            UiRect itemRect = new UiRect(Bounds.X, y, Bounds.Width, itemHeight);
-
-            if (IsItemSelected(i))
+            for (int i = _clipRange.FirstMaterializedIndex; i <= _clipRange.LastMaterializedIndex; i++)
             {
-                context.Renderer.FillRect(itemRect, SelectedColor);
-            }
-            else if (i == _hoverIndex)
-            {
-                context.Renderer.FillRect(itemRect, HoverColor);
-            }
+                int y = Bounds.Y + _clipRange.GetItemStart(i) - _clipRange.ViewportStart;
+                UiRect itemRect = new UiRect(Bounds.X, y, Bounds.Width, itemHeight);
 
-            int textY = y + (itemHeight - textHeight) / 2;
-            UiColor textColor = IsItemSelected(i) ? SelectedTextColor : TextColor;
-            context.Renderer.DrawText(Items[i], new UiPoint(Bounds.X + Padding, textY), textColor, TextScale, font);
+                if (IsItemSelected(i))
+                {
+                    context.Renderer.FillRect(itemRect, SelectedColor);
+                }
+                else if (i == _hoverIndex)
+                {
+                    context.Renderer.FillRect(itemRect, HoverColor);
+                }
+
+                int textY = y + (itemHeight - textHeight) / 2;
+                UiColor textColor = IsItemSelected(i) ? SelectedTextColor : TextColor;
+                context.Renderer.DrawText(Items[i], new UiPoint(Bounds.X + Padding, textY), textColor, TextScale, font);
+            }
         }
         context.Renderer.PopClip();
 
@@ -248,41 +266,14 @@ public sealed class UiListBox : UiElement
     private void EnsureVisible(int index)
     {
         int itemHeight = Math.Max(1, ItemHeight);
-        int visibleCount = GetVisibleCount(itemHeight);
-        if (visibleCount <= 0)
+        int viewportHeight = Math.Max(0, Bounds.Height);
+        if (viewportHeight <= 0)
         {
             return;
         }
 
-        if (index < ScrollIndex)
-        {
-            ScrollIndex = index;
-        }
-        else if (index >= ScrollIndex + visibleCount)
-        {
-            ScrollIndex = index - visibleCount + 1;
-        }
-    }
-
-    private int GetVisibleCount(int itemHeight)
-    {
-        if (itemHeight <= 0)
-        {
-            return 0;
-        }
-
-        return Bounds.Height / itemHeight;
-    }
-
-    private int ClampScrollIndex(int scrollIndex, int visibleCount)
-    {
-        if (Items.Count == 0 || visibleCount <= 0)
-        {
-            return 0;
-        }
-
-        int maxStart = Math.Max(0, Items.Count - visibleCount);
-        return Math.Clamp(scrollIndex, 0, maxStart);
+        _scrollOffset = UiClipper.EnsureVisible(Items.Count, itemHeight, viewportHeight, _scrollOffset, index);
+        _clipRange = UiClipper.FixedHeight(Items.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
     }
 
     private int GetIndexAtPoint(UiPoint point)
@@ -292,17 +283,8 @@ public sealed class UiListBox : UiElement
             return -1;
         }
 
-        int itemHeight = Math.Max(1, ItemHeight);
-        int visibleCount = GetVisibleCount(itemHeight);
-        int startIndex = ClampScrollIndex(ScrollIndex, visibleCount);
-        int relativeIndex = (point.Y - Bounds.Y) / itemHeight;
-        if (relativeIndex < 0 || relativeIndex >= visibleCount)
-        {
-            return -1;
-        }
-
-        int index = startIndex + relativeIndex;
-        return index >= 0 && index < Items.Count ? index : -1;
+        int contentY = point.Y - Bounds.Y + _scrollOffset;
+        return _clipRange.GetIndexAtOffset(contentY);
     }
 
     private void ApplySelection(int index, bool shift, bool ctrl)
