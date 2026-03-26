@@ -37,5 +37,6 @@
 ## Tracking Notes
 
 - Update this file when milestone order changes.
+- Refresh `README.MD` in the same pass when milestone completion, parity caveats, or the recommended next target changes.
 - If the Dear ImGui target changes, update `BASELINE.MD` first and then revisit the milestone mapping here.
 - Treat `OpenControls.SilkNet.Examples` as the reference host for parity work; keep the other hosts healthy, but bias new parity validation toward Silk.NET first.

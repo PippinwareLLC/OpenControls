@@ -66,8 +66,15 @@ Phase 0 parity tracking now lives in checked-in markdown files:
 Current Phase 0 workflow:
 1. Review `tools/parity/BASELINE.MD` before changing what "parity" means.
 2. Update `tools/parity/STATUS.MD` when priorities or milestone ordering change.
-3. Run `bash scripts/verify-phase0.sh` to verify the baseline files exist and the core/shared-examples projects still build.
-4. Use `IMGUI_PARITY_ATTACK_PLAN.MD` as the working implementation roadmap.
+3. Refresh `README.MD` whenever a milestone lands, parity caveats change, or the recommended next milestone changes.
+4. If no milestone has landed recently, do a quick README truthfulness pass before starting the next major parity phase so the top-level docs do not drift.
+5. Run `bash scripts/verify-phase0.sh` to verify the baseline files exist and the core/shared-examples projects still build.
+6. Use `IMGUI_PARITY_ATTACK_PLAN.MD` as the working implementation roadmap.
+
+Documentation cadence:
+- Treat the top-level `README.MD` as the public truth source for current parity, reference host guidance, and major caveats.
+- Update `README.MD`, `tools/parity/STATUS.MD`, and any affected API/quickstart docs in the same pass when milestone status changes.
+- Do not let the roadmap become more current than the README for shipped behavior.
 
 Historical note:
 - Earlier README text referenced extracted `widgets/` sources, demo marker artifacts, and PowerShell parity scripts.

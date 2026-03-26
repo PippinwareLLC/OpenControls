@@ -33,6 +33,7 @@ Every milestone below is only complete when all of these are checked:
 - [ ] API docs updated in `API.MD`.
 - [ ] Sample usage added to `Samples.MD` or `Quickstart.MD` where appropriate.
 - [ ] At least one verification path exists for the new behavior.
+- [ ] Editor-blocking behavior has regression coverage beyond "project builds".
 - [ ] README parity caveats are updated if the milestone changes them.
 
 ## Phase 0: Baseline, Scope Freeze, And Tracking
@@ -331,6 +332,9 @@ Text editing is the biggest user-facing gap after input. It is also a force mult
 - [ ] Editing history:
   - [ ] undo
   - [ ] redo
+- [ ] Commit / cancel behavior:
+  - [ ] submit/accept callback or command hook
+  - [ ] cancel/revert path for inspector-style editing
 - [ ] Input modes:
   - [ ] normal text
   - [ ] password mode
@@ -353,6 +357,7 @@ Text editing is the biggest user-facing gap after input. It is also a force mult
 - [ ] Separate text model logic from widget rendering.
 - [ ] Add clipboard access abstraction usable by hosts.
 - [ ] Add UTF-8 and IME handling strategy if text input pipeline requires it.
+- [ ] Add composition/IME state plumbing beyond raw committed characters.
 - [ ] Decide whether text buffers should be string-backed, span-like, or pluggable.
 
 ### Numeric Field Follow-Through
@@ -390,10 +395,15 @@ Text editing is the biggest user-facing gap after input. It is also a force mult
   - [ ] line selection helpers
 - [ ] Add clipboard operations.
 - [ ] Add undo/redo.
+- [ ] Add richer editor navigation:
+  - [ ] word-left / word-right
+  - [ ] page up / page down
+  - [ ] better home / end behavior
 - [ ] Add multi-caret support only if still aligned with product needs.
 - [ ] Add search/find primitives if desired for examples.
 - [ ] Improve tokenization architecture so syntax modes can grow beyond C#.
 - [ ] Add line wrapping mode as an option.
+- [ ] Add IME/composition-aware editing path for multiline text.
 - [ ] Add optional minimap/gutter polish only after core editing is solid.
 - [ ] Add editor events:
   - [ ] text changed
@@ -417,6 +427,11 @@ OpenControls has useful concrete widgets, but Dear ImGui's flexibility often com
 - [ ] Introduce a retained combo container that can host arbitrary child controls, not only strings.
 - [ ] Keep `UiComboBox` as a convenience wrapper over the richer container if possible.
 - [ ] Introduce a retained list-box container for arbitrary child content.
+- [ ] Support typed-search / filterable combo patterns without bespoke one-off widgets.
+- [ ] Support richer rows in combo/list content:
+  - [ ] icons/thumbnails
+  - [ ] secondary text
+  - [ ] asset-picker style rows
 - [ ] Expand popup helpers:
   - [ ] context popup attached to an element
   - [ ] window context popup
@@ -430,6 +445,10 @@ OpenControls has useful concrete widgets, but Dear ImGui's flexibility often com
 - [ ] Introduce a framed child-region/container primitive if `UiScrollPanel` is not enough.
 - [ ] Support embedded scrollable child regions with strong clipping behavior.
 - [ ] Document how child regions differ from windows and panels.
+- [ ] Standardize image/texture interop for composed content:
+  - [ ] renderer-level texture/image primitive or a stable adapter contract
+  - [ ] thumbnails/icons in combo/list/table rows without ad hoc callback wiring every time
+  - [ ] examples that prove asset/browser-style usage
 
 ### Exit Criteria
 
@@ -466,6 +485,15 @@ Many missing ImGui demos are really layout affordances, not widgets. OpenControl
   - [ ] clipped long content
 - [ ] Map existing examples to new layout containers where they simplify code.
 
+### Docking / Split Pane Checklist
+
+- [ ] Add draggable dock splitters.
+- [ ] Update split ratios from divider hit-testing and drag, not only from initial split creation.
+- [ ] Add minimum pane sizes / clamp rules so resize feels editor-safe.
+- [ ] Persist dock split ratios as part of workspace/session state.
+- [ ] Add visual splitter affordances and hover/active states.
+- [ ] Verify nested split resizing behaves predictably.
+
 ### Explicit Non-Goal
 
 - [ ] Do not force OpenControls into cursor-based immediate layout semantics unless a tiny compatibility helper is clearly worth it.
@@ -501,12 +529,14 @@ Tables are one of the most important tooling surfaces, and OpenControls currentl
 - [ ] Add hide/show state for columns.
 - [ ] Add optional built-in header context menu.
 - [ ] Add X/Y scrolling support.
+- [ ] Add explicit row-scroll/view state rather than truncating to the currently visible prefix.
 - [ ] Add fixed vs stretch width modes.
 - [ ] Add row height customization hooks.
 - [ ] Add per-cell background / foreground customization hooks.
 - [ ] Add a richer cell content model:
   - [ ] text-only path stays simple
   - [ ] child-element / retained-content path where feasible
+  - [ ] non-string cell content suitable for inspectors, hierarchies, and asset browsers
 - [ ] Add virtualization/clipping support for large row counts.
 - [ ] Verify sorting still behaves correctly with hidden/reordered columns.
 - [ ] Add examples for:
@@ -615,6 +645,12 @@ OpenControls already covers these areas reasonably well. This phase is about dep
 ### Checklist
 
 - [ ] Add item-attached context menu helpers.
+- [ ] Add a real menu command model instead of shortcut labels being display-only.
+- [ ] Parse and dispatch menu shortcuts through the shared shortcut routing from Milestone 1.
+- [ ] Support menu items that can be invoked consistently from:
+  - [ ] mouse activation
+  - [ ] keyboard shortcut activation
+  - [ ] programmatic command activation
 - [ ] Add better tooltip trigger policies:
   - [ ] delayed hover
   - [ ] keyboard-focus tooltip path
@@ -648,12 +684,26 @@ Once the infrastructure and core widgets are stronger, the examples app can stop
   - [ ] focus/capture behavior
   - [ ] advanced text input
   - [ ] cursor changes
+- [ ] Broaden state persistence and session recovery:
+  - [ ] `UiTextEditor` state
+  - [ ] combo/list selection state
+  - [ ] generic scroll positions
+  - [ ] table view state
+  - [ ] extension hooks for custom-control state
+- [ ] Add repo-native regression coverage for editor-blocking workflows:
+  - [ ] text field editing
+  - [ ] text editor editing
+  - [ ] tables and virtualization
+  - [ ] dock split resizing
+  - [ ] menu shortcut dispatch
+- [ ] Add an editor-scale reference surface that proves OpenControls beyond toy/demo windows.
 - [ ] Re-run parity review against the target Dear ImGui snapshot.
 - [ ] Update `README.MD`, `API.MD`, `Samples.MD`, and `Quickstart.MD` to reflect the new reality.
 
 ### Exit Criteria
 
 - [ ] The examples app is a trustworthy parity showcase, not just a structure-matching demo tree.
+- [ ] The repo has a believable validation path for editor-scale workflows, not just isolated widget demos.
 
 ## Stretch Goals / Parking Lot
 
