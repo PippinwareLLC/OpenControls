@@ -14,14 +14,15 @@ public sealed class UiLabel : UiElement
             return;
         }
 
+        UiFont font = ResolveFont(context.DefaultFont);
         UiPoint position = new UiPoint(Bounds.X, Bounds.Y);
         if (Bold)
         {
-            UiRenderHelpers.DrawTextBold(context.Renderer, Text, position, Color, Scale);
+            UiRenderHelpers.DrawTextBold(context.Renderer, Text, position, Color, Scale, font);
         }
         else
         {
-            context.Renderer.DrawText(Text, position, Color, Scale);
+            context.Renderer.DrawText(Text, position, Color, Scale, font);
         }
         base.Render(context);
     }

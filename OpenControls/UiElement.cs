@@ -13,6 +13,7 @@ public abstract class UiElement
     public virtual bool CapturesPointerInput => IsFocusable;
     public virtual bool ClipChildren { get; set; }
     public string Id { get; set; } = string.Empty;
+    public UiFont? Font { get; set; }
     public UiElement? Parent { get; private set; }
     public IReadOnlyList<UiElement> Children => _children;
 
@@ -147,5 +148,21 @@ public abstract class UiElement
         }
 
         return status;
+    }
+
+    protected UiFont ResolveFont(UiFont defaultFont)
+    {
+        UiElement? current = this;
+        while (current != null)
+        {
+            if (current.Font != null)
+            {
+                return current.Font;
+            }
+
+            current = current.Parent;
+        }
+
+        return defaultFont;
     }
 }

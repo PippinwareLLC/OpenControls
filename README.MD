@@ -152,6 +152,8 @@ Planned expansion:
 - OpenControls.Examples includes a dedicated Text Editor demo window.
 - OpenControls.Examples widgets window groups controls into categorized tree nodes (collapsed by default, with header spacing).
 - OpenControls.Examples now shows real shortcut, capture, and requested-cursor state in the Inputs & Focus demo.
+- OpenControls.Examples now includes a custom-font and merged-icon demo in the Widgets text section, with Silk.NET as the reference parity host.
 - A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).
-- Custom TTF/OTF/WOFF2 font loading, merged icon-font support, optional HarfBuzz-backed shaping, and optional Slug-based GPU font rendering are tracked in the parity roadmap; today the shipped path is still `TinyBitmapFont`-based.
+- OpenControls now ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, custom font-file loading, fallback chains, and merged icon-font ranges for Dear ImGui-style inline icon text.
+- The shipped renderer path currently uses shared grayscale glyph caches across MonoGame, SDL2-CS, Silk.NET, and OpenGL; optional HarfBuzz shaping and optional Slug GPU text rendering remain follow-on work in the parity roadmap.

@@ -20,6 +20,12 @@ public sealed class UiScrollPanel : UiElement
             _offset = offset;
         }
 
+        public UiFont DefaultFont
+        {
+            get => _inner.DefaultFont;
+            set => _inner.DefaultFont = value;
+        }
+
         public void FillRect(UiRect rect, UiColor color)
         {
             _inner.FillRect(Offset(rect), color);
@@ -45,14 +51,29 @@ public sealed class UiScrollPanel : UiElement
             _inner.DrawText(text, Offset(position), color, scale);
         }
 
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+            _inner.DrawText(text, Offset(position), color, scale, font);
+        }
+
         public int MeasureTextWidth(string text, int scale = 1)
         {
             return _inner.MeasureTextWidth(text, scale);
         }
 
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            return _inner.MeasureTextWidth(text, scale, font);
+        }
+
         public int MeasureTextHeight(int scale = 1)
         {
             return _inner.MeasureTextHeight(scale);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            return _inner.MeasureTextHeight(scale, font);
         }
 
         public void PushClip(UiRect rect)
@@ -179,7 +200,7 @@ public sealed class UiScrollPanel : UiElement
         ClampScrollOffset();
 
         UiInputState childInput = BuildChildInput(input, mouseInViewport && !mouseInScrollbar);
-        UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds);
+        UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont);
         foreach (UiElement child in Children)
         {
             child.Update(childContext);
@@ -204,7 +225,7 @@ public sealed class UiScrollPanel : UiElement
         UiPoint offset = new UiPoint(Bounds.X - _scrollX, Bounds.Y - _scrollY);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
         context.Renderer.PushClip(viewport);
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer);
+        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
         foreach (UiElement child in Children)
         {
             child.Render(childContext);
@@ -237,7 +258,7 @@ public sealed class UiScrollPanel : UiElement
         UiPoint offset = new UiPoint(Bounds.X - _scrollX, Bounds.Y - _scrollY);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
         context.Renderer.PushClip(viewport);
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer);
+        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
         foreach (UiElement child in Children)
         {
             child.RenderOverlay(childContext);

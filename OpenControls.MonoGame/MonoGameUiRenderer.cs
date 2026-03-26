@@ -8,7 +8,6 @@ public sealed class MonoGameUiRenderer : IUiRenderer
 {
     private readonly SpriteBatch _spriteBatch;
     private readonly Texture2D _pixel;
-    private readonly TinyBitmapFont _font;
     private readonly Stack<Rectangle> _clipStack = new();
     private Texture2D? _gradientTexture;
     private int _gradientWidth;
@@ -26,17 +25,35 @@ public sealed class MonoGameUiRenderer : IUiRenderer
     private UiColor _checkerColorB;
     private Color[]? _checkerData;
 
-    public MonoGameUiRenderer(SpriteBatch spriteBatch, Texture2D pixel, TinyBitmapFont font)
+    public MonoGameUiRenderer(SpriteBatch spriteBatch, Texture2D pixel, UiFont? defaultFont = null)
     {
         _spriteBatch = spriteBatch;
         _pixel = pixel;
-        _font = font;
+        DefaultFont = defaultFont ?? UiFont.Default;
     }
+
+    public MonoGameUiRenderer(SpriteBatch spriteBatch, Texture2D pixel, TinyBitmapFont font)
+        : this(spriteBatch, pixel, UiFont.FromTinyBitmap(font))
+    {
+    }
+
+    public UiFont DefaultFont { get; set; }
 
     public TinyFontCodePage CodePage
     {
-        get => _font.CodePage;
-        set => _font.CodePage = value;
+        get
+        {
+            return DefaultFont.TryGetBitmapFont(out TinyBitmapFont? font) && font != null
+                ? font.CodePage
+                : TinyFontCodePage.Latin1;
+        }
+        set
+        {
+            if (DefaultFont.TryGetBitmapFont(out TinyBitmapFont? font) && font != null)
+            {
+                font.CodePage = value;
+            }
+        }
     }
 
     public void FillRect(UiRect rect, UiColor color)
@@ -94,31 +111,43 @@ public sealed class MonoGameUiRenderer : IUiRenderer
 
     public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
     {
+        DrawText(text, position, color, scale, null);
+    }
+
+    public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+    {
         if (string.IsNullOrEmpty(text))
         {
             return;
         }
 
-        byte[] bytes = _font.GetEncoding().GetBytes(text);
-        Color drawColor = ToColor(color);
-        int cursorX = position.X;
-        int cursorY = position.Y;
-
-        foreach (byte code in bytes)
+        UiFont activeFont = font ?? DefaultFont;
+        UiTextLayout layout = activeFont.LayoutText(text, scale);
+        for (int i = 0; i < layout.Glyphs.Count; i++)
         {
-            DrawGlyph(_font.GetGlyph(code), cursorX, cursorY, drawColor, scale);
-            cursorX += (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * scale;
+            UiPositionedGlyph glyph = layout.Glyphs[i];
+            DrawGlyph(glyph.Glyph, position.X + glyph.X, position.Y + glyph.Y, color);
         }
     }
 
     public int MeasureTextWidth(string text, int scale = 1)
     {
-        return _font.MeasureWidth(text, scale);
+        return MeasureTextWidth(text, scale, null);
+    }
+
+    public int MeasureTextWidth(string text, int scale, UiFont? font)
+    {
+        return (font ?? DefaultFont).MeasureTextWidth(text, scale);
     }
 
     public int MeasureTextHeight(int scale = 1)
     {
-        return _font.MeasureHeight(scale);
+        return MeasureTextHeight(scale, null);
+    }
+
+    public int MeasureTextHeight(int scale, UiFont? font)
+    {
+        return (font ?? DefaultFont).MeasureTextHeight(scale);
     }
 
     public void PushClip(UiRect rect)
@@ -276,28 +305,30 @@ public sealed class MonoGameUiRenderer : IUiRenderer
         _spriteBatch.GraphicsDevice.ScissorRectangle = clip;
     }
 
-    private void DrawGlyph(byte[] rows, int x, int y, Color color, int scale)
+    private void DrawGlyph(UiRasterizedGlyph glyph, int x, int y, UiColor color)
     {
-        for (int row = 0; row < TinyBitmapFont.GlyphHeight; row++)
+        for (int row = 0; row < glyph.Height; row++)
         {
-            byte bits = rows[row];
-            for (int col = 0; col < TinyBitmapFont.GlyphWidth; col++)
+            int rowStart = row * glyph.Width;
+            for (int col = 0; col < glyph.Width; col++)
             {
-                int mask = 1 << (TinyBitmapFont.GlyphWidth - 1 - col);
-                if ((bits & mask) == 0)
+                byte alpha = glyph.Alpha[rowStart + col];
+                if (alpha == 0)
                 {
                     continue;
                 }
 
                 _spriteBatch.Draw(
                     _pixel,
-                    new Rectangle(
-                        x + col * scale,
-                        y + row * scale,
-                        scale,
-                        scale),
-                    color);
+                    new Rectangle(x + col, y + row, 1, 1),
+                    ToColor(ApplyAlpha(color, alpha)));
             }
         }
+    }
+
+    private static UiColor ApplyAlpha(UiColor color, byte alpha)
+    {
+        int scaledAlpha = color.A * alpha / 255;
+        return new UiColor(color.R, color.G, color.B, (byte)scaledAlpha);
     }
 }

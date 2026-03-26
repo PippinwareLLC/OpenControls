@@ -187,16 +187,17 @@ public sealed class UiWindow : UiElement
                 }
             }
 
-            int textHeight = context.Renderer.MeasureTextHeight(TitleTextScale);
+            UiFont titleFont = ResolveFont(context.DefaultFont);
+            int textHeight = context.Renderer.MeasureTextHeight(TitleTextScale, titleFont);
             int textY = titleBar.Y + (TitleBarHeight - textHeight) / 2;
             UiPoint textPoint = new UiPoint(titleBar.X + TitlePadding, textY);
             if (TitleTextBold)
             {
-                UiRenderHelpers.DrawTextBold(context.Renderer, Title, textPoint, TitleTextColor, TitleTextScale);
+                UiRenderHelpers.DrawTextBold(context.Renderer, Title, textPoint, TitleTextColor, TitleTextScale, titleFont);
             }
             else
             {
-                context.Renderer.DrawText(Title, textPoint, TitleTextColor, TitleTextScale);
+                context.Renderer.DrawText(Title, textPoint, TitleTextColor, TitleTextScale, titleFont);
             }
         }
 

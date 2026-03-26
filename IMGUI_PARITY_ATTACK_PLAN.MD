@@ -18,7 +18,7 @@ The goal is not to clone Dear ImGui's immediate-mode API one-to-one. The goal is
 
 - [ ] The documented parity deviations in [README.MD](/Users/thomasmayer/Dev/OpenControls/README.MD#L51) are either removed or intentionally reclassified as "won't match by design".
 - [ ] Input and host integration are rich enough to support true shortcuts, cursor requests, capture flags, and better focus routing.
-- [ ] Text rendering supports custom fonts, Unicode/icon glyph ranges, and merged icon fonts instead of only the built-in bitmap path.
+- [x] Text rendering supports custom fonts, Unicode/icon glyph ranges, and merged icon fonts instead of only the built-in bitmap path.
 - [ ] Text entry is editor-grade for common tooling workflows.
 - [ ] Tables, lists, trees, and selection scale to large datasets.
 - [ ] OpenControls examples demonstrate credible coverage for the major Dear ImGui demo sections without hand-wavy simulation.
@@ -191,78 +191,82 @@ Dear ImGui's power comes partly from easy access to item and window state. OpenC
 
 OpenControls currently assumes a tiny built-in bitmap font and a narrow code-page model. To reach real tooling parity, the framework needs a font asset pipeline that can load custom fonts, handle broader Unicode/code point ranges, and merge icon fonts like Font Awesome into the same text flow the way Dear ImGui does.
 
+### Implementation Note
+
+First-pass Milestone 3 is now landed. OpenControls ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, renderer-side glyph caches across all backends, and a Silk.NET-first demo path for custom body fonts plus merged icon fonts. GPU atlas work, HarfBuzz shaping depth, and any Slug spike remain follow-on work rather than blockers for the usable parity baseline.
+
 ### Scope
 
-- [ ] Add a font system that supports custom application fonts instead of only `TinyBitmapFont`.
-- [ ] Add support for icon-bearing fonts and merged glyph ranges so text and icons can share one rendering path.
-- [ ] Make Silk.NET the reference host for font parity validation, then keep the other renderers aligned.
+- [x] Add a font system that supports custom application fonts instead of only `TinyBitmapFont`.
+- [x] Add support for icon-bearing fonts and merged glyph ranges so text and icons can share one rendering path.
+- [x] Make Silk.NET the reference host for font parity validation, then keep the other renderers aligned.
 
 ### Font Asset Checklist
 
-- [ ] Introduce a font asset abstraction decoupled from `TinyBitmapFont`.
+- [x] Introduce a font asset abstraction decoupled from `TinyBitmapFont`.
 - [ ] Support loading:
-  - [ ] TTF
-  - [ ] OTF
-  - [ ] WOFF2
+  - [x] TTF
+  - [x] OTF
+  - [x] WOFF2
 - [ ] Decide whether WOFF2 support is:
   - [ ] runtime decode in managed code
-  - [ ] runtime decode through a dependency
+  - [x] runtime decode through a dependency
   - [ ] preprocessed to an internal baked format
-- [ ] Add a font registry / cache owned by the framework or host boundary.
-- [ ] Support multiple named font faces and sizes in one app session.
-- [ ] Preserve a built-in fallback/default font so simple hosts still work out of the box.
+- [x] Add a font registry / cache owned by the framework or host boundary.
+- [x] Support multiple named font faces and sizes in one app session.
+- [x] Preserve a built-in fallback/default font so simple hosts still work out of the box.
 
 ### Glyph And Unicode Checklist
 
-- [ ] Replace the current Latin-1 / CP437-only assumptions with a broader code point pipeline.
-- [ ] Define glyph range requests:
-  - [ ] default Latin set
-  - [ ] extended Unicode ranges as needed
-  - [ ] icon ranges
-- [ ] Support font fallback chains when a glyph is missing from the primary face.
-- [ ] Add missing-glyph behavior that is deterministic and debuggable.
-- [ ] Split font rendering goals into two passes:
-  - [ ] first-pass custom-font/icon-font parity without requiring full shaping
-  - [ ] follow-on shaping/text-layout work for complex scripts and higher typography fidelity
+- [x] Replace the current Latin-1 / CP437-only assumptions with a broader code point pipeline.
+- [x] Define glyph range requests:
+  - [x] default Latin set
+  - [x] extended Unicode ranges as needed
+  - [x] icon ranges
+- [x] Support font fallback chains when a glyph is missing from the primary face.
+- [x] Add missing-glyph behavior that is deterministic and debuggable.
+- [x] Split font rendering goals into two passes:
+  - [x] first-pass custom-font/icon-font parity without requiring full shaping
+  - [x] follow-on shaping/text-layout work for complex scripts and higher typography fidelity
 - [ ] Decide how much shaping/kerning support is required for the first usable version:
-  - [ ] no shaping, simple atlas path
+  - [x] no shaping, simple glyph-cache path
   - [ ] kerning-aware Latin path
-  - [ ] future shaping/text-layout milestone for complex scripts
+  - [x] future shaping/text-layout milestone for complex scripts
 
 ### HarfBuzz Evaluation Checklist
 
-- [ ] Evaluate HarfBuzz as an optional shaping backend rather than a blocker for initial custom-font support.
-- [ ] Document that HarfBuzz is useful for:
-  - [ ] ligatures
-  - [ ] kerning-aware glyph positioning
-  - [ ] combining marks
-  - [ ] bidi/RTL-aware shaping pipelines
-  - [ ] complex scripts such as Arabic and Indic families
-- [ ] Document that HarfBuzz is not the main dependency for:
-  - [ ] TTF/OTF/WOFF2 loading
-  - [ ] glyph atlas generation
-  - [ ] Font Awesome-style icon font merging
-- [ ] If adopted, keep HarfBuzz integration behind a clean text-layout/shaping layer so simple hosts can still ship without it.
+- [x] Evaluate HarfBuzz as an optional shaping backend rather than a blocker for initial custom-font support.
+- [x] Document that HarfBuzz is useful for:
+  - [x] ligatures
+  - [x] kerning-aware glyph positioning
+  - [x] combining marks
+  - [x] bidi/RTL-aware shaping pipelines
+  - [x] complex scripts such as Arabic and Indic families
+- [x] Document that HarfBuzz is not the main dependency for:
+  - [x] TTF/OTF/WOFF2 loading
+  - [x] glyph atlas generation
+  - [x] Font Awesome-style icon font merging
+- [x] If adopted, keep HarfBuzz integration behind a clean text-layout/shaping layer so simple hosts can still ship without it.
 
 ### ImGui-Style Icon Font Parity Checklist
 
-- [ ] Add an API for merging icon fonts into an existing text font configuration.
-- [ ] Support custom code point ranges like Font Awesome icon spans.
-- [ ] Allow text and icons to coexist in one string/render call without custom widget hacks.
-- [ ] Support icon glyph use in:
-  - [ ] labels
-  - [ ] buttons
-  - [ ] menus
-  - [ ] tabs
-  - [ ] tree nodes
-- [ ] Add spacing/baseline controls so merged icon fonts align cleanly with body text.
+- [x] Add an API for merging icon fonts into an existing text font configuration.
+- [x] Support custom code point ranges like Font Awesome icon spans.
+- [x] Allow text and icons to coexist in one string/render call without custom widget hacks.
+- [x] Support icon glyph use in:
+  - [x] labels
+  - [x] buttons
+  - [x] menus
+  - [x] tabs
+  - [x] tree nodes
+- [x] Add spacing/baseline controls so merged icon fonts align cleanly with body text.
 
 ### Renderer / Host Checklist
 
-- [ ] Introduce a renderer-facing font atlas or glyph cache abstraction.
-- [ ] Ensure measurement and drawing use the same glyph metrics across all renderers.
-- [ ] Implement Silk.NET atlas upload / bind / rebuild flow first.
-- [ ] Keep MonoGame, SDL, OpenGL, and software/headless renderers functional with the same font contracts.
+- [x] Introduce a renderer-facing font atlas or glyph cache abstraction.
+- [x] Ensure measurement and drawing use the same glyph metrics across all renderers.
+- [x] Implement Silk.NET glyph-cache draw flow first.
+- [x] Keep MonoGame, SDL, OpenGL, and software/headless renderers functional with the same font contracts.
 - [ ] Define rebuild behavior when fonts or glyph ranges change at runtime.
 
 ### Optional Slug Evaluation
@@ -277,26 +281,26 @@ OpenControls currently assumes a tiny built-in bitmap font and a narrow code-pag
 
 ### API And Styling Checklist
 
-- [ ] Add a stable way to choose fonts in UI code:
-  - [ ] per-element font
-  - [ ] inherited/default font
+- [x] Add a stable way to choose fonts in UI code:
+  - [x] per-element font
+  - [x] inherited/default font
   - [ ] temporary push/pop style equivalent if it fits retained mode
-- [ ] Add font metrics helpers needed by layout and text editing.
-- [ ] Document how icon fonts are configured and merged.
+- [x] Add font metrics helpers needed by layout and text editing.
+- [x] Document how icon fonts are configured and merged.
 
 ### Demo/Docs Work
 
-- [ ] Add a custom font demo in `OpenControls.Examples`.
-- [ ] Add an icon font demo using merged glyph ranges.
-- [ ] Add a Silk.NET-first sample showing Font Awesome-style usage.
-- [ ] Update `README.MD`, `API.MD`, and `Samples.MD` with font-loading guidance.
+- [x] Add a custom font demo in `OpenControls.Examples`.
+- [x] Add an icon font demo using merged glyph ranges.
+- [x] Add a Silk.NET-first sample showing Font Awesome-style usage.
+- [x] Update `README.MD`, `API.MD`, and `Quickstart.MD` with font-loading guidance.
 
 ### Exit Criteria
 
-- [ ] A user can load a custom TTF/OTF/WOFF2 font and use it throughout the UI.
-- [ ] A user can merge an icon font range into a text font and render icons inline, Dear ImGui style.
-- [ ] The roadmap clearly distinguishes first-pass custom-font/icon-font parity from optional HarfBuzz-backed shaping work.
-- [ ] The built-in bitmap font path still works as a fallback/simple-host option.
+- [x] A user can load a custom TTF/OTF/WOFF2 font and use it throughout the UI.
+- [x] A user can merge an icon font range into a text font and render icons inline, Dear ImGui style.
+- [x] The roadmap clearly distinguishes first-pass custom-font/icon-font parity from optional HarfBuzz-backed shaping work.
+- [x] The built-in bitmap font path still works as a fallback/simple-host option.
 
 ## Milestone 4: Text Entry Foundation
 
@@ -666,7 +670,7 @@ If resourcing is tight, do the work in this order:
 - [x] Phase 0
 - [x] Milestone 1
 - [x] Milestone 2
-- [ ] Milestone 3
+- [x] Milestone 3
 - [ ] Milestone 4
 - [ ] Milestone 8
 - [ ] Milestone 9
@@ -688,7 +692,7 @@ If resourcing is tight, do the work in this order:
 
 ### Release Slice B: Text And Editing
 
-- [ ] Milestone 3
+- [x] Milestone 3
 - [ ] Milestone 4
 - [ ] Milestone 5
 

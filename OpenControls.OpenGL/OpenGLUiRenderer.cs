@@ -5,19 +5,36 @@ namespace OpenControls.OpenGL;
 
 public sealed class OpenGLUiRenderer : IUiRenderer
 {
-    private readonly TinyBitmapFont _font;
     private readonly Stack<UiRect> _clipStack = new();
     private bool _scissorEnabled;
 
-    public OpenGLUiRenderer(TinyBitmapFont font)
+    public OpenGLUiRenderer(UiFont? defaultFont = null)
     {
-        _font = font ?? throw new ArgumentNullException(nameof(font));
+        DefaultFont = defaultFont ?? UiFont.Default;
     }
+
+    public OpenGLUiRenderer(TinyBitmapFont font)
+        : this(UiFont.FromTinyBitmap(font))
+    {
+    }
+
+    public UiFont DefaultFont { get; set; }
 
     public TinyFontCodePage CodePage
     {
-        get => _font.CodePage;
-        set => _font.CodePage = value;
+        get
+        {
+            return DefaultFont.TryGetBitmapFont(out TinyBitmapFont? font) && font != null
+                ? font.CodePage
+                : TinyFontCodePage.Latin1;
+        }
+        set
+        {
+            if (DefaultFont.TryGetBitmapFont(out TinyBitmapFont? font) && font != null)
+            {
+                font.CodePage = value;
+            }
+        }
     }
 
     public void FillRect(UiRect rect, UiColor color)
@@ -68,36 +85,50 @@ public sealed class OpenGLUiRenderer : IUiRenderer
 
     public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
     {
+        DrawText(text, position, color, scale, null);
+    }
+
+    public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+    {
         if (string.IsNullOrEmpty(text))
         {
             return;
         }
 
-        int scaled = Math.Max(1, scale);
-        byte[] bytes = _font.GetEncoding().GetBytes(text);
-        int cursorX = position.X;
-        int cursorY = position.Y;
-
-        SetColor(color);
-        BeginQuads();
-
-        foreach (byte code in bytes)
+        UiFont activeFont = font ?? DefaultFont;
+        UiTextLayout layout = activeFont.LayoutText(text, scale);
+        if (layout.Glyphs.Count == 0)
         {
-            EmitGlyph(_font.GetGlyph(code), cursorX, cursorY, scaled);
-            cursorX += (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * scaled;
+            return;
         }
 
+        BeginQuads();
+        for (int i = 0; i < layout.Glyphs.Count; i++)
+        {
+            UiPositionedGlyph glyph = layout.Glyphs[i];
+            EmitGlyph(glyph.Glyph, position.X + glyph.X, position.Y + glyph.Y, color);
+        }
         End();
     }
 
     public int MeasureTextWidth(string text, int scale = 1)
     {
-        return _font.MeasureWidth(text, scale);
+        return MeasureTextWidth(text, scale, null);
+    }
+
+    public int MeasureTextWidth(string text, int scale, UiFont? font)
+    {
+        return (font ?? DefaultFont).MeasureTextWidth(text, scale);
     }
 
     public int MeasureTextHeight(int scale = 1)
     {
-        return _font.MeasureHeight(scale);
+        return MeasureTextHeight(scale, null);
+    }
+
+    public int MeasureTextHeight(int scale, UiFont? font)
+    {
+        return (font ?? DefaultFont).MeasureTextHeight(scale);
     }
 
     public void PushClip(UiRect rect)
@@ -153,22 +184,29 @@ public sealed class OpenGLUiRenderer : IUiRenderer
         GL.End();
     }
 
-    private void EmitGlyph(byte[] rows, int x, int y, int scale)
+    private void EmitGlyph(UiRasterizedGlyph glyph, int x, int y, UiColor color)
     {
-        for (int row = 0; row < TinyBitmapFont.GlyphHeight; row++)
+        for (int row = 0; row < glyph.Height; row++)
         {
-            byte bits = rows[row];
-            for (int col = 0; col < TinyBitmapFont.GlyphWidth; col++)
+            int rowStart = row * glyph.Width;
+            for (int col = 0; col < glyph.Width; col++)
             {
-                int mask = 1 << (TinyBitmapFont.GlyphWidth - 1 - col);
-                if ((bits & mask) == 0)
+                byte alpha = glyph.Alpha[rowStart + col];
+                if (alpha == 0)
                 {
                     continue;
                 }
 
-                EmitQuad(x + col * scale, y + row * scale, scale, scale);
+                SetColor(ApplyAlpha(color, alpha));
+                EmitQuad(x + col, y + row, 1, 1);
             }
         }
+    }
+
+    private static UiColor ApplyAlpha(UiColor color, byte alpha)
+    {
+        int scaledAlpha = color.A * alpha / 255;
+        return new UiColor(color.R, color.G, color.B, (byte)scaledAlpha);
     }
 
     private static void EmitQuad(int x, int y, int width, int height)

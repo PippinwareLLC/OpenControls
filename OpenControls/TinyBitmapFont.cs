@@ -191,6 +191,11 @@ public sealed class TinyBitmapFont
         return glyphs[code];
     }
 
+    public byte[] GetGlyph(char c)
+    {
+        return GetGlyphCore(c);
+    }
+
     public int MeasureWidth(string text, int scale)
     {
         if (string.IsNullOrEmpty(text))
@@ -223,13 +228,13 @@ public sealed class TinyBitmapFont
             buffer[0] = (byte)i;
             string text = encoding.GetString(buffer);
             char c = text.Length > 0 ? text[0] : ' ';
-            table[i] = GetGlyph(c);
+            table[i] = GetGlyphCore(c);
         }
 
         return table;
     }
 
-    private byte[] GetGlyph(char c)
+    private byte[] GetGlyphCore(char c)
     {
         if (_glyphCache.TryGetValue(c, out byte[]? glyph))
         {

@@ -146,6 +146,7 @@ public sealed class UiTextEditor : UiElement
     private int _glyphWidth;
     private int _lineNumberWidth;
     private int _textStartX;
+    private UiFont _layoutFont = UiFont.Default;
     private bool _hasFocus;
     private bool _clickedThisFrame;
     private bool _editedThisFrame;
@@ -258,7 +259,7 @@ public sealed class UiTextEditor : UiElement
 
         _clickedThisFrame = false;
         _editedThisFrame = false;
-        RefreshLayout();
+        RefreshLayout(ResolveFont(context.DefaultFont));
 
         _scrollPanel.Background = Background;
         _scrollPanel.Border = Border;
@@ -296,16 +297,19 @@ public sealed class UiTextEditor : UiElement
         }
     }
 
-    private void RefreshLayout()
+    private void RefreshLayout(UiFont font)
     {
-        _glyphWidth = GetGlyphWidth(TextScale);
-        _lineHeight = GetLineHeight(TextScale);
+        _layoutFont = font;
+        _glyphWidth = GetGlyphWidth(font, TextScale);
+        _lineHeight = GetLineHeight(font, TextScale);
 
         int digits = Math.Max(MinLineNumberDigits, _lines.Count.ToString().Length);
-        _lineNumberWidth = ShowLineNumbers ? digits * _glyphWidth + LineNumberPadding * 2 : 0;
+        _lineNumberWidth = ShowLineNumbers
+            ? font.MeasureTextWidth(new string('0', digits), TextScale) + LineNumberPadding * 2
+            : 0;
         _textStartX = Padding + _lineNumberWidth;
 
-        int contentWidth = _textStartX + _maxLineLength * _glyphWidth + Padding;
+        int contentWidth = _textStartX + GetMaxLineWidth() + Padding;
         int contentHeight = Padding * 2 + _lines.Count * _lineHeight;
         _view.Bounds = new UiRect(0, 0, contentWidth, contentHeight);
     }
@@ -407,12 +411,7 @@ public sealed class UiTextEditor : UiElement
         int lineIndex = (point.Y - Padding) / Math.Max(1, _lineHeight);
         _caretLine = Math.Clamp(lineIndex, 0, _lines.Count - 1);
 
-        int column = (point.X - _textStartX) / Math.Max(1, _glyphWidth);
-        if (column < 0)
-        {
-            column = 0;
-        }
-
+        int column = FindColumnFromPoint(_lines[_caretLine], point.X - _textStartX);
         _caretColumn = Math.Clamp(column, 0, _lines[_caretLine].Length);
         _preferredColumn = _caretColumn;
         EnsureCaretVisible();
@@ -420,6 +419,8 @@ public sealed class UiTextEditor : UiElement
 
     private void RenderEditor(UiRenderContext context)
     {
+        UiFont font = ResolveFont(context.DefaultFont);
+        _layoutFont = font;
         int viewTop = _scrollPanel.ScrollY;
         int viewBottom = viewTop + _scrollPanel.ViewportBounds.Height;
         int lineHeight = Math.Max(1, _lineHeight);
@@ -444,13 +445,13 @@ public sealed class UiTextEditor : UiElement
             if (ShowLineNumbers)
             {
                 string lineNumber = (i + 1).ToString();
-                int numberWidth = lineNumber.Length * _glyphWidth;
+                int numberWidth = font.MeasureTextWidth(lineNumber, TextScale);
                 int numberX = Math.Max(0, _lineNumberWidth - LineNumberPadding - numberWidth);
-                context.Renderer.DrawText(lineNumber, new UiPoint(numberX, lineY), LineNumberColor, TextScale);
+                context.Renderer.DrawText(lineNumber, new UiPoint(numberX, lineY), LineNumberColor, TextScale, font);
             }
 
             string lineText = _lines[i];
-            context.Renderer.DrawText(lineText, new UiPoint(_textStartX, lineY), TextColor, TextScale);
+            context.Renderer.DrawText(lineText, new UiPoint(_textStartX, lineY), TextColor, TextScale, font);
 
             if (SyntaxMode != UiTextEditorSyntaxMode.None)
             {
@@ -463,17 +464,19 @@ public sealed class UiTextEditor : UiElement
                     }
 
                     string segment = lineText.Substring(token.Start, token.Length);
-                    int tokenX = _textStartX + token.Start * _glyphWidth;
-                    context.Renderer.DrawText(segment, new UiPoint(tokenX, lineY), token.Color, TextScale);
+                    int tokenX = _textStartX + MeasureLinePrefixWidth(lineText, token.Start);
+                    context.Renderer.DrawText(segment, new UiPoint(tokenX, lineY), token.Color, TextScale, font);
                 }
             }
         }
 
         if (_hasFocus)
         {
-            int caretX = _textStartX + _caretColumn * _glyphWidth;
+            string line = _lines[_caretLine];
+            int caretX = _textStartX + MeasureLinePrefixWidth(line, _caretColumn);
             int caretY = Padding + _caretLine * lineHeight;
-            context.Renderer.FillRect(new UiRect(caretX, caretY, Math.Max(1, TextScale), lineHeight), CaretColor);
+            int caretWidth = GetCaretWidth(line, _caretColumn);
+            context.Renderer.FillRect(new UiRect(caretX, caretY, caretWidth, lineHeight), CaretColor);
         }
     }
 
@@ -746,8 +749,10 @@ public sealed class UiTextEditor : UiElement
 
     private void EnsureCaretVisible()
     {
-        int caretX = _textStartX + _caretColumn * _glyphWidth;
+        string line = _lines[_caretLine];
+        int caretX = _textStartX + MeasureLinePrefixWidth(line, _caretColumn);
         int caretY = Padding + _caretLine * _lineHeight;
+        int caretWidth = GetCaretWidth(line, _caretColumn);
         int viewWidth = Math.Max(1, _scrollPanel.ViewportBounds.Width);
         int viewHeight = Math.Max(1, _scrollPanel.ViewportBounds.Height);
 
@@ -758,9 +763,9 @@ public sealed class UiTextEditor : UiElement
         {
             scrollX = caretX;
         }
-        else if (caretX + _glyphWidth > scrollX + viewWidth)
+        else if (caretX + caretWidth > scrollX + viewWidth)
         {
-            scrollX = caretX + _glyphWidth - viewWidth;
+            scrollX = caretX + caretWidth - viewWidth;
         }
 
         if (caretY < scrollY)
@@ -774,6 +779,63 @@ public sealed class UiTextEditor : UiElement
 
         _scrollPanel.ScrollX = Math.Max(0, scrollX);
         _scrollPanel.ScrollY = Math.Max(0, scrollY);
+    }
+
+    private int GetMaxLineWidth()
+    {
+        int maxWidth = 0;
+        foreach (string line in _lines)
+        {
+            maxWidth = Math.Max(maxWidth, _layoutFont.MeasureTextWidth(line, TextScale));
+        }
+
+        return maxWidth;
+    }
+
+    private int MeasureLinePrefixWidth(string line, int column)
+    {
+        if (string.IsNullOrEmpty(line) || column <= 0)
+        {
+            return 0;
+        }
+
+        int clampedColumn = Math.Clamp(column, 0, line.Length);
+        return _layoutFont.MeasureTextWidth(line.Substring(0, clampedColumn), TextScale);
+    }
+
+    private int FindColumnFromPoint(string line, int localX)
+    {
+        if (string.IsNullOrEmpty(line) || localX <= 0)
+        {
+            return 0;
+        }
+
+        int previousWidth = 0;
+        for (int column = 1; column <= line.Length; column++)
+        {
+            int currentWidth = MeasureLinePrefixWidth(line, column);
+            int midpoint = previousWidth + (currentWidth - previousWidth) / 2;
+            if (localX < midpoint)
+            {
+                return column - 1;
+            }
+
+            previousWidth = currentWidth;
+        }
+
+        return line.Length;
+    }
+
+    private int GetCaretWidth(string line, int column)
+    {
+        if (column >= 0 && column < line.Length)
+        {
+            int currentWidth = MeasureLinePrefixWidth(line, column);
+            int nextWidth = MeasureLinePrefixWidth(line, column + 1);
+            return Math.Max(Math.Max(1, TextScale), nextWidth - currentWidth);
+        }
+
+        return Math.Max(Math.Max(1, TextScale), _glyphWidth);
     }
 
     private void MarkTextChanged()
@@ -811,14 +873,21 @@ public sealed class UiTextEditor : UiElement
         return normalized;
     }
 
-    private static int GetLineHeight(int scale)
+    private static int GetLineHeight(UiFont font, int scale)
     {
-        return TinyBitmapFont.GlyphHeight * Math.Max(1, scale) + 2;
+        return font.MeasureTextHeight(Math.Max(1, scale)) + 2;
     }
 
-    private static int GetGlyphWidth(int scale)
+    private static int GetGlyphWidth(UiFont font, int scale)
     {
-        return (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * Math.Max(1, scale);
+        int safeScale = Math.Max(1, scale);
+        int width = font.MeasureTextWidth("M", safeScale);
+        if (width <= 0)
+        {
+            width = font.MeasureTextWidth(" ", safeScale);
+        }
+
+        return Math.Max(1, width);
     }
 
     private static bool IsIdentifierStart(char c)

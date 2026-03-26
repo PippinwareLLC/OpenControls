@@ -6,19 +6,36 @@ namespace OpenControls.SdlNet;
 public sealed class SdlUiRenderer : IUiRenderer
 {
     private readonly IntPtr _renderer;
-    private readonly TinyBitmapFont _font;
     private readonly Stack<SDL.SDL_Rect> _clipStack = new();
 
-    public SdlUiRenderer(IntPtr renderer, TinyBitmapFont font)
+    public SdlUiRenderer(IntPtr renderer, UiFont? defaultFont = null)
     {
         _renderer = renderer;
-        _font = font;
+        DefaultFont = defaultFont ?? UiFont.Default;
     }
+
+    public SdlUiRenderer(IntPtr renderer, TinyBitmapFont font)
+        : this(renderer, UiFont.FromTinyBitmap(font))
+    {
+    }
+
+    public UiFont DefaultFont { get; set; }
 
     public TinyFontCodePage CodePage
     {
-        get => _font.CodePage;
-        set => _font.CodePage = value;
+        get
+        {
+            return DefaultFont.TryGetBitmapFont(out TinyBitmapFont? font) && font != null
+                ? font.CodePage
+                : TinyFontCodePage.Latin1;
+        }
+        set
+        {
+            if (DefaultFont.TryGetBitmapFont(out TinyBitmapFont? font) && font != null)
+            {
+                font.CodePage = value;
+            }
+        }
     }
 
     public void FillRect(UiRect rect, UiColor color)
@@ -66,33 +83,43 @@ public sealed class SdlUiRenderer : IUiRenderer
 
     public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
     {
+        DrawText(text, position, color, scale, null);
+    }
+
+    public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+    {
         if (string.IsNullOrEmpty(text))
         {
             return;
         }
 
-        int scaled = Math.Max(1, scale);
-        byte[] bytes = _font.GetEncoding().GetBytes(text);
-        int cursorX = position.X;
-        int cursorY = position.Y;
-
-        SetDrawColor(color);
-
-        foreach (byte code in bytes)
+        UiFont activeFont = font ?? DefaultFont;
+        UiTextLayout layout = activeFont.LayoutText(text, scale);
+        for (int i = 0; i < layout.Glyphs.Count; i++)
         {
-            DrawGlyph(_font.GetGlyph(code), cursorX, cursorY, scaled);
-            cursorX += (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * scaled;
+            UiPositionedGlyph glyph = layout.Glyphs[i];
+            DrawGlyph(glyph.Glyph, position.X + glyph.X, position.Y + glyph.Y, color);
         }
     }
 
     public int MeasureTextWidth(string text, int scale = 1)
     {
-        return _font.MeasureWidth(text, Math.Max(1, scale));
+        return MeasureTextWidth(text, scale, null);
+    }
+
+    public int MeasureTextWidth(string text, int scale, UiFont? font)
+    {
+        return (font ?? DefaultFont).MeasureTextWidth(text, Math.Max(1, scale));
     }
 
     public int MeasureTextHeight(int scale = 1)
     {
-        return _font.MeasureHeight(Math.Max(1, scale));
+        return MeasureTextHeight(scale, null);
+    }
+
+    public int MeasureTextHeight(int scale, UiFont? font)
+    {
+        return (font ?? DefaultFont).MeasureTextHeight(Math.Max(1, scale));
     }
 
     public void PushClip(UiRect rect)
@@ -127,29 +154,36 @@ public sealed class SdlUiRenderer : IUiRenderer
         SDL.SDL_RenderSetClipRect(_renderer, ref clip);
     }
 
-    private void DrawGlyph(byte[] rows, int x, int y, int scale)
+    private void DrawGlyph(UiRasterizedGlyph glyph, int x, int y, UiColor color)
     {
-        for (int row = 0; row < TinyBitmapFont.GlyphHeight; row++)
+        for (int row = 0; row < glyph.Height; row++)
         {
-            byte bits = rows[row];
-            for (int col = 0; col < TinyBitmapFont.GlyphWidth; col++)
+            int rowStart = row * glyph.Width;
+            for (int col = 0; col < glyph.Width; col++)
             {
-                int mask = 1 << (TinyBitmapFont.GlyphWidth - 1 - col);
-                if ((bits & mask) == 0)
+                byte alpha = glyph.Alpha[rowStart + col];
+                if (alpha == 0)
                 {
                     continue;
                 }
 
+                SetDrawColor(ApplyAlpha(color, alpha));
                 SDL.SDL_Rect pixel = new()
                 {
-                    x = x + col * scale,
-                    y = y + row * scale,
-                    w = scale,
-                    h = scale
+                    x = x + col,
+                    y = y + row,
+                    w = 1,
+                    h = 1
                 };
                 SDL.SDL_RenderFillRect(_renderer, ref pixel);
             }
         }
+    }
+
+    private static UiColor ApplyAlpha(UiColor color, byte alpha)
+    {
+        int scaledAlpha = color.A * alpha / 255;
+        return new UiColor(color.R, color.G, color.B, (byte)scaledAlpha);
     }
 
     private void SetDrawColor(UiColor color)

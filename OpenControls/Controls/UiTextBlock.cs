@@ -25,9 +25,10 @@ public sealed class UiTextBlock : UiElement
         int x = Bounds.X + padding;
         int y = Bounds.Y + padding;
         int width = Math.Max(0, Bounds.Width - padding * 2);
+        UiFont font = ResolveFont(context.DefaultFont);
 
-        List<string> lines = BuildLines(Text, width, context.Renderer);
-        int lineHeight = context.Renderer.MeasureTextHeight(Scale);
+        List<string> lines = BuildLines(Text, width, context.Renderer, font);
+        int lineHeight = context.Renderer.MeasureTextHeight(Scale, font);
         int lineSpacing = Math.Max(0, LineSpacing);
 
         LastLineCount = lines.Count;
@@ -44,11 +45,11 @@ public sealed class UiTextBlock : UiElement
             UiPoint position = new UiPoint(x, lineY);
             if (Bold)
             {
-                UiRenderHelpers.DrawTextBold(context.Renderer, line, position, Color, Scale);
+                UiRenderHelpers.DrawTextBold(context.Renderer, line, position, Color, Scale, font);
             }
             else
             {
-                context.Renderer.DrawText(line, position, Color, Scale);
+                context.Renderer.DrawText(line, position, Color, Scale, font);
             }
 
             lineY += lineHeight + lineSpacing;
@@ -66,7 +67,7 @@ public sealed class UiTextBlock : UiElement
         base.Render(context);
     }
 
-    private List<string> BuildLines(string text, int maxWidth, IUiRenderer renderer)
+    private List<string> BuildLines(string text, int maxWidth, IUiRenderer renderer, UiFont font)
     {
         List<string> lines = new();
         if (string.IsNullOrEmpty(text))
@@ -83,7 +84,7 @@ public sealed class UiTextBlock : UiElement
                 continue;
             }
 
-            foreach (string line in WrapLine(raw, maxWidth, renderer))
+            foreach (string line in WrapLine(raw, maxWidth, renderer, font))
             {
                 lines.Add(line);
             }
@@ -92,7 +93,7 @@ public sealed class UiTextBlock : UiElement
         return lines;
     }
 
-    private IEnumerable<string> WrapLine(string line, int maxWidth, IUiRenderer renderer)
+    private IEnumerable<string> WrapLine(string line, int maxWidth, IUiRenderer renderer, UiFont font)
     {
         if (string.IsNullOrEmpty(line))
         {
@@ -114,7 +115,7 @@ public sealed class UiTextBlock : UiElement
             if (length > 0)
             {
                 string slice = line.Substring(start, length);
-                int width = renderer.MeasureTextWidth(slice, Scale);
+                int width = renderer.MeasureTextWidth(slice, Scale, font);
                 if (width > maxWidth)
                 {
                     int breakIndex = lastBreak >= start ? lastBreak : index;

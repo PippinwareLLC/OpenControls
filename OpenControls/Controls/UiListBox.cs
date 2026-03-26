@@ -186,7 +186,8 @@ public sealed class UiListBox : UiElement
         int visibleCount = GetVisibleCount(itemHeight);
         int startIndex = ClampScrollIndex(ScrollIndex, visibleCount);
         int endIndex = Math.Min(Items.Count, startIndex + visibleCount);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
 
         context.Renderer.PushClip(Bounds);
         for (int i = startIndex; i < endIndex; i++)
@@ -206,7 +207,7 @@ public sealed class UiListBox : UiElement
 
             int textY = y + (itemHeight - textHeight) / 2;
             UiColor textColor = IsItemSelected(i) ? SelectedTextColor : TextColor;
-            context.Renderer.DrawText(Items[i], new UiPoint(Bounds.X + Padding, textY), textColor, TextScale);
+            context.Renderer.DrawText(Items[i], new UiPoint(Bounds.X + Padding, textY), textColor, TextScale, font);
         }
         context.Renderer.PopClip();
 

@@ -97,24 +97,25 @@ public sealed class UiTextField : UiElement
         context.Renderer.PushClip(clip);
         string displayText = Text;
         UiColor displayColor = TextColor;
+        UiFont font = ResolveFont(context.DefaultFont);
         if (string.IsNullOrEmpty(displayText) && !string.IsNullOrEmpty(Placeholder))
         {
             displayText = Placeholder;
             displayColor = PlaceholderColor;
         }
 
-        context.Renderer.DrawText(displayText, new UiPoint(textX, textY), displayColor, TextScale);
+        context.Renderer.DrawText(displayText, new UiPoint(textX, textY), displayColor, TextScale, font);
 
         if (_focused && _caretVisible)
         {
             int caretWidth = Math.Max(1, TextScale);
-            int caretX = textX + context.Renderer.MeasureTextWidth(Text[..CaretIndex], TextScale);
+            int caretX = textX + context.Renderer.MeasureTextWidth(Text[..CaretIndex], TextScale, font);
             if (CaretIndex > 0)
             {
                 caretX -= caretWidth;
             }
 
-            int caretHeight = context.Renderer.MeasureTextHeight(TextScale);
+            int caretHeight = context.Renderer.MeasureTextHeight(TextScale, font);
             context.Renderer.FillRect(new UiRect(caretX, textY, caretWidth, caretHeight), CaretColor);
         }
 

@@ -68,11 +68,12 @@ public sealed class UiButton : UiElement
         UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, fill);
         UiRenderHelpers.DrawRectRounded(context.Renderer, Bounds, CornerRadius, Border, 1);
 
-        int textWidth = context.Renderer.MeasureTextWidth(Text, TextScale);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textWidth = context.Renderer.MeasureTextWidth(Text, TextScale, font);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         int textX = Bounds.X + (Bounds.Width - textWidth) / 2;
         int textY = Bounds.Y + (Bounds.Height - textHeight) / 2;
-        context.Renderer.DrawText(Text, new UiPoint(textX, textY), TextColor, TextScale);
+        context.Renderer.DrawText(Text, new UiPoint(textX, textY), TextColor, TextScale, font);
 
         base.Render(context);
     }

@@ -21,6 +21,12 @@ public sealed class UiCanvas : UiElement
             _panY = panY;
         }
 
+        public UiFont DefaultFont
+        {
+            get => _inner.DefaultFont;
+            set => _inner.DefaultFont = value;
+        }
+
         public void FillRect(UiRect rect, UiColor color)
         {
             _inner.FillRect(Transform(rect), color);
@@ -50,14 +56,31 @@ public sealed class UiCanvas : UiElement
             _inner.DrawText(text, screen, color, scaled);
         }
 
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+            UiPoint screen = Transform(position);
+            int scaled = Math.Max(1, (int)Math.Round(scale * _zoom));
+            _inner.DrawText(text, screen, color, scaled, font);
+        }
+
         public int MeasureTextWidth(string text, int scale = 1)
         {
             return _inner.MeasureTextWidth(text, scale);
         }
 
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            return _inner.MeasureTextWidth(text, scale, font);
+        }
+
         public int MeasureTextHeight(int scale = 1)
         {
             return _inner.MeasureTextHeight(scale);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            return _inner.MeasureTextHeight(scale, font);
         }
 
         public void PushClip(UiRect rect)
@@ -182,7 +205,7 @@ public sealed class UiCanvas : UiElement
         }
 
         UiInputState childInput = BuildChildInput(input, mouseInViewport && !_panning);
-        UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds);
+        UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont);
         foreach (UiElement child in Children)
         {
             child.Update(childContext);
@@ -222,7 +245,7 @@ public sealed class UiCanvas : UiElement
         DrawOrigin(context);
 
         CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY);
-        UiRenderContext childContext = new UiRenderContext(renderer);
+        UiRenderContext childContext = new UiRenderContext(renderer, context.DefaultFont);
         foreach (UiElement child in Children)
         {
             child.Render(childContext);
@@ -252,7 +275,7 @@ public sealed class UiCanvas : UiElement
         }
 
         CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY);
-        UiRenderContext childContext = new UiRenderContext(renderer);
+        UiRenderContext childContext = new UiRenderContext(renderer, context.DefaultFont);
         foreach (UiElement child in Children)
         {
             child.RenderOverlay(childContext);

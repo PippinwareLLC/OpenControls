@@ -233,6 +233,7 @@ public sealed class UiTable : UiElement
             return;
         }
 
+        UiFont font = ResolveFont(context.DefaultFont);
         UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, Background);
         if (Border.A > 0)
         {
@@ -252,8 +253,8 @@ public sealed class UiTable : UiElement
         int rowAreaHeight = Math.Max(0, Bounds.Height - headerHeight);
         int maxRows = rowHeight > 0 ? rowAreaHeight / rowHeight : 0;
         int rowCount = Math.Min(Rows.Count, maxRows);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
-        int headerTextHeight = context.Renderer.MeasureTextHeight(HeaderTextScale);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
+        int headerTextHeight = context.Renderer.MeasureTextHeight(HeaderTextScale, font);
 
         context.Renderer.PushClip(Bounds);
 
@@ -318,25 +319,25 @@ public sealed class UiTable : UiElement
                 context.Renderer.PushClip(cellRect);
                 if (UseAngledHeaders)
                 {
-                    DrawAngledHeaderText(context.Renderer, column.Header, cellRect, HeaderTextColor, HeaderTextScale);
+                    DrawAngledHeaderText(context.Renderer, column.Header, cellRect, HeaderTextColor, HeaderTextScale, font);
                 }
                 else
                 {
                     UiPoint textPoint = new UiPoint(x + CellPadding, headerY);
                     if (HeaderTextBold)
                     {
-                        UiRenderHelpers.DrawTextBold(context.Renderer, column.Header, textPoint, HeaderTextColor, HeaderTextScale);
+                        UiRenderHelpers.DrawTextBold(context.Renderer, column.Header, textPoint, HeaderTextColor, HeaderTextScale, font);
                     }
                     else
                     {
-                        context.Renderer.DrawText(column.Header, textPoint, HeaderTextColor, HeaderTextScale);
+                        context.Renderer.DrawText(column.Header, textPoint, HeaderTextColor, HeaderTextScale, font);
                     }
                 }
 
                 UiTableSortSpec? sortSpec = GetSortSpec(col);
                 if (sortSpec != null)
                 {
-                    DrawSortIndicator(context, cellRect, sortSpec);
+                    DrawSortIndicator(context, cellRect, sortSpec, font);
                 }
                 context.Renderer.PopClip();
                 x += columnWidths[col];
@@ -357,7 +358,7 @@ public sealed class UiTable : UiElement
                 string cellText = col < cells.Count ? cells[col] : string.Empty;
                 UiRect cellRect = new UiRect(x, rowY, columnWidths[col], rowHeight);
                 context.Renderer.PushClip(cellRect);
-                context.Renderer.DrawText(cellText, new UiPoint(x + CellPadding, textY), rowTextColor, TextScale);
+                context.Renderer.DrawText(cellText, new UiPoint(x + CellPadding, textY), rowTextColor, TextScale, font);
                 context.Renderer.PopClip();
                 x += columnWidths[col];
             }
@@ -622,10 +623,10 @@ public sealed class UiTable : UiElement
         return null;
     }
 
-    private void DrawSortIndicator(UiRenderContext context, UiRect cellRect, UiTableSortSpec spec)
+    private void DrawSortIndicator(UiRenderContext context, UiRect cellRect, UiTableSortSpec spec, UiFont font)
     {
         int padding = Math.Max(0, SortIndicatorPadding);
-        int textHeight = context.Renderer.MeasureTextHeight(HeaderTextScale);
+        int textHeight = context.Renderer.MeasureTextHeight(HeaderTextScale, font);
         int size = Math.Min(cellRect.Width, cellRect.Height);
         size = Math.Min(size, Math.Max(4, textHeight));
         if (size <= 0)
@@ -642,7 +643,7 @@ public sealed class UiTable : UiElement
         UiArrow.DrawTriangle(context.Renderer, arrowRect, direction, HeaderTextColor);
     }
 
-    private void DrawAngledHeaderText(IUiRenderer renderer, string text, UiRect cellRect, UiColor color, int scale)
+    private void DrawAngledHeaderText(IUiRenderer renderer, string text, UiRect cellRect, UiColor color, int scale, UiFont font)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -650,9 +651,9 @@ public sealed class UiTable : UiElement
         }
 
         int safeScale = Math.Max(1, scale);
-        int glyphWidth = (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * safeScale;
-        int glyphHeight = TinyBitmapFont.GlyphHeight * safeScale;
-        int step = AngledHeaderStep > 0 ? AngledHeaderStep : Math.Max(1, glyphWidth / 2);
+        int glyphWidth = renderer.MeasureTextWidth("W", safeScale, font);
+        int glyphHeight = renderer.MeasureTextHeight(safeScale, font);
+        int step = AngledHeaderStep > 0 ? AngledHeaderStep : Math.Max(1, Math.Max(1, glyphWidth) / 2);
 
         int padding = Math.Max(0, CellPadding);
         int x = cellRect.X + padding;
@@ -665,11 +666,11 @@ public sealed class UiTable : UiElement
             {
                 if (HeaderTextBold)
                 {
-                    UiRenderHelpers.DrawTextBold(renderer, ch.ToString(), new UiPoint(x, y), color, safeScale);
+                    UiRenderHelpers.DrawTextBold(renderer, ch.ToString(), new UiPoint(x, y), color, safeScale, font);
                 }
                 else
                 {
-                    renderer.DrawText(ch.ToString(), new UiPoint(x, y), color, safeScale);
+                    renderer.DrawText(ch.ToString(), new UiPoint(x, y), color, safeScale, font);
                 }
             }
 

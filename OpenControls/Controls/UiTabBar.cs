@@ -1,11 +1,7 @@
-using System.Text;
-
 namespace OpenControls.Controls;
 
 public sealed class UiTabBar : UiElement
 {
-    private static readonly Encoding Latin1Encoding = Encoding.Latin1;
-
     private int _activeIndex = -1;
     private int _hoverIndex = -1;
     private int _pressedIndex = -1;
@@ -24,6 +20,7 @@ public sealed class UiTabBar : UiElement
     private UiTabItemButton? _pressedButton;
     private readonly List<UiTabItemButton> _leadingButtons = new();
     private readonly List<UiTabItemButton> _trailingButtons = new();
+    private UiFont _layoutFont = UiFont.Default;
 
     public UiColor TabBarColor { get; set; } = new(22, 26, 36);
     public UiColor TabActiveColor { get; set; } = new(45, 52, 70);
@@ -102,6 +99,7 @@ public sealed class UiTabBar : UiElement
             return;
         }
 
+        _layoutFont = ResolveFont(context.DefaultFont);
         List<UiTabItem> tabs = CollectTabs();
         CollectButtons(_leadingButtons, _trailingButtons);
         UpdateTabLayout(tabs, _leadingButtons, _trailingButtons);
@@ -223,6 +221,8 @@ public sealed class UiTabBar : UiElement
             return;
         }
 
+        UiFont font = ResolveFont(context.DefaultFont);
+        _layoutFont = font;
         List<UiTabItem> tabs = CollectTabs();
         CollectButtons(_leadingButtons, _trailingButtons);
         UiRect tabBar = new(Bounds.X, Bounds.Y, Bounds.Width, TabBarHeight);
@@ -237,8 +237,8 @@ public sealed class UiTabBar : UiElement
         {
             UiRect clipBounds = _tabsOverflow ? _tabAreaBounds : tabBar;
             context.Renderer.PushClip(clipBounds);
-            int textHeight = context.Renderer.MeasureTextHeight(TabTextScale);
-            int closeTextWidth = MeasureTextWidth("X", TabTextScale);
+            int textHeight = context.Renderer.MeasureTextHeight(TabTextScale, font);
+            int closeTextWidth = MeasureTextWidth("X", TabTextScale, font);
             for (int i = 0; i < tabs.Count; i++)
             {
                 UiTabItem tab = tabs[i];
@@ -252,11 +252,11 @@ public sealed class UiTabBar : UiElement
                 int textX = tabRect.X + Math.Max(0, TabPadding);
                 if (TabTextBold)
                 {
-                    UiRenderHelpers.DrawTextBold(context.Renderer, tab.Text, new UiPoint(textX, textY), textColor, TabTextScale);
+                    UiRenderHelpers.DrawTextBold(context.Renderer, tab.Text, new UiPoint(textX, textY), textColor, TabTextScale, font);
                 }
                 else
                 {
-                    context.Renderer.DrawText(tab.Text, new UiPoint(textX, textY), textColor, TabTextScale);
+                    context.Renderer.DrawText(tab.Text, new UiPoint(textX, textY), textColor, TabTextScale, font);
                 }
 
                 if (ShowCloseButtons && tab.AllowClose)
@@ -265,7 +265,7 @@ public sealed class UiTabBar : UiElement
                     UiColor closeColor = _closeHoverIndex == i ? TabActiveTextColor : TabTextColor;
                     int closeTextX = closeBounds.X + (closeBounds.Width - closeTextWidth) / 2;
                     int closeTextY = closeBounds.Y + (closeBounds.Height - textHeight) / 2;
-                    context.Renderer.DrawText("X", new UiPoint(closeTextX, closeTextY), closeColor, TabTextScale);
+                    context.Renderer.DrawText("X", new UiPoint(closeTextX, closeTextY), closeColor, TabTextScale, font);
                 }
             }
             context.Renderer.PopClip();
@@ -434,7 +434,7 @@ public sealed class UiTabBar : UiElement
         }
 
         int padding = Math.Max(0, CloseButtonPadding);
-        int glyphWidth = MeasureTextWidth("X", TabTextScale);
+        int glyphWidth = MeasureTextWidth("X", TabTextScale, _layoutFont);
         return glyphWidth + padding * 2;
     }
 
@@ -567,7 +567,8 @@ public sealed class UiTabBar : UiElement
             return;
         }
 
-        int textHeight = context.Renderer.MeasureTextHeight(TabTextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(TabTextScale, font);
         for (int i = 0; i < buttons.Count; i++)
         {
             UiTabItemButton button = buttons[i];
@@ -588,11 +589,11 @@ public sealed class UiTabBar : UiElement
             int textY = rect.Y + (rect.Height - textHeight) / 2;
             if (TabTextBold)
             {
-                UiRenderHelpers.DrawTextBold(context.Renderer, button.Text, new UiPoint(textX, textY), textColor, TabTextScale);
+                UiRenderHelpers.DrawTextBold(context.Renderer, button.Text, new UiPoint(textX, textY), textColor, TabTextScale, font);
             }
             else
             {
-                context.Renderer.DrawText(button.Text, new UiPoint(textX, textY), textColor, TabTextScale);
+                context.Renderer.DrawText(button.Text, new UiPoint(textX, textY), textColor, TabTextScale, font);
             }
         }
     }
@@ -763,7 +764,7 @@ public sealed class UiTabBar : UiElement
         int width = Math.Max(0, button.Width);
         if (button.AutoSize)
         {
-            int textWidth = MeasureTextWidth(button.Text, TabTextScale);
+            int textWidth = MeasureTextWidth(button.Text, TabTextScale, _layoutFont);
             if (TabTextBold && textWidth > 0)
             {
                 textWidth += 1;
@@ -790,7 +791,7 @@ public sealed class UiTabBar : UiElement
         int width = Math.Max(0, TabWidth);
         if (AutoSizeTabs)
         {
-            int textWidth = MeasureTextWidth(tab.Text, TabTextScale);
+            int textWidth = MeasureTextWidth(tab.Text, TabTextScale, _layoutFont);
             if (TabTextBold && textWidth > 0)
             {
                 textWidth += 1;
@@ -815,16 +816,13 @@ public sealed class UiTabBar : UiElement
         return Math.Max(0, width);
     }
 
-    private static int MeasureTextWidth(string text, int scale)
+    private static int MeasureTextWidth(string text, int scale, UiFont font)
     {
         if (string.IsNullOrEmpty(text))
         {
             return 0;
         }
 
-        int safeScale = Math.Max(1, scale);
-        int glyphWidth = (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * safeScale;
-        int count = Latin1Encoding.GetByteCount(text);
-        return count * glyphWidth;
+        return font.MeasureTextWidth(text, Math.Max(1, scale));
     }
 }

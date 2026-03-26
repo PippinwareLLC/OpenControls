@@ -17,7 +17,8 @@ public sealed class UiBulletText : UiElement
             return;
         }
 
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         int bulletSize = BulletSize > 0 ? BulletSize : Math.Max(2, textHeight / 3);
         int bulletY = Bounds.Y + (textHeight - bulletSize) / 2;
         UiRect bulletRect = new UiRect(Bounds.X, bulletY, bulletSize, bulletSize);
@@ -29,11 +30,11 @@ public sealed class UiBulletText : UiElement
             UiPoint textPos = new UiPoint(textX, Bounds.Y);
             if (Bold)
             {
-                UiRenderHelpers.DrawTextBold(context.Renderer, Text, textPos, TextColor, TextScale);
+                UiRenderHelpers.DrawTextBold(context.Renderer, Text, textPos, TextColor, TextScale, font);
             }
             else
             {
-                context.Renderer.DrawText(Text, textPos, TextColor, TextScale);
+                context.Renderer.DrawText(Text, textPos, TextColor, TextScale, font);
             }
         }
 

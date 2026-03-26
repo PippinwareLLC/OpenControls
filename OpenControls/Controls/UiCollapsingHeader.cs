@@ -13,6 +13,12 @@ public sealed class UiCollapsingHeader : UiElement
             _offset = offset;
         }
 
+        public UiFont DefaultFont
+        {
+            get => _inner.DefaultFont;
+            set => _inner.DefaultFont = value;
+        }
+
         public void FillRect(UiRect rect, UiColor color)
         {
             _inner.FillRect(Offset(rect), color);
@@ -38,14 +44,29 @@ public sealed class UiCollapsingHeader : UiElement
             _inner.DrawText(text, Offset(position), color, scale);
         }
 
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+            _inner.DrawText(text, Offset(position), color, scale, font);
+        }
+
         public int MeasureTextWidth(string text, int scale = 1)
         {
             return _inner.MeasureTextWidth(text, scale);
         }
 
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            return _inner.MeasureTextWidth(text, scale, font);
+        }
+
         public int MeasureTextHeight(int scale = 1)
         {
             return _inner.MeasureTextHeight(scale);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            return _inner.MeasureTextHeight(scale, font);
         }
 
         public void PushClip(UiRect rect)
@@ -146,7 +167,7 @@ public sealed class UiCollapsingHeader : UiElement
         if (_isOpen)
         {
             UiInputState childInput = BuildChildInput(input);
-            UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds);
+            UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont);
             foreach (UiElement child in Children)
             {
                 child.Update(childContext);
@@ -175,10 +196,11 @@ public sealed class UiCollapsingHeader : UiElement
 
         DrawArrow(context, header);
 
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         int textY = header.Y + (header.Height - textHeight) / 2;
         int textX = header.X + Padding + Math.Max(4, ArrowSize) + ArrowPadding;
-        context.Renderer.DrawText(Text, new UiPoint(textX, textY), TextColor, TextScale);
+        context.Renderer.DrawText(Text, new UiPoint(textX, textY), TextColor, TextScale, font);
 
         if (_isOpen)
         {
@@ -212,7 +234,7 @@ public sealed class UiCollapsingHeader : UiElement
         UiRect content = ContentBounds;
         UiPoint offset = new UiPoint(content.X, content.Y);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer);
+        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
 
         if (ClipChildren)
         {
@@ -235,7 +257,7 @@ public sealed class UiCollapsingHeader : UiElement
         UiRect content = ContentBounds;
         UiPoint offset = new UiPoint(content.X, content.Y);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer);
+        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
 
         if (ClipChildren)
         {

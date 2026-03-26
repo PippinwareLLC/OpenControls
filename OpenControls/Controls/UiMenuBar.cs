@@ -62,6 +62,12 @@ public sealed class UiMenuBar : UiElement
             _offset = offset;
         }
 
+        public UiFont DefaultFont
+        {
+            get => _inner.DefaultFont;
+            set => _inner.DefaultFont = value;
+        }
+
         public void FillRect(UiRect rect, UiColor color)
         {
             _inner.FillRect(Offset(rect), color);
@@ -87,14 +93,29 @@ public sealed class UiMenuBar : UiElement
             _inner.DrawText(text, Offset(position), color, scale);
         }
 
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+            _inner.DrawText(text, Offset(position), color, scale, font);
+        }
+
         public int MeasureTextWidth(string text, int scale = 1)
         {
             return _inner.MeasureTextWidth(text, scale);
         }
 
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            return _inner.MeasureTextWidth(text, scale, font);
+        }
+
         public int MeasureTextHeight(int scale = 1)
         {
             return _inner.MeasureTextHeight(scale);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            return _inner.MeasureTextHeight(scale, font);
         }
 
         public void PushClip(UiRect rect)
@@ -280,7 +301,8 @@ public sealed class UiMenuBar : UiElement
         context.Renderer.FillRect(barBounds, BarBackground);
         context.Renderer.DrawRect(barBounds, BarBorder, 1);
 
-        int textHeight = GetTextHeight(TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         for (int i = 0; i < _topItemRects.Count; i++)
         {
             UiRect rect = _topItemRects[i];
@@ -294,7 +316,7 @@ public sealed class UiMenuBar : UiElement
             MenuItem item = Items[i];
             UiColor color = item.Enabled ? TextColor : DisabledTextColor;
             int textY = rect.Y + (rect.Height - textHeight) / 2;
-            context.Renderer.DrawText(item.Text, new UiPoint(rect.X + BarItemPadding, textY), color, TextScale);
+            context.Renderer.DrawText(item.Text, new UiPoint(rect.X + BarItemPadding, textY), color, TextScale, font);
         }
 
         base.Render(context);
@@ -318,7 +340,8 @@ public sealed class UiMenuBar : UiElement
             return;
         }
 
-        int textHeight = GetTextHeight(TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         for (int level = 0; level < _openLayouts.Count; level++)
         {
             MenuLayout layout = _openLayouts[level];
@@ -353,13 +376,13 @@ public sealed class UiMenuBar : UiElement
                     UiColor color = item.Enabled ? TextColor : DisabledTextColor;
                     int itemTextY = itemRect.Y + (itemRect.Height - textHeight) / 2;
                     int textX = itemRect.X + ItemPadding + GetCheckmarkAreaWidth();
-                    context.Renderer.DrawText(item.Text, new UiPoint(textX, itemTextY), color, TextScale);
+                    context.Renderer.DrawText(item.Text, new UiPoint(textX, itemTextY), color, TextScale, font);
 
                     if (!string.IsNullOrEmpty(item.Shortcut))
                     {
                         int shortcutWidth = GetTextWidth(item.Shortcut);
                         int shortcutX = itemRect.Right - ItemPadding - shortcutWidth - GetSubmenuIndicatorWidth(item);
-                        context.Renderer.DrawText(item.Shortcut, new UiPoint(shortcutX, itemTextY), color, TextScale);
+                        context.Renderer.DrawText(item.Shortcut, new UiPoint(shortcutX, itemTextY), color, TextScale, font);
                     }
 
                     if (item.IsCheckable && item.Checked)
@@ -1056,7 +1079,7 @@ public sealed class UiMenuBar : UiElement
                     Navigation = input.Navigation
                 };
 
-                item.Content.Update(new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds));
+                item.Content.Update(new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont));
             }
         }
     }
@@ -1089,7 +1112,7 @@ public sealed class UiMenuBar : UiElement
         }
 
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, new UiPoint(contentRect.X, contentRect.Y));
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer);
+        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
         item.Content.Render(childContext);
         item.Content.RenderOverlay(childContext);
 

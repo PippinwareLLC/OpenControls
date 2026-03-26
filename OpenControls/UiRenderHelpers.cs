@@ -2,15 +2,15 @@ namespace OpenControls;
 
 public static class UiRenderHelpers
 {
-    public static void DrawTextBold(IUiRenderer renderer, string text, UiPoint position, UiColor color, int scale = 1)
+    public static void DrawTextBold(IUiRenderer renderer, string text, UiPoint position, UiColor color, int scale = 1, UiFont? font = null)
     {
         if (string.IsNullOrEmpty(text))
         {
             return;
         }
 
-        renderer.DrawText(text, position, color, scale);
-        renderer.DrawText(text, new UiPoint(position.X + 1, position.Y), color, scale);
+        renderer.DrawText(text, position, color, scale, font);
+        renderer.DrawText(text, new UiPoint(position.X + 1, position.Y), color, scale, font);
     }
 
     public static void FillRectRounded(IUiRenderer renderer, UiRect rect, int radius, UiColor color)

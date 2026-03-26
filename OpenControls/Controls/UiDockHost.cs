@@ -1,11 +1,7 @@
-using System.Text;
-
 namespace OpenControls.Controls;
 
 public sealed class UiDockHost : UiElement
 {
-    private static readonly Encoding Latin1Encoding = Encoding.Latin1;
-
     private readonly List<UiWindow> _windows = new();
     private int _activeIndex = -1;
     private UiWindow? _dragWindow;
@@ -22,6 +18,7 @@ public sealed class UiDockHost : UiElement
     private int _closePressedIndex = -1;
     private bool _scrollLeftHover;
     private bool _scrollRightHover;
+    private UiFont _layoutFont = UiFont.Default;
 
     public UiColor Background { get; set; } = new(20, 24, 34);
     public UiColor Border { get; set; } = new(90, 100, 120);
@@ -214,6 +211,7 @@ public sealed class UiDockHost : UiElement
             return;
         }
 
+        _layoutFont = ResolveFont(context.DefaultFont);
         UpdateDockedLayout();
         UpdateTabLayout();
 
@@ -341,6 +339,8 @@ public sealed class UiDockHost : UiElement
             return;
         }
 
+        UiFont font = ResolveFont(context.DefaultFont);
+        _layoutFont = font;
         UpdateTabLayout();
 
         context.Renderer.FillRect(Bounds, Background);
@@ -351,8 +351,8 @@ public sealed class UiDockHost : UiElement
 
         UiRect clipBounds = _tabsOverflow ? _tabAreaBounds : tabBar;
         context.Renderer.PushClip(clipBounds);
-        int textHeight = context.Renderer.MeasureTextHeight(TabTextScale);
-        int closeTextWidth = MeasureTextWidth("X", TabTextScale);
+        int textHeight = context.Renderer.MeasureTextHeight(TabTextScale, font);
+        int closeTextWidth = MeasureTextWidth("X", TabTextScale, font);
         for (int i = 0; i < _windows.Count; i++)
         {
             UiRect tabRect = GetTabRect(i);
@@ -365,11 +365,11 @@ public sealed class UiDockHost : UiElement
             UiPoint textPoint = new UiPoint(tabRect.X + TabPadding, textY);
             if (TabTextBold)
             {
-                UiRenderHelpers.DrawTextBold(context.Renderer, window.Title, textPoint, TabTextColor, TabTextScale);
+                UiRenderHelpers.DrawTextBold(context.Renderer, window.Title, textPoint, TabTextColor, TabTextScale, font);
             }
             else
             {
-                context.Renderer.DrawText(window.Title, textPoint, TabTextColor, TabTextScale);
+                context.Renderer.DrawText(window.Title, textPoint, TabTextColor, TabTextScale, font);
             }
 
             if (ShowCloseButtons && CanCloseWindow(i))
@@ -378,7 +378,7 @@ public sealed class UiDockHost : UiElement
                 int closeTextX = closeBounds.X + (closeBounds.Width - closeTextWidth) / 2;
                 int closeTextY = closeBounds.Y + (closeBounds.Height - textHeight) / 2;
                 UiColor closeColor = _closeHoverIndex == i ? TabTextColor : TabTextColor;
-                context.Renderer.DrawText("X", new UiPoint(closeTextX, closeTextY), closeColor, TabTextScale);
+                context.Renderer.DrawText("X", new UiPoint(closeTextX, closeTextY), closeColor, TabTextScale, font);
             }
         }
         context.Renderer.PopClip();
@@ -452,7 +452,7 @@ public sealed class UiDockHost : UiElement
         }
 
         int padding = Math.Max(0, CloseButtonPadding);
-        int glyphWidth = MeasureTextWidth("X", TabTextScale);
+        int glyphWidth = MeasureTextWidth("X", TabTextScale, _layoutFont);
         return glyphWidth + padding * 2;
     }
 
@@ -565,17 +565,14 @@ public sealed class UiDockHost : UiElement
         UiArrow.DrawTriangle(context.Renderer, arrowBounds, direction, arrowColor);
     }
 
-    private static int MeasureTextWidth(string text, int scale)
+    private static int MeasureTextWidth(string text, int scale, UiFont font)
     {
         if (string.IsNullOrEmpty(text))
         {
             return 0;
         }
 
-        int safeScale = Math.Max(1, scale);
-        int glyphWidth = (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * safeScale;
-        int count = Latin1Encoding.GetByteCount(text);
-        return count * glyphWidth;
+        return font.MeasureTextWidth(text, Math.Max(1, scale));
     }
 
     private void UpdateDockedLayout()

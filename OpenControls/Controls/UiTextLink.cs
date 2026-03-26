@@ -75,12 +75,13 @@ public sealed class UiTextLink : UiElement
         }
 
         UiPoint position = new UiPoint(Bounds.X, Bounds.Y);
-        context.Renderer.DrawText(Text, position, color, TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        context.Renderer.DrawText(Text, position, color, TextScale, font);
 
         if (Underline)
         {
-            int textWidth = context.Renderer.MeasureTextWidth(Text, TextScale);
-            int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+            int textWidth = context.Renderer.MeasureTextWidth(Text, TextScale, font);
+            int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
             int underlineY = position.Y + textHeight - 1;
             int thickness = Math.Max(1, UnderlineThickness);
             UiColor underlineColor = UnderlineColor.A == 0 ? color : UnderlineColor;

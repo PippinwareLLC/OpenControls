@@ -85,7 +85,9 @@ This is a brief overview of the current OpenControls surface area.
 - All bounds are absolute (`UiRect`), so layout is explicit.
 - Controls are renderer-agnostic; rendering is done by the host adapter.
 - `TinyBitmapFont` is a renderer-agnostic bitmap font helper used by the MonoGame, SDL2-CS, Silk.NET, and OpenGL adapters (Latin-1/CP437).
-- Custom TTF/OTF/WOFF2 fonts, merged icon-font ranges, optional HarfBuzz-backed shaping, and optional Slug-backed GPU font rendering are planned under Milestone 3 in `IMGUI_PARITY_ATTACK_PLAN.MD`; the current runtime path is still `TinyBitmapFont`-based.
+- `UiFont`, `UiFontBuilder`, `UiFontRegistry`, and `UiCodePointRange` are the core font APIs for custom font files, fallback chains, and merged icon ranges.
+- Use `UiContext.DefaultFont` for inherited font selection and `UiElement.Font` for per-element overrides.
+- The shipped first-pass runtime uses shared renderer glyph caches for custom fonts and inline icon text; HarfBuzz-backed shaping and Slug-backed GPU text rendering remain optional follow-on work in `IMGUI_PARITY_ATTACK_PLAN.MD`.
 - Additional controls can be built by subclassing `UiElement`.
  - Set `UiElement.ClipChildren` to clip child rendering to `ClipBounds`.
 - `UiContext.Render` performs an overlay pass; `UiMenuBar` dropdowns draw there so they render above other controls.

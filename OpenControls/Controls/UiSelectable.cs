@@ -150,9 +150,10 @@ public sealed class UiSelectable : UiElement
         }
 
         UiColor textColor = isSelected ? SelectedTextColor : TextColor;
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         int textY = Bounds.Y + (Bounds.Height - textHeight) / 2;
-        context.Renderer.DrawText(Text, new UiPoint(Bounds.X + Padding, textY), textColor, TextScale);
+        context.Renderer.DrawText(Text, new UiPoint(Bounds.X + Padding, textY), textColor, TextScale, font);
 
         base.Render(context);
     }

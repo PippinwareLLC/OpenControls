@@ -11,6 +11,12 @@ public sealed class ExamplesUi
     private const int FontScale = 2;
     private const int Padding = 12;
     private const int SplitterSize = 6;
+    private const string IconGear = "\uf013";
+    private const string IconFolderOpen = "\uf07c";
+    private const string IconSave = "\uf0c7";
+    private const string IconRocket = "\uf135";
+    private const string IconBolt = "\uf0e7";
+    private const string IconBug = "\uf188";
 
     private static readonly Encoding Latin1Encoding = Encoding.Latin1;
     private static readonly Encoding Cp437Encoding;
@@ -87,6 +93,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
     private readonly IUiRenderer _renderer;
     private readonly TinyBitmapFont _font;
+    private readonly UiFontRegistry _fontRegistry;
+    private UiFont _bitmapUiFont;
+    private UiFont _defaultUiFont;
+    private bool _hasIconFont;
+    private string _fontStatusText = "Font pipeline: TinyBitmap fallback only";
     private UiContext? _context;
 
     private UiModalHost? _root;
@@ -341,6 +352,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiMenuBar? _demoMenuBar;
     private UiLabel? _demoMenuStatusLabel;
     private UiLabel? _textHeaderLabel;
+    private UiLabel? _textFontStatusLabel;
+    private UiLabel? _textIconLabel;
+    private UiButton? _textIconButton;
     private UiLabel? _textColoredLabel;
     private UiLabel? _textColoredSample;
     private UiLabel? _textFontSizeLabel;
@@ -503,6 +517,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     {
         _renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
         _font = font ?? throw new ArgumentNullException(nameof(font));
+        _fontRegistry = new UiFontRegistry();
+        _bitmapUiFont = UiFont.FromTinyBitmap(_font, "TinyBitmap-Latin1");
+        _defaultUiFont = _bitmapUiFont;
+        ConfigureFonts();
+        _renderer.DefaultFont = _defaultUiFont;
         BuildUi();
     }
 
@@ -519,6 +538,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             return;
         }
 
+        _renderer.DefaultFont = _context.DefaultFont;
         _lastMousePosition = input.MousePosition;
 
         if (saveRequested)
@@ -1305,10 +1325,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             XAxisLabel = "Time (s)",
             YAxisLabel = "Frame Time (ms)",
             XTickCount = 6,
-            YTickCount = 5,
-            MeasureTextWidth = (text, scale) => _renderer?.MeasureTextWidth(text, scale) ?? text.Length * 6 * scale,
-            MeasureTextHeight = scale => _renderer?.MeasureTextHeight(scale) ?? 7 * scale
+            YTickCount = 5
         };
+        _plotPanel.MeasureTextWidth = (text, scale) => MeasureElementTextWidth(_plotPanel, text, scale);
+        _plotPanel.MeasureTextHeight = scale => MeasureElementTextHeight(_plotPanel, scale);
 
         List<UiPlotPoint> frameSeries = new();
         List<UiPlotPoint> gpuSeries = new();
@@ -1517,6 +1537,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Border = new UiColor(60, 70, 90),
             LineNumberBackground = new UiColor(16, 18, 24)
         };
+        _textEditor.Font = _bitmapUiFont;
         _textEditor.SetText(SampleEditorText);
 
         _textEditorDemo = new UiTextEditor
@@ -1530,6 +1551,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Border = new UiColor(60, 70, 90),
             LineNumberBackground = new UiColor(16, 18, 24)
         };
+        _textEditorDemo.Font = _bitmapUiFont;
         _textEditorDemo.SetText(SampleEditorTextLarge);
 
         _gridLabel = new UiLabel
@@ -1643,9 +1665,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             TabSpacing = 4
         };
 
-        _tabOverview = new UiTabItem { Text = "Overview" };
-        _tabDetails = new UiTabItem { Text = "Details" };
-        _tabSettings = new UiTabItem { Text = "Settings" };
+        _tabOverview = new UiTabItem { Text = WithIcon("Overview", IconBolt) };
+        _tabDetails = new UiTabItem { Text = WithIcon("Diagnostics", IconBug) };
+        _tabSettings = new UiTabItem { Text = WithIcon("Settings", IconGear) };
 
         _tabOverviewLabel = new UiLabel
         {
@@ -1903,10 +1925,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         {
             DisplayMode = UiMenuDisplayMode.Popup,
             TextScale = FontScale,
-            DropdownMinWidth = 180,
-            MeasureTextWidth = (text, scale) => _renderer?.MeasureTextWidth(text, scale) ?? text.Length * 6 * scale,
-            MeasureTextHeight = scale => _renderer?.MeasureTextHeight(scale) ?? 7 * scale
+            DropdownMinWidth = 180
         };
+        _menuPopup.MeasureTextWidth = (text, scale) => MeasureElementTextWidth(_menuPopup, text, scale);
+        _menuPopup.MeasureTextHeight = scale => MeasureElementTextHeight(_menuPopup, scale);
 
         Action<UiMenuBar.MenuItem> popupStatus = item =>
         {
@@ -2211,10 +2233,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _demoMenuBar = new UiMenuBar
         {
             TextScale = FontScale,
-            BarHeight = 24,
-            MeasureTextWidth = (text, scale) => _renderer?.MeasureTextWidth(text, scale) ?? text.Length * 6 * scale,
-            MeasureTextHeight = scale => _renderer?.MeasureTextHeight(scale) ?? 7 * scale
+            BarHeight = 24
         };
+        _demoMenuBar.MeasureTextWidth = (text, scale) => MeasureElementTextWidth(_demoMenuBar, text, scale);
+        _demoMenuBar.MeasureTextHeight = scale => MeasureElementTextHeight(_demoMenuBar, scale);
 
         void DemoMenuStatus(UiMenuBar.MenuItem item)
         {
@@ -2224,21 +2246,21 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             }
         }
 
-        UiMenuBar.MenuItem demoFileMenu = new() { Text = "File" };
-        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "New", Clicked = DemoMenuStatus });
-        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Open", Clicked = DemoMenuStatus });
-        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Save", Clicked = DemoMenuStatus });
+        UiMenuBar.MenuItem demoFileMenu = new() { Text = WithIcon("File", IconFolderOpen) };
+        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = WithIcon("New", IconRocket), Clicked = DemoMenuStatus });
+        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = WithIcon("Open", IconFolderOpen), Clicked = DemoMenuStatus });
+        demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = WithIcon("Save", IconSave), Clicked = DemoMenuStatus });
         demoFileMenu.Items.Add(UiMenuBar.MenuItem.Separator());
         demoFileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Close", Clicked = DemoMenuStatus });
 
-        UiMenuBar.MenuItem demoEditMenu = new() { Text = "Edit" };
+        UiMenuBar.MenuItem demoEditMenu = new() { Text = WithIcon("Edit", IconGear) };
         demoEditMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Undo", Shortcut = "Ctrl+Z", Clicked = DemoMenuStatus });
         demoEditMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Redo", Shortcut = "Ctrl+Y", Clicked = DemoMenuStatus });
         demoEditMenu.Items.Add(UiMenuBar.MenuItem.Separator());
         demoEditMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Copy", Shortcut = "Ctrl+C", Clicked = DemoMenuStatus });
         demoEditMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Paste", Shortcut = "Ctrl+V", Clicked = DemoMenuStatus });
 
-        UiMenuBar.MenuItem demoViewMenu = new() { Text = "View" };
+        UiMenuBar.MenuItem demoViewMenu = new() { Text = WithIcon("View", IconBolt) };
         UiMenuBar.MenuItem demoGridToggle = new() { Text = "Show Grid", IsCheckable = true, Checked = true };
         demoGridToggle.Clicked = DemoMenuStatus;
         demoViewMenu.Items.Add(demoGridToggle);
@@ -2253,6 +2275,33 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             Color = UiColor.White,
             Scale = FontScale,
             Bold = true
+        };
+
+        _textFontStatusLabel = new UiLabel
+        {
+            Text = _fontStatusText,
+            Color = new UiColor(170, 190, 230),
+            Scale = FontScale
+        };
+
+        _textIconLabel = new UiLabel
+        {
+            Text = WithInlineIcons(),
+            Color = new UiColor(210, 220, 240),
+            Scale = FontScale
+        };
+
+        _textIconButton = new UiButton
+        {
+            Text = WithIcon("Save Project", IconSave),
+            TextScale = FontScale
+        };
+        _textIconButton.Clicked += () =>
+        {
+            if (_demoMenuStatusLabel != null)
+            {
+                _demoMenuStatusLabel.Text = $"Menu: {WithIcon("Save Project", IconSave)}";
+            }
         };
 
         _textColoredLabel = new UiLabel
@@ -2373,6 +2422,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             ShowLineNumbers = true,
             SyntaxMode = UiTextEditorSyntaxMode.CSharp
         };
+        _multiLineInput.Font = _bitmapUiFont;
         _multiLineInput.SetText("Line 1: multi-line input\nLine 2: supports scrolling\nLine 3: editable text");
 
         _filteredInputLabel = new UiLabel
@@ -3297,6 +3347,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         }
 
         _widgetsTextTree.AddChild(_textHeaderLabel);
+        _widgetsTextTree.AddChild(_textFontStatusLabel);
+        _widgetsTextTree.AddChild(_textIconLabel);
+        _widgetsTextTree.AddChild(_textIconButton);
         _widgetsTextTree.AddChild(_textColoredLabel);
         _widgetsTextTree.AddChild(_textColoredSample);
         _widgetsTextTree.AddChild(_textFontSizeLabel);
@@ -3557,10 +3610,10 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         _menuBar = new UiMenuBar
         {
             TextScale = FontScale,
-            BarHeight = 24,
-            MeasureTextWidth = (text, scale) => _renderer?.MeasureTextWidth(text, scale) ?? text.Length * 6 * scale,
-            MeasureTextHeight = scale => _renderer?.MeasureTextHeight(scale) ?? 7 * scale
+            BarHeight = 24
         };
+        _menuBar.MeasureTextWidth = (text, scale) => MeasureElementTextWidth(_menuBar, text, scale);
+        _menuBar.MeasureTextHeight = scale => MeasureElementTextHeight(_menuBar, scale);
 
         UiMenuBar.MenuItem fileMenu = new() { Text = "File" };
         fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "New", Shortcut = "Ctrl+N", Clicked = item => _menuStatus = $"Menu: {item.Text}" });
@@ -3822,6 +3875,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         }
 
         _context = new UiContext(_root);
+        _context.DefaultFont = _defaultUiFont;
+        ApplyBitmapDemoFonts();
         SetActiveExample(ExamplePanel.Custom);
     }
 
@@ -3913,7 +3968,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             && _windowOptionsLabel != null && _windowAllowResizeCheckbox != null && _windowShowTitleCheckbox != null && _windowAllowDragCheckbox != null && _windowShowGripCheckbox != null
             && _demoMenuBar != null && _demoMenuStatusLabel != null
             && _bulletsLabel != null
-            && _textHeaderLabel != null && _textColoredLabel != null && _textColoredSample != null && _textFontSizeLabel != null && _textFontSizeSmall != null && _textFontSizeLarge != null
+            && _textHeaderLabel != null && _textFontStatusLabel != null && _textIconLabel != null && _textIconButton != null
+            && _textColoredLabel != null && _textColoredSample != null && _textFontSizeLabel != null && _textFontSizeSmall != null && _textFontSizeLarge != null
             && _textWrappedBlock != null && _textUtf8Label != null && _textLink != null
             && _textFilterLabel != null && _textFilterField != null && _textFilterList != null && _textFilterStatusLabel != null
             && _textInputLabel != null && _multiLineInput != null && _filteredInputLabel != null && _filteredInputField != null && _passwordInputLabel != null && _passwordField != null && _passwordMaskLabel != null && _passwordHintLabel != null
@@ -4107,6 +4163,12 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             int textY = 0;
             _textHeaderLabel.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
             textY += labelHeight + 4;
+            _textFontStatusLabel.Bounds = new UiRect(0, textY, textContentWidth, labelHeight * 2);
+            textY += _textFontStatusLabel.Bounds.Height + 4;
+            _textIconLabel.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
+            textY += labelHeight + 4;
+            _textIconButton.Bounds = new UiRect(0, textY, Math.Min(textContentWidth, 220), 24);
+            textY += _textIconButton.Bounds.Height + 6;
             _textColoredLabel.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
             textY += labelHeight + 4;
             _textColoredSample.Bounds = new UiRect(0, textY, textContentWidth, labelHeight);
@@ -5967,6 +6029,8 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         if (_renderer != null)
         {
             _font.CodePage = clamped == 1 ? TinyFontCodePage.Cp437 : TinyFontCodePage.Latin1;
+            _bitmapUiFont = UiFont.FromTinyBitmap(_font, clamped == 1 ? "TinyBitmap-Cp437" : "TinyBitmap-Latin1");
+            ApplyBitmapDemoFonts();
         }
 
         UpdateAsciiTable();
@@ -6246,6 +6310,179 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         UpdateExampleMenuChecks();
     }
 
+    private void ConfigureFonts()
+    {
+        _fontRegistry.Register(_bitmapUiFont, setDefault: true);
+
+        string? textFontPath = FindTextFontPath();
+        string? iconFontPath = FindIconFontPath();
+        if (textFontPath == null && iconFontPath == null)
+        {
+            _defaultUiFont = _bitmapUiFont;
+            _fontStatusText = "Font pipeline: TinyBitmap fallback only";
+            _hasIconFont = false;
+            return;
+        }
+
+        try
+        {
+            UiFontBuilder builder = new("ExamplesDefault", 14);
+            List<string> parts = new();
+
+            if (!string.IsNullOrEmpty(textFontPath))
+            {
+                builder.AddFile(textFontPath, layerName: "Body");
+                parts.Add($"body {Path.GetFileName(textFontPath)}");
+            }
+
+            if (!string.IsNullOrEmpty(iconFontPath))
+            {
+                builder.AddFile(
+                    iconFontPath,
+                    ranges: new[] { UiCodePointRange.PrivateUseArea },
+                    baselineOffset: 1,
+                    layerName: "Icons");
+                _hasIconFont = true;
+                parts.Add($"icons {Path.GetFileName(iconFontPath)}");
+            }
+            else
+            {
+                _hasIconFont = false;
+                parts.Add("icons unavailable");
+            }
+
+            builder.AddBitmapFallback(_font, layerName: "TinyBitmapFallback");
+            parts.Add("fallback TinyBitmap");
+
+            _defaultUiFont = _fontRegistry.Register(builder, setDefault: true);
+            _fontStatusText = $"Font pipeline: {string.Join(", ", parts)}";
+        }
+        catch (Exception ex)
+        {
+            _defaultUiFont = _bitmapUiFont;
+            _hasIconFont = false;
+            _fontStatusText = $"Font pipeline: TinyBitmap fallback only ({ex.GetType().Name})";
+        }
+    }
+
+    private void ApplyBitmapDemoFonts()
+    {
+        if (_asciiLabel != null)
+        {
+            _asciiLabel.Font = _bitmapUiFont;
+        }
+
+        if (_asciiPageLabel != null)
+        {
+            _asciiPageLabel.Font = _bitmapUiFont;
+        }
+
+        if (_asciiPageCombo != null)
+        {
+            _asciiPageCombo.Font = _bitmapUiFont;
+        }
+
+        if (_asciiTable != null)
+        {
+            _asciiTable.Font = _bitmapUiFont;
+        }
+
+        if (_textEditor != null)
+        {
+            _textEditor.Font = _bitmapUiFont;
+        }
+
+        if (_textEditorDemo != null)
+        {
+            _textEditorDemo.Font = _bitmapUiFont;
+        }
+
+        if (_multiLineInput != null)
+        {
+            _multiLineInput.Font = _bitmapUiFont;
+        }
+    }
+
+    private int MeasureElementTextWidth(UiElement? element, string text, int scale)
+    {
+        UiFont font = element?.Font ?? _renderer.DefaultFont;
+        return _renderer.MeasureTextWidth(text, scale, font);
+    }
+
+    private int MeasureElementTextHeight(UiElement? element, int scale)
+    {
+        UiFont font = element?.Font ?? _renderer.DefaultFont;
+        return _renderer.MeasureTextHeight(scale, font);
+    }
+
+    private string WithIcon(string label, string icon)
+    {
+        return _hasIconFont ? $"{icon} {label}" : label;
+    }
+
+    private string WithInlineIcons()
+    {
+        return _hasIconFont
+            ? $"{IconGear} Settings   {IconFolderOpen} Assets   {IconBug} Issues   {IconRocket} Ship"
+            : "Inline icons: Settings, Assets, Issues, Ship";
+    }
+
+    private static string? FindTextFontPath()
+    {
+        List<string> candidates = new();
+        if (OperatingSystem.IsMacOS())
+        {
+            candidates.Add("/System/Library/Fonts/Supplemental/Arial.ttf");
+            candidates.Add("/System/Library/Fonts/Geneva.ttf");
+            candidates.Add("/System/Library/Fonts/SFNS.ttf");
+            candidates.Add("/System/Library/Fonts/Supplemental/Georgia.ttf");
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            string fonts = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+            candidates.Add(Path.Combine(fonts, "arial.ttf"));
+            candidates.Add(Path.Combine(fonts, "segoeui.ttf"));
+            candidates.Add(Path.Combine(fonts, "calibri.ttf"));
+        }
+        else
+        {
+            candidates.Add("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
+            candidates.Add("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf");
+            candidates.Add("/usr/share/fonts/opentype/noto/NotoSans-Regular.ttf");
+        }
+
+        return FindFirstExistingPath(candidates);
+    }
+
+    private static string? FindIconFontPath()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string current = Directory.GetCurrentDirectory();
+
+        List<string> candidates = new()
+        {
+            Path.Combine(home, "Dev", "Alliance", "src", "Alliance.ImmediateUI.ImGui", "Fonts", "FontAwesome7ProSolid900.otf"),
+            Path.Combine(home, "Dev", "Alliance", "AllianceEditor", "FontAwesome", "kit-6232d65b41-desktop", "otfs", "Font Awesome 7 Pro-Solid-900.otf"),
+            Path.GetFullPath(Path.Combine(current, "..", "Alliance", "src", "Alliance.ImmediateUI.ImGui", "Fonts", "FontAwesome7ProSolid900.otf")),
+            Path.GetFullPath(Path.Combine(current, "..", "Alliance", "AllianceEditor", "FontAwesome", "kit-6232d65b41-desktop", "otfs", "Font Awesome 7 Pro-Solid-900.otf"))
+        };
+
+        return FindFirstExistingPath(candidates);
+    }
+
+    private static string? FindFirstExistingPath(IEnumerable<string> candidates)
+    {
+        foreach (string candidate in candidates)
+        {
+            if (!string.IsNullOrWhiteSpace(candidate) && File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
     private static bool IsWindowInLayout(UiWindow? window)
     {
         return window != null && window.Parent != null;
@@ -6274,15 +6511,27 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             return field.Text.Length;
         }
 
-        int glyphWidth = _renderer.MeasureTextWidth("A", field.TextScale);
         int relativeX = point.X - (field.Bounds.X + field.Padding);
         if (relativeX <= 0)
         {
             return 0;
         }
 
-        int index = relativeX / glyphWidth;
-        return Math.Min(index, field.Text.Length);
+        UiFont font = field.Font ?? _renderer.DefaultFont;
+        int previousWidth = 0;
+        for (int index = 1; index <= field.Text.Length; index++)
+        {
+            int width = _renderer.MeasureTextWidth(field.Text.Substring(0, index), field.TextScale, font);
+            int midpoint = previousWidth + (width - previousWidth) / 2;
+            if (relativeX < midpoint)
+            {
+                return index - 1;
+            }
+
+            previousWidth = width;
+        }
+
+        return field.Text.Length;
     }
 
 }

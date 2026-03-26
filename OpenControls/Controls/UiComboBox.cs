@@ -168,9 +168,10 @@ public sealed class UiComboBox : UiElement
 
         string text = GetSelectedText();
         UiColor textColor = _selectedIndex >= 0 ? TextColor : PlaceholderColor;
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         int textY = Bounds.Y + (Bounds.Height - textHeight) / 2;
-        context.Renderer.DrawText(text, new UiPoint(Bounds.X + Padding, textY), textColor, TextScale);
+        context.Renderer.DrawText(text, new UiPoint(Bounds.X + Padding, textY), textColor, TextScale, font);
 
         DrawArrow(context);
 
@@ -193,13 +194,14 @@ public sealed class UiComboBox : UiElement
         int visibleCount = GetVisibleItemCount();
         int startIndex = ClampScrollIndex(ScrollIndex, visibleCount);
         int endIndex = Math.Min(Items.Count, startIndex + visibleCount);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+        UiFont font = ResolveFont(context.DefaultFont);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
 
         context.Renderer.PushClip(dropdown);
         if (Items.Count == 0 && ShowEmptyText)
         {
             int textY = dropdown.Y + (dropdown.Height - textHeight) / 2;
-            context.Renderer.DrawText(EmptyText, new UiPoint(dropdown.X + Padding, textY), PlaceholderColor, TextScale);
+            context.Renderer.DrawText(EmptyText, new UiPoint(dropdown.X + Padding, textY), PlaceholderColor, TextScale, font);
         }
         else
         {
@@ -223,7 +225,7 @@ public sealed class UiComboBox : UiElement
                 }
 
                 int itemTextY = y + (itemHeight - textHeight) / 2;
-                context.Renderer.DrawText(Items[i], new UiPoint(dropdown.X + Padding, itemTextY), TextColor, TextScale);
+                context.Renderer.DrawText(Items[i], new UiPoint(dropdown.X + Padding, itemTextY), TextColor, TextScale, font);
             }
         }
 

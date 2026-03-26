@@ -199,7 +199,9 @@ ui.Render(renderer);
 - Use `UiContext` runtime-query helpers like `HoveredItemState`, `FocusedContainerState`, `GetItemState`, `TryGetVisibleBounds`, and the focus helpers (`RequestFocusById`, `RequestFocusFirst`, `RequestFocusChild`) when you need real item/window status or code-driven focus.
 - Set `UiMenuBar.DisplayMode = Popup` and call `OpenPopup` to build context menus anchored to the menu `Bounds`.
 - TinyBitmapFont lives in OpenControls and renderers can switch `CodePage` between Latin-1 and CP437; the Widgets demo includes an ASCII table.
-- Custom TTF/OTF/WOFF2 fonts and merged icon-font support are planned in the parity roadmap; optional HarfBuzz integration is being treated as shaping/layout depth rather than a blocker for first-pass font parity, and Slug is tracked as an optional GPU text-rendering path to evaluate.
+- Use `UiFontBuilder.AddFile(...)` plus `UiFontRegistry` to register custom font files and optional icon-font layers, then assign them through `UiContext.DefaultFont` or `UiElement.Font`.
+- The shared examples app now demonstrates custom body fonts plus merged Font Awesome-style icons in the Widgets text section; ASCII/code-page and text-editor demos intentionally keep using `TinyBitmapFont` fallback.
+- Optional HarfBuzz integration is still treated as shaping/layout depth rather than a blocker for first-pass font parity, and Slug remains an optional GPU text-rendering path to evaluate.
 - Run `dotnet run --project OpenControls.MonoGame.Examples` to launch the MonoGame examples app.
 - Run `dotnet run --project OpenControls.SdlNet.Examples` to launch the SDL2-CS example (requires SDL2 native; on Windows place `SDL2.dll` on PATH or beside the executable).
 - Run `dotnet run --project OpenControls.SilkNet.Examples` to launch the Silk.NET example host.

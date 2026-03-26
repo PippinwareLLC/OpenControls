@@ -46,6 +46,7 @@ public sealed class UiContext
     public UiElement Root { get; }
     public UiFocusManager Focus { get; } = new();
     public UiDragDropContext DragDrop { get; } = new();
+    public UiFont DefaultFont { get; set; } = UiFont.Default;
     public UiElement? Hovered { get; private set; }
     public UiElement? ActiveInputLayer => _activeInputLayer;
     public UiElement? PointerCaptureTarget { get; private set; }
@@ -77,7 +78,7 @@ public sealed class UiContext
         }
 
         DragDrop.BeginFrame(effectiveInput);
-        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds));
+        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont));
         DragDrop.EndFrame();
         RefreshOutputs(effectiveInput);
     }
@@ -334,7 +335,8 @@ public sealed class UiContext
 
     public void Render(IUiRenderer renderer)
     {
-        UiRenderContext context = new(renderer);
+        renderer.DefaultFont = DefaultFont;
+        UiRenderContext context = new(renderer, DefaultFont);
         Root.Render(context);
         Root.RenderOverlay(context);
     }
