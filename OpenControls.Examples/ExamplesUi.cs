@@ -6963,9 +6963,9 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         PopulateGalleryDockSample("Dock actions: sample ready. Right-click a tab or use the overflow button.");
 
         AddRowFixedChild(dockOverflowRow, galleryDockHost, 372, 156);
-        AddRowFillChild(dockOverflowRow, dockControlColumn, 128);
+        AddRowFillChild(dockOverflowRow, dockControlColumn, 140);
         AddSectionChild(tabOverflowSection, dockOverflowRow, 160);
-        AddGallerySection(_widgetGalleryRoot, tabOverflowSection, 344);
+        AddGallerySection(_widgetGalleryRoot, tabOverflowSection, 388);
 
         UiStack numericSection = CreateGallerySection(
             "Numeric And Vector Inputs",
