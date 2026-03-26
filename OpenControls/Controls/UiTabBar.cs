@@ -20,6 +20,7 @@ public sealed class UiTabBar : UiElement
     private UiTabItemButton? _pressedButton;
     private readonly List<UiTabItemButton> _leadingButtons = new();
     private readonly List<UiTabItemButton> _trailingButtons = new();
+    private bool _keepActiveTabVisible = true;
     private UiFont _layoutFont = UiFont.Default;
 
     public UiColor TabBarColor { get; set; } = new(22, 26, 36);
@@ -120,11 +121,13 @@ public sealed class UiTabBar : UiElement
             if (_tabsOverflow && _scrollLeftHover && _scrollOffset > 0)
             {
                 ScrollTabs(-1);
+                _keepActiveTabVisible = false;
                 layoutDirty = true;
             }
             else if (_tabsOverflow && _scrollRightHover && _scrollOffset < _maxScroll)
             {
                 ScrollTabs(1);
+                _keepActiveTabVisible = false;
                 layoutDirty = true;
             }
             else if (_hoverButton != null && _hoverButton.Enabled)
@@ -666,7 +669,7 @@ public sealed class UiTabBar : UiElement
             LayoutTrailingButtons(trailingButtons, Bounds.Right, tabHeight, spacing);
         }
 
-        if (_tabsOverflow && _activeIndex >= 0 && _activeIndex < tabs.Count)
+        if (_tabsOverflow && _keepActiveTabVisible && _activeIndex >= 0 && _activeIndex < tabs.Count)
         {
             int previousScroll = _scrollOffset;
             EnsureActiveVisible(tabs[_activeIndex].TabBounds);
@@ -726,6 +729,8 @@ public sealed class UiTabBar : UiElement
         {
             return;
         }
+
+        _keepActiveTabVisible = true;
 
         if (_activeIndex == index)
         {

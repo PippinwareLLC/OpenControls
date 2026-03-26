@@ -37,6 +37,7 @@ public sealed class UiDockHost : UiElement
     private UiRect _contextMenuBounds;
     private int _contextMenuTabIndex = -1;
     private int _contextMenuHoverIndex = -1;
+    private bool _keepActiveTabVisible = true;
     private UiFont _layoutFont = UiFont.Default;
 
     public UiColor Background { get; set; } = new(20, 24, 34);
@@ -94,6 +95,7 @@ public sealed class UiDockHost : UiElement
         if (_activeIndex == -1)
         {
             _activeIndex = 0;
+            _keepActiveTabVisible = true;
         }
     }
 
@@ -111,6 +113,7 @@ public sealed class UiDockHost : UiElement
         _windows.Insert(index, window);
         AddChild(window);
         _activeIndex = index;
+        _keepActiveTabVisible = true;
     }
 
     public bool RemoveWindow(UiWindow window)
@@ -124,10 +127,12 @@ public sealed class UiDockHost : UiElement
         if (_windows.Count == 0)
         {
             _activeIndex = -1;
+            _keepActiveTabVisible = true;
         }
         else if (_activeIndex >= _windows.Count)
         {
             _activeIndex = _windows.Count - 1;
+            _keepActiveTabVisible = true;
         }
 
         if (_contextMenuTabIndex >= _windows.Count)
@@ -160,6 +165,7 @@ public sealed class UiDockHost : UiElement
         }
 
         _activeIndex = index;
+        _keepActiveTabVisible = true;
     }
 
     public int GetTabIndexAt(UiPoint point)
@@ -224,6 +230,7 @@ public sealed class UiDockHost : UiElement
         toIndex = Math.Clamp(toIndex, 0, _windows.Count);
         _windows.Insert(toIndex, window);
         _activeIndex = toIndex;
+        _keepActiveTabVisible = true;
     }
 
     public void MoveWindow(UiWindow window, int index)
@@ -260,6 +267,7 @@ public sealed class UiDockHost : UiElement
         }
 
         _activeIndex = _windows.IndexOf(keepWindow);
+        _keepActiveTabVisible = true;
         UpdateTabLayout();
         return closed;
     }
@@ -336,6 +344,7 @@ public sealed class UiDockHost : UiElement
             if (tabIndex >= 0)
             {
                 _activeIndex = tabIndex;
+                _keepActiveTabVisible = true;
                 OpenContextMenu(tabIndex, input.MousePosition);
                 _overflowMenuOpen = false;
                 ResetTabInteraction();
@@ -353,6 +362,7 @@ public sealed class UiDockHost : UiElement
             if (_overflowMenuOpen && _overflowMenuHoverIndex >= 0 && _overflowMenuHoverIndex < _overflowWindowIndices.Count)
             {
                 _activeIndex = _overflowWindowIndices[_overflowMenuHoverIndex];
+                _keepActiveTabVisible = true;
                 _overflowMenuOpen = false;
                 handledInteraction = true;
             }
@@ -395,6 +405,7 @@ public sealed class UiDockHost : UiElement
             if (_tabsOverflow && _scrollLeftHover && _tabScrollOffset > 0)
             {
                 ScrollTabs(-1);
+                _keepActiveTabVisible = false;
                 _overflowMenuOpen = false;
                 _contextMenuOpen = false;
                 _contextMenuTabIndex = -1;
@@ -403,6 +414,7 @@ public sealed class UiDockHost : UiElement
             else if (_tabsOverflow && _scrollRightHover && _tabScrollOffset < _tabMaxScroll)
             {
                 ScrollTabs(1);
+                _keepActiveTabVisible = false;
                 _overflowMenuOpen = false;
                 _contextMenuOpen = false;
                 _contextMenuTabIndex = -1;
@@ -445,6 +457,7 @@ public sealed class UiDockHost : UiElement
             if (index >= 0 && index < _windows.Count)
             {
                 _activeIndex = index;
+                _keepActiveTabVisible = true;
                 if (AllowReorder || AllowDetach)
                 {
                     _dragWindow = _windows[index];
@@ -606,6 +619,7 @@ public sealed class UiDockHost : UiElement
             _tabScrollOffset = 0;
             _tabMaxScroll = 0;
             _tabsOverflow = false;
+            _keepActiveTabVisible = true;
             _tabAreaBounds = new UiRect(Bounds.X, Bounds.Y, Bounds.Width, tabHeight);
             _scrollLeftBounds = default;
             _scrollRightBounds = default;
@@ -616,6 +630,7 @@ public sealed class UiDockHost : UiElement
         if (_activeIndex < 0 || _activeIndex >= _windows.Count)
         {
             _activeIndex = Math.Clamp(_activeIndex, 0, _windows.Count - 1);
+            _keepActiveTabVisible = true;
         }
 
         int totalWidth = GetTotalTabWidth();
@@ -642,7 +657,7 @@ public sealed class UiDockHost : UiElement
 
         LayoutTabRects(_tabAreaBounds.X - _tabScrollOffset, tabHeight);
 
-        if (_tabsOverflow && _activeIndex >= 0 && _activeIndex < _windows.Count)
+        if (_tabsOverflow && _keepActiveTabVisible && _activeIndex >= 0 && _activeIndex < _windows.Count)
         {
             int previousScroll = _tabScrollOffset;
             EnsureActiveVisible(GetTabRect(_activeIndex));
