@@ -8,6 +8,14 @@ This file tracks a stricter requirement than milestone parity alone:
 
 Use this matrix as the working checklist for turning the shared example app into a truthful widget gallery instead of a best-effort sampler.
 
+## Live Coverage Map
+
+- `Widgets` window: the original broad sampler and milestone 1-7 reference surface.
+- `Widget Gallery` window: option-level gap fill for widgets and states that were previously easy to miss.
+- `Text Editor` window: multiline editing deep dive and editor-focused regression surface.
+- `Docking` layout: `UiDockHost`, `UiDockWorkspace`, floating windows, drag/drop docking, and split resizing.
+- `Clipping` window: explicit `UiPanel` clipping and resize behavior.
+
 ## Demo-Complete Rule
 
 A widget is only considered demo-complete when all applicable items are true:

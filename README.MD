@@ -52,6 +52,8 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 ## Demo Parity (OpenControls.Examples)
 The Widgets window in `OpenControls.Examples` mirrors the structure of the reference demo source. Every demo marker was replaced with a working OpenControls demo panel so the tree now maps to the same sections (Help & Configuration, Menu, Basic widgets, Text, Sliders, Drag & Drop, Tables, Layout, Inputs & Focus, Tools, Examples, etc.).
 
+The Widgets layout now also docks a dedicated `Widget Gallery` window beside the original `Widgets` tree. That gallery is where the option-level gap-filling lives for controls that were previously easy to miss, including `UiArrowButton`, `UiSeparatorText`, `UiBullet`, `UiInputDouble`, `UiNumericField`, `UiNumericVector`, `UiSliderVector`, empty-state list/combo/list-view paths, angled-header tables, explicit `UiScrollPanel`, weighted/spanning `UiGrid`, and retained layout alignment variants.
+
 Exhaustive demo coverage is now a tracked requirement, not an informal goal:
 - `tools/parity/WIDGET_DEMO_COVERAGE.MD` is the canonical checklist for which widgets, options, modes, and interaction paths are visibly demonstrated in `OpenControls.Examples`.
 - "Implemented but not shown" does not count as demo-complete.
@@ -177,6 +179,7 @@ Planned expansion:
 - OpenControls.Examples widgets window groups controls into categorized tree nodes (collapsed by default, with header spacing).
 - OpenControls.Examples now shows real shortcut, capture, and requested-cursor state in the Inputs & Focus demo.
 - OpenControls.Examples now includes a custom-font and merged-icon demo in the Widgets text section, with Silk.NET as the reference parity host.
+- OpenControls.Examples now also includes a dedicated `Widget Gallery` window for the option-level coverage pass that complements the original `Widgets` tree, `Text Editor`, `Docking`, and `Clipping` windows.
 - A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).
 - OpenControls now ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, custom font-file loading, fallback chains, and merged icon-font ranges for Dear ImGui-style inline icon text.

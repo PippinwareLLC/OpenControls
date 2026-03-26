@@ -17,7 +17,7 @@
 - [x] Milestone 5 is complete for the scoped first-pass text-editor target.
 - [x] Milestone 6 is complete.
 - [x] Milestone 7 is complete.
-- [ ] Exhaustive widget and option coverage in `OpenControls.Examples` is not complete yet; track it in `tools/parity/WIDGET_DEMO_COVERAGE.MD`.
+- [x] `OpenControls.Examples` now has a dedicated `Widget Gallery` window that closes the biggest option-level coverage gaps beside the existing Widgets/Text Editor/Docking/Clipping demos.
 - [x] Milestone 8 is the next recommended implementation target.
 
 ## Status Table
@@ -32,7 +32,7 @@
 | Combo/list/popup composition | Must have | Complete | Milestone 8 | Milestone 6 is now fully complete: `UiCombo`, `UiListView`, `UiSelectableRow`, `UiChildRegion`, popup open helpers, image-source adapters, the `UiComboBox` convenience wrapper, menu popup helpers, and element/window/empty-space context popup demos are all in place. |
 | Layout containers | Must have | Complete | Milestone 8 | Milestone 7 is now fully complete: `UiStack`, `UiWrapPanel`, `UiGroup`, `UiThickness`, and `UiLayoutLength` now cover row/column/wrap/group layout, and the layout demo sections were refit around those retained containers. |
 | Dock split resizing | Must have | Complete | Milestone 8 | `UiDockWorkspace` now exposes draggable splitters with hover/active affordances, minimum pane clamping, live split-ratio updates, and nested resize coverage while continuing to persist split ratios in workspace state. |
-| Widget example coverage | High-value parity | Tracked / incomplete | Every milestone | Exhaustive shared example coverage is now a formal requirement. Use `tools/parity/WIDGET_DEMO_COVERAGE.MD` as the canonical matrix for every public widget, meaningful option, and documented omission. |
+| Widget example coverage | High-value parity | Expanded / gallery in place | Every milestone | `OpenControls.Examples` now combines the original Widgets tree with a dedicated `Widget Gallery` window plus the Text Editor, Docking, and Clipping windows. Use `tools/parity/WIDGET_DEMO_COVERAGE.MD` as the canonical matrix for every public widget, meaningful option, and documented omission. |
 | Tables 2.0 | Must have | Partial | Milestone 8 | Sorting exists, but resize/reorder/hide/scroll depth does not. |
 | Virtualization / clipper | Must have | Missing | Milestone 9 | Needed for large lists, tables, and trees. |
 | Selection and tree depth | High-value parity | Partial | Milestone 10 | Basic multi-select exists; advanced workflows do not. |

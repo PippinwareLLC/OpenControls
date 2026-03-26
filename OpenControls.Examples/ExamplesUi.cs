@@ -11,6 +11,7 @@ public sealed class ExamplesUi
     private const int FontScale = 2;
     private const int Padding = 12;
     private const int SplitterSize = 6;
+    private const int WidgetGalleryContentHeight = 2600;
     private const string IconGear = "\uf013";
     private const string IconFolderOpen = "\uf07c";
     private const string IconSave = "\uf0c7";
@@ -116,6 +117,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiLabel? _clipLabel;
     private UiWindow? _basicsWindow;
     private UiWindow? _widgetsWindow;
+    private UiWindow? _widgetGalleryWindow;
     private UiWindow? _clippingWindow;
     private UiWindow? _serializationWindow;
     private UiPanel? _serializationPanel;
@@ -482,6 +484,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
     private UiButton? _themeLightButton;
     private UiLabel? _examplesLabel;
     private UiLabel? _examplesHintLabel;
+    private UiStack? _widgetGalleryRoot;
 
     private UiMenuBar.MenuItem? _examplesMenuAllItem;
     private UiMenuBar.MenuItem? _examplesMenuBasicsItem;
@@ -2221,6 +2224,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         };
 
         InitializeCompositionDemo();
+        BuildWidgetGalleryWindow();
 
         _hierarchyLabel = new UiLabel
         {
@@ -3195,7 +3199,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _examplesHintLabel = new UiLabel
         {
-            Text = "See Console, Assets, Inspector, and other example windows.",
+            Text = "The Widgets layout now includes a dedicated Widget Gallery tab alongside the existing deep-dive windows.",
             Color = new UiColor(200, 210, 230),
             Scale = FontScale
         };
@@ -3955,7 +3959,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
         _widgetsWindow.AddContentChild(_widgetsTitleLabel);
         _widgetsWindow.AddContentChild(_widgetsTree);
-
+        
         _clippingWindow = new UiWindow
         {
             Id = "window-clipping",
@@ -5275,6 +5279,13 @@ public sealed class HeadlessUiRenderer : IUiRenderer
             }
         }
 
+        if (_widgetGalleryWindow != null && _widgetGalleryRoot != null)
+        {
+            UiRect content = _widgetGalleryWindow.ContentBounds;
+            int galleryWidth = Math.Max(960, content.Width);
+            _widgetGalleryRoot.Bounds = new UiRect(0, 0, galleryWidth, WidgetGalleryContentHeight);
+        }
+
         if (_assetsWindow != null && _assetsLabel != null)
         {
             UiRect content = _assetsWindow.ContentBounds;
@@ -6126,6 +6137,875 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         });
     }
 
+    private void BuildWidgetGalleryWindow()
+    {
+        _widgetGalleryWindow = new UiWindow
+        {
+            Id = "window-widget-gallery",
+            Title = "Widget Gallery",
+            TitleTextScale = FontScale,
+            AllowResize = true,
+            ShowResizeGrip = true
+        };
+
+        UiScrollPanel galleryScrollPanel = _widgetGalleryWindow.EnsureScrollPanel();
+        galleryScrollPanel.HorizontalScrollbar = UiScrollbarVisibility.Auto;
+        galleryScrollPanel.VerticalScrollbar = UiScrollbarVisibility.Always;
+        galleryScrollPanel.ScrollWheelStep = 48;
+
+        _widgetGalleryRoot = new UiStack
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 12,
+            Padding = UiThickness.Uniform(8)
+        };
+        _widgetGalleryWindow.AddContentChild(_widgetGalleryRoot);
+
+        UiStack navigatorSection = CreateGallerySection(
+            "Milestone 1-7 Navigator",
+            "The existing Widgets, Text Editor, Docking, and Clipping layouts remain the primary deep demos. This gallery closes the remaining option-level coverage gaps and makes the missing widgets discoverable.");
+
+        UiStack navigatorRow = CreateGalleryRow();
+        UiButton widgetsLayoutButton = new() { Text = "Widgets Layout", TextScale = FontScale };
+        widgetsLayoutButton.Clicked += () => SetActiveExample(ExamplePanel.Widgets);
+        UiButton textEditorLayoutButton = new() { Text = "Text Editor", TextScale = FontScale };
+        textEditorLayoutButton.Clicked += () => SetActiveExample(ExamplePanel.TextEditor);
+        UiButton dockingLayoutButton = new() { Text = "Docking", TextScale = FontScale };
+        dockingLayoutButton.Clicked += () => SetActiveExample(ExamplePanel.Docking);
+        UiButton clippingLayoutButton = new() { Text = "Clipping", TextScale = FontScale };
+        clippingLayoutButton.Clicked += () => SetActiveExample(ExamplePanel.Clipping);
+        UiButton allLayoutButton = new() { Text = "All Windows", TextScale = FontScale };
+        allLayoutButton.Clicked += () => SetActiveExample(ExamplePanel.All);
+        AddRowFixedChild(navigatorRow, widgetsLayoutButton, 148, 28);
+        AddRowFixedChild(navigatorRow, textEditorLayoutButton, 132, 28);
+        AddRowFixedChild(navigatorRow, dockingLayoutButton, 110, 28);
+        AddRowFixedChild(navigatorRow, clippingLayoutButton, 110, 28);
+        AddRowFixedChild(navigatorRow, allLayoutButton, 110, 28);
+        AddSectionChild(navigatorSection, navigatorRow, 32);
+        AddGallerySection(_widgetGalleryRoot, navigatorSection, 118);
+
+        UiStack coreSection = CreateGallerySection(
+            "Core Widget Variants",
+            "This section fills in the primitive controls and option variants that were easy to miss in the main widget tree.");
+
+        UiStack labelRow = CreateGalleryRow();
+        UiLabel defaultLabel = new()
+        {
+            Text = "Default Label",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Bounds = new UiRect(0, 0, 150, 18)
+        };
+        UiLabel boldLabel = new()
+        {
+            Text = "Bold Label",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true,
+            Bounds = new UiRect(0, 0, 140, 18)
+        };
+        UiLabel bitmapLabel = new()
+        {
+            Text = "Bitmap Override",
+            Color = new UiColor(220, 200, 150),
+            Scale = FontScale,
+            Font = _bitmapUiFont,
+            Bounds = new UiRect(0, 0, 180, 18)
+        };
+        AddRowFixedChild(labelRow, defaultLabel, 170, 18);
+        AddRowFixedChild(labelRow, boldLabel, 150, 18);
+        AddRowFixedChild(labelRow, bitmapLabel, 190, 18);
+        AddSectionChild(coreSection, labelRow, 22);
+
+        UiStack textBlockRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiTextBlock wrappedBlock = new()
+        {
+            Text = "Wrapped text block: the control wraps long strings with padding and custom line spacing.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 4,
+            Bounds = new UiRect(0, 0, 320, 60)
+        };
+        UiTextBlock clippedBlock = new()
+        {
+            Text = "Clipped single-line block that intentionally overflows its narrow bounds.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = false,
+            ClipToBounds = true,
+            Padding = 4,
+            Bounds = new UiRect(0, 0, 280, 28)
+        };
+        AddRowFixedChild(textBlockRow, wrappedBlock, 332, 60);
+        AddRowFixedChild(textBlockRow, clippedBlock, 292, 28);
+        AddSectionChild(coreSection, textBlockRow, 64);
+
+        UiStack linkRow = CreateGalleryRow();
+        UiTextLink passiveLink = new()
+        {
+            Text = "Passive link (no browser launch)",
+            Url = "https://github.com/PippinwareLLC/OpenControls/blob/main/README.MD",
+            OpenUrlOnClick = false,
+            TextScale = FontScale,
+            Bounds = new UiRect(0, 0, 280, 18)
+        };
+        UiLabel linkStatus = CreateGalleryInfoLabel("Clicked: none");
+        passiveLink.Clicked += () => linkStatus.Text = "Clicked: passive link";
+        AddRowFixedChild(linkRow, passiveLink, 292, 18);
+        AddRowFillChild(linkRow, linkStatus, 18);
+        AddSectionChild(coreSection, linkRow, 22);
+
+        UiStack textFieldRow = CreateGalleryRow();
+        UiTextField readOnlyTextField = new()
+        {
+            Text = "Read-only text field",
+            ReadOnly = true,
+            TextScale = FontScale,
+            CaretIndexFromPoint = GetCaretIndexFromPoint,
+            Bounds = new UiRect(0, 0, 220, 28)
+        };
+        UiLabel textFieldNote = CreateGalleryInfoLabel("Read-only text entry stays focusable without opening text input.");
+        AddRowFixedChild(textFieldRow, readOnlyTextField, 232, 28);
+        AddRowFillChild(textFieldRow, textFieldNote, 18);
+        AddSectionChild(coreSection, textFieldRow, 32);
+
+        UiStack buttonRow = CreateGalleryRow();
+        UiButton galleryPrimaryButton = new() { Text = "Primary", TextScale = FontScale };
+        UiButton galleryDangerButton = new()
+        {
+            Text = "Danger",
+            TextScale = FontScale,
+            Background = new UiColor(120, 60, 70),
+            HoverBackground = new UiColor(150, 80, 90),
+            PressedBackground = new UiColor(100, 50, 60),
+            Border = new UiColor(170, 90, 100)
+        };
+        UiSpacer spacer = new() { Bounds = new UiRect(0, 0, 18, 2) };
+        UiArrowButton leftArrow = new() { Direction = UiArrowDirection.Left, CornerRadius = 4 };
+        UiArrowButton upArrow = new() { Direction = UiArrowDirection.Up, CornerRadius = 4 };
+        UiArrowButton downArrow = new() { Direction = UiArrowDirection.Down, CornerRadius = 4 };
+        UiArrowButton rightArrow = new() { Direction = UiArrowDirection.Right, CornerRadius = 4 };
+        UiLabel arrowStatus = CreateGalleryInfoLabel("Arrow: idle");
+        leftArrow.Clicked += () => arrowStatus.Text = "Arrow: left";
+        upArrow.Clicked += () => arrowStatus.Text = "Arrow: up";
+        downArrow.Clicked += () => arrowStatus.Text = "Arrow: down";
+        rightArrow.Clicked += () => arrowStatus.Text = "Arrow: right";
+        AddRowFixedChild(buttonRow, galleryPrimaryButton, 110, 28);
+        AddRowFixedChild(buttonRow, galleryDangerButton, 110, 28);
+        AddRowFixedChild(buttonRow, spacer, 18, 2);
+        AddRowFixedChild(buttonRow, leftArrow, 28, 28);
+        AddRowFixedChild(buttonRow, upArrow, 28, 28);
+        AddRowFixedChild(buttonRow, downArrow, 28, 28);
+        AddRowFixedChild(buttonRow, rightArrow, 28, 28);
+        AddRowFillChild(buttonRow, arrowStatus, 18);
+        AddSectionChild(coreSection, buttonRow, 32);
+
+        UiStack bulletRow = CreateGalleryRow();
+        UiBullet smallBullet = new() { Color = new UiColor(120, 180, 220), Size = 8, Bounds = new UiRect(0, 0, 16, 16) };
+        UiBullet largeBullet = new() { Color = new UiColor(220, 150, 80), Size = 12, Bounds = new UiRect(0, 0, 20, 20) };
+        UiBulletText bulletText = new()
+        {
+            Text = "BulletText sample",
+            TextScale = FontScale,
+            TextColor = new UiColor(200, 210, 230),
+            BulletColor = new UiColor(120, 180, 220),
+            Bounds = new UiRect(0, 0, 240, 18)
+        };
+        UiSeparator verticalSeparator = new()
+        {
+            Orientation = UiSeparatorOrientation.Vertical,
+            Color = new UiColor(70, 80, 100),
+            Thickness = 2,
+            Bounds = new UiRect(0, 0, 8, 28)
+        };
+        UiCheckbox disabledCheckbox = new()
+        {
+            Text = "Disabled checkbox",
+            TextScale = FontScale,
+            Checked = true,
+            Enabled = false,
+            Bounds = new UiRect(0, 0, 200, 24)
+        };
+        UiRadioButton disabledRadio = new()
+        {
+            Text = "Disabled radio",
+            TextScale = FontScale,
+            GroupId = "gallery-disabled",
+            Checked = true,
+            Enabled = false,
+            Bounds = new UiRect(0, 0, 180, 24)
+        };
+        AddRowFixedChild(bulletRow, smallBullet, 16, 16);
+        AddRowFixedChild(bulletRow, largeBullet, 20, 20);
+        AddRowFixedChild(bulletRow, bulletText, 250, 18);
+        AddRowFixedChild(bulletRow, verticalSeparator, 8, 28);
+        AddRowFixedChild(bulletRow, disabledCheckbox, 230, 24);
+        AddRowFixedChild(bulletRow, disabledRadio, 200, 24);
+        AddSectionChild(coreSection, bulletRow, 30);
+
+        UiSeparatorText separatorText = new()
+        {
+            Text = "Separator Text",
+            TextScale = FontScale,
+            Bold = true,
+            Bounds = new UiRect(0, 0, 0, 24)
+        };
+        AddSectionChild(coreSection, separatorText, 24);
+        AddGallerySection(_widgetGalleryRoot, coreSection, 358);
+
+        UiStack numericSection = CreateGallerySection(
+            "Numeric And Vector Inputs",
+            "These examples cover the numeric wrappers and vector convenience controls that were missing from the main sampler.");
+
+        UiStack numericFieldRow = CreateGalleryRow();
+        UiInputDouble inputDouble = new()
+        {
+            TextScale = FontScale,
+            Value = 0.123456789,
+            Min = -10d,
+            Max = 10d,
+            Clamp = true,
+            Bounds = new UiRect(0, 0, 170, 28)
+        };
+        UiNumericField numericField = new()
+        {
+            TextScale = FontScale,
+            Value = 42.5d,
+            Min = 0d,
+            Max = 100d,
+            Clamp = true,
+            Step = 0.5d,
+            StepFast = 5d,
+            Placeholder = "Numeric Field",
+            Bounds = new UiRect(0, 0, 180, 28)
+        };
+        UiNumericField readOnlyNumeric = new()
+        {
+            TextScale = FontScale,
+            Value = 99d,
+            WholeNumbers = true,
+            ReadOnly = true,
+            Placeholder = "Read only",
+            Bounds = new UiRect(0, 0, 170, 28)
+        };
+        UiLabel numericStatus = CreateGalleryInfoLabel(string.Empty);
+        void UpdateNumericStatus()
+        {
+            numericStatus.Text = $"Double {inputDouble.Value:0.########} | Field {numericField.Value:0.##} | ReadOnly {readOnlyNumeric.Value:0}";
+        }
+
+        inputDouble.ValueChanged += _ => UpdateNumericStatus();
+        numericField.ValueChanged += _ => UpdateNumericStatus();
+        UpdateNumericStatus();
+
+        AddRowFixedChild(numericFieldRow, inputDouble, 180, 28);
+        AddRowFixedChild(numericFieldRow, numericField, 190, 28);
+        AddRowFixedChild(numericFieldRow, readOnlyNumeric, 180, 28);
+        AddRowFillChild(numericFieldRow, numericStatus, 18);
+        AddSectionChild(numericSection, numericFieldRow, 32);
+
+        UiStack numericVectorRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiNumericVector numericVector = new(3, new[] { "X", "Y", "Z" })
+        {
+            FieldTextScale = FontScale,
+            Min = -10d,
+            Max = 10d,
+            Clamp = true,
+            Step = 0.25d,
+            StepFast = 1d,
+            Bounds = new UiRect(0, 0, 420, 44)
+        };
+        numericVector.Values = new[] { 1.25d, -2.5d, 3.75d };
+        UiLabel numericVectorStatus = CreateGalleryInfoLabel(string.Empty);
+        void UpdateNumericVectorStatus(IReadOnlyList<double>? values = null)
+        {
+            IReadOnlyList<double> current = values ?? numericVector.Values;
+            numericVectorStatus.Text = $"NumericVector: {current[0]:0.##}, {current[1]:0.##}, {current[2]:0.##}";
+        }
+
+        numericVector.ValueChanged += values => UpdateNumericVectorStatus(values);
+        UpdateNumericVectorStatus();
+        AddRowFixedChild(numericVectorRow, numericVector, 440, 44);
+        AddRowFillChild(numericVectorRow, numericVectorStatus, 18);
+        AddSectionChild(numericSection, numericVectorRow, 48);
+
+        UiStack sliderVectorRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiSliderVector sliderVector = new(3)
+        {
+            TextScale = FontScale,
+            Min = 0f,
+            Max = 1f,
+            Step = 0.05f,
+            ShowValue = true,
+            ValueFormat = "0.00",
+            Bounds = new UiRect(0, 0, 420, 48)
+        };
+        sliderVector.Values = new[] { 0.2f, 0.5f, 0.85f };
+        UiLabel sliderVectorStatus = CreateGalleryInfoLabel(string.Empty);
+        void UpdateSliderVectorStatus(IReadOnlyList<float>? values = null)
+        {
+            IReadOnlyList<float> current = values ?? sliderVector.Values;
+            sliderVectorStatus.Text = $"SliderVector: {current[0]:0.00}, {current[1]:0.00}, {current[2]:0.00}";
+        }
+
+        sliderVector.ValueChanged += values => UpdateSliderVectorStatus(values);
+        UpdateSliderVectorStatus();
+        AddRowFixedChild(sliderVectorRow, sliderVector, 440, 48);
+        AddRowFillChild(sliderVectorRow, sliderVectorStatus, 18);
+        AddSectionChild(numericSection, sliderVectorRow, 52);
+        AddGallerySection(_widgetGalleryRoot, numericSection, 206);
+
+        UiStack selectionSection = CreateGallerySection(
+            "Selection, Combo, And Empty States",
+            "The main Widgets tree already covers the standard list and combo paths. These rows add the empty-state, filterable, and standalone row variants.");
+
+        UiStack emptyStateRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiListBox emptyListBox = new()
+        {
+            Items = Array.Empty<string>(),
+            TextScale = FontScale,
+            AllowDeselect = true,
+            Bounds = new UiRect(0, 0, 180, 76)
+        };
+        UiComboBox emptyComboBox = new()
+        {
+            Items = Array.Empty<string>(),
+            TextScale = FontScale,
+            Placeholder = "Empty combo",
+            EmptyText = "No items",
+            ShowEmptyText = true,
+            Bounds = new UiRect(0, 0, 190, 28)
+        };
+        UiLabel emptyStateNote = CreateGalleryInfoLabel("ListBox shows an honest blank list; ComboBox surfaces its empty label.");
+        AddRowFixedChild(emptyStateRow, emptyListBox, 190, 76);
+        AddRowFixedChild(emptyStateRow, emptyComboBox, 200, 28);
+        AddRowFillChild(emptyStateRow, emptyStateNote, 36);
+        AddSectionChild(selectionSection, emptyStateRow, 80);
+
+        UiStack richComboRow = CreateGalleryRow();
+        UiCombo filterableCombo = new()
+        {
+            TextScale = FontScale,
+            Placeholder = "Rich combo",
+            FilterPlaceholder = "Filter assets",
+            ShowFilterField = true,
+            CloseOnSelection = false,
+            DropdownWidth = 300,
+            DropdownMaxHeight = 180,
+            Bounds = new UiRect(0, 0, 260, 28)
+        };
+        filterableCombo.AddItem(CreateAssetRow("Hierarchy", "Scene graph browser", "hierarchy scene browser", new UiColor(84, 146, 238), 34));
+        filterableCombo.AddItem(CreateAssetRow("Inspector", "Properties", "inspector properties", new UiColor(110, 180, 120), 34));
+        filterableCombo.AddItem(CreateAssetRow("Console", "Logs and filters", "console log filters", new UiColor(180, 120, 220), 34));
+        filterableCombo.SelectedIndex = 0;
+        UiLabel richComboStatus = CreateGalleryInfoLabel("Rich combo: Hierarchy (popup stays open until you close it)");
+        filterableCombo.SelectionChanged += _ =>
+        {
+            string selectedText = filterableCombo.SelectedItem?.Text ?? "None";
+            richComboStatus.Text = $"Rich combo: {selectedText} {(filterableCombo.IsOpen ? "(open)" : "(closed)")}";
+        };
+        filterableCombo.Opened += () =>
+        {
+            string selectedText = filterableCombo.SelectedItem?.Text ?? "None";
+            richComboStatus.Text = $"Rich combo: {selectedText} (open)";
+        };
+        filterableCombo.Closed += () =>
+        {
+            string selectedText = filterableCombo.SelectedItem?.Text ?? "None";
+            richComboStatus.Text = $"Rich combo: {selectedText} (closed)";
+        };
+        AddRowFixedChild(richComboRow, filterableCombo, 272, 28);
+        AddRowFillChild(richComboRow, richComboStatus, 18);
+        AddSectionChild(selectionSection, richComboRow, 32);
+
+        UiStack listViewRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiListView emptyListView = new()
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            EmptyText = "Empty list view",
+            ItemHeight = 30,
+            Bounds = new UiRect(0, 0, 240, 84)
+        };
+        UiSelectableRow standaloneRow = CreateAssetRow("Selectable Row", "Secondary text and badge source", "standalone row", new UiColor(220, 150, 80), 42);
+        UiLabel standaloneRowStatus = CreateGalleryInfoLabel("Row: idle");
+        standaloneRow.Invoked += row => standaloneRowStatus.Text = $"Row: invoked {row.Text}";
+        standaloneRow.SelectedChanged += selected => standaloneRowStatus.Text = $"Row: {(selected ? "selected" : "cleared")}";
+        AddRowFixedChild(listViewRow, emptyListView, 252, 84);
+        AddRowFixedChild(listViewRow, standaloneRow, 300, 42);
+        AddRowFillChild(listViewRow, standaloneRowStatus, 18);
+        AddSectionChild(selectionSection, listViewRow, 88);
+
+        UiStack childRegionRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiChildRegion childRegion = new()
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            BorderThickness = 1,
+            HorizontalScrollbar = UiScrollbarVisibility.Always,
+            VerticalScrollbar = UiScrollbarVisibility.Always,
+            ScrollWheelStep = 48,
+            Bounds = new UiRect(0, 0, 420, 110)
+        };
+        childRegion.AddContentChild(new UiLabel
+        {
+            Text = "Wide inspector row that forces horizontal scrolling",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Bounds = new UiRect(0, 0, 520, 18)
+        });
+        childRegion.AddContentChild(new UiLabel
+        {
+            Text = "Lower row: scroll down and right to reveal the rest of this content region.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Bounds = new UiRect(160, 72, 540, 18)
+        });
+        childRegion.AddContentChild(new UiLabel
+        {
+            Text = "ChildRegion uses a real scroll panel under the hood.",
+            Color = new UiColor(140, 180, 220),
+            Scale = FontScale,
+            Bounds = new UiRect(24, 128, 420, 18)
+        });
+        UiLabel childRegionNote = CreateGalleryInfoLabel("Both scrollbars are enabled so horizontal and vertical clipping are obvious.");
+        AddRowFixedChild(childRegionRow, childRegion, 432, 110);
+        AddRowFillChild(childRegionRow, childRegionNote, 36);
+        AddSectionChild(selectionSection, childRegionRow, 114);
+        AddGallerySection(_widgetGalleryRoot, selectionSection, 372);
+
+        UiStack dataSection = CreateGallerySection(
+            "Tables, Images, And Alternate Data Views",
+            "The Widgets tree already covers the main table, plot, waveform, and color demos. These rows add angled headers, empty tables, line waveforms, and explicit image-source vs placeholder comparisons.");
+
+        UiStack tableRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiTable angledTable = new()
+        {
+            TextScale = FontScale,
+            HeaderTextScale = FontScale,
+            ShowHeader = true,
+            ShowGrid = true,
+            AlternatingRowBackgrounds = true,
+            UseAngledHeaders = true,
+            AngledHeaderHeight = 64,
+            Bounds = new UiRect(0, 0, 360, 150)
+        };
+        angledTable.Columns.Add(new UiTableColumn("System", weight: 2f));
+        angledTable.Columns.Add(new UiTableColumn("State", weight: 1f));
+        angledTable.Columns.Add(new UiTableColumn("Load", weight: 1f));
+        angledTable.Rows = new[]
+        {
+            new UiTableRow("Renderer", "Ready", "12 ms"),
+            new UiTableRow("Audio", "Warm", "3 ms"),
+            new UiTableRow("Navigation", "Idle", "1 ms")
+        };
+        UiTable emptyTable = new()
+        {
+            TextScale = FontScale,
+            HeaderTextScale = FontScale,
+            ShowHeader = true,
+            ShowGrid = true,
+            AlternatingRowBackgrounds = true,
+            AllowSorting = false,
+            Bounds = new UiRect(0, 0, 220, 150)
+        };
+        emptyTable.Columns.Add(new UiTableColumn("Asset", weight: 2f));
+        emptyTable.Columns.Add(new UiTableColumn("Status", weight: 1f));
+        UiLabel tableStatus = CreateGalleryInfoLabel(string.Empty);
+        void UpdateTableStatus()
+        {
+            if (angledTable.SortSpecs.Count == 0)
+            {
+                tableStatus.Text = angledTable.SelectedIndex >= 0
+                    ? $"Angled table: row {angledTable.SelectedIndex}"
+                    : "Angled table: click headers to sort";
+                return;
+            }
+
+            UiTableSortSpec spec = angledTable.SortSpecs[0];
+            string header = spec.ColumnIndex >= 0 && spec.ColumnIndex < angledTable.Columns.Count
+                ? angledTable.Columns[spec.ColumnIndex].Header
+                : $"Column {spec.ColumnIndex}";
+            tableStatus.Text = $"Angled table: {header} {spec.Direction}";
+        }
+
+        angledTable.SortSpecsChanged += UpdateTableStatus;
+        angledTable.SelectionChanged += _ => UpdateTableStatus();
+        UpdateTableStatus();
+        AddRowFixedChild(tableRow, angledTable, 372, 150);
+        AddRowFixedChild(tableRow, emptyTable, 232, 150);
+        AddRowFillChild(tableRow, tableStatus, 36);
+        AddSectionChild(dataSection, tableRow, 154);
+
+        UiStack imageRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiWaveform lineWaveform = new()
+        {
+            Samples = WaveformSamples,
+            StartIndex = 96,
+            SampleCount = 320,
+            AutoScale = true,
+            RenderMode = UiWaveformRenderMode.Line,
+            ShowZeroLine = true,
+            LineThickness = 1,
+            Bounds = new UiRect(0, 0, 240, 90)
+        };
+        UiImage placeholderImage = new()
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            ShowCheckerboard = true,
+            CornerRadius = 4,
+            Bounds = new UiRect(0, 0, 84, 84)
+        };
+        UiImage sourcedImage = new()
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            ShowCheckerboard = true,
+            CornerRadius = 4,
+            ImageSource = CreateBadgeSource(new UiColor(110, 180, 120)),
+            Bounds = new UiRect(0, 0, 84, 84)
+        };
+        UiImageButton sourcedImageButton = new()
+        {
+            ImageSource = CreateBadgeSource(new UiColor(220, 150, 80)),
+            ShowCheckerboard = true,
+            CornerRadius = 4,
+            Bounds = new UiRect(0, 0, 56, 56)
+        };
+        UiLabel imageStatus = CreateGalleryInfoLabel("Image: placeholder vs image source");
+        int galleryImageClicks = 0;
+        sourcedImageButton.Clicked += () =>
+        {
+            galleryImageClicks++;
+            imageStatus.Text = $"Image button clicks: {galleryImageClicks}";
+        };
+        AddRowFixedChild(imageRow, lineWaveform, 252, 90);
+        AddRowFixedChild(imageRow, placeholderImage, 96, 84);
+        AddRowFixedChild(imageRow, sourcedImage, 96, 84);
+        AddRowFixedChild(imageRow, sourcedImageButton, 68, 56);
+        AddRowFillChild(imageRow, imageStatus, 36);
+        AddSectionChild(dataSection, imageRow, 94);
+        AddGallerySection(_widgetGalleryRoot, dataSection, 316);
+
+        UiStack layoutSection = CreateGallerySection(
+            "Layout Coverage Additions",
+            "The main Widgets tree already shows the standard row, group, wrap, grid, canvas, tab, splitter, and dock examples. This section adds the missing alignment, weight, spacer, wrap-pressure, and explicit scroll-panel variants.");
+
+        UiStack alignmentRow = CreateGalleryRow(UiStackAlignment.Start);
+        AddRowFixedChild(alignmentRow, CreateAlignmentPreview("Start", UiStackAlignment.Start), 132, 96);
+        AddRowFixedChild(alignmentRow, CreateAlignmentPreview("Center", UiStackAlignment.Center), 132, 96);
+        AddRowFixedChild(alignmentRow, CreateAlignmentPreview("End", UiStackAlignment.End), 132, 96);
+        AddRowFixedChild(alignmentRow, CreateAlignmentPreview("Stretch", UiStackAlignment.Stretch), 132, 96);
+        AddSectionChild(layoutSection, alignmentRow, 100);
+
+        UiStack weightRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiStack weightStack = new()
+        {
+            Orientation = UiLayoutOrientation.Horizontal,
+            CrossAlignment = UiStackAlignment.Center,
+            Gap = 6,
+            Padding = UiThickness.Uniform(6),
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            CornerRadius = 4,
+            Bounds = new UiRect(0, 0, 460, 40)
+        };
+        UiButton weightOne = new() { Text = "1x", TextScale = FontScale, Bounds = new UiRect(0, 0, 60, 24) };
+        UiSpacer weightSpacer = new() { Bounds = new UiRect(0, 0, 18, 2) };
+        UiButton weightTwo = new() { Text = "2x", TextScale = FontScale, Bounds = new UiRect(0, 0, 60, 24) };
+        UiButton fillButton = new() { Text = "Fill", TextScale = FontScale, Bounds = new UiRect(0, 0, 70, 24) };
+        weightStack.AddChild(weightOne);
+        weightStack.SetLayout(weightOne, new UiStackItemLayout { PrimaryLength = UiLayoutLength.Weight(1f), CrossLength = UiLayoutLength.Fixed(24) });
+        weightStack.AddChild(weightSpacer);
+        weightStack.SetLayout(weightSpacer, new UiStackItemLayout { PrimaryLength = UiLayoutLength.Fixed(18), CrossLength = UiLayoutLength.Fixed(2) });
+        weightStack.AddChild(weightTwo);
+        weightStack.SetLayout(weightTwo, new UiStackItemLayout { PrimaryLength = UiLayoutLength.Weight(2f), CrossLength = UiLayoutLength.Fixed(24) });
+        weightStack.AddChild(fillButton);
+        weightStack.SetLayout(fillButton, new UiStackItemLayout { PrimaryLength = UiLayoutLength.Fill(), CrossLength = UiLayoutLength.Fixed(24) });
+        UiLabel weightStatus = CreateGalleryInfoLabel("Weight row: 1x, spacer, 2x, fill");
+        AddRowFixedChild(weightRow, weightStack, 472, 40);
+        AddRowFillChild(weightRow, weightStatus, 18);
+        AddSectionChild(layoutSection, weightRow, 44);
+
+        UiStack wrapAndScrollRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiWrapPanel narrowWrap = new()
+        {
+            ItemSpacing = 6,
+            LineSpacing = 6,
+            Padding = UiThickness.Uniform(6),
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            CornerRadius = 4,
+            Bounds = new UiRect(0, 0, 220, 96)
+        };
+        foreach (string tag in new[] { "Alpha", "Beta", "Gamma", "Delta", "Epsilon" })
+        {
+            UiButton tagButton = new()
+            {
+                Text = tag,
+                TextScale = FontScale,
+                Bounds = new UiRect(0, 0, Math.Max(68, tag.Length * 8), 24)
+            };
+            narrowWrap.AddChild(tagButton);
+        }
+
+        UiScrollPanel explicitScrollPanel = new()
+        {
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            CornerRadius = 4,
+            HorizontalScrollbar = UiScrollbarVisibility.Always,
+            VerticalScrollbar = UiScrollbarVisibility.Always,
+            Bounds = new UiRect(0, 0, 320, 96)
+        };
+        explicitScrollPanel.AddChild(new UiLabel
+        {
+            Text = "Explicit UiScrollPanel child 01 with a long line to force horizontal scrolling.",
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Bounds = new UiRect(0, 0, 540, 18)
+        });
+        explicitScrollPanel.AddChild(new UiLabel
+        {
+            Text = "Explicit UiScrollPanel child 02",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Bounds = new UiRect(0, 52, 280, 18)
+        });
+        explicitScrollPanel.AddChild(new UiLabel
+        {
+            Text = "Scroll down to reveal child 03",
+            Color = new UiColor(140, 180, 220),
+            Scale = FontScale,
+            Bounds = new UiRect(180, 128, 320, 18)
+        });
+        UiLabel wrapScrollNote = CreateGalleryInfoLabel("Wrap pressure and explicit scrollbars are both visible here.");
+        AddRowFixedChild(wrapAndScrollRow, narrowWrap, 232, 96);
+        AddRowFixedChild(wrapAndScrollRow, explicitScrollPanel, 332, 96);
+        AddRowFillChild(wrapAndScrollRow, wrapScrollNote, 36);
+        AddSectionChild(layoutSection, wrapAndScrollRow, 100);
+
+        UiStack gridRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiGrid weightedGrid = new()
+        {
+            Padding = 6,
+            ColumnSpacing = 6,
+            RowSpacing = 6,
+            CellPadding = 4,
+            ShowGridLines = true,
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            GridLineColor = new UiColor(44, 54, 72),
+            Bounds = new UiRect(0, 0, 320, 96)
+        };
+        weightedGrid.Columns.Add(new UiGridDefinition { Weight = 1f });
+        weightedGrid.Columns.Add(new UiGridDefinition { Weight = 2f });
+        weightedGrid.Rows.Add(new UiGridDefinition { Size = 28 });
+        weightedGrid.Rows.Add(new UiGridDefinition { Weight = 1f });
+
+        UiLabel gridSpanLabel = new()
+        {
+            Text = "Header spans both columns",
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bounds = new UiRect(0, 0, 160, 18)
+        };
+        UiButton gridLeftButton = new()
+        {
+            Text = "1x",
+            TextScale = FontScale,
+            Bounds = new UiRect(0, 0, 70, 24)
+        };
+        UiButton gridRightButton = new()
+        {
+            Text = "2x weighted",
+            TextScale = FontScale,
+            Bounds = new UiRect(0, 0, 110, 24)
+        };
+        weightedGrid.AddChild(gridSpanLabel, 0, 0, columnSpan: 2);
+        weightedGrid.AddChild(gridLeftButton, 1, 0);
+        weightedGrid.AddChild(gridRightButton, 1, 1);
+
+        UiLabel gridNote = CreateGalleryInfoLabel("UiGrid weights and column spanning now have a direct example.");
+        AddRowFixedChild(gridRow, weightedGrid, 332, 96);
+        AddRowFillChild(gridRow, gridNote, 36);
+        AddSectionChild(layoutSection, gridRow, 100);
+
+        UiTextBlock existingCoverageNote = new()
+        {
+            Text = "UiPanel clipping + resize, UiGroup framing, UiWindow options, UiDockHost/UiDockWorkspace, UiMenuBar popup/content mode, tooltips, popups, modals, drag and drop, canvas, grid, tabs, colors, plots, and the main text editor all remain live in the existing Widgets / Docking / Text Editor layouts.",
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 72)
+        };
+        AddSectionChild(layoutSection, existingCoverageNote, 76);
+        AddGallerySection(_widgetGalleryRoot, layoutSection, 470);
+    }
+
+    private UiStack CreateGallerySection(string title, string description)
+    {
+        UiStack section = new()
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 8,
+            Padding = UiThickness.Uniform(10),
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            CornerRadius = 4
+        };
+
+        UiLabel titleLabel = new()
+        {
+            Text = title,
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bold = true,
+            Bounds = new UiRect(0, 0, 180, 18)
+        };
+        AddSectionChild(section, titleLabel, 18);
+
+        UiTextBlock descriptionBlock = new()
+        {
+            Text = description,
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 42)
+        };
+        AddSectionChild(section, descriptionBlock, 46);
+        return section;
+    }
+
+    private static UiStack CreateGalleryRow(UiStackAlignment crossAlignment = UiStackAlignment.Center)
+    {
+        return new UiStack
+        {
+            Orientation = UiLayoutOrientation.Horizontal,
+            CrossAlignment = crossAlignment,
+            Gap = 8
+        };
+    }
+
+    private static UiLabel CreateGalleryInfoLabel(string text)
+    {
+        return new UiLabel
+        {
+            Text = text,
+            Color = new UiColor(200, 210, 230),
+            Scale = FontScale,
+            Bounds = new UiRect(0, 0, 220, 18)
+        };
+    }
+
+    private static void AddGallerySection(UiStack root, UiElement section, int height)
+    {
+        root.AddChild(section);
+        root.SetLayout(section, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(height),
+            CrossLength = UiLayoutLength.Fill()
+        });
+    }
+
+    private static void AddSectionChild(UiStack section, UiElement child, int height)
+    {
+        section.AddChild(child);
+        section.SetLayout(child, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(height),
+            CrossLength = UiLayoutLength.Fill()
+        });
+    }
+
+    private static void AddRowFixedChild(UiStack row, UiElement child, int width, int height)
+    {
+        child.Bounds = new UiRect(0, 0, width, height);
+        row.AddChild(child);
+        row.SetLayout(child, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(width),
+            CrossLength = UiLayoutLength.Fixed(height)
+        });
+    }
+
+    private static void AddRowFillChild(UiStack row, UiElement child, int height, float weight = 1f)
+    {
+        child.Bounds = new UiRect(0, 0, 160, height);
+        row.AddChild(child);
+        row.SetLayout(child, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Weight(weight),
+            CrossLength = UiLayoutLength.Fixed(height)
+        });
+    }
+
+    private UiStack CreateAlignmentPreview(string title, UiStackAlignment alignment)
+    {
+        UiStack preview = new()
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = alignment,
+            Gap = 4,
+            Padding = UiThickness.Uniform(6),
+            Background = new UiColor(18, 22, 32),
+            Border = new UiColor(70, 80, 100),
+            CornerRadius = 4,
+            Bounds = new UiRect(0, 0, 120, 96)
+        };
+
+        UiLabel titleLabel = new()
+        {
+            Text = title,
+            Color = UiColor.White,
+            Scale = FontScale,
+            Bounds = new UiRect(0, 0, 100, 18)
+        };
+        preview.AddChild(titleLabel);
+        preview.SetLayout(titleLabel, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(18),
+            CrossLength = UiLayoutLength.Fill()
+        });
+
+        UiButton shortButton = new()
+        {
+            Text = "Short",
+            TextScale = FontScale,
+            Bounds = new UiRect(0, 0, 70, 24)
+        };
+        preview.AddChild(shortButton);
+        preview.SetLayout(shortButton, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(24),
+            CrossLength = UiLayoutLength.Auto
+        });
+
+        UiButton wideButton = new()
+        {
+            Text = "Wider",
+            TextScale = FontScale,
+            Bounds = new UiRect(0, 0, 92, 24)
+        };
+        preview.AddChild(wideButton);
+        preview.SetLayout(wideButton, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(24),
+            CrossLength = UiLayoutLength.Auto
+        });
+
+        return preview;
+    }
+
     private void UpdateCompositionStatus()
     {
         if (_compositionComboStatusLabel != null && _compositionCombo != null)
@@ -6894,6 +7774,11 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         if (_widgetsWindow != null)
         {
             host.DockWindow(_widgetsWindow);
+        }
+
+        if (_widgetGalleryWindow != null)
+        {
+            host.DockWindow(_widgetGalleryWindow);
         }
     }
 
