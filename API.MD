@@ -3,13 +3,15 @@
 This is a brief overview of the current OpenControls surface area.
 
 ## Core Types
-- `UiContext`: owns the root element and focus manager, and publishes host-facing hover/capture/cursor outputs after each `Update`.
+- `UiContext`: owns the root element and focus manager, publishes host-facing hover/capture/cursor outputs after each `Update`, and provides scoped shortcut-query helpers.
 - `UiElement`: base class for all UI elements; handles visibility, enablement, child hierarchy, hit tests, IDs, child clipping, overlay rendering, and optional text-input/pointer-capture/cursor hints.
 - `UiFocusManager`: tracks focused element and handles focus transitions.
 - `UiInputState`: host-provided input snapshot (mouse buttons, clicks, modifiers, scroll delta, text input, named key state, and navigation).
 - `UiNavigationInput`: directional/navigation key flags (arrows, Home/End, Backspace/Delete, Tab, Enter/KeypadEnter, Space).
-- `UiKey`, `UiModifierKeys`, `UiKeyChord`: named key and shortcut types for richer keyboard input.
+- `UiKey`, `UiModifierKeys`, `UiKeyChord`, `UiShortcutScope`: named key and shortcut types for richer keyboard input and scoped routing.
 - `UiMouseCursor`: host-facing cursor request enum returned by `UiContext`.
+- `UiTextInputRequest`: focused text-input metadata for IME/on-screen-keyboard friendly hosts.
+- `UiInputHostHelpers`: shared helper methods for host-side double-click and drag-origin tracking.
 - `IUiRenderer`: rendering abstraction; hosts implement this for their graphics API (includes clip stack, gradient, and checkerboard fills).
 - `UiRect`, `UiPoint`, `UiColor`: lightweight geometry and color structs.
 - `UiRenderHelpers`: helper methods for gradients, checkerboard fills, rounded rectangles, and bold text.
@@ -232,8 +234,9 @@ This is a brief overview of the current OpenControls surface area.
 - Use `ContentPadding` to add vertical spacing between the header and child content.
 
 ## Input Notes
-- `UiInputState.ScrollDelta` uses mouse wheel delta (positive values scroll up by default).
+- `UiInputState.ScrollDelta` uses vertical mouse wheel delta (positive values scroll up by default), and `ScrollDeltaX` carries horizontal wheel deltas when the host can provide them.
 - `UiInputState` includes left/right/middle button state plus `AltDown` and `SuperDown` modifier flags.
+- `UiInputState.LeftDoubleClicked` / `RightDoubleClicked` / `MiddleDoubleClicked` expose double-clicks, and `LeftDragOrigin` / `RightDragOrigin` / `MiddleDragOrigin` plus `DragThreshold` expose drag-start metadata.
 - `UiInputState.ScreenMousePosition` preserves the screen-space cursor position for overlay UI like tooltips.
 - `UiInputState.ShiftDown`/`CtrlDown` still drive range/toggle selection for multi-select, and `PrimaryShortcutDown` / `IsPrimaryShortcutPressed(...)` provide a simple Ctrl-or-Super shortcut helper.
 - `UiInputState.KeysDown`, `KeysPressed`, and `KeysReleased` expose named key state, and `IsKeyPressed(...)` / `IsKeyChordPressed(...)` help with shortcut handling.
@@ -241,7 +244,9 @@ This is a brief overview of the current OpenControls surface area.
 - `UiContext` skips Tab traversal when the focused element reports `HandlesTabInput` (used by `UiTextEditor.AllowTabInput`).
 - When `UiContext` moves focus via Tab, it consumes the Tab input so the newly focused element does not receive a tab insert.
 - `UiNavigationInput.Activate` is true for Enter, Keypad Enter, or Space.
-- Hosts should read `UiContext.WantCaptureMouse`, `UiContext.WantCaptureKeyboard`, `UiContext.WantTextInput`, and `UiContext.RequestedMouseCursor` after `Update`.
+- Shortcut routing precedence is `Focused`, then `Hovered`, then `Global`; global shortcuts are blocked while text entry is active unless the caller opts in, and popup/modal/menu layers only allow shortcuts owned by the active layer.
+- Hosts should read `UiContext.WantCaptureMouse`, `UiContext.WantCaptureKeyboard`, `UiContext.WantTextInput`, `UiContext.TextInputRequest`, and `UiContext.RequestedMouseCursor` after `Update`.
+- `OpenControls.SilkNet.Examples` is the reference host for parity validation; use it as the first target when bringing up new input features.
 
 ## Serialization Notes
 - Assign stable `UiElement.Id` values for controls you want to persist.

@@ -74,6 +74,12 @@ public sealed class UiTextEditor : UiElement
             cursor = UiMouseCursor.Arrow;
             return false;
         }
+
+        protected internal override bool TryGetTextInputRequest(out UiTextInputRequest request)
+        {
+            request = new UiTextInputRequest(Bounds, isMultiLine: true);
+            return true;
+        }
     }
 
     private readonly struct LineToken

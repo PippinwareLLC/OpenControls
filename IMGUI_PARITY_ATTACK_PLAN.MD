@@ -86,12 +86,12 @@ Current documented parity gaps around shortcuts, mouse cursors, WantCapture beha
 
 ### API Work
 
-- [ ] Extend `UiInputState` with richer pointer data:
+- [x] Extend `UiInputState` with richer pointer data:
   - [x] right mouse button
   - [x] middle mouse button
-  - [ ] double click information
-  - [ ] drag thresholds / drag origin data if needed
-  - [ ] wheel X in addition to wheel Y if useful
+  - [x] double click information
+  - [x] drag thresholds / drag origin data if needed
+  - [x] wheel X in addition to wheel Y if useful
 - [x] Extend modifier support:
   - [x] Alt
   - [x] Super / Command / Windows key
@@ -101,22 +101,22 @@ Current documented parity gaps around shortcuts, mouse cursors, WantCapture beha
   - [x] per-key down/pressed/released queries
   - [x] key chord representation
   - [x] shortcut routing helper
-- [ ] Add host output properties somewhere stable, likely on `UiContext`:
+- [x] Add host output properties somewhere stable, likely on `UiContext`:
   - [x] `WantCaptureMouse`
   - [x] `WantCaptureKeyboard`
   - [x] `WantTextInput`
   - [x] requested mouse cursor shape
-  - [ ] optional IME/text-input request metadata
+  - [x] optional IME/text-input request metadata
 
 ### Core Behavior Work
 
 - [x] Ensure focus, hover, active drag, popup, and modal state all contribute to capture outputs.
 - [x] Ensure clicks in empty space still clear focus correctly while capture flags remain accurate.
-- [ ] Define precedence rules for shortcuts:
-  - [ ] focused widget shortcuts
-  - [ ] hovered widget shortcuts
-  - [ ] global shortcuts
-  - [ ] popup/modal override behavior
+- [x] Define precedence rules for shortcuts:
+  - [x] focused widget shortcuts
+  - [x] hovered widget shortcuts
+  - [x] global shortcuts
+  - [x] popup/modal override behavior
 - [x] Add a single place where host adapters read "what cursor should I show right now?"
 
 ### Host Integration Work

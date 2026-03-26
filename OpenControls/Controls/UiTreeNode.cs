@@ -274,6 +274,9 @@ public sealed class UiTreeNode : UiElement
     {
         UiRect content = ContentBounds;
         UiPoint mouse = new UiPoint(input.MousePosition.X - content.X, input.MousePosition.Y - content.Y);
+        UiPoint? leftDragOrigin = TranslatePoint(input.LeftDragOrigin, content.X, content.Y);
+        UiPoint? rightDragOrigin = TranslatePoint(input.RightDragOrigin, content.X, content.Y);
+        UiPoint? middleDragOrigin = TranslatePoint(input.MiddleDragOrigin, content.X, content.Y);
 
         return new UiInputState
         {
@@ -281,17 +284,25 @@ public sealed class UiTreeNode : UiElement
             ScreenMousePosition = input.ScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
+            LeftDoubleClicked = input.LeftDoubleClicked,
             LeftReleased = input.LeftReleased,
             RightDown = input.RightDown,
             RightClicked = input.RightClicked,
+            RightDoubleClicked = input.RightDoubleClicked,
             RightReleased = input.RightReleased,
             MiddleDown = input.MiddleDown,
             MiddleClicked = input.MiddleClicked,
+            MiddleDoubleClicked = input.MiddleDoubleClicked,
             MiddleReleased = input.MiddleReleased,
+            LeftDragOrigin = leftDragOrigin,
+            RightDragOrigin = rightDragOrigin,
+            MiddleDragOrigin = middleDragOrigin,
+            DragThreshold = input.DragThreshold,
             ShiftDown = input.ShiftDown,
             CtrlDown = input.CtrlDown,
             AltDown = input.AltDown,
             SuperDown = input.SuperDown,
+            ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
             TextInput = input.TextInput,
             KeysDown = input.KeysDown,
@@ -299,6 +310,13 @@ public sealed class UiTreeNode : UiElement
             KeysReleased = input.KeysReleased,
             Navigation = input.Navigation
         };
+    }
+
+    private static UiPoint? TranslatePoint(UiPoint? point, int offsetX, int offsetY)
+    {
+        return point is UiPoint value
+            ? new UiPoint(value.X - offsetX, value.Y - offsetY)
+            : null;
     }
 
     private void DrawArrow(UiRenderContext context, UiRect header)

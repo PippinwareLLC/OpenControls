@@ -5231,25 +5231,26 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         {
             string modifiers = FormatModifiers(input);
             string buttons = $"Buttons {FormatMouseButtons(input)}";
-            string scrollText = $"Scroll {input.ScrollDelta}";
+            string scrollText = $"Scroll ({input.ScrollDeltaX},{input.ScrollDelta})";
             string textInput = input.TextInput.Count > 0 ? $"Text '{input.TextInput[input.TextInput.Count - 1]}'" : "Text -";
             string pressedKeys = FormatPressedKeys(input.KeysPressed);
-            _inputInfoLabel.Text = $"Input: Mouse ({input.MousePosition.X},{input.MousePosition.Y}) {scrollText} {buttons} Mods {modifiers} {textInput} Keys {pressedKeys}";
-        }
-
-        if (_shortcutLabel != null)
-        {
-            if (TryGetShortcutText(input, out string shortcutText))
-            {
-                _lastShortcutText = shortcutText;
-            }
-
-            _shortcutLabel.Text = $"Shortcut: {_lastShortcutText}";
+            string clickInfo = FormatClickInfo(input);
+            _inputInfoLabel.Text = $"Input: Mouse ({input.MousePosition.X},{input.MousePosition.Y}) {scrollText} {buttons} {clickInfo} Mods {modifiers} {textInput} Keys {pressedKeys}";
         }
 
         if (_context == null)
         {
             return;
+        }
+
+        if (_shortcutLabel != null)
+        {
+            if (TryGetShortcutText(_context, input, out string shortcutText))
+            {
+                _lastShortcutText = shortcutText;
+            }
+
+            _shortcutLabel.Text = $"Shortcut: {_lastShortcutText}";
         }
 
         UiElement? hovered = _context.Hovered ?? _root?.HitTest(_lastMousePosition);
@@ -5277,7 +5278,7 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         if (_captureInfoLabel != null)
         {
             _captureInfoLabel.Text =
-                $"Capture: Mouse {FormatBool(_context.WantCaptureMouse)} Keyboard {FormatBool(_context.WantCaptureKeyboard)} Text {FormatBool(_context.WantTextInput)} Cursor {FormatCursor(_context.RequestedMouseCursor)}";
+                $"Capture: Mouse {FormatBool(_context.WantCaptureMouse)} Keyboard {FormatBool(_context.WantCaptureKeyboard)} Text {FormatBool(_context.WantTextInput)} Cursor {FormatCursor(_context.RequestedMouseCursor)} Ime {FormatTextInputRequest(_context.TextInputRequest)}";
         }
 
         if (_configCaptureKeyboardCheckbox != null)
@@ -5710,6 +5711,26 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         return builder.ToString();
     }
 
+    private static string FormatClickInfo(UiInputState input)
+    {
+        if (input.LeftDoubleClicked)
+        {
+            return "DblClick Left";
+        }
+
+        if (input.RightDoubleClicked)
+        {
+            return "DblClick Right";
+        }
+
+        if (input.MiddleDoubleClicked)
+        {
+            return "DblClick Middle";
+        }
+
+        return "DblClick -";
+    }
+
     private static string FormatBool(bool value)
     {
         return value ? "yes" : "no";
@@ -5731,6 +5752,17 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         };
     }
 
+    private static string FormatTextInputRequest(UiTextInputRequest? request)
+    {
+        if (request is not UiTextInputRequest value)
+        {
+            return "-";
+        }
+
+        string kind = value.IsMultiLine ? "multi" : "single";
+        return $"{kind}@{value.Bounds.X},{value.Bounds.Y} {value.Bounds.Width}x{value.Bounds.Height}";
+    }
+
     private static void AppendModifier(StringBuilder builder, bool enabled, string label)
     {
         if (!enabled)
@@ -5746,19 +5778,19 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         builder.Append(label);
     }
 
-    private static bool TryGetShortcutText(UiInputState input, out string shortcutText)
+    private static bool TryGetShortcutText(UiContext context, UiInputState input, out string shortcutText)
     {
-        if (TryGetPrimaryShortcutText(input, UiKey.S, out shortcutText))
+        if (TryGetPrimaryShortcutText(context, input, UiKey.S, out shortcutText))
         {
             return true;
         }
 
-        if (TryGetPrimaryShortcutText(input, UiKey.F, out shortcutText))
+        if (TryGetPrimaryShortcutText(context, input, UiKey.F, out shortcutText))
         {
             return true;
         }
 
-        if (TryGetPrimaryShortcutText(input, UiKey.P, shift: true, out shortcutText))
+        if (TryGetPrimaryShortcutText(context, input, UiKey.P, shift: true, out shortcutText))
         {
             return true;
         }
@@ -5791,14 +5823,14 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         return false;
     }
 
-    private static bool TryGetPrimaryShortcutText(UiInputState input, UiKey key, out string shortcutText)
+    private static bool TryGetPrimaryShortcutText(UiContext context, UiInputState input, UiKey key, out string shortcutText)
     {
-        return TryGetPrimaryShortcutText(input, key, false, out shortcutText);
+        return TryGetPrimaryShortcutText(context, input, key, false, out shortcutText);
     }
 
-    private static bool TryGetPrimaryShortcutText(UiInputState input, UiKey key, bool shift, out string shortcutText)
+    private static bool TryGetPrimaryShortcutText(UiContext context, UiInputState input, UiKey key, bool shift, out string shortcutText)
     {
-        if (!input.IsPrimaryShortcutPressed(key, shift))
+        if (!context.IsPrimaryShortcutPressed(key, UiShortcutScope.Global, shift: shift))
         {
             shortcutText = string.Empty;
             return false;

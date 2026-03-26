@@ -12,6 +12,8 @@ namespace OpenControls.OpenGL.Examples;
 
 public sealed class OpenGlExamplesWindow : GameWindow
 {
+    private const int DragThreshold = 6;
+
     private static readonly (Keys Key, UiKey UiKey)[] KeyMap =
     [
         (Keys.A, UiKey.A),
@@ -91,6 +93,17 @@ public sealed class OpenGlExamplesWindow : GameWindow
     private bool _middleDown;
     private bool _middleClicked;
     private bool _middleReleased;
+    private UiPoint? _leftDragOrigin;
+    private UiPoint? _rightDragOrigin;
+    private UiPoint? _middleDragOrigin;
+    private double _elapsedSeconds;
+    private double _lastLeftClickTimeSeconds = double.NegativeInfinity;
+    private double _lastRightClickTimeSeconds = double.NegativeInfinity;
+    private double _lastMiddleClickTimeSeconds = double.NegativeInfinity;
+    private UiPoint _lastLeftClickPosition;
+    private UiPoint _lastRightClickPosition;
+    private UiPoint _lastMiddleClickPosition;
+    private int _scrollDeltaX;
     private int _scrollDelta;
     private UiMouseCursor _appliedCursor = UiMouseCursor.Arrow;
 
@@ -137,6 +150,7 @@ public sealed class OpenGlExamplesWindow : GameWindow
             return;
         }
 
+        _elapsedSeconds += args.Time;
         KeyboardState keyboard = KeyboardState;
         MouseState mouse = MouseState;
         KeyboardState previousKeyboard = _previousKeyboard ?? keyboard;
@@ -155,6 +169,7 @@ public sealed class OpenGlExamplesWindow : GameWindow
         _rightReleased = false;
         _middleClicked = false;
         _middleReleased = false;
+        _scrollDeltaX = 0;
         _scrollDelta = 0;
     }
 
@@ -244,6 +259,7 @@ public sealed class OpenGlExamplesWindow : GameWindow
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         base.OnMouseWheel(e);
+        _scrollDeltaX += (int)Math.Round(e.OffsetX * 120f);
         _scrollDelta += (int)Math.Round(e.OffsetY * 120f);
     }
 
@@ -256,6 +272,12 @@ public sealed class OpenGlExamplesWindow : GameWindow
         UiPoint mousePoint = new UiPoint((int)Math.Round(mousePosition.X), (int)Math.Round(mousePosition.Y));
         IReadOnlyList<char> textInputBuffer = ConsumeTextInput();
         IReadOnlyList<char> textInput = _ui?.WantTextInput == true ? textInputBuffer : Array.Empty<char>();
+        bool leftDoubleClicked = UiInputHostHelpers.DetectDoubleClick(_leftClicked, mousePoint, _elapsedSeconds, ref _lastLeftClickTimeSeconds, ref _lastLeftClickPosition);
+        bool rightDoubleClicked = UiInputHostHelpers.DetectDoubleClick(_rightClicked, mousePoint, _elapsedSeconds, ref _lastRightClickTimeSeconds, ref _lastRightClickPosition);
+        bool middleDoubleClicked = UiInputHostHelpers.DetectDoubleClick(_middleClicked, mousePoint, _elapsedSeconds, ref _lastMiddleClickTimeSeconds, ref _lastMiddleClickPosition);
+        UiPoint? leftDragOrigin = UiInputHostHelpers.UpdateDragOrigin(_leftDown, _leftClicked, _leftReleased, mousePoint, ref _leftDragOrigin);
+        UiPoint? rightDragOrigin = UiInputHostHelpers.UpdateDragOrigin(_rightDown, _rightClicked, _rightReleased, mousePoint, ref _rightDragOrigin);
+        UiPoint? middleDragOrigin = UiInputHostHelpers.UpdateDragOrigin(_middleDown, _middleClicked, _middleReleased, mousePoint, ref _middleDragOrigin);
 
         return new UiInputState
         {
@@ -263,17 +285,25 @@ public sealed class OpenGlExamplesWindow : GameWindow
             ScreenMousePosition = mousePoint,
             LeftDown = _leftDown,
             LeftClicked = _leftClicked,
+            LeftDoubleClicked = leftDoubleClicked,
             LeftReleased = _leftReleased,
             RightDown = _rightDown,
             RightClicked = _rightClicked,
+            RightDoubleClicked = rightDoubleClicked,
             RightReleased = _rightReleased,
             MiddleDown = _middleDown,
             MiddleClicked = _middleClicked,
+            MiddleDoubleClicked = middleDoubleClicked,
             MiddleReleased = _middleReleased,
+            LeftDragOrigin = leftDragOrigin,
+            RightDragOrigin = rightDragOrigin,
+            MiddleDragOrigin = middleDragOrigin,
+            DragThreshold = DragThreshold,
             ShiftDown = currentKeyboard.IsKeyDown(Keys.LeftShift) || currentKeyboard.IsKeyDown(Keys.RightShift),
             CtrlDown = currentKeyboard.IsKeyDown(Keys.LeftControl) || currentKeyboard.IsKeyDown(Keys.RightControl),
             AltDown = currentKeyboard.IsKeyDown(Keys.LeftAlt) || currentKeyboard.IsKeyDown(Keys.RightAlt),
             SuperDown = currentKeyboard.IsKeyDown(Keys.LeftSuper) || currentKeyboard.IsKeyDown(Keys.RightSuper),
+            ScrollDeltaX = _scrollDeltaX,
             ScrollDelta = _scrollDelta,
             TextInput = textInput,
             KeysDown = BuildKeyList(currentKeyboard, previousKeyboard, pressedOnly: false, releasedOnly: false),

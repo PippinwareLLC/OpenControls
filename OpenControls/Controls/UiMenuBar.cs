@@ -1008,6 +1008,9 @@ public sealed class UiMenuBar : UiElement
                 UiPoint localMouse = allowInput
                     ? new UiPoint(mouse.X - contentRect.X, mouse.Y - contentRect.Y)
                     : new UiPoint(int.MinValue / 4, int.MinValue / 4);
+                UiPoint? leftDragOrigin = allowInput ? TranslatePoint(input.LeftDragOrigin, contentRect.X, contentRect.Y) : null;
+                UiPoint? rightDragOrigin = allowInput ? TranslatePoint(input.RightDragOrigin, contentRect.X, contentRect.Y) : null;
+                UiPoint? middleDragOrigin = allowInput ? TranslatePoint(input.MiddleDragOrigin, contentRect.X, contentRect.Y) : null;
 
                 UiInputState childInput = new UiInputState
                 {
@@ -1015,17 +1018,25 @@ public sealed class UiMenuBar : UiElement
                     ScreenMousePosition = input.ScreenMousePosition,
                     LeftDown = allowInput && input.LeftDown,
                     LeftClicked = allowInput && input.LeftClicked,
+                    LeftDoubleClicked = allowInput && input.LeftDoubleClicked,
                     LeftReleased = allowInput && input.LeftReleased,
                     RightDown = allowInput && input.RightDown,
                     RightClicked = allowInput && input.RightClicked,
+                    RightDoubleClicked = allowInput && input.RightDoubleClicked,
                     RightReleased = allowInput && input.RightReleased,
                     MiddleDown = allowInput && input.MiddleDown,
                     MiddleClicked = allowInput && input.MiddleClicked,
+                    MiddleDoubleClicked = allowInput && input.MiddleDoubleClicked,
                     MiddleReleased = allowInput && input.MiddleReleased,
+                    LeftDragOrigin = leftDragOrigin,
+                    RightDragOrigin = rightDragOrigin,
+                    MiddleDragOrigin = middleDragOrigin,
+                    DragThreshold = input.DragThreshold,
                     ShiftDown = input.ShiftDown,
                     CtrlDown = input.CtrlDown,
                     AltDown = input.AltDown,
                     SuperDown = input.SuperDown,
+                    ScrollDeltaX = allowInput ? input.ScrollDeltaX : 0,
                     ScrollDelta = allowInput ? input.ScrollDelta : 0,
                     TextInput = input.TextInput,
                     KeysDown = input.KeysDown,
@@ -1037,6 +1048,13 @@ public sealed class UiMenuBar : UiElement
                 item.Content.Update(new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds));
             }
         }
+    }
+
+    private static UiPoint? TranslatePoint(UiPoint? point, int offsetX, int offsetY)
+    {
+        return point is UiPoint value
+            ? new UiPoint(value.X - offsetX, value.Y - offsetY)
+            : null;
     }
 
     private void RenderMenuItemContent(UiRenderContext context, MenuItem item, UiRect itemRect)

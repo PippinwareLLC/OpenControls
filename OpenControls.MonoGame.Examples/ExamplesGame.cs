@@ -10,6 +10,8 @@ namespace OpenControls.MonoGame.Examples;
 
 public sealed class ExamplesGame : Game
 {
+    private const int DragThreshold = 6;
+
     private static readonly (Keys Key, UiKey UiKey)[] KeyMap =
     [
         (Keys.A, UiKey.A),
@@ -86,6 +88,15 @@ public sealed class ExamplesGame : Game
     private MouseState _previousMouse;
     private bool _wantTextInput;
     private MouseCursor? _appliedCursor;
+    private UiPoint? _leftDragOrigin;
+    private UiPoint? _rightDragOrigin;
+    private UiPoint? _middleDragOrigin;
+    private double _lastLeftClickTimeSeconds = double.NegativeInfinity;
+    private double _lastRightClickTimeSeconds = double.NegativeInfinity;
+    private double _lastMiddleClickTimeSeconds = double.NegativeInfinity;
+    private UiPoint _lastLeftClickPosition;
+    private UiPoint _lastRightClickPosition;
+    private UiPoint _lastMiddleClickPosition;
 
     public ExamplesGame()
     {
@@ -132,7 +143,12 @@ public sealed class ExamplesGame : Game
         bool saveRequested = IsPressed(currentKeyboard, _previousKeyboard, Keys.F5);
         bool loadRequested = IsPressed(currentKeyboard, _previousKeyboard, Keys.F9);
 
-        UiInputState input = BuildInputState(currentKeyboard, _previousKeyboard, currentMouse, _previousMouse);
+        UiInputState input = BuildInputState(
+            currentKeyboard,
+            _previousKeyboard,
+            currentMouse,
+            _previousMouse,
+            gameTime.TotalGameTime.TotalSeconds);
         _ui.Update(
             input,
             (float)gameTime.ElapsedGameTime.TotalSeconds,
@@ -176,7 +192,8 @@ public sealed class ExamplesGame : Game
         KeyboardState currentKeyboard,
         KeyboardState previousKeyboard,
         MouseState currentMouse,
-        MouseState previousMouse)
+        MouseState previousMouse,
+        double currentTimeSeconds)
     {
         UiPoint mousePosition = new UiPoint(currentMouse.X, currentMouse.Y);
         IReadOnlyList<char> textInputBuffer = ConsumeTextInput();
@@ -186,23 +203,48 @@ public sealed class ExamplesGame : Game
             textInput = GetTextInput(currentKeyboard, previousKeyboard);
         }
 
+        bool leftDown = currentMouse.LeftButton == ButtonState.Pressed;
+        bool leftClicked = leftDown && previousMouse.LeftButton == ButtonState.Released;
+        bool leftReleased = currentMouse.LeftButton == ButtonState.Released && previousMouse.LeftButton == ButtonState.Pressed;
+        bool rightDown = currentMouse.RightButton == ButtonState.Pressed;
+        bool rightClicked = rightDown && previousMouse.RightButton == ButtonState.Released;
+        bool rightReleased = currentMouse.RightButton == ButtonState.Released && previousMouse.RightButton == ButtonState.Pressed;
+        bool middleDown = currentMouse.MiddleButton == ButtonState.Pressed;
+        bool middleClicked = middleDown && previousMouse.MiddleButton == ButtonState.Released;
+        bool middleReleased = currentMouse.MiddleButton == ButtonState.Released && previousMouse.MiddleButton == ButtonState.Pressed;
+
+        bool leftDoubleClicked = UiInputHostHelpers.DetectDoubleClick(leftClicked, mousePosition, currentTimeSeconds, ref _lastLeftClickTimeSeconds, ref _lastLeftClickPosition);
+        bool rightDoubleClicked = UiInputHostHelpers.DetectDoubleClick(rightClicked, mousePosition, currentTimeSeconds, ref _lastRightClickTimeSeconds, ref _lastRightClickPosition);
+        bool middleDoubleClicked = UiInputHostHelpers.DetectDoubleClick(middleClicked, mousePosition, currentTimeSeconds, ref _lastMiddleClickTimeSeconds, ref _lastMiddleClickPosition);
+        UiPoint? leftDragOrigin = UiInputHostHelpers.UpdateDragOrigin(leftDown, leftClicked, leftReleased, mousePosition, ref _leftDragOrigin);
+        UiPoint? rightDragOrigin = UiInputHostHelpers.UpdateDragOrigin(rightDown, rightClicked, rightReleased, mousePosition, ref _rightDragOrigin);
+        UiPoint? middleDragOrigin = UiInputHostHelpers.UpdateDragOrigin(middleDown, middleClicked, middleReleased, mousePosition, ref _middleDragOrigin);
+
         return new UiInputState
         {
             MousePosition = mousePosition,
             ScreenMousePosition = mousePosition,
-            LeftDown = currentMouse.LeftButton == ButtonState.Pressed,
-            LeftClicked = currentMouse.LeftButton == ButtonState.Pressed && previousMouse.LeftButton == ButtonState.Released,
-            LeftReleased = currentMouse.LeftButton == ButtonState.Released && previousMouse.LeftButton == ButtonState.Pressed,
-            RightDown = currentMouse.RightButton == ButtonState.Pressed,
-            RightClicked = currentMouse.RightButton == ButtonState.Pressed && previousMouse.RightButton == ButtonState.Released,
-            RightReleased = currentMouse.RightButton == ButtonState.Released && previousMouse.RightButton == ButtonState.Pressed,
-            MiddleDown = currentMouse.MiddleButton == ButtonState.Pressed,
-            MiddleClicked = currentMouse.MiddleButton == ButtonState.Pressed && previousMouse.MiddleButton == ButtonState.Released,
-            MiddleReleased = currentMouse.MiddleButton == ButtonState.Released && previousMouse.MiddleButton == ButtonState.Pressed,
+            LeftDown = leftDown,
+            LeftClicked = leftClicked,
+            LeftDoubleClicked = leftDoubleClicked,
+            LeftReleased = leftReleased,
+            RightDown = rightDown,
+            RightClicked = rightClicked,
+            RightDoubleClicked = rightDoubleClicked,
+            RightReleased = rightReleased,
+            MiddleDown = middleDown,
+            MiddleClicked = middleClicked,
+            MiddleDoubleClicked = middleDoubleClicked,
+            MiddleReleased = middleReleased,
+            LeftDragOrigin = leftDragOrigin,
+            RightDragOrigin = rightDragOrigin,
+            MiddleDragOrigin = middleDragOrigin,
+            DragThreshold = DragThreshold,
             ShiftDown = IsShiftPressed(currentKeyboard),
             CtrlDown = IsCtrlPressed(currentKeyboard),
             AltDown = currentKeyboard.IsKeyDown(Keys.LeftAlt) || currentKeyboard.IsKeyDown(Keys.RightAlt),
             SuperDown = currentKeyboard.IsKeyDown(Keys.LeftWindows) || currentKeyboard.IsKeyDown(Keys.RightWindows),
+            ScrollDeltaX = 0,
             ScrollDelta = currentMouse.ScrollWheelValue - previousMouse.ScrollWheelValue,
             TextInput = textInput,
             KeysDown = MapKeys(currentKeyboard.GetPressedKeys()),

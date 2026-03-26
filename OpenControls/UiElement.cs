@@ -121,4 +121,10 @@ public abstract class UiElement
         cursor = UiMouseCursor.Arrow;
         return false;
     }
+
+    protected internal virtual bool TryGetTextInputRequest(out UiTextInputRequest request)
+    {
+        request = default;
+        return false;
+    }
 }

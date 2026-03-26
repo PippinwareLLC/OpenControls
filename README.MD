@@ -34,7 +34,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - `OpenControls.MonoGame.Examples`: runnable MonoGame host for the shared examples UI.
 - `OpenControls.SdlNet`: SDL2-CS renderer adapter library.
 - `OpenControls.SilkNet`: Silk.NET renderer adapter library (legacy OpenGL).
-- `OpenControls.SilkNet.Examples`: runnable Silk.NET host for the shared examples UI.
+- `OpenControls.SilkNet.Examples`: runnable Silk.NET host for the shared examples UI. This is the primary parity/reference host.
 - `OpenControls.OpenGL`: OpenGL renderer adapter library (OpenTK).
 - `OpenControls.OpenGL.Examples`: runnable OpenGL host for the shared examples UI.
 - `OpenControls.SdlNet.Examples`: SDL2-CS renderer example that mirrors the OpenControls.Examples UI (requires SDL2 native runtime; on Windows place `SDL2.dll` on PATH or beside the executable).
@@ -50,7 +50,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 The Widgets window in `OpenControls.Examples` mirrors the structure of the reference demo source. Every demo marker was replaced with a working OpenControls demo panel so the tree now maps to the same sections (Help & Configuration, Menu, Basic widgets, Text, Sliders, Drag & Drop, Tables, Layout, Inputs & Focus, Tools, Examples, etc.).
 
 Parity deviations (documented and intentional):
-- Shortcut routing depth: the Inputs & Focus demo now uses real named keys and key chords, but `UiMenuBar.MenuItem.Shortcut` remains display-only and command routing is still app-defined.
+- Shortcut routing depth: `UiContext` now exposes scoped shortcut helpers with focused/hovered/global precedence, but `UiMenuBar.MenuItem.Shortcut` remains display-only and app command binding is still app-defined.
 - Drag/slider flags: the demo toggles whole-number snapping and step size; advanced flags like logarithmic and always-clamp are not available.
 - Text input callbacks: completion/history is simulated; OpenControls does not expose edit callbacks.
 - WantCapture overrides: `UiContext` now exposes actual `WantCaptureMouse`, `WantCaptureKeyboard`, and `WantTextInput` outputs, but manual override toggles are not part of the core API.
@@ -114,6 +114,7 @@ Planned expansion:
 - Core element tree, focus management, and basic controls are implemented.
 - `UiInputState` now supports left/right/middle mouse buttons, Alt/Super modifiers, named keys, and per-key down/pressed/released state.
 - `UiContext` now exposes `Hovered`, `PointerCaptureTarget`, `WantCaptureMouse`, `WantCaptureKeyboard`, `WantTextInput`, and `RequestedMouseCursor`, and the example hosts consume those outputs.
+- `UiInputState` also carries double-click state, drag origins/thresholds, and horizontal wheel deltas for richer host input plumbing.
 - Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented, radial), list box, combo box, selectable, color button, and separator controls are available.
 - Table controls with column headers and selectable rows are available.
 - Table headers support angled labels and sortable columns via `UiTable.UseAngledHeaders` and `UiTable.SortSpecs`.

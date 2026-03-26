@@ -11,6 +11,8 @@ namespace OpenControls.SdlNet.Examples;
 
 public sealed class SdlExamplesApp : IDisposable
 {
+    private const int DragThreshold = 6;
+
     private static readonly (SDL.SDL_Scancode Scancode, UiKey UiKey)[] KeyMap =
     [
         (SDL.SDL_Scancode.SDL_SCANCODE_A, UiKey.A),
@@ -97,6 +99,17 @@ public sealed class SdlExamplesApp : IDisposable
     private bool _previousLeftDown;
     private bool _previousRightDown;
     private bool _previousMiddleDown;
+    private UiPoint? _leftDragOrigin;
+    private UiPoint? _rightDragOrigin;
+    private UiPoint? _middleDragOrigin;
+    private double _elapsedSeconds;
+    private double _lastLeftClickTimeSeconds = double.NegativeInfinity;
+    private double _lastRightClickTimeSeconds = double.NegativeInfinity;
+    private double _lastMiddleClickTimeSeconds = double.NegativeInfinity;
+    private UiPoint _lastLeftClickPosition;
+    private UiPoint _lastRightClickPosition;
+    private UiPoint _lastMiddleClickPosition;
+    private int _scrollDeltaX;
     private int _scrollDelta;
     private readonly List<char> _textInputBuffer = new();
 
@@ -214,6 +227,7 @@ public sealed class SdlExamplesApp : IDisposable
             long now = timer.ElapsedMilliseconds;
             float deltaSeconds = (now - lastTicks) / 1000f;
             lastTicks = now;
+            _elapsedSeconds += deltaSeconds;
 
             ProcessEvents();
             UpdateKeyStates();
@@ -233,6 +247,7 @@ public sealed class SdlExamplesApp : IDisposable
     private void ProcessEvents()
     {
         _scrollDelta = 0;
+        _scrollDeltaX = 0;
         _textInputBuffer.Clear();
 
         while (SDL.SDL_PollEvent(out SDL.SDL_Event evt) == 1)
@@ -249,6 +264,7 @@ public sealed class SdlExamplesApp : IDisposable
                     }
                     break;
                 case SDL.SDL_EventType.SDL_MOUSEWHEEL:
+                    _scrollDeltaX += evt.wheel.x * 120;
                     _scrollDelta += evt.wheel.y * 120;
                     break;
                 case SDL.SDL_EventType.SDL_TEXTINPUT:
@@ -306,6 +322,7 @@ public sealed class SdlExamplesApp : IDisposable
     private UiInputState BuildInputState()
     {
         uint mouseState = SDL.SDL_GetMouseState(out int mouseX, out int mouseY);
+        UiPoint mousePosition = new UiPoint(mouseX, mouseY);
         bool leftDown = (mouseState & SDL.SDL_BUTTON_LMASK) != 0;
         bool leftClicked = leftDown && !_previousLeftDown;
         bool leftReleased = !leftDown && _previousLeftDown;
@@ -315,6 +332,12 @@ public sealed class SdlExamplesApp : IDisposable
         bool middleDown = (mouseState & SDL.SDL_BUTTON_MMASK) != 0;
         bool middleClicked = middleDown && !_previousMiddleDown;
         bool middleReleased = !middleDown && _previousMiddleDown;
+        bool leftDoubleClicked = UiInputHostHelpers.DetectDoubleClick(leftClicked, mousePosition, _elapsedSeconds, ref _lastLeftClickTimeSeconds, ref _lastLeftClickPosition);
+        bool rightDoubleClicked = UiInputHostHelpers.DetectDoubleClick(rightClicked, mousePosition, _elapsedSeconds, ref _lastRightClickTimeSeconds, ref _lastRightClickPosition);
+        bool middleDoubleClicked = UiInputHostHelpers.DetectDoubleClick(middleClicked, mousePosition, _elapsedSeconds, ref _lastMiddleClickTimeSeconds, ref _lastMiddleClickPosition);
+        UiPoint? leftDragOrigin = UiInputHostHelpers.UpdateDragOrigin(leftDown, leftClicked, leftReleased, mousePosition, ref _leftDragOrigin);
+        UiPoint? rightDragOrigin = UiInputHostHelpers.UpdateDragOrigin(rightDown, rightClicked, rightReleased, mousePosition, ref _rightDragOrigin);
+        UiPoint? middleDragOrigin = UiInputHostHelpers.UpdateDragOrigin(middleDown, middleClicked, middleReleased, mousePosition, ref _middleDragOrigin);
         _previousLeftDown = leftDown;
         _previousRightDown = rightDown;
         _previousMiddleDown = middleDown;
@@ -327,21 +350,29 @@ public sealed class SdlExamplesApp : IDisposable
 
         return new UiInputState
         {
-            MousePosition = new UiPoint(mouseX, mouseY),
-            ScreenMousePosition = new UiPoint(mouseX, mouseY),
+            MousePosition = mousePosition,
+            ScreenMousePosition = mousePosition,
             LeftDown = leftDown,
             LeftClicked = leftClicked,
+            LeftDoubleClicked = leftDoubleClicked,
             LeftReleased = leftReleased,
             RightDown = rightDown,
             RightClicked = rightClicked,
+            RightDoubleClicked = rightDoubleClicked,
             RightReleased = rightReleased,
             MiddleDown = middleDown,
             MiddleClicked = middleClicked,
+            MiddleDoubleClicked = middleDoubleClicked,
             MiddleReleased = middleReleased,
+            LeftDragOrigin = leftDragOrigin,
+            RightDragOrigin = rightDragOrigin,
+            MiddleDragOrigin = middleDragOrigin,
+            DragThreshold = DragThreshold,
             ShiftDown = shift,
             CtrlDown = ctrl,
             AltDown = alt,
             SuperDown = superKey,
+            ScrollDeltaX = _scrollDeltaX,
             ScrollDelta = _scrollDelta,
             TextInput = _textInputBuffer.Count > 0 ? _textInputBuffer.ToArray() : Array.Empty<char>(),
             KeysDown = BuildKeyList(pressedOnly: false, releasedOnly: false),

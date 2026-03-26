@@ -289,6 +289,9 @@ public sealed class UiCanvas : UiElement
         UiPoint localMouse = allowMouse
             ? ScreenToWorld(input.MousePosition)
             : new UiPoint(int.MinValue / 4, int.MinValue / 4);
+        UiPoint? leftDragOrigin = allowMouse ? TransformPoint(input.LeftDragOrigin) : null;
+        UiPoint? rightDragOrigin = allowMouse ? TransformPoint(input.RightDragOrigin) : null;
+        UiPoint? middleDragOrigin = allowMouse ? TransformPoint(input.MiddleDragOrigin) : null;
 
         return new UiInputState
         {
@@ -296,17 +299,25 @@ public sealed class UiCanvas : UiElement
             ScreenMousePosition = input.ScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = allowMouse && input.LeftClicked,
+            LeftDoubleClicked = allowMouse && input.LeftDoubleClicked,
             LeftReleased = input.LeftReleased,
             RightDown = allowMouse && input.RightDown,
             RightClicked = allowMouse && input.RightClicked,
+            RightDoubleClicked = allowMouse && input.RightDoubleClicked,
             RightReleased = allowMouse && input.RightReleased,
             MiddleDown = allowMouse && input.MiddleDown,
             MiddleClicked = allowMouse && input.MiddleClicked,
+            MiddleDoubleClicked = allowMouse && input.MiddleDoubleClicked,
             MiddleReleased = allowMouse && input.MiddleReleased,
+            LeftDragOrigin = leftDragOrigin,
+            RightDragOrigin = rightDragOrigin,
+            MiddleDragOrigin = middleDragOrigin,
+            DragThreshold = input.DragThreshold,
             ShiftDown = input.ShiftDown,
             CtrlDown = input.CtrlDown,
             AltDown = input.AltDown,
             SuperDown = input.SuperDown,
+            ScrollDeltaX = 0,
             ScrollDelta = allowMouse ? input.ScrollDelta : 0,
             TextInput = input.TextInput,
             KeysDown = input.KeysDown,
@@ -314,6 +325,11 @@ public sealed class UiCanvas : UiElement
             KeysReleased = input.KeysReleased,
             Navigation = input.Navigation
         };
+    }
+
+    private UiPoint? TransformPoint(UiPoint? point)
+    {
+        return point is UiPoint value ? ScreenToWorld(value) : null;
     }
 
     private void ApplyZoom(UiPoint mouse, int scrollDelta)

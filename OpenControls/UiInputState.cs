@@ -6,17 +6,25 @@ public sealed class UiInputState
     public UiPoint ScreenMousePosition { get; init; }
     public bool LeftDown { get; init; }
     public bool LeftClicked { get; init; }
+    public bool LeftDoubleClicked { get; init; }
     public bool LeftReleased { get; init; }
     public bool RightDown { get; init; }
     public bool RightClicked { get; init; }
+    public bool RightDoubleClicked { get; init; }
     public bool RightReleased { get; init; }
     public bool MiddleDown { get; init; }
     public bool MiddleClicked { get; init; }
+    public bool MiddleDoubleClicked { get; init; }
     public bool MiddleReleased { get; init; }
+    public UiPoint? LeftDragOrigin { get; init; }
+    public UiPoint? RightDragOrigin { get; init; }
+    public UiPoint? MiddleDragOrigin { get; init; }
+    public int DragThreshold { get; init; } = 6;
     public bool ShiftDown { get; init; }
     public bool CtrlDown { get; init; }
     public bool AltDown { get; init; }
     public bool SuperDown { get; init; }
+    public int ScrollDeltaX { get; init; }
     public int ScrollDelta { get; init; }
     public IReadOnlyList<char> TextInput { get; init; } = Array.Empty<char>();
     public IReadOnlyList<UiKey> KeysDown { get; init; } = Array.Empty<UiKey>();
@@ -55,6 +63,9 @@ public sealed class UiInputState
 
     public bool AnyMouseDown => LeftDown || RightDown || MiddleDown;
     public bool PrimaryShortcutDown => CtrlDown || SuperDown;
+    public bool LeftDragging => LeftDown && HasExceededDragThreshold(LeftDragOrigin);
+    public bool RightDragging => RightDown && HasExceededDragThreshold(RightDragOrigin);
+    public bool MiddleDragging => MiddleDown && HasExceededDragThreshold(MiddleDragOrigin);
 
     public bool IsKeyDown(UiKey key)
     {
@@ -173,5 +184,18 @@ public sealed class UiInputState
         }
 
         return false;
+    }
+
+    private bool HasExceededDragThreshold(UiPoint? origin)
+    {
+        if (origin is not UiPoint dragOrigin)
+        {
+            return false;
+        }
+
+        int dx = MousePosition.X - dragOrigin.X;
+        int dy = MousePosition.Y - dragOrigin.Y;
+        int threshold = Math.Max(0, DragThreshold);
+        return dx * dx + dy * dy >= threshold * threshold;
     }
 }

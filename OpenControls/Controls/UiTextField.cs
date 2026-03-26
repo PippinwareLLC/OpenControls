@@ -143,6 +143,12 @@ public sealed class UiTextField : UiElement
         return false;
     }
 
+    protected internal override bool TryGetTextInputRequest(out UiTextInputRequest request)
+    {
+        request = new UiTextInputRequest(Bounds, isMultiLine: false);
+        return true;
+    }
+
     private void HandleNavigation(UiNavigationInput navigation)
     {
         if (navigation.MoveLeft)

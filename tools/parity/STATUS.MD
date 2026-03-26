@@ -17,7 +17,7 @@
 
 | Area | Bucket | Current State | Next Milestone | Notes |
 | --- | --- | --- | --- | --- |
-| Input platform contract | Must have | Delivered / foundation in place | Milestone 2 | Milestone 1 landed: richer input state, `WantCapture*` outputs, requested cursor routing, and updated example hosts are in place. |
+| Input platform contract | Must have | Delivered / foundation in place | Milestone 2 | Milestone 1 is complete: richer input state, drag/double-click/wheel-X data, `WantCapture*` outputs, IME-friendly text-input metadata, requested cursor routing, and updated example hosts are in place. |
 | Runtime state queries and focus APIs | Must have | Missing / ad hoc | Milestone 2 | Needed to replace simulated item and window status behavior. |
 | Text entry foundation | Must have | Partial | Milestone 3 | Current single-line editing is simple and lacks selection/clipboard/history depth. |
 | Text editor depth | High-value parity | Partial | Milestone 4 | Current editor is useful but not yet editor-grade. |
@@ -35,3 +35,4 @@
 
 - Update this file when milestone order changes.
 - If the Dear ImGui target changes, update `BASELINE.MD` first and then revisit the milestone mapping here.
+- Treat `OpenControls.SilkNet.Examples` as the reference host for parity work; keep the other hosts healthy, but bias new parity validation toward Silk.NET first.

@@ -11,6 +11,8 @@ namespace OpenControls.SilkNet.Examples;
 
 public sealed class SilkExamplesApp : IDisposable
 {
+    private const int DragThreshold = 6;
+
     private static readonly Dictionary<Key, UiKey> KeyMap = new()
     {
         [Key.A] = UiKey.A,
@@ -99,6 +101,17 @@ public sealed class SilkExamplesApp : IDisposable
     private bool _previousLeftDown;
     private bool _previousRightDown;
     private bool _previousMiddleDown;
+    private UiPoint? _leftDragOrigin;
+    private UiPoint? _rightDragOrigin;
+    private UiPoint? _middleDragOrigin;
+    private double _elapsedSeconds;
+    private double _lastLeftClickTimeSeconds = double.NegativeInfinity;
+    private double _lastRightClickTimeSeconds = double.NegativeInfinity;
+    private double _lastMiddleClickTimeSeconds = double.NegativeInfinity;
+    private UiPoint _lastLeftClickPosition;
+    private UiPoint _lastRightClickPosition;
+    private UiPoint _lastMiddleClickPosition;
+    private int _scrollDeltaX;
     private int _scrollDelta;
     private bool _disposed;
     private bool _textInputActive = true;
@@ -213,6 +226,7 @@ public sealed class SilkExamplesApp : IDisposable
             return;
         }
 
+        _elapsedSeconds += deltaSeconds;
         CaptureKeyboardState();
         Vector2D<int> framebufferSize = _window.FramebufferSize;
         bool saveRequested = WasPressed(Key.F5);
@@ -222,6 +236,7 @@ public sealed class SilkExamplesApp : IDisposable
         _ui.Update(input, (float)deltaSeconds, framebufferSize.X, framebufferSize.Y, saveRequested, loadRequested);
         ApplyHostState();
 
+        _scrollDeltaX = 0;
         _scrollDelta = 0;
         _textInputBuffer.Clear();
     }
@@ -261,6 +276,7 @@ public sealed class SilkExamplesApp : IDisposable
 
     private void HandleMouseScroll(IMouse _, ScrollWheel wheel)
     {
+        _scrollDeltaX += (int)Math.Round(wheel.X * 120f);
         _scrollDelta += (int)Math.Round(wheel.Y * 120f);
     }
 
@@ -275,17 +291,23 @@ public sealed class SilkExamplesApp : IDisposable
         bool leftDown = _mouse?.IsButtonPressed(MouseButton.Left) == true;
         bool leftClicked = leftDown && !_previousLeftDown;
         bool leftReleased = !leftDown && _previousLeftDown;
-        _previousLeftDown = leftDown;
         bool rightDown = _mouse?.IsButtonPressed(MouseButton.Right) == true;
         bool rightClicked = rightDown && !_previousRightDown;
         bool rightReleased = !rightDown && _previousRightDown;
-        _previousRightDown = rightDown;
         bool middleDown = _mouse?.IsButtonPressed(MouseButton.Middle) == true;
         bool middleClicked = middleDown && !_previousMiddleDown;
         bool middleReleased = !middleDown && _previousMiddleDown;
-        _previousMiddleDown = middleDown;
 
         UiPoint mousePoint = new(framebufferPoint.X, framebufferPoint.Y);
+        bool leftDoubleClicked = UiInputHostHelpers.DetectDoubleClick(leftClicked, mousePoint, _elapsedSeconds, ref _lastLeftClickTimeSeconds, ref _lastLeftClickPosition);
+        bool rightDoubleClicked = UiInputHostHelpers.DetectDoubleClick(rightClicked, mousePoint, _elapsedSeconds, ref _lastRightClickTimeSeconds, ref _lastRightClickPosition);
+        bool middleDoubleClicked = UiInputHostHelpers.DetectDoubleClick(middleClicked, mousePoint, _elapsedSeconds, ref _lastMiddleClickTimeSeconds, ref _lastMiddleClickPosition);
+        UiPoint? leftDragOrigin = UiInputHostHelpers.UpdateDragOrigin(leftDown, leftClicked, leftReleased, mousePoint, ref _leftDragOrigin);
+        UiPoint? rightDragOrigin = UiInputHostHelpers.UpdateDragOrigin(rightDown, rightClicked, rightReleased, mousePoint, ref _rightDragOrigin);
+        UiPoint? middleDragOrigin = UiInputHostHelpers.UpdateDragOrigin(middleDown, middleClicked, middleReleased, mousePoint, ref _middleDragOrigin);
+        _previousLeftDown = leftDown;
+        _previousRightDown = rightDown;
+        _previousMiddleDown = middleDown;
 
         return new UiInputState
         {
@@ -293,17 +315,25 @@ public sealed class SilkExamplesApp : IDisposable
             ScreenMousePosition = mousePoint,
             LeftDown = leftDown,
             LeftClicked = leftClicked,
+            LeftDoubleClicked = leftDoubleClicked,
             LeftReleased = leftReleased,
             RightDown = rightDown,
             RightClicked = rightClicked,
+            RightDoubleClicked = rightDoubleClicked,
             RightReleased = rightReleased,
             MiddleDown = middleDown,
             MiddleClicked = middleClicked,
+            MiddleDoubleClicked = middleDoubleClicked,
             MiddleReleased = middleReleased,
+            LeftDragOrigin = leftDragOrigin,
+            RightDragOrigin = rightDragOrigin,
+            MiddleDragOrigin = middleDragOrigin,
+            DragThreshold = DragThreshold,
             ShiftDown = IsDown(Key.ShiftLeft) || IsDown(Key.ShiftRight),
             CtrlDown = IsDown(Key.ControlLeft) || IsDown(Key.ControlRight),
             AltDown = IsDown(Key.AltLeft) || IsDown(Key.AltRight),
             SuperDown = IsDown(Key.SuperLeft) || IsDown(Key.SuperRight),
+            ScrollDeltaX = _scrollDeltaX,
             ScrollDelta = _scrollDelta,
             TextInput = _textInputBuffer.Count > 0 ? _textInputBuffer.ToArray() : Array.Empty<char>(),
             KeysDown = BuildKeyList(includeDown: true, includePressed: false, includeReleased: false),

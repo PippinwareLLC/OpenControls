@@ -5,6 +5,7 @@ namespace OpenControls;
 public sealed class UiContext
 {
     private UiElement? _mouseCaptureTarget;
+    private UiElement? _activeInputLayer;
 
     public UiContext(UiElement root)
     {
@@ -20,6 +21,8 @@ public sealed class UiContext
     public bool WantCaptureMouse { get; private set; }
     public bool WantCaptureKeyboard { get; private set; }
     public bool WantTextInput { get; private set; }
+    public UiInputState? LastInput { get; private set; }
+    public UiTextInputRequest? TextInputRequest { get; private set; }
 
     public void Update(UiInputState input, float deltaSeconds = 0f)
     {
@@ -39,6 +42,38 @@ public sealed class UiContext
         Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds));
         DragDrop.EndFrame();
         RefreshOutputs(effectiveInput);
+    }
+
+    public bool IsShortcutPressed(
+        UiKeyChord chord,
+        UiShortcutScope scope = UiShortcutScope.Global,
+        UiElement? owner = null,
+        bool allowExtraModifiers = false,
+        bool allowDuringTextInput = false)
+    {
+        if (LastInput == null || !LastInput.IsKeyChordPressed(chord, allowExtraModifiers))
+        {
+            return false;
+        }
+
+        return IsShortcutScopeActive(scope, owner, allowDuringTextInput);
+    }
+
+    public bool IsPrimaryShortcutPressed(
+        UiKey key,
+        UiShortcutScope scope = UiShortcutScope.Global,
+        UiElement? owner = null,
+        bool shift = false,
+        bool alt = false,
+        bool allowExtraModifiers = false,
+        bool allowDuringTextInput = false)
+    {
+        if (LastInput == null || !LastInput.IsPrimaryShortcutPressed(key, shift, alt, allowExtraModifiers))
+        {
+            return false;
+        }
+
+        return IsShortcutScopeActive(scope, owner, allowDuringTextInput);
     }
 
     private bool IsTabHandled()
@@ -214,17 +249,25 @@ public sealed class UiContext
             ScreenMousePosition = input.ScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
+            LeftDoubleClicked = input.LeftDoubleClicked,
             LeftReleased = input.LeftReleased,
             RightDown = input.RightDown,
             RightClicked = input.RightClicked,
+            RightDoubleClicked = input.RightDoubleClicked,
             RightReleased = input.RightReleased,
             MiddleDown = input.MiddleDown,
             MiddleClicked = input.MiddleClicked,
+            MiddleDoubleClicked = input.MiddleDoubleClicked,
             MiddleReleased = input.MiddleReleased,
+            LeftDragOrigin = input.LeftDragOrigin,
+            RightDragOrigin = input.RightDragOrigin,
+            MiddleDragOrigin = input.MiddleDragOrigin,
+            DragThreshold = input.DragThreshold,
             ShiftDown = input.ShiftDown,
             CtrlDown = input.CtrlDown,
             AltDown = input.AltDown,
             SuperDown = input.SuperDown,
+            ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
             TextInput = textInput,
             KeysDown = input.KeysDown,
@@ -236,6 +279,7 @@ public sealed class UiContext
 
     private void RefreshOutputs(UiInputState input)
     {
+        LastInput = input;
         Hovered = Root.HitTest(input.MousePosition);
         if (input.LeftClicked && ResolveFocusTarget(Hovered) == null)
         {
@@ -255,12 +299,14 @@ public sealed class UiContext
         }
 
         PointerCaptureTarget = _mouseCaptureTarget ?? hoveredCaptureTarget;
+        _activeInputLayer = FindActiveInputLayer(Root);
 
-        bool blockingOverlayOpen = HasBlockingOverlay(Root);
+        bool blockingOverlayOpen = _activeInputLayer != null;
         WantTextInput = Focus.Focused?.WantsTextInput == true;
         WantCaptureKeyboard = WantTextInput || Focus.Focused != null || blockingOverlayOpen;
         WantCaptureMouse = PointerCaptureTarget != null || blockingOverlayOpen;
         RequestedMouseCursor = ResolveMouseCursor(input);
+        TextInputRequest = ResolveTextInputRequest();
     }
 
     private UiMouseCursor ResolveMouseCursor(UiInputState input)
@@ -311,37 +357,114 @@ public sealed class UiContext
         return null;
     }
 
-    private static bool HasBlockingOverlay(UiElement element)
+    private UiTextInputRequest? ResolveTextInputRequest()
     {
-        if (!element.Visible || !element.Enabled)
+        if (!WantTextInput || Focus.Focused == null)
+        {
+            return null;
+        }
+
+        if (Focus.Focused.TryGetTextInputRequest(out UiTextInputRequest request))
+        {
+            return request;
+        }
+
+        return null;
+    }
+
+    private bool IsShortcutScopeActive(UiShortcutScope scope, UiElement? owner, bool allowDuringTextInput)
+    {
+        if (owner != null && !IsShortcutOwnerActive(owner))
         {
             return false;
         }
 
+        return scope switch
+        {
+            UiShortcutScope.Focused => owner != null && Focus.Focused != null && IsElementOrAncestor(owner, Focus.Focused),
+            UiShortcutScope.Hovered => owner != null && Hovered != null && IsElementOrAncestor(owner, Hovered),
+            UiShortcutScope.Global => IsGlobalShortcutActive(owner, allowDuringTextInput),
+            _ => false
+        };
+    }
+
+    private bool IsGlobalShortcutActive(UiElement? owner, bool allowDuringTextInput)
+    {
+        if (!allowDuringTextInput && WantTextInput)
+        {
+            return false;
+        }
+
+        if (owner == null)
+        {
+            return _activeInputLayer == null;
+        }
+
+        return IsShortcutOwnerActive(owner);
+    }
+
+    private bool IsShortcutOwnerActive(UiElement owner)
+    {
+        return _activeInputLayer == null || IsElementOrAncestor(_activeInputLayer, owner);
+    }
+
+    private static bool IsElementOrAncestor(UiElement ancestor, UiElement element)
+    {
+        UiElement? current = element;
+        while (current != null)
+        {
+            if (current == ancestor)
+            {
+                return true;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
+    }
+
+    private static UiElement? FindActiveInputLayer(UiElement element)
+    {
+        if (!element.Visible || !element.Enabled)
+        {
+            return null;
+        }
+
+        if (element is UiModalHost modalHost && modalHost.BlockInputWhenModalOpen)
+        {
+            UiModal? activeModal = FindActiveModal(modalHost);
+            if (activeModal != null)
+            {
+                return FindActiveInputLayer(activeModal) ?? activeModal;
+            }
+        }
+
+        for (int i = element.Children.Count - 1; i >= 0; i--)
+        {
+            UiElement? activeChild = FindActiveInputLayer(element.Children[i]);
+            if (activeChild != null)
+            {
+                return activeChild;
+            }
+        }
+
         if (element is UiModal modal && modal.IsOpen)
         {
-            return true;
+            return modal;
         }
 
         if (element is UiPopup popup && popup.IsOpen)
         {
-            return true;
+            return popup;
         }
 
         if (element is UiMenuBar menuBar && menuBar.HasOpenMenu)
         {
-            return true;
+            return menuBar;
         }
 
-        for (int i = 0; i < element.Children.Count; i++)
-        {
-            if (HasBlockingOverlay(element.Children[i]))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return null;
     }
 
     private static IReadOnlyList<UiKey> FilterKey(IReadOnlyList<UiKey> keys, UiKey excludedKey)

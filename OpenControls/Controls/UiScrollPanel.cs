@@ -554,6 +554,9 @@ public sealed class UiScrollPanel : UiElement
         UiPoint mouse = useViewportMouse
             ? new UiPoint(input.MousePosition.X - Bounds.X + _scrollX, input.MousePosition.Y - Bounds.Y + _scrollY)
             : new UiPoint(int.MinValue / 4, int.MinValue / 4);
+        UiPoint? leftDragOrigin = useViewportMouse ? TranslatePoint(input.LeftDragOrigin) : null;
+        UiPoint? rightDragOrigin = useViewportMouse ? TranslatePoint(input.RightDragOrigin) : null;
+        UiPoint? middleDragOrigin = useViewportMouse ? TranslatePoint(input.MiddleDragOrigin) : null;
 
         return new UiInputState
         {
@@ -561,17 +564,25 @@ public sealed class UiScrollPanel : UiElement
             ScreenMousePosition = input.ScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
+            LeftDoubleClicked = input.LeftDoubleClicked,
             LeftReleased = input.LeftReleased,
             RightDown = input.RightDown,
             RightClicked = input.RightClicked,
+            RightDoubleClicked = input.RightDoubleClicked,
             RightReleased = input.RightReleased,
             MiddleDown = input.MiddleDown,
             MiddleClicked = input.MiddleClicked,
+            MiddleDoubleClicked = input.MiddleDoubleClicked,
             MiddleReleased = input.MiddleReleased,
+            LeftDragOrigin = leftDragOrigin,
+            RightDragOrigin = rightDragOrigin,
+            MiddleDragOrigin = middleDragOrigin,
+            DragThreshold = input.DragThreshold,
             ShiftDown = input.ShiftDown,
             CtrlDown = input.CtrlDown,
             AltDown = input.AltDown,
             SuperDown = input.SuperDown,
+            ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
             TextInput = input.TextInput,
             KeysDown = input.KeysDown,
@@ -579,5 +590,12 @@ public sealed class UiScrollPanel : UiElement
             KeysReleased = input.KeysReleased,
             Navigation = input.Navigation
         };
+    }
+
+    private UiPoint? TranslatePoint(UiPoint? point)
+    {
+        return point is UiPoint value
+            ? new UiPoint(value.X - Bounds.X + _scrollX, value.Y - Bounds.Y + _scrollY)
+            : null;
     }
 }
