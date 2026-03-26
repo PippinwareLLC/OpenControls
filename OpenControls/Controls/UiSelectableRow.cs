@@ -31,6 +31,7 @@ public sealed class UiSelectableRow : UiElement
     public UiColor SecondaryTextColor { get; set; } = new UiColor(170, 180, 200);
     public UiColor SelectedTextColor { get; set; } = UiColor.White;
     public int CornerRadius { get; set; }
+    public string SelectionScope { get; set; } = string.Empty;
 
     public UiRect ContentBounds
     {
@@ -47,14 +48,14 @@ public sealed class UiSelectableRow : UiElement
 
     public bool Selected
     {
-        get => _selectionModel != null ? _selectionModel.IsSelected(_selectionIndex) : _selected;
+        get => _selectionModel != null ? _selectionModel.IsSelected(_selectionIndex, SelectionScope) : _selected;
         set
         {
             if (_selectionModel != null)
             {
                 if (_selectionIndex >= 0)
                 {
-                    _selectionModel.SetSelected(_selectionIndex, value);
+                    _selectionModel.SetSelected(_selectionIndex, value, SelectionScope);
                 }
 
                 return;
@@ -335,7 +336,7 @@ public sealed class UiSelectableRow : UiElement
         {
             if (_selectionIndex >= 0)
             {
-                _selectionModel.ApplySelection(_selectionIndex, input.CtrlDown, input.ShiftDown);
+                _selectionModel.ApplySelection(_selectionIndex, input.CtrlDown, input.ShiftDown, SelectionScope);
             }
         }
         else if (AllowToggle)
@@ -362,7 +363,7 @@ public sealed class UiSelectableRow : UiElement
             return;
         }
 
-        bool selected = _selectionIndex >= 0 && _selectionModel.IsSelected(_selectionIndex);
+        bool selected = _selectionIndex >= 0 && _selectionModel.IsSelected(_selectionIndex, SelectionScope);
         if (_selected == selected)
         {
             return;

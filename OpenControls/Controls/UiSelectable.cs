@@ -21,10 +21,11 @@ public sealed class UiSelectable : UiElement
     public UiColor TextColor { get; set; } = UiColor.White;
     public UiColor SelectedTextColor { get; set; } = UiColor.White;
     public int CornerRadius { get; set; }
+    public string SelectionScope { get; set; } = string.Empty;
 
     public bool Selected
     {
-        get => _selectionModel != null ? _selectionModel.IsSelected(_selectionIndex) : _selected;
+        get => _selectionModel != null ? _selectionModel.IsSelected(_selectionIndex, SelectionScope) : _selected;
         set
         {
             if (_selectionModel != null)
@@ -34,7 +35,7 @@ public sealed class UiSelectable : UiElement
                     return;
                 }
 
-                _selectionModel.SetSelected(_selectionIndex, value);
+                _selectionModel.SetSelected(_selectionIndex, value, SelectionScope);
                 return;
             }
 
@@ -128,7 +129,7 @@ public sealed class UiSelectable : UiElement
             return;
         }
 
-        bool isSelected = _selectionModel != null ? _selectionModel.IsSelected(_selectionIndex) : _selected;
+        bool isSelected = _selectionModel != null ? _selectionModel.IsSelected(_selectionIndex, SelectionScope) : _selected;
         UiColor fill = Background;
         if (isSelected)
         {
@@ -178,7 +179,7 @@ public sealed class UiSelectable : UiElement
                 return;
             }
 
-            _selectionModel.ApplySelection(_selectionIndex, input.CtrlDown, input.ShiftDown);
+            _selectionModel.ApplySelection(_selectionIndex, input.CtrlDown, input.ShiftDown, SelectionScope);
             return;
         }
 
@@ -217,7 +218,7 @@ public sealed class UiSelectable : UiElement
             return;
         }
 
-        bool selected = _selectionIndex >= 0 && _selectionModel.IsSelected(_selectionIndex);
+        bool selected = _selectionIndex >= 0 && _selectionModel.IsSelected(_selectionIndex, SelectionScope);
         if (_selected == selected)
         {
             return;

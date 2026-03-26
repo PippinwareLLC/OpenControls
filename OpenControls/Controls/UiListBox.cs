@@ -9,22 +9,39 @@ public sealed class UiListBox : UiElement
     private UiClipRange _clipRange;
     private readonly int[] _singleSelection = new int[1];
     private UiSelectionModel? _selectionModel;
+    private string _selectionScope = string.Empty;
 
     public IReadOnlyList<string> Items { get; set; } = Array.Empty<string>();
+    public string SelectionScope
+    {
+        get => _selectionScope;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+            if (string.Equals(_selectionScope, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _selectionScope = normalized;
+            _selectionModel?.SetItemCount(Items.Count, _selectionScope);
+            HandleSelectionModelChanged();
+        }
+    }
     public int SelectedIndex
     {
-        get => _selectionModel?.PrimaryIndex ?? _selectedIndex;
+        get => _selectionModel?.GetPrimaryIndex(SelectionScope) ?? _selectedIndex;
         set
         {
             if (_selectionModel != null)
             {
                 if (value < 0)
                 {
-                    _selectionModel.Clear();
+                    _selectionModel.Clear(SelectionScope);
                 }
                 else
                 {
-                    _selectionModel.SelectSingle(value);
+                    _selectionModel.SelectSingle(value, SelectionScope);
                 }
             }
             else
@@ -54,7 +71,7 @@ public sealed class UiListBox : UiElement
             if (_selectionModel != null)
             {
                 _selectionModel.SelectionChanged += HandleSelectionModelChanged;
-                _selectionModel.SetItemCount(Items.Count);
+                _selectionModel.SetItemCount(Items.Count, SelectionScope);
             }
 
             HandleSelectionModelChanged();
@@ -67,7 +84,7 @@ public sealed class UiListBox : UiElement
         {
             if (_selectionModel != null)
             {
-                return _selectionModel.SelectedIndices;
+                return _selectionModel.GetSelectedIndices(SelectionScope);
             }
 
             if (_selectedIndex < 0)
@@ -120,7 +137,7 @@ public sealed class UiListBox : UiElement
         }
 
         UiInputState input = context.Input;
-        _selectionModel?.SetItemCount(Items.Count);
+        _selectionModel?.SetItemCount(Items.Count, SelectionScope);
         int itemHeight = Math.Max(1, ItemHeight);
         _scrollOffset = UiClipper.ClampScrollOffset(Items.Count, itemHeight, Math.Max(0, Bounds.Height), _scrollOffset);
         _clipRange = UiClipper.FixedHeight(Items.Count, itemHeight, _scrollOffset, Math.Max(0, Bounds.Height), OverscanItems);
@@ -152,7 +169,7 @@ public sealed class UiListBox : UiElement
             {
                 if (_selectionModel != null)
                 {
-                    _selectionModel.Clear();
+                    _selectionModel.Clear(SelectionScope);
                 }
                 else
                 {
@@ -248,7 +265,7 @@ public sealed class UiListBox : UiElement
         {
             if (_selectionModel != null)
             {
-                _selectionModel.Clear();
+                _selectionModel.Clear(SelectionScope);
             }
             else
             {
@@ -293,14 +310,14 @@ public sealed class UiListBox : UiElement
         {
             if (index < 0)
             {
-                _selectionModel.Clear();
+                _selectionModel.Clear(SelectionScope);
             }
             else
             {
-                _selectionModel.ApplySelection(index, ctrl, shift);
+                _selectionModel.ApplySelection(index, ctrl, shift, SelectionScope);
             }
 
-            int primary = _selectionModel.PrimaryIndex;
+            int primary = _selectionModel.GetPrimaryIndex(SelectionScope);
             if (primary >= 0)
             {
                 EnsureVisible(primary);
@@ -315,7 +332,7 @@ public sealed class UiListBox : UiElement
     {
         if (_selectionModel != null)
         {
-            return _selectionModel.IsSelected(index);
+            return _selectionModel.IsSelected(index, SelectionScope);
         }
 
         return index == _selectedIndex;
@@ -355,7 +372,7 @@ public sealed class UiListBox : UiElement
         }
 
         int previous = _selectedIndex;
-        _selectedIndex = _selectionModel.PrimaryIndex;
+        _selectedIndex = _selectionModel.GetPrimaryIndex(SelectionScope);
         if (_selectedIndex >= 0)
         {
             EnsureVisible(_selectedIndex);

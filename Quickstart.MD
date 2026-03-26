@@ -198,7 +198,8 @@ ui.Render(renderer);
 - `UiScrollPanel` uses panel-local child bounds and applies scroll offsets when rendering.
 - Use `UiModalHost` when modal dialogs should block input to the rest of the UI.
 - Set `CornerRadius` on common controls for rounded corners, or use `UiRenderHelpers.FillRectRounded`/`DrawRectRounded`/`MaskRectRounded` in custom widgets.
-- Use `UiSelectionModel` with `UiListBox`/`UiSelectable` for multi-select (Ctrl/Shift ranges).
+- Use `UiSelectionModel` with `UiListBox`, `UiSelectable`, `UiTable`, and `UiTreeView` for shared or isolated multi-select; `SelectionScope`, `DeleteSelected(...)`, `RemoveRange(...)`, and `AnchorPersistence` now cover the first-pass editor-style selection workflows.
+- `UiTreeView` now exposes `ExpandAll()`, `CollapseAll()`, `SetOpen(...)`, `ToggleOpen(...)`, and `RevealItem(...)` so editors can drive tree open-state from code instead of simulating clicks.
 - Use `UiCombo`, `UiListView`, `UiSelectableRow`, and `UiChildRegion` when you want composed combo/list/popup content or embedded clipped child regions instead of string-only widgets; `UiComboBox` stays available as the convenience wrapper for plain string data.
 - Use `UiStack` for retained row/column layout, `UiWrapPanel` for wrapped inline rows, and `UiGroup` when several controls should read and behave as one retained region.
 - Use `IUiImageSource`/`UiDelegateImageSource` for repeated thumbnails and icon-like row artwork without wiring a fresh draw callback everywhere.

@@ -153,6 +153,7 @@ public sealed class UiTable : UiElement
     private UiRect _headerContextMenuBounds;
     private int _hoverHeaderMenuEntry = -1;
     private bool _suppressHeaderMenuClick;
+    private string _selectionScope = string.Empty;
 
     public List<UiTableColumn> Columns { get; } = new();
     public IReadOnlyList<UiTableRow> Rows { get; set; } = Array.Empty<UiTableRow>();
@@ -215,6 +216,22 @@ public sealed class UiTable : UiElement
     public UiColor HeaderMenuCheckColor { get; set; } = new UiColor(120, 180, 220);
     public UiColor ReorderIndicatorColor { get; set; } = new UiColor(120, 180, 220);
     public int CornerRadius { get; set; }
+    public string SelectionScope
+    {
+        get => _selectionScope;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+            if (string.Equals(_selectionScope, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _selectionScope = normalized;
+            _selectionModel?.SetItemCount(Rows.Count, _selectionScope);
+            HandleSelectionModelChanged();
+        }
+    }
 
     public UiSelectionModel? SelectionModel
     {
@@ -235,7 +252,7 @@ public sealed class UiTable : UiElement
             if (_selectionModel != null)
             {
                 _selectionModel.SelectionChanged += HandleSelectionModelChanged;
-                _selectionModel.SetItemCount(Rows.Count);
+                _selectionModel.SetItemCount(Rows.Count, SelectionScope);
             }
 
             HandleSelectionModelChanged();
@@ -244,18 +261,18 @@ public sealed class UiTable : UiElement
 
     public int SelectedIndex
     {
-        get => _selectionModel?.PrimaryIndex ?? _selectedIndex;
+        get => _selectionModel?.GetPrimaryIndex(SelectionScope) ?? _selectedIndex;
         set
         {
             if (_selectionModel != null)
             {
                 if (value < 0)
                 {
-                    _selectionModel.Clear();
+                    _selectionModel.Clear(SelectionScope);
                 }
                 else
                 {
-                    _selectionModel.SelectSingle(value);
+                    _selectionModel.SelectSingle(value, SelectionScope);
                 }
             }
             else
@@ -271,7 +288,7 @@ public sealed class UiTable : UiElement
         {
             if (_selectionModel != null)
             {
-                return _selectionModel.SelectedIndices;
+                return _selectionModel.GetSelectedIndices(SelectionScope);
             }
 
             if (_selectedIndex < 0)
@@ -355,7 +372,7 @@ public sealed class UiTable : UiElement
             return;
         }
 
-        _selectionModel?.SetItemCount(Rows.Count);
+        _selectionModel?.SetItemCount(Rows.Count, SelectionScope);
         EnsureColumnStates();
         ValidateSortSpecs();
         RefreshLayout();
@@ -1416,7 +1433,7 @@ public sealed class UiTable : UiElement
             {
                 if (_selectionModel != null)
                 {
-                    _selectionModel.Clear();
+                    _selectionModel.Clear(SelectionScope);
                 }
                 else
                 {
@@ -1468,7 +1485,7 @@ public sealed class UiTable : UiElement
         {
             if (_selectionModel != null)
             {
-                _selectionModel.Clear();
+                _selectionModel.Clear(SelectionScope);
             }
             else
             {
@@ -1518,11 +1535,11 @@ public sealed class UiTable : UiElement
         {
             if (index < 0)
             {
-                _selectionModel.Clear();
+                _selectionModel.Clear(SelectionScope);
             }
             else
             {
-                _selectionModel.ApplySelection(index, ctrl, shift);
+                _selectionModel.ApplySelection(index, ctrl, shift, SelectionScope);
             }
 
             return;
@@ -1535,7 +1552,7 @@ public sealed class UiTable : UiElement
     {
         if (_selectionModel != null)
         {
-            return _selectionModel.IsSelected(index);
+            return _selectionModel.IsSelected(index, SelectionScope);
         }
 
         return index == _selectedIndex;
@@ -1564,7 +1581,22 @@ public sealed class UiTable : UiElement
 
     private void HandleSelectionModelChanged()
     {
-        SelectionChanged?.Invoke(SelectedIndex);
+        if (_selectionModel == null)
+        {
+            return;
+        }
+
+        int previous = _selectedIndex;
+        _selectedIndex = _selectionModel.GetPrimaryIndex(SelectionScope);
+        if (_selectedIndex >= 0)
+        {
+            EnsureVisible(_selectedIndex);
+        }
+
+        if (previous != _selectedIndex)
+        {
+            SelectionChanged?.Invoke(_selectedIndex);
+        }
     }
 
     private void HandleHeaderClick(int modelIndex, bool multiSortRequested)

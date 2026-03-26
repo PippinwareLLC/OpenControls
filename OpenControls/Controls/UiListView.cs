@@ -8,6 +8,7 @@ public sealed class UiListView : UiElement
     private readonly List<UiSelectableRow> _items = new();
     private int _lastPrimaryIndex = -2;
     private bool _navigationHandledThisFrame;
+    private string _selectionScope = string.Empty;
 
     public UiListView()
     {
@@ -41,7 +42,26 @@ public sealed class UiListView : UiElement
                 _selectionModel.SelectionChanged += HandleSelectionModelChanged;
             }
 
-            ActiveSelectionModel.SetItemCount(_items.Count);
+            ActiveSelectionModel.SetItemCount(_items.Count, _selectionScope);
+            BindItems();
+            HandleSelectionModelChanged();
+        }
+    }
+
+    public string SelectionScope
+    {
+        get => _selectionScope;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+            if (string.Equals(_selectionScope, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _selectionScope = normalized;
+            _lastPrimaryIndex = -2;
+            ActiveSelectionModel.SetItemCount(_items.Count, _selectionScope);
             BindItems();
             HandleSelectionModelChanged();
         }
@@ -49,21 +69,21 @@ public sealed class UiListView : UiElement
 
     public int SelectedIndex
     {
-        get => ActiveSelectionModel.PrimaryIndex;
+        get => ActiveSelectionModel.GetPrimaryIndex(_selectionScope);
         set
         {
             if (value < 0)
             {
-                ActiveSelectionModel.Clear();
+                ActiveSelectionModel.Clear(_selectionScope);
             }
             else
             {
-                ActiveSelectionModel.SelectSingle(value);
+                ActiveSelectionModel.SelectSingle(value, _selectionScope);
             }
         }
     }
 
-    public IReadOnlyList<int> SelectedIndices => ActiveSelectionModel.SelectedIndices;
+    public IReadOnlyList<int> SelectedIndices => ActiveSelectionModel.GetSelectedIndices(_selectionScope);
     public string FilterText { get; set; } = string.Empty;
     public Func<UiSelectableRow, string, bool>? FilterPredicate { get; set; }
     public int ItemHeight { get; set; } = 28;
@@ -159,7 +179,7 @@ public sealed class UiListView : UiElement
         }
 
         _region.Bounds = Bounds;
-        ActiveSelectionModel.SetItemCount(_items.Count);
+        ActiveSelectionModel.SetItemCount(_items.Count, _selectionScope);
         LayoutItems();
         _navigationHandledThisFrame = false;
 
@@ -168,7 +188,7 @@ public sealed class UiListView : UiElement
             context.Focus.RequestFocus(this);
             if (AllowDeselect && GetItemAtPoint(context.Input.MousePosition) == null)
             {
-                ActiveSelectionModel.Clear();
+                ActiveSelectionModel.Clear(_selectionScope);
             }
         }
 
@@ -263,13 +283,14 @@ public sealed class UiListView : UiElement
     private void BindItems()
     {
         UiSelectionModel model = ActiveSelectionModel;
-        model.SetItemCount(_items.Count);
+        model.SetItemCount(_items.Count, _selectionScope);
 
         for (int i = 0; i < _items.Count; i++)
         {
             UiSelectableRow item = _items[i];
             item.SelectionModel = model;
             item.SelectionIndex = i;
+            item.SelectionScope = _selectionScope;
         }
     }
 
@@ -284,7 +305,7 @@ public sealed class UiListView : UiElement
             UiSelectableRow item = _items[i];
             bool visible = PassesFilter(item);
             item.Visible = visible;
-            item.Highlighted = i == ActiveSelectionModel.PrimaryIndex;
+            item.Highlighted = i == ActiveSelectionModel.GetPrimaryIndex(_selectionScope);
             if (!visible)
             {
                 continue;
@@ -317,11 +338,11 @@ public sealed class UiListView : UiElement
         UiInputState input = context.Input;
         if (input.Navigation.MoveUp)
         {
-            FocusIndex(FindPreviousVisibleIndex(Math.Max(FindFirstVisibleIndex(), ActiveSelectionModel.PrimaryIndex)), context.Focus, input);
+            FocusIndex(FindPreviousVisibleIndex(Math.Max(FindFirstVisibleIndex(), ActiveSelectionModel.GetPrimaryIndex(_selectionScope))), context.Focus, input);
         }
         else if (input.Navigation.MoveDown)
         {
-            int current = ActiveSelectionModel.PrimaryIndex;
+            int current = ActiveSelectionModel.GetPrimaryIndex(_selectionScope);
             if (current < 0)
             {
                 FocusIndex(FindFirstVisibleIndex(), context.Focus, input);
@@ -378,7 +399,7 @@ public sealed class UiListView : UiElement
             return;
         }
 
-        ActiveSelectionModel.ApplySelection(index, input.CtrlDown, input.ShiftDown);
+        ActiveSelectionModel.ApplySelection(index, input.CtrlDown, input.ShiftDown, _selectionScope);
         EnsureVisible(index);
         focus.RequestFocus(item);
     }
@@ -517,7 +538,12 @@ public sealed class UiListView : UiElement
 
     private void HandleSelectionModelChanged()
     {
-        int primaryIndex = ActiveSelectionModel.PrimaryIndex;
+        int primaryIndex = ActiveSelectionModel.GetPrimaryIndex(_selectionScope);
+        if (_lastPrimaryIndex == primaryIndex)
+        {
+            return;
+        }
+
         _lastPrimaryIndex = primaryIndex;
         if (primaryIndex >= 0)
         {

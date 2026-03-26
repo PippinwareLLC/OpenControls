@@ -22,7 +22,8 @@ This is a brief overview of the current OpenControls surface area.
 - `UiRenderHelpers`: helper methods for gradients, checkerboard fills, rounded rectangles, and bold text.
 - `UiStateSnapshot`, `UiStateSerializer`: serialize/restore UI state to JSON for persistence.
 - `UiScrollbarVisibility`: scrollbar visibility options for scroll panels.
-- `UiSelectionModel`: manages multi-selection state (ctrl/shift range behavior) for list/selectable controls.
+- `UiSelectionModel`: manages multi-selection state, scoped selections, delete-friendly mutations, and anchor persistence for list/selectable/table/tree controls.
+- `UiSelectionAnchorPersistence`: controls how range anchors behave after destructive selection updates.
 - `UiArrowDirection`: direction enum for shared arrow glyphs.
 - `UiArrow`: helper for drawing consistent arrow indicators in custom controls.
 - `UiProgressBarStyle`: progress bar style (linear or radial).
@@ -178,6 +179,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiListBox.Items`: assign items to display in the list.
 - `UiListBox.SelectedIndex`: set or read the active selection.
 - `UiListBox.SelectionModel`: assign a shared `UiSelectionModel` to enable multi-select.
+- `UiListBox.SelectionScope`: isolate or share a view inside a shared `UiSelectionModel`.
 - `UiListBox.SelectedIndices`: returns selected indices (single selection when no model is set).
 - `UiListBox.ScrollWheelItems`: number of items to scroll per mouse wheel step.
 
@@ -195,7 +197,14 @@ This is a brief overview of the current OpenControls surface area.
 - `UiTable.ColumnStates` / `GetColumnState(...)`: inspect or tweak runtime column order/visibility/width without mutating the static column definitions.
 - `UiTable.ViewState`: inspect scroll offsets, viewport size, content size, and visible row range.
 - `UiTable.SelectedIndex`/`SelectionModel`: row selection behavior similar to list boxes.
+- `UiTable.SelectionScope`: lets a table share or isolate selection state inside a shared `UiSelectionModel`.
 - `UiTable.CellBackgroundSelector` / `CellTextColorSelector`: apply per-cell styling without replacing the whole table renderer.
+
+## Tree View Notes
+- `UiTreeView.SelectionModel` / `SelectionScope`: enable shared or isolated tree selection using `UiSelectionModel`.
+- `UiTreeView.ShowHierarchyLines`: draws connector lines between parent/child/sibling rows.
+- `UiTreeView.ExpandAll()`, `CollapseAll()`, `SetOpen(...)`, `ToggleOpen(...)`, and `RevealItem(...)`: programmatic tree-open helpers for editor workflows and demos.
+- `UiTreeView` uses the shared fixed-height `UiClipper` path for large trees, so open-state helpers and selection continue to work under virtualization.
 
 ## Plot Notes
 - `UiPlotPanel.Series`: assign one or more `UiPlotSeries` (each with `UiPlotPoint` data).

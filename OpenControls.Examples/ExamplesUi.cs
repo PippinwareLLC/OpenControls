@@ -11,7 +11,7 @@ public sealed class ExamplesUi
     private const int FontScale = 2;
     private const int Padding = 12;
     private const int SplitterSize = 6;
-    private const int WidgetGalleryContentHeight = 2860;
+    private const int WidgetGalleryContentHeight = 3520;
     private const string IconGear = "\uf013";
     private const string IconFolderOpen = "\uf07c";
     private const string IconSave = "\uf0c7";
@@ -6944,6 +6944,439 @@ public sealed class HeadlessUiRenderer : IUiRenderer
         AddRowFillChild(childRegionRow, childRegionNote, 36);
         AddSectionChild(selectionSection, childRegionRow, 114);
         AddGallerySection(_widgetGalleryRoot, selectionSection, 372);
+
+        UiStack selectionDepthSection = CreateGallerySection(
+            "Milestone 10 Selection And Tree Workflows",
+            "This section proves the deeper selection model work: single vs multi-select, shared selection across views, isolated scopes, deletion-friendly list mutation, anchor persistence modes, and tree open-state helpers with hierarchy lines.");
+
+        UiStack basicSelectionRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiListBox singleSelectList = new()
+        {
+            Items = new[] { "Camera", "Directional Light", "Environment", "Post FX", "Reflection Probe" },
+            TextScale = FontScale,
+            AllowDeselect = true,
+            ItemHeight = 22,
+            Bounds = new UiRect(0, 0, 220, 96)
+        };
+        singleSelectList.SelectedIndex = 2;
+        UiSelectionModel multiSelectionModel = new();
+        UiListBox multiSelectList = new()
+        {
+            Items = new[] { "Terrain", "Roads", "Props", "FX", "Audio", "UI", "Debug" },
+            TextScale = FontScale,
+            AllowDeselect = true,
+            ItemHeight = 22,
+            SelectionModel = multiSelectionModel,
+            Bounds = new UiRect(0, 0, 220, 96)
+        };
+        multiSelectionModel.SetItemCount(multiSelectList.Items.Count);
+        multiSelectionModel.SelectRange(1, 3);
+
+        UiTextBlock basicSelectionNote = new()
+        {
+            Text = string.Empty,
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 92)
+        };
+
+        void UpdateBasicSelectionNote()
+        {
+            string single = singleSelectList.SelectedIndex >= 0 && singleSelectList.SelectedIndex < singleSelectList.Items.Count
+                ? singleSelectList.Items[singleSelectList.SelectedIndex]
+                : "None";
+            string multi = multiSelectionModel.SelectedIndices.Count == 0
+                ? "None"
+                : string.Join(", ", multiSelectionModel.SelectedIndices.Select(index => multiSelectList.Items[index]));
+            basicSelectionNote.Text =
+                $"Single-select: {single}\n" +
+                $"Multi-select: {multi}\n" +
+                "Use Ctrl/Shift plus arrows/Home/End to exercise the shared selection model semantics.";
+        }
+
+        singleSelectList.SelectionChanged += _ => UpdateBasicSelectionNote();
+        multiSelectList.SelectionChanged += _ => UpdateBasicSelectionNote();
+        UpdateBasicSelectionNote();
+
+        AddRowFixedChild(basicSelectionRow, singleSelectList, 232, 96);
+        AddRowFixedChild(basicSelectionRow, multiSelectList, 232, 96);
+        AddRowFillChild(basicSelectionRow, basicSelectionNote, 96);
+        AddSectionChild(selectionDepthSection, basicSelectionRow, 100);
+
+        UiStack sharedSelectionRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiSelectionModel sharedSelectionModel = new();
+        const string sharedSelectionScope = "gallery-shared-assets";
+        string[] sharedNames = Enumerable.Range(0, 10).Select(static i => $"Asset {i:D2}").ToArray();
+        UiListBox sharedList = new()
+        {
+            Items = sharedNames,
+            TextScale = FontScale,
+            ItemHeight = 22,
+            SelectionModel = sharedSelectionModel,
+            SelectionScope = sharedSelectionScope,
+            Bounds = new UiRect(0, 0, 220, 170)
+        };
+        UiTable sharedTable = new()
+        {
+            TextScale = FontScale,
+            HeaderTextScale = FontScale,
+            SelectionModel = sharedSelectionModel,
+            SelectionScope = sharedSelectionScope,
+            HeaderHeight = 28,
+            RowHeight = 24,
+            Bounds = new UiRect(0, 0, 420, 170)
+        };
+        sharedTable.Columns.Add(new UiTableColumn("Asset", width: 160) { WidthMode = UiTableColumnWidthMode.Fixed });
+        sharedTable.Columns.Add(new UiTableColumn("Type", width: 110) { WidthMode = UiTableColumnWidthMode.Fixed });
+        sharedTable.Columns.Add(new UiTableColumn("State", width: 120) { WidthMode = UiTableColumnWidthMode.Fixed });
+        sharedTable.Rows = Enumerable.Range(0, sharedNames.Length)
+            .Select(static i => new UiTableRow($"Asset {i:D2}", i % 2 == 0 ? "Scene" : "Prefab", i % 3 == 0 ? "Dirty" : "Ready"))
+            .ToArray();
+        sharedSelectionModel.SetItemCount(sharedNames.Length, sharedSelectionScope);
+        sharedSelectionModel.SelectSingle(3, sharedSelectionScope);
+
+        UiTextBlock sharedSelectionNote = new()
+        {
+            Text = string.Empty,
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 166)
+        };
+
+        void UpdateSharedSelectionNote()
+        {
+            IReadOnlyList<int> indices = sharedSelectionModel.GetSelectedIndices(sharedSelectionScope);
+            string selection = indices.Count == 0
+                ? "None"
+                : string.Join(", ", indices.Select(index => sharedNames[index]));
+            sharedSelectionNote.Text =
+                $"Shared scope: {selection}\n" +
+                $"List index: {sharedList.SelectedIndex} | Table index: {sharedTable.SelectedIndex}\n" +
+                "Selecting in either control updates the other because both views point at the same model + scope.";
+        }
+
+        sharedList.SelectionChanged += _ => UpdateSharedSelectionNote();
+        sharedTable.SelectionChanged += _ => UpdateSharedSelectionNote();
+        UpdateSharedSelectionNote();
+
+        AddRowFixedChild(sharedSelectionRow, sharedList, 232, 170);
+        AddRowFixedChild(sharedSelectionRow, sharedTable, 432, 170);
+        AddRowFillChild(sharedSelectionRow, sharedSelectionNote, 170);
+        AddSectionChild(selectionDepthSection, sharedSelectionRow, 174);
+
+        UiStack scopedSelectionRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiSelectionModel scopedSelectionModel = new();
+        const string availableScope = "gallery-available";
+        const string chosenScope = "gallery-chosen";
+        List<string> availableItems = new()
+        {
+            "Camera Rig",
+            "Main Scene",
+            "Sky Material",
+            "Character Prefab",
+            "Navigation Mesh",
+            "Audio Bank",
+            "Input Map"
+        };
+        List<string> chosenItems = new()
+        {
+            "Game Config",
+            "Localization Table"
+        };
+
+        UiListBox availableList = new()
+        {
+            TextScale = FontScale,
+            ItemHeight = 22,
+            SelectionModel = scopedSelectionModel,
+            SelectionScope = availableScope,
+            Bounds = new UiRect(0, 0, 220, 136)
+        };
+        UiListBox chosenList = new()
+        {
+            TextScale = FontScale,
+            ItemHeight = 22,
+            SelectionModel = scopedSelectionModel,
+            SelectionScope = chosenScope,
+            Bounds = new UiRect(0, 0, 220, 136)
+        };
+        UiComboBox anchorModeCombo = new()
+        {
+            Items = Enum.GetNames<UiSelectionAnchorPersistence>(),
+            TextScale = FontScale,
+            Bounds = new UiRect(0, 0, 180, 28)
+        };
+        anchorModeCombo.SelectedIndex = 0;
+        scopedSelectionModel.AnchorPersistence = UiSelectionAnchorPersistence.ClampToNearestValid;
+
+        UiButton moveToChosenButton = new() { Text = "Move ->", TextScale = FontScale };
+        UiButton moveToAvailableButton = new() { Text = "<- Move", TextScale = FontScale };
+        UiButton deleteChosenButton = new() { Text = "Delete", TextScale = FontScale };
+        UiStack scopedButtons = new()
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 8
+        };
+        scopedButtons.AddChild(anchorModeCombo);
+        scopedButtons.SetLayout(anchorModeCombo, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(28),
+            CrossLength = UiLayoutLength.Fixed(180)
+        });
+        scopedButtons.AddChild(moveToChosenButton);
+        scopedButtons.SetLayout(moveToChosenButton, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(28),
+            CrossLength = UiLayoutLength.Fixed(96)
+        });
+        scopedButtons.AddChild(moveToAvailableButton);
+        scopedButtons.SetLayout(moveToAvailableButton, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(28),
+            CrossLength = UiLayoutLength.Fixed(96)
+        });
+        scopedButtons.AddChild(deleteChosenButton);
+        scopedButtons.SetLayout(deleteChosenButton, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(28),
+            CrossLength = UiLayoutLength.Fixed(96)
+        });
+
+        UiTextBlock scopedSelectionNote = new()
+        {
+            Text = string.Empty,
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 132)
+        };
+
+        void SyncScopedLists()
+        {
+            availableList.Items = availableItems.ToArray();
+            chosenList.Items = chosenItems.ToArray();
+            scopedSelectionModel.SetItemCount(availableItems.Count, availableScope);
+            scopedSelectionModel.SetItemCount(chosenItems.Count, chosenScope);
+        }
+
+        static List<string> TakeItemsAtIndices(List<string> source, IReadOnlyList<int> indices)
+        {
+            List<string> moved = new();
+            for (int i = indices.Count - 1; i >= 0; i--)
+            {
+                int index = indices[i];
+                moved.Insert(0, source[index]);
+                source.RemoveAt(index);
+            }
+
+            return moved;
+        }
+
+        void UpdateScopedSelectionNote()
+        {
+            string availableSelection = scopedSelectionModel.GetSelectedIndices(availableScope).Count == 0
+                ? "none"
+                : string.Join(", ", scopedSelectionModel.GetSelectedIndices(availableScope).Select(index => availableItems[index]));
+            string chosenSelection = scopedSelectionModel.GetSelectedIndices(chosenScope).Count == 0
+                ? "none"
+                : string.Join(", ", scopedSelectionModel.GetSelectedIndices(chosenScope).Select(index => chosenItems[index]));
+            scopedSelectionNote.Text =
+                $"Anchor mode: {scopedSelectionModel.AnchorPersistence}\n" +
+                $"Available scope: {availableSelection}\n" +
+                $"Chosen scope: {chosenSelection}\n" +
+                "Move/Delete uses DeleteSelected + SetItemCount so selection survives collection edits cleanly.";
+        }
+
+        void MoveSelectedItems(string sourceScope, List<string> source, string targetScope, List<string> target)
+        {
+            IReadOnlyList<int> removed = scopedSelectionModel.DeleteSelected(sourceScope);
+            if (removed.Count == 0)
+            {
+                return;
+            }
+
+            List<string> moved = TakeItemsAtIndices(source, removed);
+            int insertIndex = target.Count;
+            target.AddRange(moved);
+            SyncScopedLists();
+            scopedSelectionModel.SelectRange(insertIndex, insertIndex + moved.Count - 1, targetScope);
+            UpdateScopedSelectionNote();
+        }
+
+        anchorModeCombo.SelectionChanged += index =>
+        {
+            scopedSelectionModel.AnchorPersistence = index == 1
+                ? UiSelectionAnchorPersistence.ResetToPrimary
+                : UiSelectionAnchorPersistence.ClampToNearestValid;
+            UpdateScopedSelectionNote();
+        };
+        moveToChosenButton.Clicked += () => MoveSelectedItems(availableScope, availableItems, chosenScope, chosenItems);
+        moveToAvailableButton.Clicked += () => MoveSelectedItems(chosenScope, chosenItems, availableScope, availableItems);
+        deleteChosenButton.Clicked += () =>
+        {
+            IReadOnlyList<int> removed = scopedSelectionModel.DeleteSelected(chosenScope);
+            if (removed.Count == 0)
+            {
+                return;
+            }
+
+            TakeItemsAtIndices(chosenItems, removed);
+            SyncScopedLists();
+            UpdateScopedSelectionNote();
+        };
+        availableList.SelectionChanged += _ => UpdateScopedSelectionNote();
+        chosenList.SelectionChanged += _ => UpdateScopedSelectionNote();
+        SyncScopedLists();
+        scopedSelectionModel.SelectSingle(1, availableScope);
+        scopedSelectionModel.SelectSingle(0, chosenScope);
+        UpdateScopedSelectionNote();
+
+        AddRowFixedChild(scopedSelectionRow, availableList, 232, 136);
+        AddRowFixedChild(scopedSelectionRow, scopedButtons, 188, 136);
+        AddRowFixedChild(scopedSelectionRow, chosenList, 232, 136);
+        AddRowFillChild(scopedSelectionRow, scopedSelectionNote, 136);
+        AddSectionChild(selectionDepthSection, scopedSelectionRow, 140);
+
+        UiStack treeSelectionRow = CreateGalleryRow(UiStackAlignment.Start);
+        UiSelectionModel treeSelectionModel = new();
+        const string treeSelectionScope = "gallery-tree";
+        UiTreeView selectionTree = new()
+        {
+            TextScale = FontScale,
+            ItemHeight = 22,
+            ScrollWheelItems = 3,
+            OverscanItems = 1,
+            SelectionModel = treeSelectionModel,
+            SelectionScope = treeSelectionScope,
+            ShowHierarchyLines = true,
+            Bounds = new UiRect(0, 0, 320, 180)
+        };
+
+        UiTreeViewItem gameplayRoot = new("Gameplay") { IsOpen = true };
+        UiTreeViewItem playerBranch = new("Player") { IsOpen = true };
+        UiTreeViewItem inventoryLeaf = new("Inventory");
+        UiTreeViewItem abilitiesLeaf = new("Abilities");
+        playerBranch.Children.Add(inventoryLeaf);
+        playerBranch.Children.Add(abilitiesLeaf);
+        UiTreeViewItem aiBranch = new("AI") { IsOpen = true };
+        UiTreeViewItem pathingLeaf = new("Pathing");
+        UiTreeViewItem sensesLeaf = new("Senses");
+        aiBranch.Children.Add(pathingLeaf);
+        aiBranch.Children.Add(sensesLeaf);
+        gameplayRoot.Children.Add(playerBranch);
+        gameplayRoot.Children.Add(aiBranch);
+
+        UiTreeViewItem toolsRoot = new("Tools") { IsOpen = true };
+        UiTreeViewItem editorBranch = new("Editor") { IsOpen = true };
+        UiTreeViewItem inspectorLeaf = new("Inspector");
+        UiTreeViewItem hierarchyLeaf = new("Hierarchy");
+        editorBranch.Children.Add(inspectorLeaf);
+        editorBranch.Children.Add(hierarchyLeaf);
+        UiTreeViewItem profilerBranch = new("Profiler");
+        profilerBranch.Children.Add(new UiTreeViewItem("Frame Times"));
+        profilerBranch.Children.Add(new UiTreeViewItem("Memory"));
+        toolsRoot.Children.Add(editorBranch);
+        toolsRoot.Children.Add(profilerBranch);
+
+        selectionTree.RootItems.Add(gameplayRoot);
+        selectionTree.RootItems.Add(toolsRoot);
+        treeSelectionModel.SetItemCount(selectionTree.VisibleItemCount, treeSelectionScope);
+
+        UiButton expandAllTreeButton = new() { Text = "Expand All", TextScale = FontScale };
+        UiButton collapseAllTreeButton = new() { Text = "Collapse All", TextScale = FontScale };
+        UiButton revealInspectorButton = new() { Text = "Reveal Inspector", TextScale = FontScale };
+        UiButton revealSensesButton = new() { Text = "Reveal Senses", TextScale = FontScale };
+        UiStack treeButtons = new()
+        {
+            Orientation = UiLayoutOrientation.Vertical,
+            CrossAlignment = UiStackAlignment.Stretch,
+            Gap = 8
+        };
+        treeButtons.AddChild(expandAllTreeButton);
+        treeButtons.SetLayout(expandAllTreeButton, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(28),
+            CrossLength = UiLayoutLength.Fixed(140)
+        });
+        treeButtons.AddChild(collapseAllTreeButton);
+        treeButtons.SetLayout(collapseAllTreeButton, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(28),
+            CrossLength = UiLayoutLength.Fixed(140)
+        });
+        treeButtons.AddChild(revealInspectorButton);
+        treeButtons.SetLayout(revealInspectorButton, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(28),
+            CrossLength = UiLayoutLength.Fixed(140)
+        });
+        treeButtons.AddChild(revealSensesButton);
+        treeButtons.SetLayout(revealSensesButton, new UiStackItemLayout
+        {
+            PrimaryLength = UiLayoutLength.Fixed(28),
+            CrossLength = UiLayoutLength.Fixed(140)
+        });
+
+        UiTextBlock treeSelectionNote = new()
+        {
+            Text = string.Empty,
+            Color = new UiColor(170, 180, 200),
+            Scale = FontScale,
+            Wrap = true,
+            LineSpacing = 2,
+            Padding = 2,
+            Bounds = new UiRect(0, 0, 0, 176)
+        };
+
+        void UpdateTreeSelectionNote()
+        {
+            string selected = selectionTree.SelectedItem?.Text ?? "None";
+            treeSelectionNote.Text =
+                $"Selected tree item: {selected}\n" +
+                $"Visible rows: {selectionTree.VisibleItemCount} | Viewport {selectionTree.FirstVisibleIndex}-{selectionTree.LastVisibleIndex}\n" +
+                "Use the buttons to exercise ExpandAll, CollapseAll, RevealItem, and the hierarchy-line rendering path.";
+        }
+
+        expandAllTreeButton.Clicked += () =>
+        {
+            selectionTree.ExpandAll();
+            UpdateTreeSelectionNote();
+        };
+        collapseAllTreeButton.Clicked += () =>
+        {
+            selectionTree.CollapseAll();
+            UpdateTreeSelectionNote();
+        };
+        revealInspectorButton.Clicked += () =>
+        {
+            selectionTree.RevealItem(inspectorLeaf, select: true);
+            UpdateTreeSelectionNote();
+        };
+        revealSensesButton.Clicked += () =>
+        {
+            selectionTree.RevealItem(sensesLeaf, select: true);
+            UpdateTreeSelectionNote();
+        };
+        selectionTree.SelectionChanged += _ => UpdateTreeSelectionNote();
+        selectionTree.ItemToggled += (_, _) => UpdateTreeSelectionNote();
+        selectionTree.RevealItem(inspectorLeaf, select: true);
+        UpdateTreeSelectionNote();
+
+        AddRowFixedChild(treeSelectionRow, selectionTree, 332, 180);
+        AddRowFixedChild(treeSelectionRow, treeButtons, 152, 180);
+        AddRowFillChild(treeSelectionRow, treeSelectionNote, 180);
+        AddSectionChild(selectionDepthSection, treeSelectionRow, 184);
+
+        AddGallerySection(_widgetGalleryRoot, selectionDepthSection, 664);
 
         UiStack dataSection = CreateGallerySection(
             "Tables, Images, And Alternate Data Views",

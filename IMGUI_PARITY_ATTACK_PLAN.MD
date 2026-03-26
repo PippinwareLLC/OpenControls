@@ -634,33 +634,42 @@ These items remain backlog, but they do not block Milestone 9 closure:
 
 ## Milestone 10: Selection And Trees
 
+Milestone 10 is complete for the scoped first-pass selection/tree target. OpenControls now ships a scoped `UiSelectionModel` with deletion-friendly mutation helpers, shared-selection support across multiple views, optional anchor persistence modes, and richer tree behavior through `UiTreeView` hierarchy lines plus programmatic expand/collapse/reveal helpers. The Widget Gallery now includes an explicit Milestone 10 section that demonstrates single-select, multi-select, shared list/table scopes, dual scoped list boxes, anchor-persistence switching, and tree selection/open-state workflows in one place.
+
 ### Why This Matters
 
 Selection is already one of OpenControls' better stories, but Dear ImGui's newer multi-select demos show how much deeper the interaction model can go.
 
 ### Checklist
 
-- [ ] Extend `UiSelectionModel` for larger selection workflows:
-  - [ ] deletion-friendly updates
-  - [ ] multiple scopes
-  - [ ] shared selection across multiple views
-  - [ ] optional range/anchor persistence rules
+- [x] Extend `UiSelectionModel` for larger selection workflows:
+  - [x] deletion-friendly updates
+  - [x] multiple scopes
+  - [x] shared selection across multiple views
+  - [x] optional range/anchor persistence rules
 - [ ] Add box selection only if it aligns with core product use cases.
-- [ ] Improve tree support:
-  - [ ] selectable nodes
-  - [ ] hierarchy lines
-  - [ ] better open-state control APIs
-  - [ ] large-tree virtualization integration
-- [ ] Add tree/table/list cross-demo coverage:
-  - [ ] single select
-  - [ ] multi-select
-  - [ ] dual list box
-  - [ ] selection in table
-  - [ ] selection in trees
+- [x] Improve tree support:
+  - [x] selectable nodes
+  - [x] hierarchy lines
+  - [x] better open-state control APIs
+  - [x] large-tree virtualization integration
+- [x] Add tree/table/list cross-demo coverage:
+  - [x] single select
+  - [x] multi-select
+  - [x] dual list box
+  - [x] selection in table
+  - [x] selection in trees
 
 ### Exit Criteria
 
-- [ ] Multi-select no longer feels limited to basic Ctrl/Shift toggling.
+- [x] Multi-select no longer feels limited to basic Ctrl/Shift toggling.
+
+### Deferred Follow-On Work
+
+These items remain backlog, but they do not block Milestone 10 closure:
+
+- Box selection is still optional and should only land if it aligns with real product workflows.
+- Tree selection still keys off visible row indices today; if a future editor surface needs identity-stable selection across aggressive tree restructuring, that should be a follow-on design pass.
 
 ## Milestone 11: Drag, Slider, Numeric, And Color Depth
 
@@ -787,7 +796,7 @@ If resourcing is tight, do the work in this order:
 - [x] Milestone 7
 - [x] Milestone 8
 - [x] Milestone 9
-- [ ] Milestone 10
+- [x] Milestone 10
 - [ ] Milestone 11
 - [ ] Milestone 12
 - [ ] Milestone 13
@@ -810,7 +819,7 @@ If resourcing is tight, do the work in this order:
 
 - [x] Milestone 8
 - [x] Milestone 9
-- [ ] Milestone 10
+- [x] Milestone 10
 
 ### Release Slice D: Composition And Layout
 
@@ -829,4 +838,4 @@ If resourcing is tight, do the work in this order:
 - [x] If only one thing happens next after Milestone 1, it should be Milestone 2.
 - [x] If custom fonts and icon-font parity matter for the near-term product, Milestone 3 should happen immediately after Milestone 2.
 - [x] If only one user-facing thing happened after the early foundations, it was correct to prioritize Milestone 5 and then Milestones 8-9 for editor/data-view parity.
-- [ ] Re-audit after Milestone 10 before committing to the rest of the roadmap tail.
+- [ ] Re-audit after Milestone 11 before committing to the rest of the roadmap tail.

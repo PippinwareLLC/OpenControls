@@ -22,6 +22,7 @@ public sealed class UiTreeView : UiElement
     private bool _focused;
     private int _scrollOffset;
     private UiClipRange _clipRange;
+    private string _selectionScope = string.Empty;
 
     public List<UiTreeViewItem> RootItems { get; } = new();
 
@@ -44,7 +45,7 @@ public sealed class UiTreeView : UiElement
             if (_selectionModel != null)
             {
                 _selectionModel.SelectionChanged += HandleSelectionModelChanged;
-                _selectionModel.SetItemCount(_visibleRows.Count);
+                _selectionModel.SetItemCount(_visibleRows.Count, SelectionScope);
             }
 
             HandleSelectionModelChanged();
@@ -53,18 +54,18 @@ public sealed class UiTreeView : UiElement
 
     public int SelectedIndex
     {
-        get => _selectionModel?.PrimaryIndex ?? _selectedIndex;
+        get => _selectionModel?.GetPrimaryIndex(SelectionScope) ?? _selectedIndex;
         set
         {
             if (_selectionModel != null)
             {
                 if (value < 0)
                 {
-                    _selectionModel.Clear();
+                    _selectionModel.Clear(SelectionScope);
                 }
                 else
                 {
-                    _selectionModel.SelectSingle(value);
+                    _selectionModel.SelectSingle(value, SelectionScope);
                 }
             }
             else
@@ -80,7 +81,7 @@ public sealed class UiTreeView : UiElement
         {
             if (_selectionModel != null)
             {
-                return _selectionModel.SelectedIndices;
+                return _selectionModel.GetSelectedIndices(SelectionScope);
             }
 
             if (_selectedIndex < 0)
@@ -120,7 +121,26 @@ public sealed class UiTreeView : UiElement
     public int TextScale { get; set; } = 1;
     public int ScrollWheelItems { get; set; } = 3;
     public int OverscanItems { get; set; } = 1;
+    public bool ShowHierarchyLines { get; set; } = true;
+    public UiColor HierarchyLineColor { get; set; } = new UiColor(76, 88, 112);
+    public int HierarchyLineThickness { get; set; } = 1;
     public bool AllowDeselect { get; set; }
+    public string SelectionScope
+    {
+        get => _selectionScope;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+            if (string.Equals(_selectionScope, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _selectionScope = normalized;
+            RefreshVisibleRows();
+            HandleSelectionModelChanged();
+        }
+    }
     public UiColor Background { get; set; } = new UiColor(24, 28, 38);
     public UiColor Border { get; set; } = new UiColor(60, 70, 90);
     public UiColor HoverColor { get; set; } = new UiColor(36, 42, 58);
@@ -135,6 +155,94 @@ public sealed class UiTreeView : UiElement
 
     public override bool IsFocusable => true;
 
+    public void ExpandAll()
+    {
+        if (SetOpenRecursive(RootItems, true))
+        {
+            RefreshVisibleRows();
+        }
+    }
+
+    public void CollapseAll()
+    {
+        if (SetOpenRecursive(RootItems, false))
+        {
+            RefreshVisibleRows();
+        }
+    }
+
+    public void SetOpen(UiTreeViewItem item, bool isOpen, bool includeDescendants = false)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        bool changed = includeDescendants
+            ? SetOpenRecursive(item, isOpen)
+            : SetItemOpen(item, isOpen);
+
+        if (changed)
+        {
+            RefreshVisibleRows();
+        }
+    }
+
+    public void ToggleOpen(UiTreeViewItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        SetOpen(item, !item.IsOpen);
+    }
+
+    public bool RevealItem(UiTreeViewItem item, bool select = false)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        List<UiTreeViewItem> path = new();
+        if (!TryFindPath(RootItems, item, path))
+        {
+            return false;
+        }
+
+        bool changed = false;
+        for (int i = 0; i < path.Count - 1; i++)
+        {
+            changed |= SetItemOpen(path[i], true);
+        }
+
+        if (changed)
+        {
+            RefreshVisibleRows();
+        }
+        else
+        {
+            RebuildVisibleRows();
+        }
+
+        int index = IndexOfVisibleItem(item);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        EnsureVisible(index);
+        if (select)
+        {
+            ApplySelection(index, shift: false, ctrl: false);
+        }
+
+        return true;
+    }
+
+    public int IndexOfVisibleItem(UiTreeViewItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        for (int i = 0; i < _visibleRows.Count; i++)
+        {
+            if (ReferenceEquals(_visibleRows[i].Item, item))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     public override void Update(UiUpdateContext context)
     {
         if (!Visible || !Enabled)
@@ -142,15 +250,11 @@ public sealed class UiTreeView : UiElement
             return;
         }
 
-        RebuildVisibleRows();
-        _selectionModel?.SetItemCount(_visibleRows.Count);
-
-        int itemHeight = Math.Max(1, ItemHeight);
-        int viewportHeight = Math.Max(0, Bounds.Height);
-        _scrollOffset = UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset);
-        _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
+        RefreshVisibleRows();
 
         UiInputState input = context.Input;
+        int itemHeight = Math.Max(1, ItemHeight);
+        int viewportHeight = Math.Max(0, Bounds.Height);
         if (input.ScrollDelta != 0 && Bounds.Contains(input.MousePosition))
         {
             int steps = (int)Math.Round(input.ScrollDelta / 120f);
@@ -172,11 +276,8 @@ public sealed class UiTreeView : UiElement
                 VisibleRow hoveredRow = _visibleRows[_hoverIndex];
                 if (hoveredRow.Item.HasChildren && GetArrowBounds(_hoverIndex).Contains(input.MousePosition))
                 {
-                    hoveredRow.Item.IsOpen = !hoveredRow.Item.IsOpen;
-                    ItemToggled?.Invoke(hoveredRow.Item, hoveredRow.Item.IsOpen);
-                    RebuildVisibleRows();
-                    _selectionModel?.SetItemCount(_visibleRows.Count);
-                    _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
+                    SetItemOpen(hoveredRow.Item, !hoveredRow.Item.IsOpen);
+                    RefreshVisibleRows();
                     EnsureVisible(Math.Min(_hoverIndex, Math.Max(0, _visibleRows.Count - 1)));
                 }
                 else
@@ -188,7 +289,7 @@ public sealed class UiTreeView : UiElement
             {
                 if (_selectionModel != null)
                 {
-                    _selectionModel.Clear();
+                    _selectionModel.Clear(SelectionScope);
                 }
                 else
                 {
@@ -239,6 +340,11 @@ public sealed class UiTreeView : UiElement
             else if (index == _hoverIndex)
             {
                 context.Renderer.FillRect(rowRect, HoverColor);
+            }
+
+            if (ShowHierarchyLines)
+            {
+                DrawHierarchyLines(context, index, rowRect);
             }
 
             UiRect arrowBounds = GetArrowBounds(index);
@@ -325,10 +431,8 @@ public sealed class UiTreeView : UiElement
                 UiTreeViewItem item = _visibleRows[current].Item;
                 if (item.HasChildren)
                 {
-                    item.IsOpen = !item.IsOpen;
-                    ItemToggled?.Invoke(item, item.IsOpen);
-                    RebuildVisibleRows();
-                    _selectionModel?.SetItemCount(_visibleRows.Count);
+                    SetItemOpen(item, !item.IsOpen);
+                    RefreshVisibleRows();
                     EnsureVisible(Math.Min(current, Math.Max(0, _visibleRows.Count - 1)));
                 }
             }
@@ -346,10 +450,8 @@ public sealed class UiTreeView : UiElement
         VisibleRow row = _visibleRows[current];
         if (row.Item.HasChildren && row.Item.IsOpen)
         {
-            row.Item.IsOpen = false;
-            ItemToggled?.Invoke(row.Item, false);
-            RebuildVisibleRows();
-            _selectionModel?.SetItemCount(_visibleRows.Count);
+            SetItemOpen(row.Item, false);
+            RefreshVisibleRows();
             EnsureVisible(Math.Min(current, Math.Max(0, _visibleRows.Count - 1)));
             return;
         }
@@ -377,10 +479,8 @@ public sealed class UiTreeView : UiElement
 
         if (!row.Item.IsOpen)
         {
-            row.Item.IsOpen = true;
-            ItemToggled?.Invoke(row.Item, true);
-            RebuildVisibleRows();
-            _selectionModel?.SetItemCount(_visibleRows.Count);
+            SetItemOpen(row.Item, true);
+            RefreshVisibleRows();
             EnsureVisible(current);
             return;
         }
@@ -398,7 +498,7 @@ public sealed class UiTreeView : UiElement
         {
             if (_selectionModel != null)
             {
-                _selectionModel.Clear();
+                _selectionModel.Clear(SelectionScope);
             }
             else
             {
@@ -434,16 +534,17 @@ public sealed class UiTreeView : UiElement
         {
             if (index < 0)
             {
-                _selectionModel.Clear();
+                _selectionModel.Clear(SelectionScope);
             }
             else
             {
-                _selectionModel.ApplySelection(index, ctrl, shift);
+                _selectionModel.ApplySelection(index, ctrl, shift, SelectionScope);
             }
 
-            if (_selectionModel.PrimaryIndex >= 0)
+            int primary = _selectionModel.GetPrimaryIndex(SelectionScope);
+            if (primary >= 0)
             {
-                EnsureVisible(_selectionModel.PrimaryIndex);
+                EnsureVisible(primary);
             }
 
             return;
@@ -456,7 +557,7 @@ public sealed class UiTreeView : UiElement
     {
         if (_selectionModel != null)
         {
-            return _selectionModel.IsSelected(index);
+            return _selectionModel.IsSelected(index, SelectionScope);
         }
 
         return index == _selectedIndex;
@@ -496,7 +597,7 @@ public sealed class UiTreeView : UiElement
         }
 
         int previous = _selectedIndex;
-        _selectedIndex = _selectionModel.PrimaryIndex;
+        _selectedIndex = _selectionModel.GetPrimaryIndex(SelectionScope);
         if (_selectedIndex >= 0)
         {
             EnsureVisible(_selectedIndex);
@@ -572,6 +673,138 @@ public sealed class UiTreeView : UiElement
         {
             AddVisibleRows(RootItems[i], 0);
         }
+    }
+
+    private void RefreshVisibleRows()
+    {
+        RebuildVisibleRows();
+        _selectionModel?.SetItemCount(_visibleRows.Count, SelectionScope);
+        int itemHeight = Math.Max(1, ItemHeight);
+        int viewportHeight = Math.Max(0, Bounds.Height);
+        _scrollOffset = UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset);
+        _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
+    }
+
+    private static bool TryFindPath(IReadOnlyList<UiTreeViewItem> items, UiTreeViewItem target, List<UiTreeViewItem> path)
+    {
+        for (int i = 0; i < items.Count; i++)
+        {
+            UiTreeViewItem item = items[i];
+            path.Add(item);
+            if (ReferenceEquals(item, target))
+            {
+                return true;
+            }
+
+            if (TryFindPath(item.Children, target, path))
+            {
+                return true;
+            }
+
+            path.RemoveAt(path.Count - 1);
+        }
+
+        return false;
+    }
+
+    private bool SetOpenRecursive(IReadOnlyList<UiTreeViewItem> items, bool isOpen)
+    {
+        bool changed = false;
+        for (int i = 0; i < items.Count; i++)
+        {
+            changed |= SetOpenRecursive(items[i], isOpen);
+        }
+
+        return changed;
+    }
+
+    private bool SetOpenRecursive(UiTreeViewItem item, bool isOpen)
+    {
+        bool changed = SetItemOpen(item, isOpen);
+        for (int i = 0; i < item.Children.Count; i++)
+        {
+            changed |= SetOpenRecursive(item.Children[i], isOpen);
+        }
+
+        return changed;
+    }
+
+    private bool SetItemOpen(UiTreeViewItem item, bool isOpen)
+    {
+        if (!item.HasChildren || item.IsOpen == isOpen)
+        {
+            return false;
+        }
+
+        item.IsOpen = isOpen;
+        ItemToggled?.Invoke(item, isOpen);
+        return true;
+    }
+
+    private void DrawHierarchyLines(UiRenderContext context, int index, UiRect rowRect)
+    {
+        if (index < 0 || index >= _visibleRows.Count)
+        {
+            return;
+        }
+
+        VisibleRow row = _visibleRows[index];
+        int thickness = Math.Max(1, HierarchyLineThickness);
+        int midY = rowRect.Y + rowRect.Height / 2;
+        for (int depth = 0; depth < row.Depth; depth++)
+        {
+            if (HasContinuationAtDepth(index, depth))
+            {
+                DrawVerticalLine(context, GetConnectorX(depth), rowRect.Y, rowRect.Bottom, thickness);
+            }
+        }
+
+        if (row.Depth <= 0)
+        {
+            return;
+        }
+
+        int connectorX = GetConnectorX(row.Depth);
+        DrawVerticalLine(context, connectorX, rowRect.Y, midY + 1, thickness);
+        if (HasContinuationAtDepth(index, row.Depth))
+        {
+            DrawVerticalLine(context, connectorX, midY, rowRect.Bottom, thickness);
+        }
+
+        int textStart = GetArrowBounds(index).Right + Math.Max(0, ArrowPadding);
+        int horizontalWidth = Math.Max(thickness, textStart - connectorX);
+        context.Renderer.FillRect(new UiRect(connectorX, midY, horizontalWidth, thickness), HierarchyLineColor);
+    }
+
+    private void DrawVerticalLine(UiRenderContext context, int x, int top, int bottom, int thickness)
+    {
+        int height = Math.Max(thickness, bottom - top);
+        context.Renderer.FillRect(new UiRect(x, top, thickness, height), HierarchyLineColor);
+    }
+
+    private int GetConnectorX(int depth)
+    {
+        int size = Math.Max(4, ArrowSize);
+        return Bounds.X + Math.Max(0, Padding) + depth * Math.Max(1, IndentWidth) + size / 2;
+    }
+
+    private bool HasContinuationAtDepth(int index, int depth)
+    {
+        for (int i = index + 1; i < _visibleRows.Count; i++)
+        {
+            int nextDepth = _visibleRows[i].Depth;
+            if (nextDepth < depth)
+            {
+                return false;
+            }
+
+            if (nextDepth == depth)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void AddVisibleRows(UiTreeViewItem item, int depth)
