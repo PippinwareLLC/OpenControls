@@ -7,8 +7,8 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - `Quickstart.MD`: getting started guide.
 - `API.MD`: core types and controls reference.
 - `Samples.MD`: small usage examples.
-- `tools/parity/`: widget + demo parity manifests.
-- `scripts/verify-examples.ps1`: parity + build verification for the Examples demo.
+- `tools/parity/README.MD`: parity baseline, status board, and tracking notes.
+- `scripts/verify-phase0.sh`: lightweight Phase 0 parity verification hook.
 - `LICENSE.MD`: MIT license.
 
 ## Goals
@@ -44,9 +44,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - Run the MonoGame examples: `dotnet run --project OpenControls.MonoGame.Examples/OpenControls.MonoGame.Examples.csproj`
 - Run the OpenGL examples: `dotnet run --project OpenControls.OpenGL.Examples/OpenControls.OpenGL.Examples.csproj`
 - Run the Silk.NET examples: `dotnet run --project OpenControls.SilkNet.Examples/OpenControls.SilkNet.Examples.csproj`
-- Run parity verification (widgets + demos): `powershell -ExecutionPolicy Bypass -File scripts/verify-parity.ps1`
-- Run demo parity + build verification: `powershell -ExecutionPolicy Bypass -File scripts/verify-examples.ps1`
-- Refresh parity manifests after adding/removing widgets or demo markers: `powershell -ExecutionPolicy Bypass -File scripts/verify-parity.ps1 -Update`
+- Run the current Phase 0 verification hook: `bash scripts/verify-phase0.sh`
 
 ## Demo Parity (OpenControls.Examples)
 The Widgets window in `OpenControls.Examples` mirrors the structure of the reference demo source. Every demo marker was replaced with a working OpenControls demo panel so the tree now maps to the same sections (Help & Configuration, Menu, Basic widgets, Text, Sliders, Drag & Drop, Tables, Layout, Inputs & Focus, Tools, Examples, etc.).
@@ -60,22 +58,21 @@ Parity deviations (documented and intentional):
 - Item/window status queries: status labels use hit-testing and focus tracking, not the full item status flag set.
 
 ## Parity Tracking
-OpenControls tracks parity with the reference snapshot using two sources and two manifests:
-- `widgets/`: analyzed widget references from the reference snapshot (one file per widget).
-- `DEMO_MARKERS_run-20260123-031959-5835.md`: extracted demo markers from the reference demo source.
-- `tools/parity/widgets.json`: maps each widget entry to OpenControls implementation references.
-- `tools/parity/demo-markers.json`: maps each demo marker to OpenControls.Examples coverage.
+Phase 0 parity tracking now lives in checked-in markdown files:
+- `tools/parity/README.MD`: entry point for parity tracking.
+- `tools/parity/BASELINE.MD`: frozen Dear ImGui target, scope buckets, and verification notes.
+- `tools/parity/STATUS.MD`: current status board that maps major parity areas to roadmap milestones.
+- `IMGUI_PARITY_ATTACK_PLAN.MD`: execution roadmap and milestone checklists.
 
-Parity workflow:
-1. Update widgets or demo markers, then run `scripts/verify-parity.ps1 -Update` to refresh manifests.
-2. Mark each entry with a completion status (`done`, `covered`, `implemented`, or `complete`) and add implementation/example paths or notes.
-3. Use relative paths in `implementation` or `examples` to point at the relevant code or example location (files or directories).
-4. Run `scripts/verify-parity.ps1` to enforce widget + demo parity coverage.
+Current Phase 0 workflow:
+1. Review `tools/parity/BASELINE.MD` before changing what "parity" means.
+2. Update `tools/parity/STATUS.MD` when priorities or milestone ordering change.
+3. Run `bash scripts/verify-phase0.sh` to verify the baseline files exist and the core/shared-examples projects still build.
+4. Use `IMGUI_PARITY_ATTACK_PLAN.MD` as the working implementation roadmap.
 
-Parity validation rules:
-- Every widget entry must be marked complete and have at least one `implementation` path or a `notes` entry.
-- Every demo marker must be marked complete and have at least one `examples` path or a `notes` entry.
-- Paths are checked for existence to keep the manifests anchored to real code or example locations.
+Historical note:
+- Earlier README text referenced extracted `widgets/` sources, demo marker artifacts, and PowerShell parity scripts.
+- Those assets and scripts are not checked into this repo snapshot, so Phase 0 replaces them with a truthful baseline and status board.
 
 ## Project Status Matrix
 | Project | Type | Status | Notes |
