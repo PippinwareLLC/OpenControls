@@ -1,4 +1,5 @@
 using OpenControls.Controls;
+using System.Reflection;
 using Xunit;
 
 namespace OpenControls.Tests;
@@ -56,17 +57,17 @@ public sealed class UiTabStripScrollTests
         host.AddWindow(new UiWindow { Title = "Collaboration / Review Notes" });
 
         Update(host, new UiInputState());
+        UiRect scrollRightBounds = GetPrivateRect(host, "_scrollRightBounds");
         UiRect before = host.GetTabBounds(0);
 
         Update(host, new UiInputState
         {
-            MousePosition = new UiPoint(210, 12),
-            ScreenMousePosition = new UiPoint(210, 12),
+            MousePosition = new UiPoint(scrollRightBounds.X + scrollRightBounds.Width / 2, scrollRightBounds.Y + scrollRightBounds.Height / 2),
+            ScreenMousePosition = new UiPoint(scrollRightBounds.X + scrollRightBounds.Width / 2, scrollRightBounds.Y + scrollRightBounds.Height / 2),
             LeftClicked = true
         });
 
         UiRect afterClick = host.GetTabBounds(0);
-        Console.WriteLine($"dock before={before.X}, after={afterClick.X}");
         Assert.True(afterClick.X < before.X);
 
         Update(host, new UiInputState());
@@ -85,4 +86,11 @@ public sealed class UiTabStripScrollTests
             UiFont.Default,
             new UiMemoryClipboard()));
     }
+
+    private static UiRect GetPrivateRect(object instance, string fieldName)
+    {
+        FieldInfo? field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        return Assert.IsType<UiRect>(field?.GetValue(instance));
+    }
+
 }

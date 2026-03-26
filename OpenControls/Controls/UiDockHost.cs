@@ -338,6 +338,28 @@ public sealed class UiDockHost : UiElement
             handledInteraction = true;
         }
 
+        if (!handledInteraction && input.LeftClicked)
+        {
+            if (_tabsOverflow && _scrollLeftHover && _tabScrollOffset > 0)
+            {
+                _keepActiveTabVisible = false;
+                ScrollTabs(-1);
+                _overflowMenuOpen = false;
+                _contextMenuOpen = false;
+                _contextMenuTabIndex = -1;
+                handledInteraction = true;
+            }
+            else if (_tabsOverflow && _scrollRightHover && _tabScrollOffset < _tabMaxScroll)
+            {
+                _keepActiveTabVisible = false;
+                ScrollTabs(1);
+                _overflowMenuOpen = false;
+                _contextMenuOpen = false;
+                _contextMenuTabIndex = -1;
+                handledInteraction = true;
+            }
+        }
+
         if (!handledInteraction && input.RightClicked && ShowTabContextMenu)
         {
             int tabIndex = GetTabIndexAt(input.MousePosition);
@@ -402,25 +424,7 @@ public sealed class UiDockHost : UiElement
 
         if (!handledInteraction && input.LeftClicked)
         {
-            if (_tabsOverflow && _scrollLeftHover && _tabScrollOffset > 0)
-            {
-                ScrollTabs(-1);
-                _keepActiveTabVisible = false;
-                _overflowMenuOpen = false;
-                _contextMenuOpen = false;
-                _contextMenuTabIndex = -1;
-                handledInteraction = true;
-            }
-            else if (_tabsOverflow && _scrollRightHover && _tabScrollOffset < _tabMaxScroll)
-            {
-                ScrollTabs(1);
-                _keepActiveTabVisible = false;
-                _overflowMenuOpen = false;
-                _contextMenuOpen = false;
-                _contextMenuTabIndex = -1;
-                handledInteraction = true;
-            }
-            else if (_closeHoverIndex >= 0 && CanCloseWindow(_closeHoverIndex))
+            if (_closeHoverIndex >= 0 && CanCloseWindow(_closeHoverIndex))
             {
                 _closePressedIndex = _closeHoverIndex;
                 _dragWindow = null;
