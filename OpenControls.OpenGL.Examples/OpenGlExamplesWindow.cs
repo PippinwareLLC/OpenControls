@@ -102,6 +102,7 @@ public sealed class OpenGlExamplesWindow : GameWindow
     ];
 
     private readonly List<char> _textInputBuffer = new();
+    private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
     private OpenGLUiRenderer? _renderer;
     private TinyBitmapFont? _font;
     private ExamplesUi? _ui;
@@ -334,16 +335,16 @@ public sealed class OpenGlExamplesWindow : GameWindow
             KeysReleased = BuildKeyList(currentKeyboard, previousKeyboard, pressedOnly: false, releasedOnly: true),
             Navigation = new UiNavigationInput
             {
-                MoveLeft = IsPressed(currentKeyboard, previousKeyboard, Keys.Left),
-                MoveRight = IsPressed(currentKeyboard, previousKeyboard, Keys.Right),
-                MoveUp = IsPressed(currentKeyboard, previousKeyboard, Keys.Up),
-                MoveDown = IsPressed(currentKeyboard, previousKeyboard, Keys.Down),
-                PageUp = IsPressed(currentKeyboard, previousKeyboard, Keys.PageUp),
-                PageDown = IsPressed(currentKeyboard, previousKeyboard, Keys.PageDown),
-                Home = IsPressed(currentKeyboard, previousKeyboard, Keys.Home),
-                End = IsPressed(currentKeyboard, previousKeyboard, Keys.End),
-                Backspace = IsPressed(currentKeyboard, previousKeyboard, Keys.Backspace),
-                Delete = IsPressed(currentKeyboard, previousKeyboard, Keys.Delete),
+                MoveLeft = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Left, UiKey.Left),
+                MoveRight = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Right, UiKey.Right),
+                MoveUp = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Up, UiKey.Up),
+                MoveDown = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Down, UiKey.Down),
+                PageUp = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.PageUp, UiKey.PageUp),
+                PageDown = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.PageDown, UiKey.PageDown),
+                Home = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Home, UiKey.Home),
+                End = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.End, UiKey.End),
+                Backspace = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Backspace, UiKey.Backspace),
+                Delete = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Delete, UiKey.Delete),
                 Tab = IsPressed(currentKeyboard, previousKeyboard, Keys.Tab),
                 Enter = IsPressed(currentKeyboard, previousKeyboard, Keys.Enter),
                 KeypadEnter = IsPressed(currentKeyboard, previousKeyboard, Keys.KeyPadEnter),
@@ -442,5 +443,11 @@ public sealed class OpenGlExamplesWindow : GameWindow
     private static bool IsPressed(KeyboardState current, KeyboardState previous, Keys key)
     {
         return current.IsKeyDown(key) && !previous.IsKeyDown(key);
+    }
+
+    private bool IsNavigationTriggered(KeyboardState current, KeyboardState previous, Keys key, UiKey uiKey)
+    {
+        bool justPressed = IsPressed(current, previous, key);
+        return justPressed || _keyRepeatTracker.IsRepeatDue(uiKey, current.IsKeyDown(key), justPressed, _elapsedSeconds);
     }
 }

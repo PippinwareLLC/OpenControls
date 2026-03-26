@@ -126,6 +126,7 @@ Planned expansion:
 - `UiContext` now also exposes per-frame item/container query snapshots (`LastItemState`, hovered/focused item, containing container, active input layer), visible-bounds helpers, and stronger focus APIs such as focus-by-id and next-frame focus requests.
 - `UiContext` now also exposes `Clipboard`, with a default in-memory implementation plus host-swappable clipboard adapters for copy/cut/paste-aware controls.
 - `UiInputState` also carries double-click state, drag origins/thresholds, and horizontal wheel deltas for richer host input plumbing.
+- The shipped example and editor hosts now generate held-key repeat for repeatable navigation/editing keys like arrows, backspace/delete, home/end, and page up/down.
 - Checkbox, radio, slider, drag (scalar/vector/range with log scaling), progress bar (horizontal/vertical, segmented, radial), list box, combo box, selectable, color button, and separator controls are available.
 - Table controls with column headers and selectable rows are available.
 - Table headers support angled labels and sortable columns via `UiTable.UseAngledHeaders` and `UiTable.SortSpecs`.

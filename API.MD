@@ -259,6 +259,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiInputState.ShiftDown`/`CtrlDown` still drive range/toggle selection for multi-select, and `PrimaryShortcutDown` / `IsPrimaryShortcutPressed(...)` provide a simple Ctrl-or-Super shortcut helper.
 - `UiInputState.KeysDown`, `KeysPressed`, and `KeysReleased` expose named key state, and `IsKeyPressed(...)` / `IsKeyChordPressed(...)` help with shortcut handling.
 - Prefer platform text input events (for example MonoGame `GameWindow.TextInput`, Silk.NET `IKeyboard.KeyChar`, or SDL `SDL_TEXTINPUT`) for `UiInputState.TextInput`; use key mapping as a fallback.
+- The shipped example/editor hosts also generate held-key repeat for repeatable navigation/editing keys such as arrows, backspace/delete, home/end, and page up/down.
 - `UiContext` skips Tab traversal when the focused element reports `HandlesTabInput` (used by `UiTextEditor.AllowTabInput`).
 - When `UiContext` moves focus via Tab, it consumes the Tab input so the newly focused element does not receive a tab insert.
 - `UiNavigationInput.Activate` is true for Enter, Keypad Enter, or Space.

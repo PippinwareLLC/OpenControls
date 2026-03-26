@@ -86,6 +86,7 @@ public sealed class EditorGame : Game
     private readonly IUiClipboard _clipboard = new UiMemoryClipboard();
     private readonly List<char> _textInputBuffer = new();
     private readonly List<EditorControlEntry> _controls = new();
+    private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
 
     private SpriteBatch? _spriteBatch;
     private Texture2D? _pixel;
@@ -211,7 +212,7 @@ public sealed class EditorGame : Game
         }
 
         UpdateLayout(GraphicsDevice.Viewport);
-        UiInputState input = BuildInputState(keyboardState, _previousKeyboard, mouseState, _previousMouse);
+        UiInputState input = BuildInputState(keyboardState, _previousKeyboard, mouseState, _previousMouse, gameTime.TotalGameTime.TotalSeconds);
         HandleDesignSurfaceSelection(input);
         _context.Update(input, (float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateWindowContent();
@@ -1527,7 +1528,8 @@ public sealed class EditorGame : Game
         KeyboardState currentKeyboard,
         KeyboardState previousKeyboard,
         MouseState currentMouse,
-        MouseState previousMouse)
+        MouseState previousMouse,
+        double currentTimeSeconds)
     {
         UiPoint mousePosition = new UiPoint(currentMouse.X, currentMouse.Y);
         IReadOnlyList<char> textInput = ConsumeTextInput();
@@ -1554,16 +1556,16 @@ public sealed class EditorGame : Game
             KeysReleased = MapKeys(GetReleasedKeys(currentKeyboard, previousKeyboard)),
             Navigation = new UiNavigationInput
             {
-                MoveLeft = IsPressed(currentKeyboard, previousKeyboard, Keys.Left),
-                MoveRight = IsPressed(currentKeyboard, previousKeyboard, Keys.Right),
-                MoveUp = IsPressed(currentKeyboard, previousKeyboard, Keys.Up),
-                MoveDown = IsPressed(currentKeyboard, previousKeyboard, Keys.Down),
-                PageUp = IsPressed(currentKeyboard, previousKeyboard, Keys.PageUp),
-                PageDown = IsPressed(currentKeyboard, previousKeyboard, Keys.PageDown),
-                Home = IsPressed(currentKeyboard, previousKeyboard, Keys.Home),
-                End = IsPressed(currentKeyboard, previousKeyboard, Keys.End),
-                Backspace = IsPressed(currentKeyboard, previousKeyboard, Keys.Back),
-                Delete = IsPressed(currentKeyboard, previousKeyboard, Keys.Delete),
+                MoveLeft = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Left, UiKey.Left, currentTimeSeconds),
+                MoveRight = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Right, UiKey.Right, currentTimeSeconds),
+                MoveUp = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Up, UiKey.Up, currentTimeSeconds),
+                MoveDown = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Down, UiKey.Down, currentTimeSeconds),
+                PageUp = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.PageUp, UiKey.PageUp, currentTimeSeconds),
+                PageDown = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.PageDown, UiKey.PageDown, currentTimeSeconds),
+                Home = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Home, UiKey.Home, currentTimeSeconds),
+                End = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.End, UiKey.End, currentTimeSeconds),
+                Backspace = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Back, UiKey.Backspace, currentTimeSeconds),
+                Delete = IsNavigationTriggered(currentKeyboard, previousKeyboard, Keys.Delete, UiKey.Delete, currentTimeSeconds),
                 Tab = IsPressed(currentKeyboard, previousKeyboard, Keys.Tab),
                 Enter = IsPressed(currentKeyboard, previousKeyboard, Keys.Enter),
                 KeypadEnter = IsPressed(currentKeyboard, previousKeyboard, Keys.Enter),
@@ -1614,6 +1616,12 @@ public sealed class EditorGame : Game
     private static bool IsPressed(KeyboardState current, KeyboardState previous, Keys key)
     {
         return current.IsKeyDown(key) && previous.IsKeyUp(key);
+    }
+
+    private bool IsNavigationTriggered(KeyboardState current, KeyboardState previous, Keys key, UiKey uiKey, double currentTimeSeconds)
+    {
+        bool justPressed = IsPressed(current, previous, key);
+        return justPressed || _keyRepeatTracker.IsRepeatDue(uiKey, current.IsKeyDown(key), justPressed, currentTimeSeconds);
     }
 
     private static UiKey[] MapKeys(IEnumerable<Keys> keys)

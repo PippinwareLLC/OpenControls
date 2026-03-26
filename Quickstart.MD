@@ -187,6 +187,7 @@ ui.Render(renderer);
 
 ## Notes
 - `UiTextField` and `UiTextEditor` expect `TextInput` and `Navigation` for editing.
+- Shipped example/editor hosts now generate held-key repeat for repeatable navigation/editing keys like arrows, backspace/delete, home/end, and page up/down; activation keys like enter/space stay one-shot.
 - `UiTextField` now includes selection, copy/cut/paste, undo/redo, password/read-only/filtering modes, completion/history callbacks, and resize callbacks for single-line editor workflows.
 - `UiTextEditor` now includes mouse/keyboard selection, copy/cut/paste, undo/redo, word/page/home/end navigation, and editor events for multiline workflows.
 - Additional controls include `UiCheckbox`, `UiRadioButton`, `UiSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`, `UiProgressBar`, `UiListBox`, `UiComboBox`, `UiTable`, `UiPlotPanel`, `UiWaveform`, `UiGrid`, `UiCanvas`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiSelectable`, `UiSeparator`, `UiSplitter`, `UiScrollPanel`, `UiTextEditor`, `UiTreeNode`, `UiCollapsingHeader`, `UiPopup`, `UiModal`, `UiModalHost`, and `UiTooltip`.

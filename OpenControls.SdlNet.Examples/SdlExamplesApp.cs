@@ -127,6 +127,7 @@ public sealed class SdlExamplesApp : IDisposable
     private int _scrollDeltaX;
     private int _scrollDelta;
     private readonly List<char> _textInputBuffer = new();
+    private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
 
     public void Run()
     {
@@ -396,16 +397,16 @@ public sealed class SdlExamplesApp : IDisposable
             KeysReleased = BuildKeyList(pressedOnly: false, releasedOnly: true),
             Navigation = new UiNavigationInput
             {
-                MoveLeft = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_LEFT),
-                MoveRight = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_RIGHT),
-                MoveUp = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_UP),
-                MoveDown = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_DOWN),
-                PageUp = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_PAGEUP),
-                PageDown = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_PAGEDOWN),
-                Home = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_HOME),
-                End = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_END),
-                Backspace = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_BACKSPACE),
-                Delete = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_DELETE),
+                MoveLeft = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_LEFT, UiKey.Left),
+                MoveRight = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_RIGHT, UiKey.Right),
+                MoveUp = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_UP, UiKey.Up),
+                MoveDown = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_DOWN, UiKey.Down),
+                PageUp = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_PAGEUP, UiKey.PageUp),
+                PageDown = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_PAGEDOWN, UiKey.PageDown),
+                Home = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_HOME, UiKey.Home),
+                End = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_END, UiKey.End),
+                Backspace = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_BACKSPACE, UiKey.Backspace),
+                Delete = IsNavigationTriggered(SDL.SDL_Scancode.SDL_SCANCODE_DELETE, UiKey.Delete),
                 Tab = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_TAB),
                 Enter = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_RETURN),
                 KeypadEnter = IsPressed(SDL.SDL_Scancode.SDL_SCANCODE_KP_ENTER),
@@ -542,6 +543,23 @@ public sealed class SdlExamplesApp : IDisposable
         }
 
         return _currentKeyStates[index] != 0 && _previousKeyStates[index] == 0;
+    }
+
+    private bool IsDown(SDL.SDL_Scancode scancode)
+    {
+        int index = (int)scancode;
+        if (index < 0 || index >= _keyCount)
+        {
+            return false;
+        }
+
+        return _currentKeyStates[index] != 0;
+    }
+
+    private bool IsNavigationTriggered(SDL.SDL_Scancode scancode, UiKey uiKey)
+    {
+        bool justPressed = IsPressed(scancode);
+        return justPressed || _keyRepeatTracker.IsRepeatDue(uiKey, IsDown(scancode), justPressed, _elapsedSeconds);
     }
 
     private void Render()

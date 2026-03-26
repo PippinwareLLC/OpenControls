@@ -112,6 +112,7 @@ public sealed class SilkExamplesApp : IDisposable
     private readonly Dictionary<Key, bool> _previousKeyStates = new();
     private readonly Dictionary<Key, bool> _currentKeyStates = new();
     private readonly List<char> _textInputBuffer = new();
+    private readonly UiKeyRepeatTracker _keyRepeatTracker = new();
 
     private GL? _gl;
     private IInputContext? _input;
@@ -364,16 +365,16 @@ public sealed class SilkExamplesApp : IDisposable
             KeysReleased = BuildKeyList(includeDown: false, includePressed: false, includeReleased: true),
             Navigation = new UiNavigationInput
             {
-                MoveLeft = WasPressed(Key.Left),
-                MoveRight = WasPressed(Key.Right),
-                MoveUp = WasPressed(Key.Up),
-                MoveDown = WasPressed(Key.Down),
-                PageUp = WasPressed(Key.PageUp),
-                PageDown = WasPressed(Key.PageDown),
-                Home = WasPressed(Key.Home),
-                End = WasPressed(Key.End),
-                Backspace = WasPressed(Key.Backspace),
-                Delete = WasPressed(Key.Delete),
+                MoveLeft = IsNavigationTriggered(Key.Left, UiKey.Left),
+                MoveRight = IsNavigationTriggered(Key.Right, UiKey.Right),
+                MoveUp = IsNavigationTriggered(Key.Up, UiKey.Up),
+                MoveDown = IsNavigationTriggered(Key.Down, UiKey.Down),
+                PageUp = IsNavigationTriggered(Key.PageUp, UiKey.PageUp),
+                PageDown = IsNavigationTriggered(Key.PageDown, UiKey.PageDown),
+                Home = IsNavigationTriggered(Key.Home, UiKey.Home),
+                End = IsNavigationTriggered(Key.End, UiKey.End),
+                Backspace = IsNavigationTriggered(Key.Backspace, UiKey.Backspace),
+                Delete = IsNavigationTriggered(Key.Delete, UiKey.Delete),
                 Tab = WasPressed(Key.Tab),
                 Enter = WasPressed(Key.Enter),
                 KeypadEnter = WasPressed(Key.KeypadEnter),
@@ -534,6 +535,12 @@ public sealed class SilkExamplesApp : IDisposable
         bool current = _currentKeyStates.TryGetValue(key, out bool isDown) && isDown;
         bool previous = _previousKeyStates.TryGetValue(key, out bool wasDown) && wasDown;
         return current && !previous;
+    }
+
+    private bool IsNavigationTriggered(Key key, UiKey uiKey)
+    {
+        bool justPressed = WasPressed(key);
+        return justPressed || _keyRepeatTracker.IsRepeatDue(uiKey, IsDown(key), justPressed, _elapsedSeconds);
     }
 
     private void CloseWindow()
