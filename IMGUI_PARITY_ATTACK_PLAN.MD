@@ -11,6 +11,7 @@ The goal is not to clone Dear ImGui's immediate-mode API one-to-one. The goal is
 - [ ] Treat "demo parity" and "product parity" separately.
 - [ ] Ship in slices that leave the examples app better after every milestone.
 - [ ] Add docs and examples in the same milestone as the feature, not later.
+- [ ] Treat exhaustive widget-option example coverage as a first-class deliverable, not cleanup polish.
 - [ ] Keep renderer adapters thin; put behavior in `OpenControls` where possible.
 - [ ] Avoid introducing host-specific logic into core controls unless the feature truly belongs there.
 
@@ -21,7 +22,8 @@ The goal is not to clone Dear ImGui's immediate-mode API one-to-one. The goal is
 - [x] Text rendering supports custom fonts, Unicode/icon glyph ranges, and merged icon fonts instead of only the built-in bitmap path.
 - [ ] Text entry is editor-grade for common tooling workflows.
 - [ ] Tables, lists, trees, and selection scale to large datasets.
-- [ ] OpenControls examples demonstrate credible coverage for the major Dear ImGui demo sections without hand-wavy simulation.
+- [ ] `OpenControls.Examples` exhaustively demonstrates every public widget and every meaningful shipped option, mode, and interaction path, or documents the omission explicitly.
+- [ ] `tools/parity/WIDGET_DEMO_COVERAGE.MD` stays in sync with the real example app.
 - [ ] Every milestone has exit criteria, docs, and examples.
 
 ## Cross-Cutting Definition Of Done
@@ -30,6 +32,7 @@ Every milestone below is only complete when all of these are checked:
 
 - [ ] Public API reviewed for naming consistency with existing `Ui*` types.
 - [ ] Shared examples updated.
+- [ ] `tools/parity/WIDGET_DEMO_COVERAGE.MD` updated for any new public widget surface or demo-coverage change.
 - [ ] API docs updated in `API.MD`.
 - [ ] Sample usage added to `Samples.MD` or `Quickstart.MD` where appropriate.
 - [ ] At least one verification path exists for the new behavior.
@@ -41,6 +44,13 @@ Every milestone below is only complete when all of these are checked:
 - A milestone is only called complete when its required checklist items and exit criteria are fully checked.
 - Mutually exclusive design decisions should be recorded as a chosen baseline plus deferred alternatives, not as permanently half-checked checkbox groups.
 - Optional or post-baseline work should live in a clearly named deferred follow-on subsection so it does not make a shipped milestone read as incomplete.
+
+## Widget Demo Coverage Rule
+
+- `tools/parity/WIDGET_DEMO_COVERAGE.MD` is the canonical checklist for the shared example app.
+- "Implemented but not shown" does not count as demo-complete.
+- New public widgets, meaningful widget options, and intentionally omitted demo states should update that matrix in the same change that changes the underlying surface area.
+- Milestones can land before the entire matrix is complete, but each milestone still needs to improve honest example coverage for the surface it introduces or changes.
 
 ## Phase 0: Baseline, Scope Freeze, And Tracking
 
@@ -705,6 +715,8 @@ Once the infrastructure and core widgets are stronger, the examples app can stop
 ### Checklist
 
 - [ ] Replace simulated examples with real feature usage throughout `OpenControls.Examples`.
+- [ ] Drive the examples backlog from `tools/parity/WIDGET_DEMO_COVERAGE.MD` until every public widget and meaningful option is either demonstrated live or explicitly documented as intentionally omitted.
+- [ ] Add dedicated "widget gallery" coverage sections where needed so option discovery does not depend on reading source or guessing hidden interactions.
 - [ ] Build a richer style editor:
   - [ ] color editing
   - [ ] spacing/padding controls
@@ -735,7 +747,8 @@ Once the infrastructure and core widgets are stronger, the examples app can stop
 
 ### Exit Criteria
 
-- [ ] The examples app is a trustworthy parity showcase, not just a structure-matching demo tree.
+- [ ] The examples app is a trustworthy, exhaustive widget gallery rather than a structure-matching demo tree.
+- [ ] `tools/parity/WIDGET_DEMO_COVERAGE.MD` is either fully checked or contains explicit omission notes for anything intentionally not surfaced.
 - [ ] The repo has a believable validation path for editor-scale workflows, not just isolated widget demos.
 
 ## Stretch Goals / Parking Lot

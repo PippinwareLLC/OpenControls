@@ -8,6 +8,7 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 - `API.MD`: core types and controls reference.
 - `Samples.MD`: small usage examples.
 - `tools/parity/README.MD`: parity baseline, status board, and tracking notes.
+- `tools/parity/WIDGET_DEMO_COVERAGE.MD`: exhaustive widget and option coverage checklist for `OpenControls.Examples`.
 - `scripts/verify-phase0.sh`: lightweight Phase 0 parity verification hook.
 - `LICENSE.MD`: MIT license.
 
@@ -51,6 +52,11 @@ OpenControls is a lightweight, renderer-agnostic UI logic library. It keeps cont
 ## Demo Parity (OpenControls.Examples)
 The Widgets window in `OpenControls.Examples` mirrors the structure of the reference demo source. Every demo marker was replaced with a working OpenControls demo panel so the tree now maps to the same sections (Help & Configuration, Menu, Basic widgets, Text, Sliders, Drag & Drop, Tables, Layout, Inputs & Focus, Tools, Examples, etc.).
 
+Exhaustive demo coverage is now a tracked requirement, not an informal goal:
+- `tools/parity/WIDGET_DEMO_COVERAGE.MD` is the canonical checklist for which widgets, options, modes, and interaction paths are visibly demonstrated in `OpenControls.Examples`.
+- "Implemented but not shown" does not count as demo-complete.
+- New public widgets or meaningful widget options should update the matrix in the same change that introduces them.
+
 Parity deviations (documented and intentional):
 - Shortcut routing depth: `UiContext` now exposes scoped shortcut helpers with focused/hovered/global precedence, but `UiMenuBar.MenuItem.Shortcut` remains display-only and app command binding is still app-defined.
 - Drag/slider flags: the demo toggles whole-number snapping and step size; advanced flags like logarithmic and always-clamp are not available.
@@ -63,19 +69,21 @@ Phase 0 parity tracking now lives in checked-in markdown files:
 - `tools/parity/README.MD`: entry point for parity tracking.
 - `tools/parity/BASELINE.MD`: frozen Dear ImGui target, scope buckets, and verification notes.
 - `tools/parity/STATUS.MD`: current status board that maps major parity areas to roadmap milestones.
+- `tools/parity/WIDGET_DEMO_COVERAGE.MD`: exhaustive example-app coverage matrix for public widgets and options.
 - `IMGUI_PARITY_ATTACK_PLAN.MD`: execution roadmap and milestone checklists.
 
 Current Phase 0 workflow:
 1. Review `tools/parity/BASELINE.MD` before changing what "parity" means.
 2. Update `tools/parity/STATUS.MD` when priorities or milestone ordering change.
-3. Refresh `README.MD` whenever a milestone lands, parity caveats change, or the recommended next milestone changes.
-4. If no milestone has landed recently, do a quick README truthfulness pass before starting the next major parity phase so the top-level docs do not drift.
-5. Run `bash scripts/verify-phase0.sh` to verify the baseline files exist and the core/shared-examples projects still build.
-6. Use `IMGUI_PARITY_ATTACK_PLAN.MD` as the working implementation roadmap.
+3. Update `tools/parity/WIDGET_DEMO_COVERAGE.MD` whenever widget surface area, example coverage, or intentional omissions change.
+4. Refresh `README.MD` whenever a milestone lands, parity caveats change, or the recommended next milestone changes.
+5. If no milestone has landed recently, do a quick README truthfulness pass before starting the next major parity phase so the top-level docs do not drift.
+6. Run `bash scripts/verify-phase0.sh` to verify the baseline files exist and the core/shared-examples projects still build.
+7. Use `IMGUI_PARITY_ATTACK_PLAN.MD` as the working implementation roadmap.
 
 Documentation cadence:
 - Treat the top-level `README.MD` as the public truth source for current parity, reference host guidance, and major caveats.
-- Update `README.MD`, `tools/parity/STATUS.MD`, and any affected API/quickstart docs in the same pass when milestone status changes.
+- Update `README.MD`, `tools/parity/STATUS.MD`, `tools/parity/WIDGET_DEMO_COVERAGE.MD`, and any affected API/quickstart docs in the same pass when milestone status changes or demo coverage meaningfully changes.
 - Do not let the roadmap become more current than the README for shipped behavior.
 
 Historical note:
