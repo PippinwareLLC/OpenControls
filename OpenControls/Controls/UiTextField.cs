@@ -102,9 +102,15 @@ public sealed class UiTextField : UiElement
 
         if (_focused && _caretVisible)
         {
+            int caretWidth = Math.Max(1, TextScale);
             int caretX = textX + context.Renderer.MeasureTextWidth(Text[..CaretIndex], TextScale);
+            if (CaretIndex > 0)
+            {
+                caretX -= caretWidth;
+            }
+
             int caretHeight = context.Renderer.MeasureTextHeight(TextScale);
-            context.Renderer.FillRect(new UiRect(caretX, textY, 1, caretHeight), CaretColor);
+            context.Renderer.FillRect(new UiRect(caretX, textY, caretWidth, caretHeight), CaretColor);
         }
 
         context.Renderer.PopClip();
