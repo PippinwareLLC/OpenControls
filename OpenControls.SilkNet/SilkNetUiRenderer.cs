@@ -230,6 +230,21 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         Flush(activeTexture, quadCount);
     }
 
+    public void DrawTexture(uint textureId, UiRect rect, bool flipVertical = false, UiColor? tint = null)
+    {
+        if (textureId == 0 || rect.Width <= 0 || rect.Height <= 0)
+        {
+            return;
+        }
+
+        UiColor drawColor = tint ?? UiColor.White;
+        float vTop = flipVertical ? 1f : 0f;
+        float vBottom = flipVertical ? 0f : 1f;
+        int quadCount = 0;
+        AppendQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, 0f, vTop, 1f, vBottom, drawColor, ref quadCount);
+        Flush(textureId, quadCount);
+    }
+
     public int MeasureTextWidth(string text, int scale = 1)
     {
         return MeasureTextWidth(text, scale, null);

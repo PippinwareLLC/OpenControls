@@ -17,6 +17,8 @@ public sealed class UiScaledRenderer : IUiRenderer
 
     public UiDpiCompensation DpiCompensation => _dpi;
 
+    public IUiRenderer InnerRenderer => _inner;
+
     public UiFont DefaultFont
     {
         get => _defaultFont;
