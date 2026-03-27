@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Silk.NET.OpenGL;
 
@@ -5,6 +6,31 @@ namespace OpenControls.SilkNet;
 
 public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 {
+    private enum MetricKind
+    {
+        FillRect,
+        DrawRect,
+        DrawText,
+        DrawTexture,
+        Flush,
+        PushClip,
+        PopClip,
+        MeasureTextWidth,
+        MeasureTextHeight
+    }
+
+    private struct MetricAccumulator
+    {
+        public int Calls;
+        public long Ticks;
+
+        public void Add(long elapsedTicks)
+        {
+            Calls++;
+            Ticks += elapsedTicks;
+        }
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct UiVertex
     {
@@ -51,8 +77,13 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     private readonly uint _whiteTexture;
     private readonly int _viewportUniformLocation;
     private readonly int _textureUniformLocation;
+    private readonly MetricAccumulator[] _metricAccumulators = new MetricAccumulator[Enum.GetValues<MetricKind>().Length];
     private bool _scissorEnabled;
     private bool _disposed;
+    private bool _metricsActive;
+    private long _metricsSequence;
+    private uint _batchedTextureId;
+    private int _batchedQuadCount;
     private int _viewportWidth = 1;
     private int _viewportHeight = 1;
 
@@ -117,45 +148,95 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         }
     }
 
+    public bool MetricsEnabled { get; set; }
+
+    public UiRenderMetricsSnapshot LastMetricsSnapshot { get; private set; } = UiRenderMetricsSnapshot.Empty;
+
     public void SetViewportSize(int width, int height)
     {
+        FlushPending();
         _viewportWidth = Math.Max(1, width);
         _viewportHeight = Math.Max(1, height);
         _gl.Viewport(0, 0, (uint)_viewportWidth, (uint)_viewportHeight);
     }
 
-    public void FillRect(UiRect rect, UiColor color)
+    public void BeginMetricsFrame()
     {
-        if (rect.Width <= 0 || rect.Height <= 0)
+        if (!MetricsEnabled)
         {
+            _metricsActive = false;
             return;
         }
 
-        int quadCount = 0;
-        AppendQuad(_whiteTexture, rect.X, rect.Y, rect.Width, rect.Height, 0f, 0f, 1f, 1f, color, ref quadCount);
-        Flush(_whiteTexture, quadCount);
+        Array.Clear(_metricAccumulators, 0, _metricAccumulators.Length);
+        FlushPending();
+        _metricsActive = true;
+    }
+
+    public UiRenderMetricsSnapshot EndMetricsFrame()
+    {
+        FlushPending();
+        if (!_metricsActive)
+        {
+            LastMetricsSnapshot = UiRenderMetricsSnapshot.Empty;
+            return LastMetricsSnapshot;
+        }
+
+        _metricsActive = false;
+        List<UiRenderMetric> metrics = new(_metricAccumulators.Length);
+        for (int i = 0; i < _metricAccumulators.Length; i++)
+        {
+            MetricAccumulator accumulator = _metricAccumulators[i];
+            if (accumulator.Calls <= 0)
+            {
+                continue;
+            }
+
+            metrics.Add(new UiRenderMetric(
+                GetMetricName((MetricKind)i),
+                accumulator.Calls,
+                accumulator.Ticks * 1000d / Stopwatch.Frequency));
+        }
+
+        metrics.Sort((left, right) => right.DurationMs.CompareTo(left.DurationMs));
+        LastMetricsSnapshot = new UiRenderMetricsSnapshot(++_metricsSequence, metrics);
+        return LastMetricsSnapshot;
+    }
+
+    public void FillRect(UiRect rect, UiColor color)
+    {
+        long startTimestamp = BeginMetric();
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            EndMetric(MetricKind.FillRect, startTimestamp);
+            return;
+        }
+
+        QueueQuad(_whiteTexture, rect.X, rect.Y, rect.Width, rect.Height, 0f, 0f, 1f, 1f, color);
+        EndMetric(MetricKind.FillRect, startTimestamp);
     }
 
     public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
     {
+        long startTimestamp = BeginMetric();
         if (rect.Width <= 0 || rect.Height <= 0 || thickness <= 0)
         {
+            EndMetric(MetricKind.DrawRect, startTimestamp);
             return;
         }
 
         int t = Math.Min(thickness, Math.Min(rect.Width, rect.Height));
-        int quadCount = 0;
-        AppendQuad(_whiteTexture, rect.X, rect.Y, rect.Width, t, 0f, 0f, 1f, 1f, color, ref quadCount);
-        AppendQuad(_whiteTexture, rect.X, rect.Bottom - t, rect.Width, t, 0f, 0f, 1f, 1f, color, ref quadCount);
+        QueueQuad(_whiteTexture, rect.X, rect.Y, rect.Width, t, 0f, 0f, 1f, 1f, color);
+        QueueQuad(_whiteTexture, rect.X, rect.Bottom - t, rect.Width, t, 0f, 0f, 1f, 1f, color);
 
         int middleHeight = rect.Height - t * 2;
         if (middleHeight > 0)
         {
-            AppendQuad(_whiteTexture, rect.X, rect.Y + t, t, middleHeight, 0f, 0f, 1f, 1f, color, ref quadCount);
-            AppendQuad(_whiteTexture, rect.Right - t, rect.Y + t, t, middleHeight, 0f, 0f, 1f, 1f, color, ref quadCount);
+            QueueQuad(_whiteTexture, rect.X, rect.Y + t, t, middleHeight, 0f, 0f, 1f, 1f, color);
+            QueueQuad(_whiteTexture, rect.Right - t, rect.Y + t, t, middleHeight, 0f, 0f, 1f, 1f, color);
         }
 
-        Flush(_whiteTexture, quadCount);
+        EndMetric(MetricKind.DrawRect, startTimestamp);
     }
 
     public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
@@ -175,8 +256,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
     {
+        long startTimestamp = BeginMetric();
         if (string.IsNullOrEmpty(text))
         {
+            EndMetric(MetricKind.DrawText, startTimestamp);
             return;
         }
 
@@ -184,11 +267,9 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         UiTextLayout layout = activeFont.LayoutText(text, scale);
         if (layout.Glyphs.Count == 0)
         {
+            EndMetric(MetricKind.DrawText, startTimestamp);
             return;
         }
-
-        uint activeTexture = 0;
-        int quadCount = 0;
 
         for (int i = 0; i < layout.Glyphs.Count; i++)
         {
@@ -200,21 +281,14 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             }
 
             uint textureId = EnsureAtlasTexture(entry.PageIndex).TextureId;
-            if (activeTexture != 0 && activeTexture != textureId)
-            {
-                Flush(activeTexture, quadCount);
-                quadCount = 0;
-            }
-
-            activeTexture = textureId;
             UiGlyphAtlasPage page = _glyphAtlas.GetPage(entry.PageIndex);
             float u1 = entry.SourceRect.X / (float)page.Width;
             float v1 = entry.SourceRect.Y / (float)page.Height;
             float u2 = entry.SourceRect.Right / (float)page.Width;
             float v2 = entry.SourceRect.Bottom / (float)page.Height;
 
-            AppendQuad(
-                activeTexture,
+            QueueQuad(
+                textureId,
                 position.X + glyph.X,
                 position.Y + glyph.Y,
                 glyph.Glyph.Width,
@@ -223,26 +297,26 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                 v1,
                 u2,
                 v2,
-                color,
-                ref quadCount);
+                color);
         }
 
-        Flush(activeTexture, quadCount);
+        EndMetric(MetricKind.DrawText, startTimestamp);
     }
 
     public void DrawTexture(uint textureId, UiRect rect, bool flipVertical = false, UiColor? tint = null)
     {
+        long startTimestamp = BeginMetric();
         if (textureId == 0 || rect.Width <= 0 || rect.Height <= 0)
         {
+            EndMetric(MetricKind.DrawTexture, startTimestamp);
             return;
         }
 
         UiColor drawColor = tint ?? UiColor.White;
         float vTop = flipVertical ? 1f : 0f;
         float vBottom = flipVertical ? 0f : 1f;
-        int quadCount = 0;
-        AppendQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, 0f, vTop, 1f, vBottom, drawColor, ref quadCount);
-        Flush(textureId, quadCount);
+        QueueQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, 0f, vTop, 1f, vBottom, drawColor);
+        EndMetric(MetricKind.DrawTexture, startTimestamp);
     }
 
     public int MeasureTextWidth(string text, int scale = 1)
@@ -252,7 +326,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     public int MeasureTextWidth(string text, int scale, UiFont? font)
     {
-        return (font ?? DefaultFont).MeasureTextWidth(text, scale);
+        long startTimestamp = BeginMetric();
+        int width = (font ?? DefaultFont).MeasureTextWidth(text, scale);
+        EndMetric(MetricKind.MeasureTextWidth, startTimestamp);
+        return width;
     }
 
     public int MeasureTextHeight(int scale = 1)
@@ -262,11 +339,16 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     public int MeasureTextHeight(int scale, UiFont? font)
     {
-        return (font ?? DefaultFont).MeasureTextHeight(scale);
+        long startTimestamp = BeginMetric();
+        int height = (font ?? DefaultFont).MeasureTextHeight(scale);
+        EndMetric(MetricKind.MeasureTextHeight, startTimestamp);
+        return height;
     }
 
     public void PushClip(UiRect rect)
     {
+        long startTimestamp = BeginMetric();
+        FlushPending();
         UiRect clip = rect;
         UiRect viewport = GetViewportRect();
         clip = Intersect(clip, viewport);
@@ -278,12 +360,16 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
         _clipStack.Push(clip);
         ApplyClip(clip);
+        EndMetric(MetricKind.PushClip, startTimestamp);
     }
 
     public void PopClip()
     {
+        long startTimestamp = BeginMetric();
+        FlushPending();
         if (_clipStack.Count == 0)
         {
+            EndMetric(MetricKind.PopClip, startTimestamp);
             return;
         }
 
@@ -296,10 +382,12 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                 _scissorEnabled = false;
             }
 
+            EndMetric(MetricKind.PopClip, startTimestamp);
             return;
         }
 
         ApplyClip(_clipStack.Peek());
+        EndMetric(MetricKind.PopClip, startTimestamp);
     }
 
     public void Dispose()
@@ -325,6 +413,49 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         _gl.DeleteProgram(_program);
     }
 
+    public void FlushPending()
+    {
+        Flush(_batchedTextureId, _batchedQuadCount);
+        _batchedTextureId = 0;
+        _batchedQuadCount = 0;
+    }
+
+    private void QueueQuad(
+        uint textureId,
+        int x,
+        int y,
+        int width,
+        int height,
+        float u1,
+        float v1,
+        float u2,
+        float v2,
+        UiColor color)
+    {
+        if (textureId == 0 || width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        if (_batchedQuadCount > 0 && _batchedTextureId != textureId)
+        {
+            FlushPending();
+        }
+
+        if (_batchedQuadCount == 0)
+        {
+            _batchedTextureId = textureId;
+        }
+
+        if (_batchedQuadCount >= MaxQuadsPerFlush)
+        {
+            FlushPending();
+            _batchedTextureId = textureId;
+        }
+
+        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, ref _batchedQuadCount);
+    }
+
     private void AppendQuad(
         uint expectedTexture,
         int x,
@@ -343,12 +474,6 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             return;
         }
 
-        if (quadCount >= MaxQuadsPerFlush)
-        {
-            Flush(expectedTexture, quadCount);
-            quadCount = 0;
-        }
-
         int baseIndex = quadCount * 4;
         float left = x;
         float top = y;
@@ -362,10 +487,44 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         quadCount++;
     }
 
+    private long BeginMetric()
+    {
+        return _metricsActive ? Stopwatch.GetTimestamp() : 0L;
+    }
+
+    private void EndMetric(MetricKind kind, long startTimestamp)
+    {
+        if (!_metricsActive || startTimestamp == 0L)
+        {
+            return;
+        }
+
+        _metricAccumulators[(int)kind].Add(Stopwatch.GetTimestamp() - startTimestamp);
+    }
+
+    private static string GetMetricName(MetricKind kind)
+    {
+        return kind switch
+        {
+            MetricKind.FillRect => "FillRect",
+            MetricKind.DrawRect => "DrawRect",
+            MetricKind.DrawText => "DrawText",
+            MetricKind.DrawTexture => "DrawTexture",
+            MetricKind.Flush => "Flush",
+            MetricKind.PushClip => "PushClip",
+            MetricKind.PopClip => "PopClip",
+            MetricKind.MeasureTextWidth => "MeasureTextWidth",
+            MetricKind.MeasureTextHeight => "MeasureTextHeight",
+            _ => kind.ToString()
+        };
+    }
+
     private void Flush(uint textureId, int quadCount)
     {
+        long startTimestamp = BeginMetric();
         if (textureId == 0 || quadCount <= 0)
         {
+            EndMetric(MetricKind.Flush, startTimestamp);
             return;
         }
 
@@ -394,6 +553,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         _gl.BindVertexArray(0);
         _gl.BindTexture(TextureTarget.Texture2D, 0);
         _gl.UseProgram(0);
+        EndMetric(MetricKind.Flush, startTimestamp);
     }
 
     private AtlasPageTexture EnsureAtlasTexture(int pageIndex)
