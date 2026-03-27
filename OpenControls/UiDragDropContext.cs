@@ -50,6 +50,11 @@ public sealed class UiDragDropContext
         return true;
     }
 
+    public bool TryBeginDrag(UiElement source, UiDragDropPayload payload, UiPoint startPosition)
+    {
+        return BeginDrag(source, payload, startPosition);
+    }
+
     internal void SetHoveredTarget(UiElement target)
     {
         HoveredTarget = target;
