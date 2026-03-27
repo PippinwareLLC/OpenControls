@@ -257,6 +257,32 @@ public sealed class UiDockWorkspace : UiElement
         _floatingWindows.Add(window);
     }
 
+    public void DockWindow(UiWindow window, UiDockHost host, int index = -1)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(host);
+
+        if (!_hosts.Contains(host))
+        {
+            throw new ArgumentException("Dock host is not part of this workspace.", nameof(host));
+        }
+
+        DetachWindow(window);
+        window.AllowDrag = false;
+        if (index >= 0)
+        {
+            host.DockWindow(window, index);
+            host.ActivateWindow(index);
+        }
+        else
+        {
+            host.DockWindow(window);
+            host.ActivateWindow(host.Windows.Count - 1);
+        }
+
+        CollapseEmptyHosts();
+    }
+
     public void ResetLayout()
     {
         foreach (UiDockHost host in _hosts)
