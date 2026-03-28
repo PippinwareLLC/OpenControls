@@ -533,6 +533,8 @@ public sealed class UiDockHost : UiElement
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.DockHost.Render.{GetProfileName()}");
+
         UiFont font = ResolveFont(context.DefaultFont);
         _layoutFont = font;
         UpdateTabLayout();
@@ -748,6 +750,13 @@ public sealed class UiDockHost : UiElement
         }
 
         return total;
+    }
+
+    private string GetProfileName()
+    {
+        return !string.IsNullOrWhiteSpace(Id)
+            ? Id
+            : "DockHost";
     }
 
     private int GetTabWidth(UiWindow window)

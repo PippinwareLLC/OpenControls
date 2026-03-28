@@ -75,6 +75,8 @@ public sealed class UiWindow : UiElement
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.Window.Update.{GetProfileName()}");
+
         UiInputState input = context.Input;
         if (AllowResize)
         {
@@ -156,6 +158,8 @@ public sealed class UiWindow : UiElement
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.Window.Render.{GetProfileName()}");
+
         UpdateScrollPanelBounds();
         UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, Background);
 
@@ -211,6 +215,21 @@ public sealed class UiWindow : UiElement
         {
             context.Renderer.FillRect(ResizeGripBounds, ResizeGripColor);
         }
+    }
+
+    private string GetProfileName()
+    {
+        if (!string.IsNullOrWhiteSpace(Id))
+        {
+            return Id;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Title))
+        {
+            return Title;
+        }
+
+        return "Window";
     }
 
     public UiScrollPanel EnsureScrollPanel()

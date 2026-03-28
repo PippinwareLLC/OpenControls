@@ -180,6 +180,8 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.ScrollPanel.Update.{GetProfileName()}");
+
         RefreshLayout();
 
         UiInputState input = context.Input;
@@ -235,6 +237,8 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.ScrollPanel.Render.{GetProfileName()}");
+
         RefreshLayout();
 
         if (Background.A > 0)
@@ -243,15 +247,30 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement
         }
 
         UiRect viewport = ViewportBounds;
+        UiRect visibleContentBounds = new UiRect(_scrollX, _scrollY, viewport.Width, viewport.Height);
         UiPoint offset = new UiPoint(Bounds.X - _scrollX, Bounds.Y - _scrollY);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
-        context.Renderer.PushClip(viewport);
         UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
+        bool requiresClip = RequiresViewportClip();
+        if (requiresClip)
+        {
+            context.Renderer.PushClip(viewport);
+        }
+
         foreach (UiElement child in Children)
         {
+            if (!ShouldRenderChild(child, visibleContentBounds))
+            {
+                continue;
+            }
+
             child.Render(childContext);
         }
-        context.Renderer.PopClip();
+
+        if (requiresClip)
+        {
+            context.Renderer.PopClip();
+        }
 
         if (CornerRadius > 0 && Background.A > 0)
         {
@@ -273,18 +292,35 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.ScrollPanel.RenderOverlay.{GetProfileName()}");
+
         RefreshLayout();
 
         UiRect viewport = ViewportBounds;
+        UiRect visibleContentBounds = new UiRect(_scrollX, _scrollY, viewport.Width, viewport.Height);
         UiPoint offset = new UiPoint(Bounds.X - _scrollX, Bounds.Y - _scrollY);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
-        context.Renderer.PushClip(viewport);
         UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
+        bool requiresClip = RequiresViewportClip();
+        if (requiresClip)
+        {
+            context.Renderer.PushClip(viewport);
+        }
+
         foreach (UiElement child in Children)
         {
+            if (!ShouldRenderChild(child, visibleContentBounds))
+            {
+                continue;
+            }
+
             child.RenderOverlay(childContext);
         }
-        context.Renderer.PopClip();
+
+        if (requiresClip)
+        {
+            context.Renderer.PopClip();
+        }
 
         if (CornerRadius > 0 && Background.A > 0)
         {
@@ -323,6 +359,66 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement
         _contentSize = CalculateContentSize();
         ResolveScrollbars();
         ClampScrollOffset();
+    }
+
+    private static bool ShouldRenderChild(UiElement child, UiRect visibleContentBounds)
+    {
+        if (!child.Visible)
+        {
+            return false;
+        }
+
+        if (child is UiPopup or UiTooltip or UiModal or UiTooltipRegion or UiContextMenuRegion)
+        {
+            return true;
+        }
+
+        return Intersects(child.Bounds, visibleContentBounds);
+    }
+
+    private static bool Intersects(UiRect a, UiRect b)
+    {
+        return a.Left < b.Right
+            && a.Right > b.Left
+            && a.Top < b.Bottom
+            && a.Bottom > b.Top;
+    }
+
+    private bool RequiresViewportClip()
+    {
+        if (_showHorizontal || _showVertical || _scrollX != 0 || _scrollY != 0)
+        {
+            return true;
+        }
+
+        int viewportWidth = _viewportSize.X;
+        int viewportHeight = _viewportSize.Y;
+        for (int i = 0; i < Children.Count; i++)
+        {
+            UiElement child = Children[i];
+            if (!child.Visible || child is UiPopup or UiTooltip or UiModal or UiTooltipRegion or UiContextMenuRegion)
+            {
+                continue;
+            }
+
+            UiRect bounds = child.Bounds;
+            if (bounds.Left < 0
+                || bounds.Top < 0
+                || bounds.Right > viewportWidth
+                || bounds.Bottom > viewportHeight)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private string GetProfileName()
+    {
+        return !string.IsNullOrWhiteSpace(Id)
+            ? Id
+            : "ScrollPanel";
     }
 
     private UiPoint CalculateContentSize()
