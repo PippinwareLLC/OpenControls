@@ -5,6 +5,65 @@ namespace OpenControls.Tests;
 
 public sealed class UiNumericAndColorDepthTests
 {
+    private sealed class TestRenderer : IUiRenderer
+    {
+        public UiFont DefaultFont { get; set; } = UiFont.Default;
+
+        public void FillRect(UiRect rect, UiColor color)
+        {
+        }
+
+        public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
+        {
+        }
+
+        public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
+        {
+        }
+
+        public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+        }
+
+        public int MeasureTextWidth(string text, int scale = 1)
+        {
+            return MeasureTextWidth(text, scale, DefaultFont);
+        }
+
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            UiFont resolved = font ?? DefaultFont;
+            return resolved.MeasureTextWidth(text, scale);
+        }
+
+        public int MeasureTextHeight(int scale = 1)
+        {
+            return MeasureTextHeight(scale, DefaultFont);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            UiFont resolved = font ?? DefaultFont;
+            return resolved.MeasureTextHeight(scale);
+        }
+
+        public void PushClip(UiRect rect)
+        {
+        }
+
+        public void PopClip()
+        {
+        }
+    }
+
     [Fact]
     public void Slider_CtrlClickEntersInlineInputMode()
     {
@@ -123,6 +182,23 @@ public sealed class UiNumericAndColorDepthTests
         Assert.Equal(original.G, parsed.G);
         Assert.Equal(original.B, parsed.B);
         Assert.Equal(original.A, parsed.A);
+    }
+
+    [Fact]
+    public void NumericField_RenderSynchronizesInnerTextFieldBoundsWithoutPriorUpdate()
+    {
+        UiInputFloat input = new()
+        {
+            Bounds = new UiRect(12, 18, 160, 28),
+            Value = 42.5f
+        };
+
+        TestRenderer renderer = new();
+
+        input.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        Assert.Equal(input.Bounds, input.TextField.Bounds);
+        Assert.Equal("42.5", input.TextField.Text);
     }
 
     private static void Update(UiElement element)

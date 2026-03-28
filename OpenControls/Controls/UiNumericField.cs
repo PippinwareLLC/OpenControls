@@ -174,12 +174,13 @@ public class UiNumericField : UiElement
 
     public override void Update(UiUpdateContext context)
     {
+        _field.Bounds = Bounds;
+
         if (!Visible || !Enabled)
         {
             return;
         }
 
-        _field.Bounds = Bounds;
         base.Update(context);
 
         bool focused = context.Focus.Focused == _field;
@@ -198,12 +199,26 @@ public class UiNumericField : UiElement
             SyncText();
         }
 
-        if (focused)
+        if (focused && !ReadOnly)
         {
             HandleStepInput(context.Input);
         }
 
         _wasFocused = focused;
+    }
+
+    public override void Render(UiRenderContext context)
+    {
+        if (!Visible)
+        {
+            return;
+        }
+
+        // Newly created numeric controls can be rendered in the same frame they are added,
+        // before they receive an Update pass. Keep the inner text field bounds in sync here
+        // as well so they still draw correctly.
+        _field.Bounds = Bounds;
+        base.Render(context);
     }
 
     protected virtual void OnValueChanged(double value)
