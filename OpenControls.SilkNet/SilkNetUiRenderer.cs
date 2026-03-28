@@ -431,6 +431,13 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     public void FlushPending()
     {
+        if (_batchedTextureId == 0 || _batchedQuadCount <= 0)
+        {
+            _batchedTextureId = 0;
+            _batchedQuadCount = 0;
+            return;
+        }
+
         Flush(_batchedTextureId, _batchedQuadCount);
         _batchedTextureId = 0;
         _batchedQuadCount = 0;
@@ -556,7 +563,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         {
             _gl.BufferData(
                 BufferTargetARB.ArrayBuffer,
-                (nuint)(quadCount * 4 * sizeof(float) * 8),
+                (nuint)(quadCount * sizeof(UiVertex) * 4),
                 vertexPtr,
                 BufferUsageARB.StreamDraw);
         }

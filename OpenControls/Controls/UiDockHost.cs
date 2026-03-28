@@ -2,6 +2,18 @@ namespace OpenControls.Controls;
 
 public sealed class UiDockHost : UiElement
 {
+    private sealed class TabMetricsEntry
+    {
+        public string Title { get; set; } = string.Empty;
+        public string IconText { get; set; } = string.Empty;
+        public bool AllowClose { get; set; }
+        public int TitleWidth { get; set; }
+        public int IconRenderWidth { get; set; }
+        public int Width { get; set; }
+        public int RenderedTitleAvailableWidth { get; set; } = int.MinValue;
+        public string RenderedTitle { get; set; } = string.Empty;
+    }
+
     private enum TabMenuCommand
     {
         Close,
@@ -39,6 +51,19 @@ public sealed class UiDockHost : UiElement
     private int _contextMenuHoverIndex = -1;
     private bool _keepActiveTabVisible = true;
     private UiFont _layoutFont = UiFont.Default;
+    private readonly List<TabMetricsEntry> _tabMetrics = new();
+    private UiFont _tabMetricsFont = UiFont.Default;
+    private int _tabMetricsScale = -1;
+    private bool _tabMetricsBold;
+    private bool _tabMetricsAutoSizeTabs;
+    private int _tabMetricsTabWidth = -1;
+    private int _tabMetricsTabMaxWidth = -1;
+    private int _tabMetricsTabPadding = -1;
+    private int _tabMetricsTabIconSpacing = -1;
+    private bool _tabMetricsShowCloseButtons;
+    private int _tabMetricsCloseButtonPadding = -1;
+    private UiTabTextOverflowMode _tabMetricsOverflowMode;
+    private int _cachedCloseAreaWidth = -1;
 
     public UiColor Background { get; set; } = new(20, 24, 34);
     public UiColor Border { get; set; } = new(90, 100, 120);
@@ -563,7 +588,7 @@ public sealed class UiDockHost : UiElement
             if (!string.IsNullOrEmpty(window.TabIconText))
             {
                 context.Renderer.DrawText(window.TabIconText, new UiPoint(textX, textY), TabTextColor, TabTextScale, font);
-                textX += GetTabIconRenderWidth(window);
+                textX += GetTabIconRenderWidth(i);
             }
 
             UiPoint textPoint = new(textX, textY);
@@ -700,7 +725,7 @@ public sealed class UiDockHost : UiElement
         int x = startX;
         for (int i = 0; i < _windows.Count; i++)
         {
-            int width = GetTabWidth(_windows[i]);
+            int width = GetTabWidth(i);
             _tabRects.Add(new UiRect(x, Bounds.Y, width, tabHeight));
             x += width;
         }
@@ -746,7 +771,7 @@ public sealed class UiDockHost : UiElement
         int total = 0;
         for (int i = 0; i < _windows.Count; i++)
         {
-            total += GetTabWidth(_windows[i]);
+            total += GetTabWidth(i);
         }
 
         return total;
@@ -759,20 +784,96 @@ public sealed class UiDockHost : UiElement
             : "DockHost";
     }
 
-    private int GetTabWidth(UiWindow window)
+    private void EnsureTabMetrics()
+    {
+        bool invalidateAll = !ReferenceEquals(_tabMetricsFont, _layoutFont)
+            || _tabMetricsScale != TabTextScale
+            || _tabMetricsBold != TabTextBold
+            || _tabMetricsAutoSizeTabs != AutoSizeTabs
+            || _tabMetricsTabWidth != TabWidth
+            || _tabMetricsTabMaxWidth != TabMaxWidth
+            || _tabMetricsTabPadding != TabPadding
+            || _tabMetricsTabIconSpacing != TabIconSpacing
+            || _tabMetricsShowCloseButtons != ShowCloseButtons
+            || _tabMetricsCloseButtonPadding != CloseButtonPadding
+            || _tabMetricsOverflowMode != TabTextOverflow;
+
+        if (invalidateAll)
+        {
+            _tabMetrics.Clear();
+            _cachedCloseAreaWidth = -1;
+            _tabMetricsFont = _layoutFont;
+            _tabMetricsScale = TabTextScale;
+            _tabMetricsBold = TabTextBold;
+            _tabMetricsAutoSizeTabs = AutoSizeTabs;
+            _tabMetricsTabWidth = TabWidth;
+            _tabMetricsTabMaxWidth = TabMaxWidth;
+            _tabMetricsTabPadding = TabPadding;
+            _tabMetricsTabIconSpacing = TabIconSpacing;
+            _tabMetricsShowCloseButtons = ShowCloseButtons;
+            _tabMetricsCloseButtonPadding = CloseButtonPadding;
+            _tabMetricsOverflowMode = TabTextOverflow;
+        }
+
+        while (_tabMetrics.Count < _windows.Count)
+        {
+            _tabMetrics.Add(new TabMetricsEntry());
+        }
+
+        if (_tabMetrics.Count > _windows.Count)
+        {
+            _tabMetrics.RemoveRange(_windows.Count, _tabMetrics.Count - _windows.Count);
+        }
+    }
+
+    private TabMetricsEntry GetTabMetrics(int index)
+    {
+        EnsureTabMetrics();
+
+        if (index < 0 || index >= _windows.Count)
+        {
+            return new TabMetricsEntry();
+        }
+
+        UiWindow window = _windows[index];
+        TabMetricsEntry entry = _tabMetrics[index];
+        string title = window.Title ?? string.Empty;
+        string iconText = window.TabIconText ?? string.Empty;
+        bool allowClose = window.AllowClose;
+        if (entry.Title != title || entry.IconText != iconText || entry.AllowClose != allowClose)
+        {
+            entry.Title = title;
+            entry.IconText = iconText;
+            entry.AllowClose = allowClose;
+            entry.TitleWidth = MeasureTextWidth(title, TabTextScale, _layoutFont);
+            entry.IconRenderWidth = CalculateTabIconRenderWidth(iconText);
+            entry.Width = CalculateTabWidth(entry);
+            entry.RenderedTitleAvailableWidth = int.MinValue;
+            entry.RenderedTitle = title;
+        }
+
+        return entry;
+    }
+
+    private int GetTabWidth(int index)
+    {
+        return GetTabMetrics(index).Width;
+    }
+
+    private int CalculateTabWidth(TabMetricsEntry entry)
     {
         int width = Math.Max(0, TabWidth);
         if (AutoSizeTabs)
         {
-            int textWidth = MeasureTextWidth(window.Title, TabTextScale, _layoutFont);
-            int iconWidth = GetTabIconRenderWidth(window);
+            int textWidth = entry.TitleWidth;
+            int iconWidth = entry.IconRenderWidth;
             if (TabTextBold && textWidth > 0)
             {
                 textWidth += 1;
             }
 
             width = textWidth + iconWidth + Math.Max(0, TabPadding) * 2;
-            if (ShowCloseButtons && window.AllowClose)
+            if (ShowCloseButtons && entry.AllowClose)
             {
                 width += GetCloseAreaWidth();
             }
@@ -798,9 +899,15 @@ public sealed class UiDockHost : UiElement
             return 0;
         }
 
+        if (_cachedCloseAreaWidth >= 0)
+        {
+            return _cachedCloseAreaWidth;
+        }
+
         int padding = Math.Max(0, CloseButtonPadding);
         int glyphWidth = MeasureTextWidth("X", TabTextScale, _layoutFont);
-        return glyphWidth + padding * 2;
+        _cachedCloseAreaWidth = glyphWidth + padding * 2;
+        return _cachedCloseAreaWidth;
     }
 
     private UiRect GetCloseBounds(int index)
@@ -958,7 +1065,8 @@ public sealed class UiDockHost : UiElement
 
         UiRect tabRect = GetTabRect(index);
         int availableWidth = Math.Max(0, tabRect.Width - Math.Max(0, TabPadding) * 2);
-        availableWidth = Math.Max(0, availableWidth - GetTabIconRenderWidth(_windows[index]));
+        TabMetricsEntry metrics = GetTabMetrics(index);
+        availableWidth = Math.Max(0, availableWidth - metrics.IconRenderWidth);
         if (ShowCloseButtons && CanRemoveWindow(index))
         {
             availableWidth = Math.Max(0, availableWidth - GetCloseAreaWidth());
@@ -969,17 +1077,33 @@ public sealed class UiDockHost : UiElement
             availableWidth = Math.Max(0, availableWidth - 1);
         }
 
-        return UiTextHelpers.BuildElidedText(title, availableWidth, TabTextScale, _layoutFont);
+        if (metrics.RenderedTitleAvailableWidth != availableWidth)
+        {
+            metrics.RenderedTitleAvailableWidth = availableWidth;
+            metrics.RenderedTitle = UiTextHelpers.BuildElidedText(title, availableWidth, TabTextScale, _layoutFont);
+        }
+
+        return metrics.RenderedTitle;
     }
 
-    private int GetTabIconRenderWidth(UiWindow window)
+    private int GetTabIconRenderWidth(int index)
     {
-        if (window == null || string.IsNullOrEmpty(window.TabIconText))
+        if (index < 0 || index >= _windows.Count)
         {
             return 0;
         }
 
-        int iconWidth = MeasureTextWidth(window.TabIconText, TabTextScale, _layoutFont);
+        return GetTabMetrics(index).IconRenderWidth;
+    }
+
+    private int CalculateTabIconRenderWidth(string iconText)
+    {
+        if (string.IsNullOrEmpty(iconText))
+        {
+            return 0;
+        }
+
+        int iconWidth = MeasureTextWidth(iconText, TabTextScale, _layoutFont);
         if (iconWidth <= 0)
         {
             return 0;
