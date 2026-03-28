@@ -12,6 +12,7 @@ public sealed class UiTreeViewItem
     }
 
     public string Text { get; set; } = string.Empty;
+    public int ExtraTextOffset { get; set; }
     public List<UiTreeViewItem> Children { get; } = new();
     public bool IsOpen { get; set; }
     public UiColor? TextColor { get; set; }

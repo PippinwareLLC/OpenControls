@@ -107,6 +107,38 @@ public sealed class UiTreeView : UiElement
     public int FirstVisibleIndex => _clipRange.FirstVisibleIndex;
     public int LastVisibleIndex => _clipRange.LastVisibleIndex;
 
+    public int RowHitTest(UiPoint point) => GetIndexAtPoint(point);
+
+    public bool TryGetVisibleRowBounds(int index, out UiRect bounds)
+    {
+        if (index < 0 || index >= _visibleRows.Count)
+        {
+            bounds = default;
+            return false;
+        }
+
+        int itemHeight = Math.Max(1, ItemHeight);
+        int y = Bounds.Y + _clipRange.GetItemStart(index) - _clipRange.ViewportStart;
+        bounds = new UiRect(Bounds.X, y, Bounds.Width, itemHeight);
+        return true;
+    }
+
+    public bool TryGetVisibleRowBounds(UiTreeViewItem item, out UiRect bounds)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return TryGetVisibleRowBounds(IndexOfVisibleItem(item), out bounds);
+    }
+
+    public int GetVisibleItemDepth(int index)
+    {
+        if (index < 0 || index >= _visibleRows.Count)
+        {
+            return -1;
+        }
+
+        return _visibleRows[index].Depth;
+    }
+
     public int ScrollOffset
     {
         get => _scrollOffset;
@@ -358,7 +390,7 @@ public sealed class UiTreeView : UiElement
                 UiArrow.DrawTriangle(context.Renderer, arrowBounds, direction, ArrowColor);
             }
 
-            int textX = arrowBounds.Right + Math.Max(0, ArrowPadding);
+            int textX = arrowBounds.Right + Math.Max(0, ArrowPadding) + Math.Max(0, row.Item.ExtraTextOffset);
             int textY = y + (itemHeight - textHeight) / 2;
             UiColor textColor = row.Item.TextColor ?? (IsItemSelected(index) ? SelectedTextColor : TextColor);
             context.Renderer.DrawText(row.Item.Text, new UiPoint(textX, textY), textColor, TextScale, font);
