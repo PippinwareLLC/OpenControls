@@ -10,8 +10,11 @@ namespace OpenControls;
 
 public sealed class UiFont
 {
+    private readonly record struct LayoutCacheKey(string Text, int Scale);
+
     private readonly UiFontLayer[] _layers;
     private readonly ConcurrentDictionary<GlyphCacheKey, UiRasterizedGlyph> _glyphCache = new();
+    private readonly ConcurrentDictionary<LayoutCacheKey, UiTextLayout> _layoutCache = new();
 
     private static readonly Rune ReplacementRune = new('?');
 
@@ -85,6 +88,17 @@ public sealed class UiFont
 
     internal UiTextLayout LayoutText(string text, int scale = 1)
     {
+        if (ShouldCacheLayout(text))
+        {
+            LayoutCacheKey key = new(text, Math.Max(1, scale));
+            return _layoutCache.GetOrAdd(key, static (cacheKey, font) => font.LayoutTextCore(cacheKey.Text, cacheKey.Scale), this);
+        }
+
+        return LayoutTextCore(text, scale);
+    }
+
+    private UiTextLayout LayoutTextCore(string text, int scale)
+    {
         int safeScale = Math.Max(1, scale);
         UiFontMetrics metrics = GetMetrics(safeScale);
         if (string.IsNullOrEmpty(text))
@@ -115,6 +129,36 @@ public sealed class UiFont
 
         int height = Math.Max(lineHeight, lines * lineHeight);
         return new UiTextLayout(glyphs, width, height);
+    }
+
+    private static bool ShouldCacheLayout(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return true;
+        }
+
+        if (text.Length > 160)
+        {
+            return false;
+        }
+
+        int newlineCount = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] != '\n')
+            {
+                continue;
+            }
+
+            newlineCount++;
+            if (newlineCount > 3)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     internal bool TryGetBitmapFont(out TinyBitmapFont? font)

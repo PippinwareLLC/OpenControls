@@ -81,8 +81,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     private bool _scissorEnabled;
     private bool _disposed;
     private bool _metricsActive;
+    private bool _renderStateBound;
     private long _metricsSequence;
     private uint _batchedTextureId;
+    private uint _boundTextureId;
     private int _batchedQuadCount;
     private int _viewportWidth = 1;
     private int _viewportHeight = 1;
@@ -155,6 +157,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     public void SetViewportSize(int width, int height)
     {
         FlushPending();
+        ResetRenderState();
         _viewportWidth = Math.Max(1, width);
         _viewportHeight = Math.Max(1, height);
         _gl.Viewport(0, 0, (uint)_viewportWidth, (uint)_viewportHeight);
@@ -176,6 +179,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     public UiRenderMetricsSnapshot EndMetricsFrame()
     {
         FlushPending();
+        ResetRenderState();
         if (!_metricsActive)
         {
             LastMetricsSnapshot = UiRenderMetricsSnapshot.Empty;
@@ -348,36 +352,42 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     public void PushClip(UiRect rect)
     {
         long startTimestamp = BeginMetric();
-        FlushPending();
         UiRect clip = rect;
         UiRect viewport = GetViewportRect();
         clip = Intersect(clip, viewport);
 
+        bool hasPreviousClip = _clipStack.Count > 0;
+        UiRect previousClip = hasPreviousClip ? _clipStack.Peek() : default;
         if (_clipStack.Count > 0)
         {
-            clip = Intersect(clip, _clipStack.Peek());
+            clip = Intersect(clip, previousClip);
         }
 
         _clipStack.Push(clip);
-        ApplyClip(clip);
+        if (!hasPreviousClip || !RectEquals(previousClip, clip))
+        {
+            FlushPending();
+            ApplyClip(clip);
+        }
+
         EndMetric(MetricKind.PushClip, startTimestamp);
     }
 
     public void PopClip()
     {
         long startTimestamp = BeginMetric();
-        FlushPending();
         if (_clipStack.Count == 0)
         {
             EndMetric(MetricKind.PopClip, startTimestamp);
             return;
         }
 
-        _clipStack.Pop();
+        UiRect previousClip = _clipStack.Pop();
         if (_clipStack.Count == 0)
         {
             if (_scissorEnabled)
             {
+                FlushPending();
                 _gl.Disable(EnableCap.ScissorTest);
                 _scissorEnabled = false;
             }
@@ -386,7 +396,13 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             return;
         }
 
-        ApplyClip(_clipStack.Peek());
+        UiRect nextClip = _clipStack.Peek();
+        if (!RectEquals(previousClip, nextClip))
+        {
+            FlushPending();
+            ApplyClip(nextClip);
+        }
+
         EndMetric(MetricKind.PopClip, startTimestamp);
     }
 
@@ -418,6 +434,12 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         Flush(_batchedTextureId, _batchedQuadCount);
         _batchedTextureId = 0;
         _batchedQuadCount = 0;
+    }
+
+    public void CompleteRenderPass()
+    {
+        FlushPending();
+        ResetRenderState();
     }
 
     private void QueueQuad(
@@ -528,20 +550,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             return;
         }
 
-        _gl.UseProgram(_program);
-        _gl.BindVertexArray(_vao);
-        _gl.Disable(EnableCap.DepthTest);
-        _gl.Disable(EnableCap.CullFace);
-        _gl.Enable(EnableCap.Blend);
-        _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-        _gl.Uniform2(_viewportUniformLocation, (float)_viewportWidth, (float)_viewportHeight);
-        _gl.Uniform1(_textureUniformLocation, 0);
-        _gl.ActiveTexture(TextureUnit.Texture0);
-        _gl.BindTexture(TextureTarget.Texture2D, textureId);
+        EnsureRenderState(textureId);
 
         fixed (UiVertex* vertexPtr = _vertices)
         {
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
             _gl.BufferData(
                 BufferTargetARB.ArrayBuffer,
                 (nuint)(quadCount * 4 * sizeof(float) * 8),
@@ -550,9 +562,6 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         }
 
         _gl.DrawElements(PrimitiveType.Triangles, (uint)(quadCount * 6), DrawElementsType.UnsignedShort, null);
-        _gl.BindVertexArray(0);
-        _gl.BindTexture(TextureTarget.Texture2D, 0);
-        _gl.UseProgram(0);
         EndMetric(MetricKind.Flush, startTimestamp);
     }
 
@@ -590,9 +599,49 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             }
 
             texture.Version = page.Version;
+            _boundTextureId = 0;
         }
 
         return texture;
+    }
+
+    private void EnsureRenderState(uint textureId)
+    {
+        if (!_renderStateBound)
+        {
+            _gl.UseProgram(_program);
+            _gl.BindVertexArray(_vao);
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
+            _gl.Disable(EnableCap.DepthTest);
+            _gl.Disable(EnableCap.CullFace);
+            _gl.Enable(EnableCap.Blend);
+            _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            _gl.Uniform2(_viewportUniformLocation, (float)_viewportWidth, (float)_viewportHeight);
+            _gl.Uniform1(_textureUniformLocation, 0);
+            _gl.ActiveTexture(TextureUnit.Texture0);
+            _renderStateBound = true;
+            _boundTextureId = 0;
+        }
+
+        if (_boundTextureId != textureId)
+        {
+            _gl.BindTexture(TextureTarget.Texture2D, textureId);
+            _boundTextureId = textureId;
+        }
+    }
+
+    private void ResetRenderState()
+    {
+        if (!_renderStateBound)
+        {
+            return;
+        }
+
+        _gl.BindTexture(TextureTarget.Texture2D, 0);
+        _gl.BindVertexArray(0);
+        _gl.UseProgram(0);
+        _renderStateBound = false;
+        _boundTextureId = 0;
     }
 
     private void ApplyClip(UiRect rect)
@@ -628,6 +677,14 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         }
 
         return new UiRect(left, top, right - left, bottom - top);
+    }
+
+    private static bool RectEquals(UiRect a, UiRect b)
+    {
+        return a.X == b.X
+            && a.Y == b.Y
+            && a.Width == b.Width
+            && a.Height == b.Height;
     }
 
     private static uint CreateWhiteTexture(GL gl)
