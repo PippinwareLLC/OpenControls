@@ -13,10 +13,25 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         DrawText,
         DrawTexture,
         Flush,
+        FlushTextureSwitch,
+        FlushCapacity,
+        FlushMetricsBoundary,
+        FlushRenderPassEnd,
+        FlushViewportChange,
         PushClip,
         PopClip,
         MeasureTextWidth,
         MeasureTextHeight
+    }
+
+    public enum FlushReason
+    {
+        Default,
+        TextureSwitch,
+        Capacity,
+        MetricsBoundary,
+        RenderPassEnd,
+        ViewportChange
     }
 
     private struct MetricAccumulator
@@ -42,8 +57,12 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         public float G;
         public float B;
         public float A;
+        public float ClipLeft;
+        public float ClipTop;
+        public float ClipRight;
+        public float ClipBottom;
 
-        public UiVertex(float x, float y, float u, float v, UiColor color)
+        public UiVertex(float x, float y, float u, float v, UiColor color, UiRect clip)
         {
             X = x;
             Y = y;
@@ -53,6 +72,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             G = color.G / 255f;
             B = color.B / 255f;
             A = color.A / 255f;
+            ClipLeft = clip.X;
+            ClipTop = clip.Y;
+            ClipRight = clip.Right;
+            ClipBottom = clip.Bottom;
         }
     }
 
@@ -78,7 +101,6 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     private readonly int _viewportUniformLocation;
     private readonly int _textureUniformLocation;
     private readonly MetricAccumulator[] _metricAccumulators = new MetricAccumulator[Enum.GetValues<MetricKind>().Length];
-    private bool _scissorEnabled;
     private bool _disposed;
     private bool _metricsActive;
     private bool _renderStateBound;
@@ -105,7 +127,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
         _gl.BindVertexArray(_vao);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-        _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_vertices.Length * sizeof(float) * 8), null, BufferUsageARB.StreamDraw);
+        _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_vertices.Length * sizeof(float) * 12), null, BufferUsageARB.StreamDraw);
         _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
         fixed (ushort* indexPtr = QuadIndices)
         {
@@ -116,13 +138,15 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                 BufferUsageARB.StaticDraw);
         }
 
-        const uint stride = sizeof(float) * 8;
+        const uint stride = sizeof(float) * 12;
         _gl.EnableVertexAttribArray(0);
         _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, stride, (void*)0);
         _gl.EnableVertexAttribArray(1);
         _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 2));
         _gl.EnableVertexAttribArray(2);
         _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 4));
+        _gl.EnableVertexAttribArray(3);
+        _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 8));
         _gl.BindVertexArray(0);
     }
 
@@ -156,7 +180,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     public void SetViewportSize(int width, int height)
     {
-        FlushPending();
+        FlushPending(FlushReason.ViewportChange);
         ResetRenderState();
         _viewportWidth = Math.Max(1, width);
         _viewportHeight = Math.Max(1, height);
@@ -172,13 +196,13 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         }
 
         Array.Clear(_metricAccumulators, 0, _metricAccumulators.Length);
-        FlushPending();
+        FlushPending(FlushReason.MetricsBoundary);
         _metricsActive = true;
     }
 
     public UiRenderMetricsSnapshot EndMetricsFrame()
     {
-        FlushPending();
+        FlushPending(FlushReason.MetricsBoundary);
         ResetRenderState();
         if (!_metricsActive)
         {
@@ -356,19 +380,12 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         UiRect viewport = GetViewportRect();
         clip = Intersect(clip, viewport);
 
-        bool hasPreviousClip = _clipStack.Count > 0;
-        UiRect previousClip = hasPreviousClip ? _clipStack.Peek() : default;
         if (_clipStack.Count > 0)
         {
-            clip = Intersect(clip, previousClip);
+            clip = Intersect(clip, _clipStack.Peek());
         }
 
         _clipStack.Push(clip);
-        if (!hasPreviousClip || !RectEquals(previousClip, clip))
-        {
-            FlushPending();
-            ApplyClip(clip);
-        }
 
         EndMetric(MetricKind.PushClip, startTimestamp);
     }
@@ -385,22 +402,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         UiRect previousClip = _clipStack.Pop();
         if (_clipStack.Count == 0)
         {
-            if (_scissorEnabled)
-            {
-                FlushPending();
-                _gl.Disable(EnableCap.ScissorTest);
-                _scissorEnabled = false;
-            }
-
             EndMetric(MetricKind.PopClip, startTimestamp);
             return;
-        }
-
-        UiRect nextClip = _clipStack.Peek();
-        if (!RectEquals(previousClip, nextClip))
-        {
-            FlushPending();
-            ApplyClip(nextClip);
         }
 
         EndMetric(MetricKind.PopClip, startTimestamp);
@@ -431,6 +434,11 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     public void FlushPending()
     {
+        FlushPending(FlushReason.Default);
+    }
+
+    public void FlushPending(FlushReason reason)
+    {
         if (_batchedTextureId == 0 || _batchedQuadCount <= 0)
         {
             _batchedTextureId = 0;
@@ -438,14 +446,14 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             return;
         }
 
-        Flush(_batchedTextureId, _batchedQuadCount);
+        Flush(_batchedTextureId, _batchedQuadCount, reason);
         _batchedTextureId = 0;
         _batchedQuadCount = 0;
     }
 
     public void CompleteRenderPass()
     {
-        FlushPending();
+        FlushPending(FlushReason.RenderPassEnd);
         ResetRenderState();
     }
 
@@ -466,9 +474,16 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             return;
         }
 
+        UiRect clip = GetActiveClipBounds();
+        UiRect quadBounds = new(x, y, width, height);
+        if (!Intersects(clip, quadBounds))
+        {
+            return;
+        }
+
         if (_batchedQuadCount > 0 && _batchedTextureId != textureId)
         {
-            FlushPending();
+            FlushPending(FlushReason.TextureSwitch);
         }
 
         if (_batchedQuadCount == 0)
@@ -478,11 +493,11 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
         if (_batchedQuadCount >= MaxQuadsPerFlush)
         {
-            FlushPending();
+            FlushPending(FlushReason.Capacity);
             _batchedTextureId = textureId;
         }
 
-        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, ref _batchedQuadCount);
+        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, clip, ref _batchedQuadCount);
     }
 
     private void AppendQuad(
@@ -496,6 +511,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float u2,
         float v2,
         UiColor color,
+        UiRect clip,
         ref int quadCount)
     {
         if (width <= 0 || height <= 0)
@@ -509,10 +525,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float right = x + width;
         float bottom = y + height;
 
-        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, color);
-        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, color);
-        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, color);
-        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, color);
+        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, color, clip);
+        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, color, clip);
+        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, color, clip);
+        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, color, clip);
         quadCount++;
     }
 
@@ -540,6 +556,11 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             MetricKind.DrawText => "DrawText",
             MetricKind.DrawTexture => "DrawTexture",
             MetricKind.Flush => "Flush",
+            MetricKind.FlushTextureSwitch => "Flush.TextureSwitch",
+            MetricKind.FlushCapacity => "Flush.Capacity",
+            MetricKind.FlushMetricsBoundary => "Flush.MetricsBoundary",
+            MetricKind.FlushRenderPassEnd => "Flush.RenderPassEnd",
+            MetricKind.FlushViewportChange => "Flush.ViewportChange",
             MetricKind.PushClip => "PushClip",
             MetricKind.PopClip => "PopClip",
             MetricKind.MeasureTextWidth => "MeasureTextWidth",
@@ -548,7 +569,20 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         };
     }
 
-    private void Flush(uint textureId, int quadCount)
+    private static MetricKind GetFlushMetricKind(FlushReason reason)
+    {
+        return reason switch
+        {
+            FlushReason.TextureSwitch => MetricKind.FlushTextureSwitch,
+            FlushReason.Capacity => MetricKind.FlushCapacity,
+            FlushReason.MetricsBoundary => MetricKind.FlushMetricsBoundary,
+            FlushReason.RenderPassEnd => MetricKind.FlushRenderPassEnd,
+            FlushReason.ViewportChange => MetricKind.FlushViewportChange,
+            _ => MetricKind.Flush
+        };
+    }
+
+    private void Flush(uint textureId, int quadCount, FlushReason reason)
     {
         long startTimestamp = BeginMetric();
         if (textureId == 0 || quadCount <= 0)
@@ -570,6 +604,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
         _gl.DrawElements(PrimitiveType.Triangles, (uint)(quadCount * 6), DrawElementsType.UnsignedShort, null);
         EndMetric(MetricKind.Flush, startTimestamp);
+        EndMetric(GetFlushMetricKind(reason), startTimestamp);
     }
 
     private AtlasPageTexture EnsureAtlasTexture(int pageIndex)
@@ -651,24 +686,14 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         _boundTextureId = 0;
     }
 
-    private void ApplyClip(UiRect rect)
-    {
-        int width = Math.Max(0, rect.Width);
-        int height = Math.Max(0, rect.Height);
-
-        if (!_scissorEnabled)
-        {
-            _gl.Enable(EnableCap.ScissorTest);
-            _scissorEnabled = true;
-        }
-
-        int y = _viewportHeight - (rect.Y + height);
-        _gl.Scissor(rect.X, y, (uint)width, (uint)height);
-    }
-
     private UiRect GetViewportRect()
     {
         return new UiRect(0, 0, _viewportWidth, _viewportHeight);
+    }
+
+    private UiRect GetActiveClipBounds()
+    {
+        return _clipStack.Count > 0 ? _clipStack.Peek() : GetViewportRect();
     }
 
     private static UiRect Intersect(UiRect a, UiRect b)
@@ -686,12 +711,12 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         return new UiRect(left, top, right - left, bottom - top);
     }
 
-    private static bool RectEquals(UiRect a, UiRect b)
+    private static bool Intersects(UiRect a, UiRect b)
     {
-        return a.X == b.X
-            && a.Y == b.Y
-            && a.Width == b.Width
-            && a.Height == b.Height;
+        return a.X < b.Right
+            && a.Right > b.X
+            && a.Y < b.Bottom
+            && a.Bottom > b.Y;
     }
 
     private static uint CreateWhiteTexture(GL gl)
@@ -739,11 +764,13 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             layout(location = 0) in vec2 aPosition;
             layout(location = 1) in vec2 aTexCoord;
             layout(location = 2) in vec4 aColor;
+            layout(location = 3) in vec4 aClipRect;
 
             uniform vec2 uViewportSize;
 
             out vec2 vTexCoord;
             out vec4 vColor;
+            out vec4 vClipRect;
 
             void main()
             {
@@ -752,6 +779,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                 gl_Position = vec4(clip, 0.0, 1.0);
                 vTexCoord = aTexCoord;
                 vColor = aColor;
+                vClipRect = aClipRect;
             }
             """;
 
@@ -761,13 +789,24 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
             in vec2 vTexCoord;
             in vec4 vColor;
+            in vec4 vClipRect;
 
             uniform sampler2D uTexture;
+            uniform vec2 uViewportSize;
 
             out vec4 FragColor;
 
             void main()
             {
+                vec2 fragmentPosition = vec2(gl_FragCoord.x, uViewportSize.y - gl_FragCoord.y);
+                if (fragmentPosition.x < vClipRect.x
+                    || fragmentPosition.y < vClipRect.y
+                    || fragmentPosition.x >= vClipRect.z
+                    || fragmentPosition.y >= vClipRect.w)
+                {
+                    discard;
+                }
+
                 FragColor = texture(uTexture, vTexCoord) * vColor;
             }
             """;
