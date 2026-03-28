@@ -34,7 +34,8 @@ public sealed class UiTextBlock : UiElement
         LastLineCount = lines.Count;
         LastMeasuredHeight = lines.Count == 0 ? 0 : lines.Count * lineHeight + (lines.Count - 1) * lineSpacing;
 
-        if (ClipToBounds)
+        bool shouldClip = ShouldClipTextBounds(lines, width, context.Renderer, font);
+        if (shouldClip)
         {
             context.Renderer.PushClip(Bounds);
         }
@@ -53,18 +54,58 @@ public sealed class UiTextBlock : UiElement
             }
 
             lineY += lineHeight + lineSpacing;
-            if (ClipToBounds && lineY > Bounds.Bottom)
+            if (shouldClip && lineY > Bounds.Bottom)
             {
                 break;
             }
         }
 
-        if (ClipToBounds)
+        if (shouldClip)
         {
             context.Renderer.PopClip();
         }
 
         base.Render(context);
+    }
+
+    private bool ShouldClipTextBounds(IReadOnlyList<string> lines, int availableWidth, IUiRenderer renderer, UiFont font)
+    {
+        if (!ClipToBounds)
+        {
+            return false;
+        }
+
+        int padding = Math.Max(0, Padding);
+        int availableHeight = Math.Max(0, Bounds.Height - padding * 2);
+        if (availableHeight <= 0)
+        {
+            return true;
+        }
+
+        if (LastMeasuredHeight > availableHeight)
+        {
+            return true;
+        }
+
+        if (availableWidth <= 0)
+        {
+            return true;
+        }
+
+        if (Wrap)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            if (renderer.MeasureTextWidth(lines[i], Scale, font) > availableWidth)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private List<string> BuildLines(string text, int maxWidth, IUiRenderer renderer, UiFont font)

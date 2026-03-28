@@ -1286,9 +1286,17 @@ public sealed class UiTable : UiElement, IUiStatefulElement
 
                 UiColor textColor = CellTextColorSelector?.Invoke(cellContext) ?? cell?.TextColor ?? rowTextColor;
                 int padding = cell?.Padding >= 0 ? cell.Padding : CellPadding;
-                context.Renderer.PushClip(cellRect);
+                bool clipText = ShouldClipCellText(context.Renderer, font, effectiveCell.Text, TextScale, cellRect, padding);
+                if (clipText)
+                {
+                    context.Renderer.PushClip(cellRect);
+                }
+
                 context.Renderer.DrawText(effectiveCell.Text, new UiPoint(cellRect.X + padding, textY), textColor, TextScale, font);
-                context.Renderer.PopClip();
+                if (clipText)
+                {
+                    context.Renderer.PopClip();
+                }
             }
         }
     }
@@ -1333,7 +1341,13 @@ public sealed class UiTable : UiElement, IUiStatefulElement
     private void DrawHeaderText(UiRenderContext context, UiFont font, int headerTextHeight, UiTableColumn column, UiRect cellRect)
     {
         UiColor textColor = column.HeaderTextColor ?? HeaderTextColor;
-        context.Renderer.PushClip(cellRect);
+        bool clipText = UseAngledHeaders
+            || ShouldClipCellText(context.Renderer, font, column.Header, HeaderTextScale, cellRect, CellPadding);
+        if (clipText)
+        {
+            context.Renderer.PushClip(cellRect);
+        }
+
         if (UseAngledHeaders)
         {
             DrawAngledHeaderText(context.Renderer, column.Header, cellRect, textColor, HeaderTextScale, font);
@@ -1352,7 +1366,26 @@ public sealed class UiTable : UiElement, IUiStatefulElement
             }
         }
 
-        context.Renderer.PopClip();
+        if (clipText)
+        {
+            context.Renderer.PopClip();
+        }
+    }
+
+    private static bool ShouldClipCellText(IUiRenderer renderer, UiFont font, string text, int scale, UiRect cellRect, int padding)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        int availableWidth = Math.Max(0, cellRect.Width - Math.Max(0, padding) * 2);
+        if (availableWidth <= 0)
+        {
+            return true;
+        }
+
+        return renderer.MeasureTextWidth(text, scale, font) > availableWidth;
     }
 
     private int GetHeaderHeight()
