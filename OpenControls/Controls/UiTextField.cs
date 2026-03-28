@@ -140,13 +140,13 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
         UiColor border = _focused ? FocusBorder : Border;
         UiRenderHelpers.DrawRectRounded(context.Renderer, Bounds, CornerRadius, border, 1);
 
+        UiFont font = ResolveFont(context.DefaultFont);
+        _layoutFont = font;
         int textX = Bounds.X + Padding;
-        int textY = Bounds.Y + Padding;
+        int textY = GetTextTopY(font);
         int clipWidth = Math.Max(0, Bounds.Width - Padding * 2);
         int clipHeight = Math.Max(0, Bounds.Height - Padding * 2);
         UiRect clip = new UiRect(textX, textY, clipWidth, clipHeight);
-        UiFont font = ResolveFont(context.DefaultFont);
-        _layoutFont = font;
         string renderText = GetDisplayText();
 
         UpdateHorizontalScroll(context.Renderer, renderText, clipWidth, font);
@@ -700,11 +700,20 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
     {
         string renderText = GetDisplayText();
         int textX = Bounds.X + Padding;
-        int textY = Bounds.Y + Padding;
+        int textY = GetTextTopY(font);
         int caretHeight = font.MeasureTextHeight(TextScale);
         int caretWidth = Math.Max(1, Math.Min(2, TextScale));
         int caretX = textX - _horizontalScrollOffset + MeasurePrefixWidth(renderText, CaretIndex, TextScale, font);
         return new UiRect(caretX, textY, caretWidth, caretHeight);
+    }
+
+    private int GetTextTopY(UiFont font)
+    {
+        int padding = Math.Max(0, Padding);
+        int innerHeight = Math.Max(0, Bounds.Height - padding * 2);
+        int textHeight = font.MeasureTextHeight(TextScale);
+        int centeredOffset = Math.Max(0, (innerHeight - textHeight) / 2);
+        return Bounds.Y + padding + centeredOffset;
     }
 
     private int MeasureCompositionWidth(UiFont font)
