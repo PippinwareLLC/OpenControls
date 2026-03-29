@@ -11,6 +11,9 @@ public enum UiMenuDisplayMode
 
 public sealed class UiMenuBar : UiElement
 {
+    private readonly record struct TopItemTextMetrics(int ContentWidth, int DrawOffsetX);
+    private UiFont _lastDefaultFont = UiFont.Default;
+
     public sealed class MenuItem
     {
         public string Text { get; set; } = string.Empty;
@@ -451,19 +454,19 @@ public sealed class UiMenuBar : UiElement
             return;
         }
 
-        BuildLayout();
+        BuildLayout(context.DefaultFont);
 
         UiInputState input = context.Input;
         UiPoint mouse = input.MousePosition;
         _hoveredTopIndex = GetTopItemIndex(mouse);
 
         TryDispatchShortcut(context);
-        BuildLayout();
+        BuildLayout(context.DefaultFont);
 
         if (_openPath.Count > 0 && input.Navigation.Escape)
         {
             CloseMenu(context.Focus);
-            BuildLayout();
+            BuildLayout(context.DefaultFont);
         }
 
         bool menuOpen = _openPath.Count > 0;
@@ -473,12 +476,12 @@ public sealed class UiMenuBar : UiElement
             if (_hoveredTopIndex >= 0)
             {
                 HandleTopClick(_hoveredTopIndex, context.Focus);
-                BuildLayout();
+                BuildLayout(context.DefaultFont);
             }
             else if (menuOpen)
             {
                 HandleMenuClick(mouse, context.Focus);
-                BuildLayout();
+                BuildLayout(context.DefaultFont);
             }
         }
 
@@ -489,7 +492,7 @@ public sealed class UiMenuBar : UiElement
             if (_hoveredTopIndex >= 0 && _hoveredTopIndex != _openPath[0])
             {
                 OpenTopOnHover(_hoveredTopIndex);
-                BuildLayout();
+                BuildLayout(context.DefaultFont);
             }
             else
             {
@@ -501,7 +504,7 @@ public sealed class UiMenuBar : UiElement
         if (EnableKeyboardNavigation)
         {
             HandleKeyboardNavigation(context);
-            BuildLayout();
+            BuildLayout(context.DefaultFont);
         }
 
         UpdateHoveredMenuItem(mouse);
@@ -576,7 +579,8 @@ public sealed class UiMenuBar : UiElement
             MenuItem item = Items[i];
             UiColor color = item.Enabled ? TextColor : DisabledTextColor;
             int textY = rect.Y + (rect.Height - textHeight) / 2;
-            context.Renderer.DrawText(item.Text, new UiPoint(rect.X + BarItemPadding, textY), color, TextScale, font);
+            TopItemTextMetrics textMetrics = GetTopItemTextMetrics(item.Text, font);
+            context.Renderer.DrawText(item.Text, new UiPoint(rect.X + BarItemPadding + textMetrics.DrawOffsetX, textY), color, TextScale, font);
         }
 
         base.Render(context);
@@ -742,18 +746,24 @@ public sealed class UiMenuBar : UiElement
 
     private void BuildLayout()
     {
+        BuildLayout(_lastDefaultFont);
+    }
+
+    private void BuildLayout(UiFont defaultFont)
+    {
+        _lastDefaultFont = defaultFont ?? UiFont.Default;
         if (DisplayMode == UiMenuDisplayMode.Popup)
         {
             BuildPopupLayouts();
             return;
         }
 
-        BuildTopItemRects();
+        BuildTopItemRects(ResolveFont(_lastDefaultFont));
         TrimOpenPath();
         BuildOpenLayouts();
     }
 
-    private void BuildTopItemRects()
+    private void BuildTopItemRects(UiFont font)
     {
         _topItemRects.Clear();
         UiRect barBounds = GetBarBounds();
@@ -761,7 +771,8 @@ public sealed class UiMenuBar : UiElement
 
         foreach (MenuItem item in Items)
         {
-            int width = GetTextWidth(item.Text) + BarItemPadding * 2;
+            TopItemTextMetrics textMetrics = GetTopItemTextMetrics(item.Text, font);
+            int width = textMetrics.ContentWidth + BarItemPadding * 2;
             UiRect rect = new(x, barBounds.Y, width, barBounds.Height);
             _topItemRects.Add(rect);
             x += width + BarItemSpacing;
@@ -2155,6 +2166,21 @@ public sealed class UiMenuBar : UiElement
         }
 
         return -1;
+    }
+
+    private TopItemTextMetrics GetTopItemTextMetrics(string text, UiFont font)
+    {
+        int advanceWidth = GetTextWidth(text);
+        UiRect inkBounds = font.MeasureTextInkBounds(text ?? string.Empty, TextScale);
+        if (inkBounds.Width <= 0)
+        {
+            return new TopItemTextMetrics(advanceWidth, 0);
+        }
+
+        int drawOffsetX = Math.Max(0, -inkBounds.X);
+        int inkExtent = Math.Max(0, inkBounds.X) + inkBounds.Width;
+        int contentWidth = Math.Max(advanceWidth + drawOffsetX, inkExtent);
+        return new TopItemTextMetrics(contentWidth, drawOffsetX);
     }
 
     private int GetTextWidth(string text)
