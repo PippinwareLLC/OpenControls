@@ -65,6 +65,40 @@ public sealed class UiFont
         return GetMetrics(scale).LineHeight;
     }
 
+    public UiRect MeasureTextInkBounds(string text, int scale = 1)
+    {
+        UiTextLayout layout = LayoutText(text ?? string.Empty, scale);
+        if (layout.Glyphs.Count == 0)
+        {
+            return new UiRect(0, 0, 0, 0);
+        }
+
+        int minX = int.MaxValue;
+        int minY = int.MaxValue;
+        int maxRight = int.MinValue;
+        int maxBottom = int.MinValue;
+        for (int i = 0; i < layout.Glyphs.Count; i++)
+        {
+            UiPositionedGlyph glyph = layout.Glyphs[i];
+            if (glyph.Glyph.Width <= 0 || glyph.Glyph.Height <= 0)
+            {
+                continue;
+            }
+
+            minX = Math.Min(minX, glyph.X);
+            minY = Math.Min(minY, glyph.Y);
+            maxRight = Math.Max(maxRight, glyph.X + glyph.Glyph.Width);
+            maxBottom = Math.Max(maxBottom, glyph.Y + glyph.Glyph.Height);
+        }
+
+        if (minX == int.MaxValue || minY == int.MaxValue || maxRight == int.MinValue || maxBottom == int.MinValue)
+        {
+            return new UiRect(0, 0, 0, 0);
+        }
+
+        return new UiRect(minX, minY, maxRight - minX, maxBottom - minY);
+    }
+
     public static UiFont FromTinyBitmap(TinyBitmapFont? font = null, string name = "TinyBitmap")
     {
         return new UiFontBuilder(name, TinyBitmapFont.GlyphHeight)
