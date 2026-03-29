@@ -23,6 +23,11 @@ public sealed class UiTreeView : UiElement
     private int _scrollOffset;
     private UiClipRange _clipRange;
     private string _selectionScope = string.Empty;
+    private bool _showVerticalScrollbar;
+    private bool _draggingVerticalScrollbar;
+    private bool _hoverVerticalScrollbarThumb;
+    private int _scrollbarDragStartMouseY;
+    private int _scrollbarDragStartScrollOffset;
 
     public List<UiTreeViewItem> RootItems { get; } = new();
 
@@ -153,6 +158,10 @@ public sealed class UiTreeView : UiElement
     public int TextScale { get; set; } = 1;
     public int ScrollWheelItems { get; set; } = 3;
     public int OverscanItems { get; set; } = 1;
+    public UiScrollbarVisibility VerticalScrollbar { get; set; } = UiScrollbarVisibility.Auto;
+    public int ScrollbarThickness { get; set; } = 12;
+    public int ScrollbarPadding { get; set; } = 2;
+    public int MinThumbSize { get; set; } = 12;
     public bool ShowHierarchyLines { get; set; } = true;
     public UiColor HierarchyLineColor { get; set; } = new UiColor(76, 88, 112);
     public int HierarchyLineThickness { get; set; } = 1;
@@ -180,6 +189,10 @@ public sealed class UiTreeView : UiElement
     public UiColor TextColor { get; set; } = UiColor.White;
     public UiColor SelectedTextColor { get; set; } = UiColor.White;
     public UiColor ArrowColor { get; set; } = UiColor.White;
+    public UiColor ScrollbarTrack { get; set; } = new UiColor(20, 24, 34);
+    public UiColor ScrollbarBorder { get; set; } = new UiColor(60, 70, 90);
+    public UiColor ScrollbarThumb { get; set; } = new UiColor(70, 80, 100);
+    public UiColor ScrollbarThumbHover { get; set; } = new UiColor(90, 110, 140);
     public int CornerRadius { get; set; }
 
     public event Action<int>? SelectionChanged;
@@ -285,9 +298,21 @@ public sealed class UiTreeView : UiElement
         RefreshVisibleRows();
 
         UiInputState input = context.Input;
+        ResolveScrollbars();
+
         int itemHeight = Math.Max(1, ItemHeight);
         int viewportHeight = Math.Max(0, Bounds.Height);
-        if (input.ScrollDelta != 0 && Bounds.Contains(input.MousePosition))
+        UiRect viewport = GetViewportBounds();
+        bool mouseInViewport = viewport.Contains(input.MousePosition);
+        bool mouseInScrollbar = false;
+        if (_showVerticalScrollbar)
+        {
+            UiRect verticalBar = GetVerticalScrollbarBounds();
+            mouseInScrollbar = verticalBar.Contains(input.MousePosition);
+            UpdateVerticalScrollbar(input, verticalBar);
+        }
+
+        if (input.ScrollDelta != 0 && (mouseInViewport || mouseInScrollbar))
         {
             int steps = (int)Math.Round(input.ScrollDelta / 120f);
             if (steps != 0)
@@ -298,9 +323,9 @@ public sealed class UiTreeView : UiElement
 
         _scrollOffset = UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset);
         _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
-        _hoverIndex = GetIndexAtPoint(input.MousePosition);
+        _hoverIndex = mouseInScrollbar ? -1 : GetIndexAtPoint(input.MousePosition);
 
-        if (input.LeftClicked && Bounds.Contains(input.MousePosition))
+        if (input.LeftClicked && Bounds.Contains(input.MousePosition) && !mouseInScrollbar)
         {
             context.Focus.RequestFocus(this);
             if (_hoverIndex >= 0 && _hoverIndex < _visibleRows.Count)
@@ -344,6 +369,7 @@ public sealed class UiTreeView : UiElement
         }
 
         EnsureRenderState();
+        ResolveScrollbars();
 
         UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, Background);
         if (Border.A > 0)
@@ -359,15 +385,16 @@ public sealed class UiTreeView : UiElement
         UiFont font = ResolveFont(context.DefaultFont);
         int itemHeight = Math.Max(1, ItemHeight);
         int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
+        UiRect viewport = GetViewportBounds();
 
-        context.Renderer.PushClip(Bounds);
+        context.Renderer.PushClip(viewport);
         int firstIndex = Math.Max(0, _clipRange.FirstMaterializedIndex);
         int lastIndex = Math.Min(_visibleRows.Count - 1, _clipRange.LastMaterializedIndex);
         for (int index = firstIndex; index <= lastIndex; index++)
         {
             VisibleRow row = _visibleRows[index];
             int y = Bounds.Y + _clipRange.GetItemStart(index) - _clipRange.ViewportStart;
-            UiRect rowRect = new(Bounds.X, y, Bounds.Width, itemHeight);
+            UiRect rowRect = new(Bounds.X, y, viewport.Width, itemHeight);
 
             if (IsItemSelected(index))
             {
@@ -397,6 +424,7 @@ public sealed class UiTreeView : UiElement
         }
 
         context.Renderer.PopClip();
+        DrawScrollbars(context);
     }
 
     protected internal override void OnFocusGained()
@@ -664,6 +692,11 @@ public sealed class UiTreeView : UiElement
             return -1;
         }
 
+        if (_showVerticalScrollbar && GetVerticalScrollbarBounds().Contains(point))
+        {
+            return -1;
+        }
+
         int contentY = point.Y - Bounds.Y + _scrollOffset;
         return _clipRange.GetIndexAtOffset(contentY);
     }
@@ -719,6 +752,7 @@ public sealed class UiTreeView : UiElement
         int viewportHeight = Math.Max(0, Bounds.Height);
         _scrollOffset = UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset);
         _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
+        ResolveScrollbars();
     }
 
     private void EnsureRenderState()
@@ -734,6 +768,118 @@ public sealed class UiTreeView : UiElement
 
         _scrollOffset = UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset);
         _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
+        ResolveScrollbars();
+    }
+
+    private void ResolveScrollbars()
+    {
+        int contentHeight = _visibleRows.Count * Math.Max(1, ItemHeight);
+        bool always = VerticalScrollbar == UiScrollbarVisibility.Always;
+        bool auto = VerticalScrollbar == UiScrollbarVisibility.Auto;
+        _showVerticalScrollbar = always || (auto && contentHeight > Bounds.Height);
+        if (!_showVerticalScrollbar)
+        {
+            _hoverVerticalScrollbarThumb = false;
+            _draggingVerticalScrollbar = false;
+        }
+    }
+
+    private UiRect GetViewportBounds()
+    {
+        int width = Math.Max(0, Bounds.Width - (_showVerticalScrollbar ? Math.Max(1, ScrollbarThickness) : 0));
+        return new UiRect(Bounds.X, Bounds.Y, width, Bounds.Height);
+    }
+
+    private UiRect GetVerticalScrollbarBounds()
+    {
+        int thickness = Math.Max(1, ScrollbarThickness);
+        return new UiRect(Bounds.Right - thickness, Bounds.Y, thickness, Bounds.Height);
+    }
+
+    private UiRect GetVerticalThumbBounds(UiRect bar)
+    {
+        int padding = Math.Max(0, ScrollbarPadding);
+        int trackTop = bar.Y + padding;
+        int trackHeight = Math.Max(1, bar.Height - padding * 2);
+        int contentHeight = Math.Max(trackHeight, _visibleRows.Count * Math.Max(1, ItemHeight));
+        int thumbHeight = trackHeight;
+        if (contentHeight > 0)
+        {
+            double ratio = trackHeight / (double)contentHeight;
+            thumbHeight = Math.Max(MinThumbSize, (int)Math.Round(trackHeight * ratio));
+        }
+
+        thumbHeight = Math.Min(trackHeight, thumbHeight);
+        int maxScroll = Math.Max(0, contentHeight - Math.Max(1, Bounds.Height));
+        int travel = Math.Max(0, trackHeight - thumbHeight);
+        int thumbY = trackTop;
+        if (travel > 0 && maxScroll > 0)
+        {
+            double t = _scrollOffset / (double)maxScroll;
+            thumbY = trackTop + (int)Math.Round(travel * t);
+        }
+
+        return new UiRect(bar.X + padding, thumbY, Math.Max(1, bar.Width - padding * 2), thumbHeight);
+    }
+
+    private void UpdateVerticalScrollbar(UiInputState input, UiRect bar)
+    {
+        UiRect thumb = GetVerticalThumbBounds(bar);
+        _hoverVerticalScrollbarThumb = thumb.Contains(input.MousePosition);
+
+        if (!_draggingVerticalScrollbar && input.LeftClicked && bar.Contains(input.MousePosition))
+        {
+            if (_hoverVerticalScrollbarThumb)
+            {
+                _draggingVerticalScrollbar = true;
+                _scrollbarDragStartMouseY = input.MousePosition.Y;
+                _scrollbarDragStartScrollOffset = _scrollOffset;
+            }
+            else
+            {
+                PageVertical(input.MousePosition.Y < thumb.Y);
+            }
+        }
+
+        if (_draggingVerticalScrollbar)
+        {
+            if (input.LeftDown)
+            {
+                int trackHeight = Math.Max(1, bar.Height - ScrollbarPadding * 2);
+                int thumbHeight = Math.Max(1, thumb.Height);
+                int travel = Math.Max(1, trackHeight - thumbHeight);
+                int maxScroll = Math.Max(0, _visibleRows.Count * Math.Max(1, ItemHeight) - Math.Max(1, Bounds.Height));
+                int deltaPixels = input.MousePosition.Y - _scrollbarDragStartMouseY;
+                int deltaScroll = maxScroll <= 0 ? 0 : (int)Math.Round(deltaPixels * (maxScroll / (double)travel));
+                _scrollOffset = _scrollbarDragStartScrollOffset + deltaScroll;
+            }
+            else
+            {
+                _draggingVerticalScrollbar = false;
+            }
+        }
+    }
+
+    private void PageVertical(bool pageUp)
+    {
+        int page = Math.Max(1, Bounds.Height - Math.Max(1, ItemHeight));
+        _scrollOffset += pageUp ? -page : page;
+    }
+
+    private void DrawScrollbars(UiRenderContext context)
+    {
+        if (!_showVerticalScrollbar)
+        {
+            return;
+        }
+
+        UiRect bar = GetVerticalScrollbarBounds();
+        context.Renderer.FillRect(bar, ScrollbarTrack);
+        context.Renderer.DrawRect(bar, ScrollbarBorder, 1);
+
+        UiRect thumb = GetVerticalThumbBounds(bar);
+        UiColor thumbColor = (_hoverVerticalScrollbarThumb || _draggingVerticalScrollbar) ? ScrollbarThumbHover : ScrollbarThumb;
+        context.Renderer.FillRect(thumb, thumbColor);
     }
 
     private static bool TryFindPath(IReadOnlyList<UiTreeViewItem> items, UiTreeViewItem target, List<UiTreeViewItem> path)
