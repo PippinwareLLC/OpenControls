@@ -196,6 +196,13 @@ public sealed class UiDockWorkspace : UiElement
         HashSet<UiDockHost> usedHosts = new();
         _rootNode = BuildNode(state.Root, hostById, usedHosts);
 
+        foreach (UiDockHost host in _hosts)
+        {
+            host.ClearWindows();
+        }
+
+        ClearFloatingWindows();
+
         List<UiDockHost> existingHosts = new(_hosts);
         foreach (UiDockHost host in existingHosts)
         {
@@ -204,13 +211,6 @@ public sealed class UiDockWorkspace : UiElement
                 RemoveDockHost(host);
             }
         }
-
-        foreach (UiDockHost host in _hosts)
-        {
-            host.ClearWindows();
-        }
-
-        ClearFloatingWindows();
 
         foreach (UiDockHostState hostState in state.Hosts)
         {
@@ -834,6 +834,7 @@ public sealed class UiDockWorkspace : UiElement
 
     private void RemoveDockHost(UiDockHost host)
     {
+        host.ClearWindows();
         _hosts.Remove(host);
         RemoveChild(host);
     }

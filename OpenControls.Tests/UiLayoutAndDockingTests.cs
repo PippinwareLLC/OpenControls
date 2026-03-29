@@ -1,4 +1,5 @@
 using OpenControls.Controls;
+using OpenControls.State;
 using Xunit;
 
 namespace OpenControls.Tests;
@@ -221,6 +222,54 @@ public sealed class UiLayoutAndDockingTests
 
         Assert.True(nestedWidth >= nestedMinimumWidth);
         Assert.True(workspace.RootHost.Bounds.Width <= 500 - workspace.SplitterThickness - nestedMinimumWidth);
+    }
+
+    [Fact]
+    public void DockWorkspace_ApplyState_ReparentsWindowsFromRemovedHosts()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 300, 180),
+            SplitterThickness = 6,
+            MinPaneSize = 80
+        };
+
+        UiDockHost rightHost = workspace.SplitHost(workspace.RootHost, UiDockWorkspace.DockTarget.Right);
+        UiWindow window = new()
+        {
+            Id = "window-a",
+            Title = "Window A"
+        };
+        rightHost.DockWindow(window);
+
+        UiDockWorkspaceState captured = workspace.CaptureState();
+        string rootHostId = workspace.RootHost.Id;
+        UiDockWorkspaceState restored = new()
+        {
+            Id = captured.Id,
+            Root = new UiDockNodeState
+            {
+                HostId = rootHostId
+            },
+            Hosts =
+            {
+                new UiDockHostState
+                {
+                    HostId = rootHostId,
+                    WindowIds = { window.Id },
+                    ActiveIndex = 0
+                }
+            }
+        };
+
+        workspace.ApplyState(restored, new Dictionary<string, UiWindow>(StringComparer.Ordinal)
+        {
+            [window.Id] = window
+        });
+
+        Assert.Same(workspace.RootHost, window.Parent);
+        Assert.Single(workspace.RootHost.Windows);
+        Assert.Same(window, workspace.RootHost.Windows[0]);
     }
 
     private static UiDockWorkspace CreateWorkspace()
