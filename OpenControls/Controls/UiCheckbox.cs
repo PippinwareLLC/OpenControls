@@ -131,6 +131,16 @@ public sealed class UiCheckbox : UiElement
         SetChecked(!_checked);
     }
 
+    public void SetCheckedWithoutNotify(bool value)
+    {
+        if (_checked == value)
+        {
+            return;
+        }
+
+        _checked = value;
+    }
+
     private void SetChecked(bool value)
     {
         if (_checked == value)
