@@ -1288,9 +1288,24 @@ public sealed class UiDockHost : UiElement
             ? context
             : new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont, context.Clipboard, context.ActiveInputLayer);
 
-        foreach (UiElement child in Children)
+        int childCount = Children.Count;
+        if (childCount == 0)
         {
-            child.Update(childContext);
+            return;
+        }
+
+        UiElement[] snapshot = new UiElement[childCount];
+        for (int index = 0; index < childCount; index++)
+        {
+            snapshot[index] = Children[index];
+        }
+
+        foreach (UiElement child in snapshot)
+        {
+            if (ReferenceEquals(child.Parent, this))
+            {
+                child.Update(childContext);
+            }
         }
     }
 

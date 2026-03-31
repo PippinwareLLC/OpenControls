@@ -85,6 +85,32 @@ public sealed class UiDockHostTabFeaturesTests
         Assert.DoesNotContain(host.Windows, window => window.Title == "Window 1");
     }
 
+    [Fact]
+    public void DockHost_UpdateChildren_AllowsWindowRemovalDuringChildUpdate()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160)
+        };
+
+        UiWindow victim = new() { Title = "Victim" };
+        UiWindow remover = new() { Title = "Remover" };
+        remover.AddContentChild(new RemovingElement(host, victim));
+        host.AddWindow(remover);
+        host.AddWindow(victim);
+
+        host.Update(new UiUpdateContext(
+            new UiInputState(),
+            new UiFocusManager(),
+            new UiDragDropContext(),
+            1f / 60f,
+            UiFont.Default,
+            new UiMemoryClipboard()));
+
+        Assert.Single(host.Windows);
+        Assert.Equal("Remover", host.Windows[0].Title);
+    }
+
     private static UiDockHost CreateHostWithFourWindows()
     {
         UiDockHost host = new()
@@ -98,5 +124,21 @@ public sealed class UiDockHostTabFeaturesTests
         }
 
         return host;
+    }
+
+    private sealed class RemovingElement(UiDockHost host, UiWindow target) : UiElement
+    {
+        private readonly UiDockHost _host = host;
+        private readonly UiWindow _target = target;
+        private bool _removed;
+
+        public override void Update(UiUpdateContext context)
+        {
+            if (!_removed)
+            {
+                _removed = true;
+                _host.RemoveWindow(_target);
+            }
+        }
     }
 }
