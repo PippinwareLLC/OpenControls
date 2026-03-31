@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Silk.NET.Core.Loader;
 using Silk.NET.OpenGL;
 
 namespace OpenControls.SilkNet;
@@ -421,15 +422,31 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         {
             if (texture.TextureId != 0)
             {
-                _gl.DeleteTexture(texture.TextureId);
+                SafeDelete(() => _gl.DeleteTexture(texture.TextureId));
             }
         }
 
-        _gl.DeleteTexture(_whiteTexture);
-        _gl.DeleteBuffer(_ebo);
-        _gl.DeleteBuffer(_vbo);
-        _gl.DeleteVertexArray(_vao);
-        _gl.DeleteProgram(_program);
+        SafeDelete(() => _gl.DeleteTexture(_whiteTexture));
+        SafeDelete(() => _gl.DeleteBuffer(_ebo));
+        SafeDelete(() => _gl.DeleteBuffer(_vbo));
+        SafeDelete(() => _gl.DeleteVertexArray(_vao));
+        SafeDelete(() => _gl.DeleteProgram(_program));
+    }
+
+    private static void SafeDelete(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (SymbolLoadingException)
+        {
+            // The owning GL context may already be unavailable during process shutdown.
+        }
+        catch (InvalidOperationException)
+        {
+            // Ignore teardown-time GL state failures when the context is no longer valid.
+        }
     }
 
     public void FlushPending()

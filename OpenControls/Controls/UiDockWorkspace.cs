@@ -4,6 +4,8 @@ namespace OpenControls.Controls;
 
 public sealed class UiDockWorkspace : UiElement
 {
+    public event Action<UiWindow, UiPoint>? TabDetached;
+
     public enum DockTarget
     {
         None,
@@ -223,7 +225,7 @@ public sealed class UiDockWorkspace : UiElement
             {
                 if (windowsById.TryGetValue(windowId, out UiWindow? window))
                 {
-                    DetachWindow(window);
+                    DetachWindowInternal(window);
                     host.DockWindow(window);
                 }
             }
@@ -235,7 +237,7 @@ public sealed class UiDockWorkspace : UiElement
         {
             if (windowsById.TryGetValue(floatingState.WindowId, out UiWindow? window))
             {
-                DetachWindow(window);
+                DetachWindowInternal(window);
                 window.Bounds = floatingState.Bounds;
                 AddFloatingWindow(window);
             }
@@ -267,7 +269,7 @@ public sealed class UiDockWorkspace : UiElement
             throw new ArgumentException("Dock host is not part of this workspace.", nameof(host));
         }
 
-        DetachWindow(window);
+        DetachWindowInternal(window);
         window.AllowDrag = false;
         if (index >= 0)
         {
@@ -280,6 +282,14 @@ public sealed class UiDockWorkspace : UiElement
             host.ActivateWindow(host.Windows.Count - 1);
         }
 
+        CollapseEmptyHosts();
+    }
+
+    public void DetachWindow(UiWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+
+        DetachWindowInternal(window);
         CollapseEmptyHosts();
     }
 
@@ -317,7 +327,7 @@ public sealed class UiDockWorkspace : UiElement
         _floatingWindows.Clear();
     }
 
-    private void DetachWindow(UiWindow window)
+    private void DetachWindowInternal(UiWindow window)
     {
         if (_floatingWindows.Contains(window))
         {
@@ -675,8 +685,15 @@ public sealed class UiDockWorkspace : UiElement
             if (_dragSourceHost != null)
             {
                 _dragSourceHost.RemoveWindow(window);
-                window.Bounds = ClampToBounds(GetFloatingPreviewBounds(dropPoint, window.Bounds), Bounds);
-                AddFloatingWindow(window);
+                if (!Bounds.Contains(dropPoint) && CanDetachWindowExternally(_dragSourceHost, window))
+                {
+                    TabDetached?.Invoke(window, dropPoint);
+                }
+                else
+                {
+                    window.Bounds = ClampToBounds(GetFloatingPreviewBounds(dropPoint, window.Bounds), Bounds);
+                    AddFloatingWindow(window);
+                }
             }
             if (collapseEmptyHosts)
             {
@@ -732,6 +749,16 @@ public sealed class UiDockWorkspace : UiElement
         destination.HideDockedTitleBars = source.HideDockedTitleBars;
         destination.AllowReorder = source.AllowReorder;
         destination.DragThreshold = source.DragThreshold;
+    }
+
+    private static bool CanDetachWindowExternally(UiDockHost host, UiWindow window)
+    {
+        if (!host.AllowDetach)
+        {
+            return false;
+        }
+
+        return host.CanDetachWindowPredicate?.Invoke(window) ?? true;
     }
 
     private void AssignHostId(UiDockHost host)

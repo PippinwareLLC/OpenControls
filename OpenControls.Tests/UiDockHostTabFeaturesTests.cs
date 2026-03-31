@@ -66,6 +66,25 @@ public sealed class UiDockHostTabFeaturesTests
         Assert.Equal(-1, host.ActiveIndex);
     }
 
+    [Fact]
+    public void DockHost_TryDetachWindow_RespectsDetachPredicate()
+    {
+        UiDockHost host = CreateHostWithFourWindows();
+        host.CanDetachWindowPredicate = window => window.Title == "Window 1";
+
+        UiWindow? detachedWindow = null;
+        host.TabDetached += (window, _) => detachedWindow = window;
+
+        bool firstDetached = host.TryDetachWindow(0, new UiPoint(400, 20));
+        bool secondDetached = host.TryDetachWindow(1, new UiPoint(420, 20));
+
+        Assert.False(firstDetached);
+        Assert.True(secondDetached);
+        Assert.NotNull(detachedWindow);
+        Assert.Equal("Window 1", detachedWindow!.Title);
+        Assert.DoesNotContain(host.Windows, window => window.Title == "Window 1");
+    }
+
     private static UiDockHost CreateHostWithFourWindows()
     {
         UiDockHost host = new()

@@ -16,6 +16,7 @@ public sealed class UiDockHost : UiElement
 
     private enum TabMenuCommand
     {
+        Detach,
         Close,
         CloseOthers,
         CloseTabsToRight,
@@ -96,6 +97,7 @@ public sealed class UiDockHost : UiElement
     public bool HideDockedTitleBars { get; set; } = true;
     public bool AllowReorder { get; set; } = true;
     public bool AllowDetach { get; set; } = true;
+    public Func<UiWindow, bool>? CanDetachWindowPredicate { get; set; }
     public int DragThreshold { get; set; } = 6;
     public bool ExternalDragHandling { get; set; }
 
@@ -173,6 +175,17 @@ public sealed class UiDockHost : UiElement
     public void DockWindow(UiWindow window)
     {
         AddWindow(window);
+    }
+
+    public bool TryDetachWindow(int index, UiPoint dropPoint)
+    {
+        if (!CanDetachWindow(index))
+        {
+            return false;
+        }
+
+        DetachWindow(_windows[index], dropPoint);
+        return true;
     }
 
     public void ClearWindows()
@@ -488,7 +501,7 @@ public sealed class UiDockHost : UiElement
             {
                 _activeIndex = index;
                 _keepActiveTabVisible = true;
-                if (AllowReorder || AllowDetach)
+                if (AllowReorder || CanDetachWindow(index))
                 {
                     _dragWindow = _windows[index];
                     _dragIndex = index;
@@ -532,9 +545,9 @@ public sealed class UiDockHost : UiElement
                 _dragIndex = -1;
                 _dragMoved = false;
             }
-            else if (_dragWindow != null && _dragMoved && AllowDetach && !Bounds.Contains(input.MousePosition))
+            else if (_dragWindow != null && _dragMoved && CanDetachWindow(_dragIndex) && !Bounds.Contains(input.MousePosition))
             {
-                DetachWindow(_dragWindow, input.MousePosition);
+                TryDetachWindow(_dragIndex, input.MousePosition);
             }
 
             _dragWindow = null;
@@ -1327,7 +1340,7 @@ public sealed class UiDockHost : UiElement
 
         int itemHeight = GetMenuItemHeight();
         int width = GetContextMenuWidth();
-        int height = GetContextMenuCommandCount() * itemHeight;
+        int height = GetContextMenuCommands().Count * itemHeight;
         int x = point.X;
         int y = Bounds.Y + TabBarHeight;
         if (x + width > Bounds.Right)
@@ -1371,7 +1384,8 @@ public sealed class UiDockHost : UiElement
         int itemHeight = GetMenuItemHeight();
         int relativeY = point.Y - _contextMenuBounds.Y;
         int index = itemHeight > 0 ? relativeY / itemHeight : -1;
-        return index >= 0 && index < GetContextMenuCommandCount() && IsContextCommandEnabled(index) ? index : -1;
+        IReadOnlyList<TabMenuCommand> commands = GetContextMenuCommands();
+        return index >= 0 && index < commands.Count && IsContextCommandEnabled(index) ? index : -1;
     }
 
     private int GetMenuItemHeight()
@@ -1399,7 +1413,8 @@ public sealed class UiDockHost : UiElement
     private int GetContextMenuWidth()
     {
         int width = 140;
-        for (int i = 0; i < GetContextMenuCommandCount(); i++)
+        IReadOnlyList<TabMenuCommand> commands = GetContextMenuCommands();
+        for (int i = 0; i < commands.Count; i++)
         {
             width = Math.Max(width, MeasureTextWidth(GetContextMenuLabel(i), TabTextScale, _layoutFont) + Math.Max(0, TabPadding) * 2);
         }
@@ -1407,19 +1422,44 @@ public sealed class UiDockHost : UiElement
         return Math.Min(Math.Max(140, width), Math.Max(140, Bounds.Width));
     }
 
-    private static int GetContextMenuCommandCount()
+    private IReadOnlyList<TabMenuCommand> GetContextMenuCommands()
     {
-        return 4;
+        if (_contextMenuTabIndex >= 0 && _contextMenuTabIndex < _windows.Count && CanDetachWindow(_contextMenuTabIndex))
+        {
+            return
+            [
+                TabMenuCommand.Detach,
+                TabMenuCommand.Close,
+                TabMenuCommand.CloseOthers,
+                TabMenuCommand.CloseTabsToRight,
+                TabMenuCommand.CloseAll
+            ];
+        }
+
+        return
+        [
+            TabMenuCommand.Close,
+            TabMenuCommand.CloseOthers,
+            TabMenuCommand.CloseTabsToRight,
+            TabMenuCommand.CloseAll
+        ];
     }
 
     private string GetContextMenuLabel(int index)
     {
-        return index switch
+        IReadOnlyList<TabMenuCommand> commands = GetContextMenuCommands();
+        if (index < 0 || index >= commands.Count)
         {
-            0 => "Close",
-            1 => "Close Others",
-            2 => "Close Tabs To Right",
-            3 => "Close All",
+            return string.Empty;
+        }
+
+        return commands[index] switch
+        {
+            TabMenuCommand.Detach => "Detach",
+            TabMenuCommand.Close => "Close",
+            TabMenuCommand.CloseOthers => "Close Others",
+            TabMenuCommand.CloseTabsToRight => "Close Tabs To Right",
+            TabMenuCommand.CloseAll => "Close All",
             _ => string.Empty
         };
     }
@@ -1431,12 +1471,19 @@ public sealed class UiDockHost : UiElement
             return false;
         }
 
-        return index switch
+        IReadOnlyList<TabMenuCommand> commands = GetContextMenuCommands();
+        if (index < 0 || index >= commands.Count)
         {
-            0 => CanRemoveWindow(_contextMenuTabIndex),
-            1 => HasClosableWindowOtherThan(_contextMenuTabIndex),
-            2 => HasClosableWindowToRight(_contextMenuTabIndex),
-            3 => HasAnyClosableWindow(),
+            return false;
+        }
+
+        return commands[index] switch
+        {
+            TabMenuCommand.Detach => CanDetachWindow(_contextMenuTabIndex),
+            TabMenuCommand.Close => CanRemoveWindow(_contextMenuTabIndex),
+            TabMenuCommand.CloseOthers => HasClosableWindowOtherThan(_contextMenuTabIndex),
+            TabMenuCommand.CloseTabsToRight => HasClosableWindowToRight(_contextMenuTabIndex),
+            TabMenuCommand.CloseAll => HasAnyClosableWindow(),
             _ => false
         };
     }
@@ -1448,21 +1495,45 @@ public sealed class UiDockHost : UiElement
             return;
         }
 
-        switch (index)
+        IReadOnlyList<TabMenuCommand> commands = GetContextMenuCommands();
+        if (index < 0 || index >= commands.Count)
         {
-            case 0:
+            return;
+        }
+
+        switch (commands[index])
+        {
+            case TabMenuCommand.Detach:
+                UiRect tabRect = GetTabRect(_contextMenuTabIndex);
+                UiPoint detachPoint = tabRect.Width > 0 && tabRect.Height > 0
+                    ? new UiPoint(tabRect.X + tabRect.Width / 2, tabRect.Bottom)
+                    : new UiPoint(_contextMenuBounds.X, _contextMenuBounds.Y);
+                TryDetachWindow(_contextMenuTabIndex, detachPoint);
+                break;
+            case TabMenuCommand.Close:
                 CloseWindowCore(_contextMenuTabIndex, allowLastWindow: true);
                 break;
-            case 1:
+            case TabMenuCommand.CloseOthers:
                 CloseOtherWindows(_contextMenuTabIndex);
                 break;
-            case 2:
+            case TabMenuCommand.CloseTabsToRight:
                 CloseWindowsToRight(_contextMenuTabIndex);
                 break;
-            case 3:
+            case TabMenuCommand.CloseAll:
                 CloseAllWindows();
                 break;
         }
+    }
+
+    private bool CanDetachWindow(int index)
+    {
+        if (!AllowDetach || index < 0 || index >= _windows.Count)
+        {
+            return false;
+        }
+
+        UiWindow window = _windows[index];
+        return CanDetachWindowPredicate?.Invoke(window) ?? true;
     }
 
     private void RenderOverflowMenu(UiRenderContext context)
@@ -1508,7 +1579,8 @@ public sealed class UiDockHost : UiElement
 
         int itemHeight = GetMenuItemHeight();
         int textHeight = context.Renderer.MeasureTextHeight(TabTextScale, _layoutFont);
-        for (int i = 0; i < GetContextMenuCommandCount(); i++)
+        IReadOnlyList<TabMenuCommand> commands = GetContextMenuCommands();
+        for (int i = 0; i < commands.Count; i++)
         {
             UiRect itemBounds = new(_contextMenuBounds.X, _contextMenuBounds.Y + i * itemHeight, _contextMenuBounds.Width, itemHeight);
             bool enabled = IsContextCommandEnabled(i);
