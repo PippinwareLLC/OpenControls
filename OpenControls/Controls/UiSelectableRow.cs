@@ -253,7 +253,8 @@ public sealed class UiSelectableRow : UiElement
             context.DragDrop,
             context.DeltaSeconds,
             context.DefaultFont,
-            context.Clipboard);
+            context.Clipboard,
+            context.ActiveInputLayer);
 
         foreach (UiElement child in Children)
         {

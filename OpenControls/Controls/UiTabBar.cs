@@ -106,7 +106,7 @@ public sealed class UiTabBar : UiElement
         CollectButtons(_leadingButtons, _trailingButtons);
         UpdateTabLayout(tabs, _leadingButtons, _trailingButtons);
 
-        UiInputState input = context.Input;
+        UiInputState input = context.GetInputFor(this);
         _hoverIndex = GetTabIndexAt(input.MousePosition, tabs);
         _closeHoverIndex = GetCloseIndexAt(input.MousePosition, tabs);
         _hoverButton = GetButtonAt(input.MousePosition, _leadingButtons, _trailingButtons);

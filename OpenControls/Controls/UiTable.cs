@@ -446,7 +446,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement
         ValidateSortSpecs();
         RefreshLayout();
 
-        UiInputState input = context.Input;
+        UiInputState input = context.GetInputFor(this);
         UiElement? contentHit = HitTestPlacedContent(input.MousePosition);
         bool pointerHandledByMenu = UpdateHeaderContextMenu(input);
         bool pointerHandledByScrollbars = UpdateScrollbars(input, pointerHandledByMenu);
@@ -1122,7 +1122,8 @@ public sealed class UiTable : UiElement, IUiStatefulElement
             context.DragDrop,
             context.DeltaSeconds,
             context.DefaultFont,
-            context.Clipboard));
+            context.Clipboard,
+            context.ActiveInputLayer));
     }
 
     private static UiInputState BuildPlacementInput(UiInputState input, UiRect bounds, UiRect clipBounds)

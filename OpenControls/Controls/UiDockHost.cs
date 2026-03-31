@@ -1286,7 +1286,7 @@ public sealed class UiDockHost : UiElement
     {
         UiUpdateContext childContext = ReferenceEquals(childInput, context.Input)
             ? context
-            : new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont, context.Clipboard);
+            : new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont, context.Clipboard, context.ActiveInputLayer);
 
         foreach (UiElement child in Children)
         {

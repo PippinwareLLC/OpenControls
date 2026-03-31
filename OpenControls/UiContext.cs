@@ -81,7 +81,7 @@ public sealed class UiContext
         }
 
         DragDrop.BeginFrame(effectiveInput);
-        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont, Clipboard));
+        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont, Clipboard, _activeInputLayer));
         DragDrop.EndFrame();
         RefreshOutputs(effectiveInput);
     }

@@ -279,6 +279,57 @@ public sealed class UiOverlayBehaviorTests
         Assert.True(context.WantCaptureMouse);
     }
 
+    [Fact]
+    public void OpenMenuLayouts_BlockUnderlyingTreeSelection()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 240)
+        };
+
+        UiMenuBar menu = CreateMenuBar();
+        root.AddChild(menu);
+
+        UiMenuBar.MenuItem fileMenu = new() { Text = "File" };
+        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Open" });
+        menu.Items.Add(fileMenu);
+
+        UiTreeView tree = new()
+        {
+            Bounds = new UiRect(0, 24, 200, 180)
+        };
+        tree.RootItems.Add(new UiTreeViewItem("Root"));
+        root.AddChild(tree);
+
+        UiContext context = new(root);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(10, 10),
+            ScreenMousePosition = new UiPoint(10, 10),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.True(menu.HasOpenMenu);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(20, 40),
+            ScreenMousePosition = new UiPoint(20, 40)
+        });
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(20, 40),
+            ScreenMousePosition = new UiPoint(20, 40),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.Equal(-1, tree.SelectedIndex);
+    }
+
     private static UiMenuBar CreateMenuBar()
     {
         return new UiMenuBar

@@ -136,7 +136,7 @@ public sealed class UiListBox : UiElement
             return;
         }
 
-        UiInputState input = context.Input;
+        UiInputState input = context.GetInputFor(this);
         _selectionModel?.SetItemCount(Items.Count, SelectionScope);
         int itemHeight = Math.Max(1, ItemHeight);
         _scrollOffset = UiClipper.ClampScrollOffset(Items.Count, itemHeight, Math.Max(0, Bounds.Height), _scrollOffset);

@@ -109,7 +109,7 @@ public abstract class UiDragFloatVectorBase : UiElement
             return;
         }
 
-        UiInputState input = context.Input;
+        UiInputState input = context.GetInputFor(this);
         _hoverIndex = GetIndexAt(input.MousePosition);
         SyncInputFieldOptions();
 
