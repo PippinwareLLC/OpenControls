@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace OpenControls.Controls;
 
@@ -366,6 +367,82 @@ public sealed class UiMenuBar : UiElement
     public override bool CapturesPointerInput => DisplayMode != UiMenuDisplayMode.Popup || _popupOpen;
 
     public event Action<MenuItem, UiMenuItemActivationSource>? ItemInvoked;
+
+    public IReadOnlyList<UiRect> GetDebugOpenLayoutBounds()
+    {
+        if (_openLayouts.Count == 0)
+        {
+            return Array.Empty<UiRect>();
+        }
+
+        UiRect[] bounds = new UiRect[_openLayouts.Count];
+        for (int i = 0; i < _openLayouts.Count; i++)
+        {
+            bounds[i] = _openLayouts[i].Bounds;
+        }
+
+        return bounds;
+    }
+
+    public bool TryGetDebugHighlightedItemBounds(out UiRect bounds)
+    {
+        if (_hoveredMenuLevel >= 0 &&
+            _hoveredMenuLevel < _openLayouts.Count &&
+            _hoveredMenuIndex >= 0 &&
+            _hoveredMenuIndex < _openLayouts[_hoveredMenuLevel].ItemRects.Count)
+        {
+            bounds = _openLayouts[_hoveredMenuLevel].ItemRects[_hoveredMenuIndex];
+            return true;
+        }
+
+        if (_hoveredTopIndex >= 0 && _hoveredTopIndex < _topItemRects.Count)
+        {
+            bounds = _topItemRects[_hoveredTopIndex];
+            return true;
+        }
+
+        bounds = default;
+        return false;
+    }
+
+    public string BuildDebugStateText(UiPoint? probePoint = null)
+    {
+        StringBuilder builder = new();
+        builder.AppendLine($"DisplayMode={DisplayMode} PopupOpen={_popupOpen} HasOpenMenu={HasOpenMenu}");
+        builder.AppendLine($"HoveredTopIndex={_hoveredTopIndex} HoveredMenuLevel={_hoveredMenuLevel} HoveredMenuIndex={_hoveredMenuIndex}");
+        builder.AppendLine($"OpenPath={(_openPath.Count == 0 ? "(empty)" : string.Join(">", _openPath))}");
+        builder.AppendLine($"OpenLayouts={_openLayouts.Count}");
+
+        for (int i = 0; i < _openLayouts.Count; i++)
+        {
+            MenuLayout layout = _openLayouts[i];
+            builder.AppendLine($"  Layout[{i}] Bounds={layout.Bounds.X},{layout.Bounds.Y},{layout.Bounds.Width},{layout.Bounds.Height}");
+            for (int j = 0; j < layout.Items.Count; j++)
+            {
+                MenuItem item = layout.Items[j];
+                UiRect rect = layout.ItemRects[j];
+                bool isHovered = _hoveredMenuLevel == i && _hoveredMenuIndex == j;
+                builder.AppendLine(
+                    $"    {(isHovered ? '>' : '-')} Item[{j}] Text='{item.Text}' Enabled={item.Enabled} Separator={item.IsSeparator} HasChildren={item.HasChildren} Rect={rect.X},{rect.Y},{rect.Width},{rect.Height}");
+            }
+        }
+
+        if (probePoint is UiPoint point)
+        {
+            builder.AppendLine($"ProbePoint={point.X},{point.Y}");
+            if (TryGetMenuItemAt(point, out int level, out int index))
+            {
+                MenuItem item = _openLayouts[level].Items[index];
+                builder.AppendLine($"ProbeHit=Layout[{level}] Item[{index}] '{item.Text}'");
+            }
+            else
+            {
+                builder.AppendLine("ProbeHit=(none)");
+            }
+        }
+
+        return builder.ToString();
+    }
 
     public void OpenPopup()
     {
@@ -1299,7 +1376,7 @@ public sealed class UiMenuBar : UiElement
 
     private bool TryGetMenuItemAt(UiPoint point, out int level, out int index)
     {
-        for (int i = 0; i < _openLayouts.Count; i++)
+        for (int i = _openLayouts.Count - 1; i >= 0; i--)
         {
             MenuLayout layout = _openLayouts[i];
             if (!layout.Bounds.Contains(point))

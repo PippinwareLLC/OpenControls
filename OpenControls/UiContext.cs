@@ -125,6 +125,28 @@ public sealed class UiContext
             return UiItemStateSnapshot.Empty;
         }
 
+        if (TryResolveDebugBounds(Root, element, out UiRect resolvedBounds, out UiRect resolvedClipBounds))
+        {
+            if (_itemStates.TryGetValue(element, out UiItemStateSnapshot resolvedSnapshot))
+            {
+                return new UiItemStateSnapshot(
+                    element,
+                    resolvedBounds,
+                    resolvedClipBounds,
+                    resolvedSnapshot.Status,
+                    resolvedSnapshot.Visible,
+                    resolvedSnapshot.Enabled);
+            }
+
+            return new UiItemStateSnapshot(
+                element,
+                resolvedBounds,
+                resolvedClipBounds,
+                UiItemStatusFlags.None,
+                element.Visible,
+                element.Enabled);
+        }
+
         if (_itemStates.TryGetValue(element, out UiItemStateSnapshot snapshot))
         {
             return snapshot;
@@ -143,6 +165,26 @@ public sealed class UiContext
             UiItemStatusFlags.None,
             element.Visible,
             element.Enabled);
+    }
+
+    private static bool TryResolveDebugBounds(UiElement current, UiElement target, out UiRect bounds, out UiRect clipBounds)
+    {
+        if (current is IUiDebugBoundsResolver resolver && resolver.TryResolveDebugBounds(target, out bounds, out clipBounds))
+        {
+            return true;
+        }
+
+        foreach (UiElement child in current.Children)
+        {
+            if (TryResolveDebugBounds(child, target, out bounds, out clipBounds))
+            {
+                return true;
+            }
+        }
+
+        bounds = default;
+        clipBounds = default;
+        return false;
     }
 
     public UiContainerStateSnapshot GetContainerState(UiElement? element)
@@ -269,6 +311,27 @@ public sealed class UiContext
         UiItemStateSnapshot itemState = GetItemState(element);
         visibleBounds = itemState.ClipBounds;
         return itemState.Visible && visibleBounds.Width > 0 && visibleBounds.Height > 0;
+    }
+
+    public IReadOnlyList<UiElement> GetDebugChildren(UiElement element)
+    {
+        if (element == null)
+        {
+            throw new ArgumentNullException(nameof(element));
+        }
+
+        List<UiElement> children = new(element.Children.Count + 4);
+        for (int i = 0; i < element.Children.Count; i++)
+        {
+            children.Add(element.Children[i]);
+        }
+
+        if (element is Controls.UiTable table)
+        {
+            table.AppendDebugChildren(children);
+        }
+
+        return children;
     }
 
     public void RequestFocus(UiElement? element, bool nextFrame = false)
@@ -535,7 +598,8 @@ public sealed class UiContext
     {
         UiElement? previousActiveInputLayer = _activeInputLayer;
         LastInput = input;
-        Hovered = Root.HitTest(input.MousePosition);
+        _activeInputLayer = FindActiveInputLayer(Root);
+        Hovered = ResolveHoveredElement(input.MousePosition);
         if (input.LeftClicked && ResolveFocusTarget(Hovered) == null)
         {
             Focus.ClearFocus();
@@ -554,7 +618,6 @@ public sealed class UiContext
         }
 
         PointerCaptureTarget = _mouseCaptureTarget ?? hoveredCaptureTarget;
-        _activeInputLayer = FindActiveInputLayer(Root);
         ApplyPendingFocusRequest();
         ApplyDefaultFocusForActiveLayer(previousActiveInputLayer);
 
@@ -565,6 +628,16 @@ public sealed class UiContext
         RequestedMouseCursor = ResolveMouseCursor(input);
         TextInputRequest = ResolveTextInputRequest();
         RebuildRuntimeStateCaches(input);
+    }
+
+    private UiElement? ResolveHoveredElement(UiPoint mousePosition)
+    {
+        if (_activeInputLayer != null)
+        {
+            return _activeInputLayer.HitTest(mousePosition);
+        }
+
+        return Root.HitTest(mousePosition);
     }
 
     private UiMouseCursor ResolveMouseCursor(UiInputState input)

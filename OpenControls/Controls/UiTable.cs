@@ -99,7 +99,7 @@ public sealed class UiTableRow
     }
 }
 
-public sealed class UiTable : UiElement, IUiStatefulElement
+public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResolver
 {
     private sealed class ContentPlacement
     {
@@ -1231,6 +1231,56 @@ public sealed class UiTable : UiElement, IUiStatefulElement
 
         UiPoint local = new(point.X - placement.Bounds.X, point.Y - placement.Bounds.Y);
         return placement.Element.HitTest(local);
+    }
+
+    internal void AppendDebugChildren(List<UiElement> children)
+    {
+        for (int i = 0; i < _headerPlacements.Count; i++)
+        {
+            UiElement element = _headerPlacements[i].Element;
+            if (!children.Contains(element))
+            {
+                children.Add(element);
+            }
+        }
+
+        for (int i = 0; i < _cellPlacements.Count; i++)
+        {
+            UiElement element = _cellPlacements[i].Element;
+            if (!children.Contains(element))
+            {
+                children.Add(element);
+            }
+        }
+    }
+
+    bool IUiDebugBoundsResolver.TryResolveDebugBounds(UiElement element, out UiRect bounds, out UiRect clipBounds)
+    {
+        for (int i = 0; i < _cellPlacements.Count; i++)
+        {
+            ContentPlacement placement = _cellPlacements[i];
+            if (ReferenceEquals(placement.Element, element))
+            {
+                bounds = placement.Bounds;
+                clipBounds = placement.ClipBounds;
+                return true;
+            }
+        }
+
+        for (int i = 0; i < _headerPlacements.Count; i++)
+        {
+            ContentPlacement placement = _headerPlacements[i];
+            if (ReferenceEquals(placement.Element, element))
+            {
+                bounds = placement.Bounds;
+                clipBounds = placement.ClipBounds;
+                return true;
+            }
+        }
+
+        bounds = default;
+        clipBounds = default;
+        return false;
     }
 
     private void DrawRows(UiRenderContext context, UiFont font, int textHeight)

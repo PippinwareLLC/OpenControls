@@ -280,6 +280,50 @@ public sealed class UiOverlayBehaviorTests
     }
 
     [Fact]
+    public void OpenMenuLayouts_HitTestBeforeLaterOverlappingSiblings()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 240)
+        };
+
+        UiMenuBar menu = CreateMenuBar();
+        root.AddChild(menu);
+
+        UiMenuBar.MenuItem fileMenu = new() { Text = "File" };
+        fileMenu.Items.Add(new UiMenuBar.MenuItem { Text = "Settings" });
+        menu.Items.Add(fileMenu);
+
+        UiTreeView tree = new()
+        {
+            Bounds = new UiRect(0, 24, 200, 180)
+        };
+        tree.RootItems.Add(new UiTreeViewItem("Root"));
+        root.AddChild(tree);
+
+        UiContext context = new(root);
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(10, 10),
+            ScreenMousePosition = new UiPoint(10, 10),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.True(menu.HasOpenMenu);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(20, 40),
+            ScreenMousePosition = new UiPoint(20, 40)
+        });
+
+        Assert.Same(menu, context.Hovered);
+        Assert.True(context.HoveredContainerState.IsMenuBar);
+        Assert.False(context.HoveredContainerState.Element == tree);
+    }
+
+    [Fact]
     public void OpenMenuLayouts_BlockUnderlyingTreeSelection()
     {
         UiPanel root = new()
@@ -328,6 +372,63 @@ public sealed class UiOverlayBehaviorTests
         });
 
         Assert.Equal(-1, tree.SelectedIndex);
+    }
+
+    [Fact]
+    public void PopupMenu_OverlapFromClamp_PrefersTopmostSubmenuLayoutForHoverAndClick()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 220)
+        };
+
+        bool portraitInvoked = false;
+        UiMenuBar menu = new()
+        {
+            DisplayMode = UiMenuDisplayMode.Popup,
+            DropdownMinWidth = 160,
+            ClampToParent = true
+        };
+        UiMenuBar.MenuItem apple = new() { Text = "Apple" };
+        apple.Items.Add(new UiMenuBar.MenuItem
+        {
+            Text = "iPhone Portrait",
+            Invoked = (_, _) => portraitInvoked = true
+        });
+        apple.Items.Add(new UiMenuBar.MenuItem { Text = "iPhone Landscape" });
+        menu.Items.Add(apple);
+        menu.Items.Add(new UiMenuBar.MenuItem { Text = "Web" });
+        menu.Items.Add(new UiMenuBar.MenuItem { Text = "Desktop" });
+
+        root.AddChild(menu);
+
+        UiContext context = new(root);
+        menu.OpenContext(new UiPoint(40, 40), width: 160);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(60, 50),
+            ScreenMousePosition = new UiPoint(60, 50)
+        });
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(170, 50),
+            ScreenMousePosition = new UiPoint(170, 50)
+        });
+
+        Assert.True(menu.TryGetDebugHighlightedItemBounds(out UiRect highlightedBounds));
+        Assert.True(highlightedBounds.X >= 160);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(170, 50),
+            ScreenMousePosition = new UiPoint(170, 50),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.True(portraitInvoked);
     }
 
     private static UiMenuBar CreateMenuBar()

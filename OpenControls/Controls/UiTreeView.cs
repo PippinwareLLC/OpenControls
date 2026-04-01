@@ -134,6 +134,16 @@ public sealed class UiTreeView : UiElement
         return TryGetVisibleRowBounds(IndexOfVisibleItem(item), out bounds);
     }
 
+    public bool TryGetDebugHoveredRowBounds(out UiRect bounds)
+    {
+        return TryGetVisibleRowBounds(_hoverIndex, out bounds);
+    }
+
+    public bool TryGetDebugSelectedRowBounds(out UiRect bounds)
+    {
+        return TryGetVisibleRowBounds(SelectedIndex, out bounds);
+    }
+
     public int GetVisibleItemDepth(int index)
     {
         if (index < 0 || index >= _visibleRows.Count)
