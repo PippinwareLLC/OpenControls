@@ -1259,10 +1259,8 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         for (int i = 0; i < _cellPlacements.Count; i++)
         {
             ContentPlacement placement = _cellPlacements[i];
-            if (ReferenceEquals(placement.Element, element))
+            if (TryResolvePlacementDebugBounds(placement, element, out bounds, out clipBounds))
             {
-                bounds = placement.Bounds;
-                clipBounds = placement.ClipBounds;
                 return true;
             }
         }
@@ -1270,10 +1268,8 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         for (int i = 0; i < _headerPlacements.Count; i++)
         {
             ContentPlacement placement = _headerPlacements[i];
-            if (ReferenceEquals(placement.Element, element))
+            if (TryResolvePlacementDebugBounds(placement, element, out bounds, out clipBounds))
             {
-                bounds = placement.Bounds;
-                clipBounds = placement.ClipBounds;
                 return true;
             }
         }
@@ -1281,6 +1277,88 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         bounds = default;
         clipBounds = default;
         return false;
+    }
+
+    private static bool TryResolvePlacementDebugBounds(ContentPlacement placement, UiElement target, out UiRect bounds, out UiRect clipBounds)
+    {
+        return TryResolveNestedDebugBounds(
+            placement.Element,
+            target,
+            placement.Bounds.X - placement.Element.Bounds.X,
+            placement.Bounds.Y - placement.Element.Bounds.Y,
+            placement.ClipBounds,
+            out bounds,
+            out clipBounds);
+    }
+
+    private static bool TryResolveNestedDebugBounds(
+        UiElement current,
+        UiElement target,
+        int parentAbsoluteOriginX,
+        int parentAbsoluteOriginY,
+        UiRect inheritedClipBounds,
+        out UiRect bounds,
+        out UiRect clipBounds)
+    {
+        UiRect absoluteBounds = TranslateRect(current.Bounds, parentAbsoluteOriginX, parentAbsoluteOriginY);
+        UiRect absoluteClipBounds = TranslateRect(current.ClipBounds, parentAbsoluteOriginX, parentAbsoluteOriginY);
+        UiRect resolvedClipBounds = IntersectRect(absoluteClipBounds, inheritedClipBounds);
+
+        if (ReferenceEquals(current, target))
+        {
+            bounds = absoluteBounds;
+            clipBounds = resolvedClipBounds;
+            return true;
+        }
+
+        if (current is IUiDebugBoundsResolver resolver
+            && resolver.TryResolveDebugBounds(target, out UiRect nestedBounds, out UiRect nestedClipBounds))
+        {
+            bounds = TranslateRect(nestedBounds, parentAbsoluteOriginX, parentAbsoluteOriginY);
+            clipBounds = IntersectRect(
+                TranslateRect(nestedClipBounds, parentAbsoluteOriginX, parentAbsoluteOriginY),
+                inheritedClipBounds);
+            return true;
+        }
+
+        UiRect childInheritedClipBounds = current.ClipChildren ? resolvedClipBounds : inheritedClipBounds;
+        IReadOnlyList<UiElement> children = GetDebugChildren(current);
+        int childOriginX = absoluteBounds.X;
+        int childOriginY = absoluteBounds.Y;
+        for (int i = 0; i < children.Count; i++)
+        {
+            if (TryResolveNestedDebugBounds(
+                children[i],
+                target,
+                childOriginX,
+                childOriginY,
+                childInheritedClipBounds,
+                out bounds,
+                out clipBounds))
+            {
+                return true;
+            }
+        }
+
+        bounds = default;
+        clipBounds = default;
+        return false;
+    }
+
+    private static IReadOnlyList<UiElement> GetDebugChildren(UiElement element)
+    {
+        List<UiElement> children = new(element.Children.Count + 4);
+        for (int i = 0; i < element.Children.Count; i++)
+        {
+            children.Add(element.Children[i]);
+        }
+
+        if (element is UiTable table)
+        {
+            table.AppendDebugChildren(children);
+        }
+
+        return children;
     }
 
     private void DrawRows(UiRenderContext context, UiFont font, int textHeight)
@@ -2642,6 +2720,15 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         return right <= left || bottom <= top
             ? new UiRect(0, 0, 0, 0)
             : new UiRect(left, top, right - left, bottom - top);
+    }
+
+    private static UiRect TranslateRect(UiRect rect, int offsetX, int offsetY)
+    {
+        return new UiRect(
+            rect.X + offsetX,
+            rect.Y + offsetY,
+            rect.Width,
+            rect.Height);
     }
 
     private static bool HasExceededDragThreshold(UiPoint start, UiPoint current, int threshold)

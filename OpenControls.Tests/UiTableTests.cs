@@ -184,6 +184,59 @@ public sealed class UiTableTests
         Assert.True(visibleBounds.Contains(new UiPoint(table.Bounds.X + 12, table.Bounds.Y + 36)));
     }
 
+    [Fact]
+    public void Table_NestedRichCellDescendantExposesScreenSpaceDebugBoundsThroughUiContext()
+    {
+        UiPanel content = new()
+        {
+            Bounds = new UiRect(0, 0, 0, 0)
+        };
+        UiTextField field = new()
+        {
+            Bounds = new UiRect(48, 2, 96, 20),
+            Text = "42"
+        };
+        content.AddChild(field);
+
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 400, 240)
+        };
+        UiTable table = new()
+        {
+            Bounds = new UiRect(40, 30, 260, 100),
+            RowHeight = 28
+        };
+        table.Columns.Add(new UiTableColumn("Name", width: 120) { WidthMode = UiTableColumnWidthMode.Fixed });
+        table.Columns.Add(new UiTableColumn("Value", width: 140) { WidthMode = UiTableColumnWidthMode.Fixed });
+        table.Rows = new[]
+        {
+            new UiTableRow
+            {
+                CellItems = new[]
+                {
+                    new UiTableCell("Position"),
+                    new UiTableCell { Content = content, Padding = 4 }
+                }
+            }
+        };
+        root.AddChild(table);
+
+        UiContext context = new(root);
+        context.Update(new UiInputState());
+
+        UiItemStateSnapshot state = context.GetItemState(field);
+
+        Assert.True(context.TryGetVisibleBounds(field, out UiRect visibleBounds));
+        Assert.True(state.Bounds.X >= table.Bounds.X);
+        Assert.True(state.Bounds.Y >= table.Bounds.Y);
+        Assert.True(visibleBounds.X >= state.Bounds.X);
+        Assert.True(visibleBounds.Y >= state.Bounds.Y);
+        Assert.True(visibleBounds.Right <= state.Bounds.Right);
+        Assert.True(visibleBounds.Bottom <= state.Bounds.Bottom);
+        Assert.True(visibleBounds.Contains(new UiPoint(table.Bounds.X + 176, table.Bounds.Y + 40)));
+    }
+
     private static UiTable CreateTable(int width, int height, int rowCount)
     {
         UiTable table = new()
