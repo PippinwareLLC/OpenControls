@@ -1,6 +1,6 @@
 namespace OpenControls.Controls;
 
-public sealed class UiSelectableRow : UiElement
+public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
 {
     private bool _hovered;
     private bool _pressed;
@@ -383,5 +383,19 @@ public sealed class UiSelectableRow : UiElement
 
         _selected = value;
         SelectedChanged?.Invoke(_selected);
+    }
+
+    bool IUiDebugBoundsResolver.TryResolveDebugBounds(UiElement element, out UiRect bounds, out UiRect clipBounds)
+    {
+        UiRect content = ContentBounds;
+        UiRect inheritedClipBounds = ClipChildren ? content : Bounds;
+        return UiDebugBoundsResolverHelpers.TryResolveTranslatedDescendantBounds(
+            Children,
+            element,
+            content.X,
+            content.Y,
+            inheritedClipBounds,
+            out bounds,
+            out clipBounds);
     }
 }

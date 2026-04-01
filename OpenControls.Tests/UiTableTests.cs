@@ -237,6 +237,74 @@ public sealed class UiTableTests
         Assert.True(visibleBounds.Contains(new UiPoint(table.Bounds.X + 176, table.Bounds.Y + 40)));
     }
 
+    [Fact]
+    public void NestedScrollAndHeaderContainersExposeScreenSpaceDebugBoundsForTableDescendants()
+    {
+        UiPanel content = new()
+        {
+            Bounds = new UiRect(0, 0, 0, 0)
+        };
+        UiTextField field = new()
+        {
+            Bounds = new UiRect(48, 2, 96, 20),
+            Text = "42"
+        };
+        content.AddChild(field);
+
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 800, 600)
+        };
+        UiScrollPanel scrollPanel = new()
+        {
+            Bounds = new UiRect(420, 80, 260, 300)
+        };
+        UiCollapsingHeader header = new()
+        {
+            Bounds = new UiRect(0, 0, 240, 180),
+            HeaderHeight = 28,
+            ContentPadding = 6,
+            IsOpen = true
+        };
+        UiTable table = new()
+        {
+            Bounds = new UiRect(0, 0, 240, 100),
+            RowHeight = 28
+        };
+        table.Columns.Add(new UiTableColumn("Name", width: 120) { WidthMode = UiTableColumnWidthMode.Fixed });
+        table.Columns.Add(new UiTableColumn("Value", width: 120) { WidthMode = UiTableColumnWidthMode.Fixed });
+        table.Rows = new[]
+        {
+            new UiTableRow
+            {
+                CellItems = new[]
+                {
+                    new UiTableCell("Position"),
+                    new UiTableCell { Content = content, Padding = 4 }
+                }
+            }
+        };
+
+        header.AddChild(table);
+        scrollPanel.AddChild(header);
+        root.AddChild(scrollPanel);
+
+        UiContext context = new(root);
+        context.Update(new UiInputState());
+
+        UiItemStateSnapshot state = context.GetItemState(field);
+
+        Assert.True(context.TryGetVisibleBounds(field, out UiRect visibleBounds));
+        Assert.True(visibleBounds.X >= scrollPanel.Bounds.X);
+        Assert.True(visibleBounds.Y >= scrollPanel.Bounds.Y);
+        Assert.True(visibleBounds.Right <= scrollPanel.Bounds.Right);
+        Assert.True(visibleBounds.Bottom <= scrollPanel.Bounds.Bottom);
+        Assert.True(visibleBounds.X >= state.Bounds.X);
+        Assert.True(visibleBounds.Y >= state.Bounds.Y);
+        Assert.True(visibleBounds.Right <= state.Bounds.Right);
+        Assert.True(visibleBounds.Bottom <= state.Bounds.Bottom);
+    }
+
     private static UiTable CreateTable(int width, int height, int rowCount)
     {
         UiTable table = new()

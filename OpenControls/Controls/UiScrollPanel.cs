@@ -9,7 +9,7 @@ public enum UiScrollbarVisibility
     Always
 }
 
-public sealed class UiScrollPanel : UiElement, IUiStatefulElement
+public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBoundsResolver
 {
     private sealed class OffsetRenderer : IUiRenderer
     {
@@ -352,6 +352,18 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement
         }
 
         return this;
+    }
+
+    bool IUiDebugBoundsResolver.TryResolveDebugBounds(UiElement element, out UiRect bounds, out UiRect clipBounds)
+    {
+        return UiDebugBoundsResolverHelpers.TryResolveTranslatedDescendantBounds(
+            Children,
+            element,
+            Bounds.X - _scrollX,
+            Bounds.Y - _scrollY,
+            ViewportBounds,
+            out bounds,
+            out clipBounds);
     }
 
     private void RefreshLayout()

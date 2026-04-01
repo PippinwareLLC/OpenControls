@@ -2,7 +2,7 @@ using System;
 
 namespace OpenControls.Controls;
 
-public sealed class UiCanvas : UiElement
+public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
 {
     private sealed class CanvasRenderer : IUiRenderer
     {
@@ -499,6 +499,59 @@ public sealed class UiCanvas : UiElement
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    bool IUiDebugBoundsResolver.TryResolveDebugBounds(UiElement element, out UiRect bounds, out UiRect clipBounds)
+    {
+        for (int i = 0; i < Children.Count; i++)
+        {
+            UiElement child = Children[i];
+            if (child is IUiDebugBoundsResolver resolver
+                && resolver.TryResolveDebugBounds(element, out UiRect nestedBounds, out UiRect nestedClipBounds))
+            {
+                bounds = TransformRect(nestedBounds);
+                clipBounds = UiDebugBoundsResolverHelpers.IntersectRect(TransformRect(nestedClipBounds), _viewportBounds);
+                return true;
+            }
+
+            if (!IsElementOrAncestor(child, element))
+            {
+                continue;
+            }
+
+            bounds = TransformRect(element.Bounds);
+            clipBounds = UiDebugBoundsResolverHelpers.IntersectRect(TransformRect(element.ClipBounds), _viewportBounds);
+            return true;
+        }
+
+        bounds = default;
+        clipBounds = default;
+        return false;
+    }
+
+    private UiRect TransformRect(UiRect rect)
+    {
+        int x = _viewportBounds.X + (int)Math.Round((rect.X - PanX) * Zoom);
+        int y = _viewportBounds.Y + (int)Math.Round((rect.Y - PanY) * Zoom);
+        int width = (int)Math.Round(rect.Width * Zoom);
+        int height = (int)Math.Round(rect.Height * Zoom);
+        return new UiRect(x, y, Math.Max(0, width), Math.Max(0, height));
+    }
+
+    private static bool IsElementOrAncestor(UiElement ancestor, UiElement element)
+    {
+        UiElement? current = element;
+        while (current != null)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = current.Parent;
         }
 
         return false;
