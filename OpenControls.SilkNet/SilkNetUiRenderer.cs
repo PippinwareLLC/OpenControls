@@ -95,7 +95,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     private readonly Dictionary<int, AtlasPageTexture> _atlasTextures = new();
     private readonly UiVertex[] _vertices = new UiVertex[MaxQuadsPerFlush * 4];
     private readonly uint _program;
-    private readonly uint _vao;
+    private uint _vao;
     private readonly uint _vbo;
     private readonly uint _ebo;
     private readonly uint _whiteTexture;
@@ -118,7 +118,6 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         DefaultFont = defaultFont ?? UiFont.Default;
 
         _program = CreateProgram(_gl);
-        _vao = _gl.GenVertexArray();
         _vbo = _gl.GenBuffer();
         _ebo = _gl.GenBuffer();
         _whiteTexture = CreateWhiteTexture(_gl);
@@ -126,29 +125,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         _viewportUniformLocation = _gl.GetUniformLocation(_program, "uViewportSize");
         _textureUniformLocation = _gl.GetUniformLocation(_program, "uTexture");
 
-        _gl.BindVertexArray(_vao);
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-        _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_vertices.Length * sizeof(float) * 12), null, BufferUsageARB.StreamDraw);
-        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
-        fixed (ushort* indexPtr = QuadIndices)
-        {
-            _gl.BufferData(
-                BufferTargetARB.ElementArrayBuffer,
-                (nuint)(QuadIndices.Length * sizeof(ushort)),
-                indexPtr,
-                BufferUsageARB.StaticDraw);
-        }
-
-        const uint stride = sizeof(float) * 12;
-        _gl.EnableVertexAttribArray(0);
-        _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, stride, (void*)0);
-        _gl.EnableVertexAttribArray(1);
-        _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 2));
-        _gl.EnableVertexAttribArray(2);
-        _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 4));
-        _gl.EnableVertexAttribArray(3);
-        _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 8));
-        _gl.BindVertexArray(0);
+        CreateVertexArrayForCurrentContext(uploadBufferData: true);
     }
 
     public SilkNetUiRenderer(GL gl, TinyBitmapFont font)
@@ -669,7 +646,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         if (!_renderStateBound)
         {
             _gl.UseProgram(_program);
-            _gl.BindVertexArray(_vao);
+            EnsureVertexArrayForCurrentContext();
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
             _gl.Disable(EnableCap.DepthTest);
             _gl.Disable(EnableCap.CullFace);
@@ -687,6 +664,55 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             _gl.BindTexture(TextureTarget.Texture2D, textureId);
             _boundTextureId = textureId;
         }
+    }
+
+    private void EnsureVertexArrayForCurrentContext()
+    {
+        ClearGlErrors();
+        if (_vao != 0)
+        {
+            _gl.BindVertexArray(_vao);
+            if (_gl.GetError() == GLEnum.NoError && GetInteger(GetPName.VertexArrayBinding) == _vao)
+            {
+                return;
+            }
+        }
+
+        CreateVertexArrayForCurrentContext(uploadBufferData: false);
+    }
+
+    private void CreateVertexArrayForCurrentContext(bool uploadBufferData)
+    {
+        _vao = _gl.GenVertexArray();
+        _gl.BindVertexArray(_vao);
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
+        if (uploadBufferData)
+        {
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_vertices.Length * sizeof(float) * 12), null, BufferUsageARB.StreamDraw);
+        }
+
+        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
+        if (uploadBufferData)
+        {
+            fixed (ushort* indexPtr = QuadIndices)
+            {
+                _gl.BufferData(
+                    BufferTargetARB.ElementArrayBuffer,
+                    (nuint)(QuadIndices.Length * sizeof(ushort)),
+                    indexPtr,
+                    BufferUsageARB.StaticDraw);
+            }
+        }
+
+        const uint stride = sizeof(float) * 12;
+        _gl.EnableVertexAttribArray(0);
+        _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, stride, (void*)0);
+        _gl.EnableVertexAttribArray(1);
+        _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 2));
+        _gl.EnableVertexAttribArray(2);
+        _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 4));
+        _gl.EnableVertexAttribArray(3);
+        _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 8));
     }
 
     private void ResetRenderState()
@@ -734,6 +760,20 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             && a.Right > b.X
             && a.Y < b.Bottom
             && a.Bottom > b.Y;
+    }
+
+    private int GetInteger(GetPName parameterName)
+    {
+        int[] value = new int[1];
+        _gl.GetInteger(parameterName, value);
+        return value[0];
+    }
+
+    private void ClearGlErrors()
+    {
+        while (_gl.GetError() != GLEnum.NoError)
+        {
+        }
     }
 
     private static uint CreateWhiteTexture(GL gl)
