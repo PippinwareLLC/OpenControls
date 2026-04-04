@@ -1415,7 +1415,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
 
                 UiColor textColor = CellTextColorSelector?.Invoke(cellContext) ?? cell?.TextColor ?? rowTextColor;
                 int padding = cell?.Padding >= 0 ? cell.Padding : CellPadding;
-                bool clipText = ShouldClipCellText(context.Renderer, font, effectiveCell.Text, TextScale, cellRect, padding);
+                bool clipText = !string.IsNullOrEmpty(effectiveCell.Text);
                 if (clipText)
                 {
                     context.Renderer.PushClip(cellRect);
@@ -1470,8 +1470,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
     private void DrawHeaderText(UiRenderContext context, UiFont font, int headerTextHeight, UiTableColumn column, UiRect cellRect)
     {
         UiColor textColor = column.HeaderTextColor ?? HeaderTextColor;
-        bool clipText = UseAngledHeaders
-            || ShouldClipCellText(context.Renderer, font, column.Header, HeaderTextScale, cellRect, CellPadding);
+        bool clipText = UseAngledHeaders || !string.IsNullOrEmpty(column.Header);
         if (clipText)
         {
             context.Renderer.PushClip(cellRect);
@@ -1499,22 +1498,6 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         {
             context.Renderer.PopClip();
         }
-    }
-
-    private static bool ShouldClipCellText(IUiRenderer renderer, UiFont font, string text, int scale, UiRect cellRect, int padding)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return false;
-        }
-
-        int availableWidth = Math.Max(0, cellRect.Width - Math.Max(0, padding) * 2);
-        if (availableWidth <= 0)
-        {
-            return true;
-        }
-
-        return renderer.MeasureTextWidth(text, scale, font) > availableWidth;
     }
 
     private int GetHeaderHeight()
