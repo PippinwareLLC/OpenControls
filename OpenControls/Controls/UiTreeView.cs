@@ -168,7 +168,7 @@ public sealed class UiTreeView : UiElement
     public int ScrollOffset
     {
         get => _scrollOffset;
-        set => _scrollOffset = Math.Max(0, value);
+        set => SetScrollOffsetInternal(value, UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
     public int ItemHeight { get; set; } = 22;
@@ -200,6 +200,7 @@ public sealed class UiTreeView : UiElement
 
             _selectionScope = normalized;
             RefreshVisibleRows();
+            Invalidate(UiInvalidationReason.State | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
             HandleSelectionModelChanged();
         }
     }
@@ -226,6 +227,7 @@ public sealed class UiTreeView : UiElement
         if (SetOpenRecursive(RootItems, true))
         {
             RefreshVisibleRows();
+            Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Clip);
         }
     }
 
@@ -234,7 +236,20 @@ public sealed class UiTreeView : UiElement
         if (SetOpenRecursive(RootItems, false))
         {
             RefreshVisibleRows();
+            Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Clip);
         }
+    }
+
+    public void NotifyTreeStructureChanged()
+    {
+        RefreshVisibleRows();
+        _hoverIndex = Math.Clamp(_hoverIndex, -1, _visibleRows.Count - 1);
+        if (_selectionModel == null && _selectedIndex >= _visibleRows.Count)
+        {
+            SetSelectedIndex(_visibleRows.Count - 1);
+        }
+
+        Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Clip);
     }
 
     public void SetOpen(UiTreeViewItem item, bool isOpen, bool includeDescendants = false)
@@ -338,11 +353,15 @@ public sealed class UiTreeView : UiElement
             int steps = (int)Math.Round(input.ScrollDelta / 120f);
             if (steps != 0)
             {
-                _scrollOffset -= steps * Math.Max(1, ScrollWheelItems) * itemHeight;
+                SetScrollOffsetInternal(
+                    _scrollOffset - steps * Math.Max(1, ScrollWheelItems) * itemHeight,
+                    UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
             }
         }
 
-        _scrollOffset = UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset);
+        SetScrollOffsetInternal(
+            UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset),
+            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
         _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
         _hoverIndex = mouseInScrollbar ? -1 : GetIndexAtPoint(input.MousePosition);
 
@@ -356,6 +375,7 @@ public sealed class UiTreeView : UiElement
                 {
                     SetItemOpen(hoveredRow.Item, !hoveredRow.Item.IsOpen);
                     RefreshVisibleRows();
+                    Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Clip);
                     EnsureVisible(Math.Min(_hoverIndex, Math.Max(0, _visibleRows.Count - 1)));
                 }
                 else
@@ -549,6 +569,7 @@ public sealed class UiTreeView : UiElement
         {
             SetItemOpen(row.Item, false);
             RefreshVisibleRows();
+            Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Clip);
             EnsureVisible(Math.Min(current, Math.Max(0, _visibleRows.Count - 1)));
             return;
         }
@@ -578,6 +599,7 @@ public sealed class UiTreeView : UiElement
         {
             SetItemOpen(row.Item, true);
             RefreshVisibleRows();
+            Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Clip);
             EnsureVisible(current);
             return;
         }
@@ -683,6 +705,7 @@ public sealed class UiTreeView : UiElement
             EnsureVisible(_selectedIndex);
         }
 
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint);
         SelectionChanged?.Invoke(_selectedIndex);
     }
 
@@ -702,6 +725,7 @@ public sealed class UiTreeView : UiElement
 
         if (previous != _selectedIndex)
         {
+            Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint);
             SelectionChanged?.Invoke(_selectedIndex);
         }
     }
@@ -714,7 +738,9 @@ public sealed class UiTreeView : UiElement
             return;
         }
 
-        _scrollOffset = UiClipper.EnsureVisible(_visibleRows.Count, Math.Max(1, ItemHeight), viewportHeight, _scrollOffset, index);
+        SetScrollOffsetInternal(
+            UiClipper.EnsureVisible(_visibleRows.Count, Math.Max(1, ItemHeight), viewportHeight, _scrollOffset, index),
+            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
         _clipRange = UiClipper.FixedHeight(_visibleRows.Count, Math.Max(1, ItemHeight), _scrollOffset, viewportHeight, OverscanItems);
     }
 
@@ -885,7 +911,9 @@ public sealed class UiTreeView : UiElement
                 int maxScroll = Math.Max(0, _visibleRows.Count * Math.Max(1, ItemHeight) - Math.Max(1, Bounds.Height));
                 int deltaPixels = input.MousePosition.Y - _scrollbarDragStartMouseY;
                 int deltaScroll = maxScroll <= 0 ? 0 : (int)Math.Round(deltaPixels * (maxScroll / (double)travel));
-                _scrollOffset = _scrollbarDragStartScrollOffset + deltaScroll;
+                SetScrollOffsetInternal(
+                    _scrollbarDragStartScrollOffset + deltaScroll,
+                    UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
             }
             else
             {
@@ -897,7 +925,9 @@ public sealed class UiTreeView : UiElement
     private void PageVertical(bool pageUp)
     {
         int page = Math.Max(1, Bounds.Height - Math.Max(1, ItemHeight));
-        _scrollOffset += pageUp ? -page : page;
+        SetScrollOffsetInternal(
+            _scrollOffset + (pageUp ? -page : page),
+            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
     private void DrawScrollbars(UiRenderContext context)
@@ -968,7 +998,21 @@ public sealed class UiTreeView : UiElement
         }
 
         item.IsOpen = isOpen;
+        Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Clip);
         ItemToggled?.Invoke(item, isOpen);
+        return true;
+    }
+
+    private bool SetScrollOffsetInternal(int value, UiInvalidationReason reason)
+    {
+        int clamped = Math.Max(0, value);
+        if (_scrollOffset == clamped)
+        {
+            return false;
+        }
+
+        _scrollOffset = clamped;
+        Invalidate(reason);
         return true;
     }
 

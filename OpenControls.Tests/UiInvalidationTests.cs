@@ -225,4 +225,29 @@ public sealed class UiInvalidationTests
         Assert.True(combo.LocalInvalidationVersion > comboSelectionVersion);
         Assert.True(combo.LocalInvalidationReasons.HasFlag(UiInvalidationReason.State));
     }
+
+    [Fact]
+    public void TreeView_InvalidateWhenStructureSelectionAndScrollChange()
+    {
+        OpenControls.Controls.UiTreeView tree = new();
+        tree.RootItems.Add(new OpenControls.Controls.UiTreeViewItem("Scene")
+        {
+            IsOpen = true
+        });
+
+        long structureVersion = tree.LocalInvalidationVersion;
+        tree.NotifyTreeStructureChanged();
+        Assert.True(tree.LocalInvalidationVersion > structureVersion);
+        Assert.True(tree.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Children));
+
+        long selectionVersion = tree.LocalInvalidationVersion;
+        tree.SelectedIndex = 0;
+        Assert.True(tree.LocalInvalidationVersion > selectionVersion);
+        Assert.True(tree.LocalInvalidationReasons.HasFlag(UiInvalidationReason.State));
+
+        long scrollVersion = tree.LocalInvalidationVersion;
+        tree.ScrollOffset = 24;
+        Assert.True(tree.LocalInvalidationVersion > scrollVersion);
+        Assert.True(tree.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Layout));
+    }
 }

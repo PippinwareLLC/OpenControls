@@ -429,6 +429,38 @@ public sealed class UiRenderCacheTests
         Assert.Equal(UiRenderCachePassAction.Replay, stats.RootPass.LastAction);
     }
 
+    [Fact]
+    public void RenderCaching_ReRecordsWhenTreeStructureChanges()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 160, 120)
+        };
+        UiTreeView tree = new()
+        {
+            Bounds = new UiRect(0, 0, 140, 100)
+        };
+        root.AddChild(tree);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Render(renderer);
+
+        tree.RootItems.Add(new UiTreeViewItem("Scene")
+        {
+            IsOpen = true
+        });
+        tree.NotifyTreeStructureChanged();
+
+        context.Render(renderer);
+
+        UiRenderCacheStatisticsSnapshot stats = context.RenderCacheStatistics;
+        Assert.Equal(2, stats.RootPass.RecordCount);
+        Assert.Equal(UiRenderCachePassAction.RecordAndReplay, stats.RootPass.LastAction);
+        Assert.Equal(UiRenderCacheMissReason.Invalidation, stats.RootPass.LastMissReason);
+    }
+
     private static UiContext CreateContext(UiElement root)
     {
         UiContext context = new(root)
