@@ -14,6 +14,8 @@ public sealed class UiDelegateImageSource : IUiImageSource
 
     public string? DebugName { get; }
 
+    public bool IsRenderCacheVolatile => true;
+
     public void Draw(IUiRenderer renderer, UiRect bounds)
     {
         _draw(renderer, bounds);

@@ -138,6 +138,87 @@ public sealed class UiRenderCacheTests
     }
 
     [Fact]
+    public void RenderCaching_StatisticsTrackRecordReplayAndMissReasons()
+    {
+        CountingElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 24, 24)
+        };
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Render(renderer);
+        UiRenderCacheStatisticsSnapshot firstRenderStats = context.RenderCacheStatistics;
+        Assert.Equal(1, firstRenderStats.RootPass.RecordCount);
+        Assert.Equal(1, firstRenderStats.RootPass.ReplayCount);
+        Assert.Equal(UiRenderCachePassAction.RecordAndReplay, firstRenderStats.RootPass.LastAction);
+        Assert.Equal(UiRenderCacheMissReason.Empty, firstRenderStats.RootPass.LastMissReason);
+
+        context.Render(renderer);
+        UiRenderCacheStatisticsSnapshot secondRenderStats = context.RenderCacheStatistics;
+        Assert.Equal(1, secondRenderStats.RootPass.RecordCount);
+        Assert.Equal(2, secondRenderStats.RootPass.ReplayCount);
+        Assert.Equal(UiRenderCachePassAction.Replay, secondRenderStats.RootPass.LastAction);
+        Assert.Equal(UiRenderCacheMissReason.None, secondRenderStats.RootPass.LastMissReason);
+
+        root.Bounds = new UiRect(2, 2, 24, 24);
+        context.Render(renderer);
+        UiRenderCacheStatisticsSnapshot invalidationStats = context.RenderCacheStatistics;
+        Assert.Equal(2, invalidationStats.RootPass.RecordCount);
+        Assert.Equal(3, invalidationStats.RootPass.ReplayCount);
+        Assert.Equal(UiRenderCacheMissReason.Invalidation, invalidationStats.RootPass.LastMissReason);
+        Assert.Equal(1, invalidationStats.RootPass.InvalidationMissCount);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(12, 12),
+            ScreenMousePosition = new UiPoint(12, 12)
+        });
+        context.Render(renderer);
+        UiRenderCacheStatisticsSnapshot interactionStats = context.RenderCacheStatistics;
+        Assert.Equal(3, interactionStats.RootPass.RecordCount);
+        Assert.Equal(4, interactionStats.RootPass.ReplayCount);
+        Assert.Equal(UiRenderCacheMissReason.Interaction, interactionStats.RootPass.LastMissReason);
+        Assert.Equal(1, interactionStats.RootPass.InteractionMissCount);
+    }
+
+    [Fact]
+    public void RenderCaching_StatisticsTrackDisabledAndVolatileBypasses()
+    {
+        CountingElement disabledRoot = new()
+        {
+            Bounds = new UiRect(0, 0, 24, 24)
+        };
+        UiContext disabledContext = new(disabledRoot);
+        disabledContext.Update(new UiInputState());
+        CountingRenderer disabledRenderer = new();
+        disabledContext.Render(disabledRenderer);
+
+        UiRenderCacheStatisticsSnapshot disabledStats = disabledContext.RenderCacheStatistics;
+        Assert.False(disabledStats.RenderCachingEnabled);
+        Assert.Equal(UiRenderCachePassAction.Bypass, disabledStats.RootPass.LastAction);
+        Assert.Equal(UiRenderCacheMissReason.Disabled, disabledStats.RootPass.LastMissReason);
+        Assert.Equal(1, disabledStats.RootPass.DisabledBypassCount);
+
+        VolatileElement volatileRoot = new()
+        {
+            Bounds = new UiRect(0, 0, 24, 24),
+            Id = "volatile-root"
+        };
+        UiContext volatileContext = CreateContext(volatileRoot);
+        CountingRenderer volatileRenderer = new();
+        volatileContext.Render(volatileRenderer);
+
+        UiRenderCacheStatisticsSnapshot volatileStats = volatileContext.RenderCacheStatistics;
+        Assert.True(volatileStats.VolatileRenderStateDetected);
+        Assert.Contains("volatile-root", volatileStats.VolatileElementLabel);
+        Assert.Equal(UiRenderCachePassAction.Bypass, volatileStats.RootPass.LastAction);
+        Assert.Equal(UiRenderCacheMissReason.Volatile, volatileStats.RootPass.LastMissReason);
+        Assert.Equal(1, volatileStats.RootPass.VolatileBypassCount);
+    }
+
+    [Fact]
     public void RenderCaching_ReRecordsWhenPopupOpenStateChanges()
     {
         UiPanel root = new()
@@ -173,6 +254,42 @@ public sealed class UiRenderCacheTests
         context.Render(renderer);
         Assert.Equal(1, content.RenderCount);
         Assert.Equal(1, content.OverlayRenderCount);
+    }
+
+    [Fact]
+    public void RenderCaching_BypassesReplayForDelegateBackedImages()
+    {
+        int drawCount = 0;
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 80, 80)
+        };
+        UiImage image = new()
+        {
+            Id = "delegate-image",
+            Bounds = new UiRect(8, 8, 32, 32),
+            ImageSource = new UiDelegateImageSource(
+                (renderer, bounds) =>
+                {
+                    drawCount++;
+                    renderer.FillRect(bounds, UiColor.White);
+                },
+                debugName: "splash-logo")
+        };
+        root.AddChild(image);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Render(renderer);
+        context.Render(renderer);
+
+        UiRenderCacheStatisticsSnapshot stats = context.RenderCacheStatistics;
+        Assert.Equal(2, drawCount);
+        Assert.True(stats.VolatileRenderStateDetected);
+        Assert.Contains("delegate-image", stats.VolatileElementLabel);
+        Assert.Equal(UiRenderCachePassAction.Bypass, stats.RootPass.LastAction);
+        Assert.Equal(UiRenderCacheMissReason.Volatile, stats.RootPass.LastMissReason);
     }
 
     private static UiContext CreateContext(UiElement root)

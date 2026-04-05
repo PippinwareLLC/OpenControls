@@ -6,6 +6,8 @@ public interface IUiImageSource
 
     string? DebugName => null;
 
+    bool IsRenderCacheVolatile => false;
+
     bool TryGetIntrinsicSize(out UiPoint size)
     {
         size = default;

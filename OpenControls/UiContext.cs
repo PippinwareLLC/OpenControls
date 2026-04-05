@@ -34,10 +34,30 @@ public sealed class UiContext
 
     private sealed class RenderCacheState
     {
+        private readonly string _name;
+
+        public RenderCacheState(string name)
+        {
+            _name = name;
+        }
+
         public UiRenderCommandList? CommandList { get; private set; }
         public long RecordedInvalidationVersion { get; private set; }
         public int InteractionSignature { get; private set; }
         public UiFont? RecordedDefaultFont { get; private set; }
+        public long LastSeenInvalidationVersion { get; private set; }
+        public int LastInteractionSignature { get; private set; }
+        public UiRenderCachePassAction LastAction { get; private set; }
+        public UiRenderCacheMissReason LastMissReason { get; private set; }
+        public long RecordCount { get; private set; }
+        public long ReplayCount { get; private set; }
+        public long BypassCount { get; private set; }
+        public long DisabledBypassCount { get; private set; }
+        public long VolatileBypassCount { get; private set; }
+        public long EmptyMissCount { get; private set; }
+        public long InvalidationMissCount { get; private set; }
+        public long InteractionMissCount { get; private set; }
+        public long FontMissCount { get; private set; }
 
         public bool CanReplay(long invalidationVersion, int interactionSignature, UiFont? defaultFont)
         {
@@ -62,6 +82,114 @@ public sealed class UiContext
             InteractionSignature = 0;
             RecordedDefaultFont = null;
         }
+
+        public UiRenderCacheMissReason ClassifyMiss(long invalidationVersion, int interactionSignature, UiFont? defaultFont)
+        {
+            LastSeenInvalidationVersion = invalidationVersion;
+            LastInteractionSignature = interactionSignature;
+
+            if (CommandList == null)
+            {
+                return UiRenderCacheMissReason.Empty;
+            }
+
+            if (RecordedInvalidationVersion != invalidationVersion)
+            {
+                return UiRenderCacheMissReason.Invalidation;
+            }
+
+            if (InteractionSignature != interactionSignature)
+            {
+                return UiRenderCacheMissReason.Interaction;
+            }
+
+            if (!ReferenceEquals(RecordedDefaultFont, defaultFont))
+            {
+                return UiRenderCacheMissReason.Font;
+            }
+
+            return UiRenderCacheMissReason.None;
+        }
+
+        public void MarkRecord(UiRenderCacheMissReason missReason)
+        {
+            RecordCount++;
+            LastAction = UiRenderCachePassAction.RecordAndReplay;
+            LastMissReason = missReason;
+            IncrementMissCounter(missReason);
+        }
+
+        public void MarkReplay(bool recordedThisPass)
+        {
+            ReplayCount++;
+            if (recordedThisPass)
+            {
+                LastAction = UiRenderCachePassAction.RecordAndReplay;
+            }
+            else
+            {
+                LastAction = UiRenderCachePassAction.Replay;
+                LastMissReason = UiRenderCacheMissReason.None;
+            }
+        }
+
+        public void MarkBypass(UiRenderCacheMissReason reason, long invalidationVersion, int interactionSignature)
+        {
+            LastSeenInvalidationVersion = invalidationVersion;
+            LastInteractionSignature = interactionSignature;
+            LastAction = UiRenderCachePassAction.Bypass;
+            LastMissReason = reason;
+            BypassCount++;
+            if (reason == UiRenderCacheMissReason.Disabled)
+            {
+                DisabledBypassCount++;
+            }
+            else if (reason == UiRenderCacheMissReason.Volatile)
+            {
+                VolatileBypassCount++;
+            }
+        }
+
+        public UiRenderCachePassStatisticsSnapshot BuildSnapshot()
+        {
+            return new UiRenderCachePassStatisticsSnapshot(
+                _name,
+                CommandList != null,
+                RecordedInvalidationVersion,
+                LastSeenInvalidationVersion,
+                LastInteractionSignature,
+                LastAction,
+                LastMissReason,
+                RecordCount,
+                ReplayCount,
+                BypassCount,
+                DisabledBypassCount,
+                VolatileBypassCount,
+                EmptyMissCount,
+                InvalidationMissCount,
+                InteractionMissCount,
+                FontMissCount);
+        }
+
+        private void IncrementMissCounter(UiRenderCacheMissReason missReason)
+        {
+            if (missReason == UiRenderCacheMissReason.Empty)
+            {
+                EmptyMissCount++;
+            }
+            else if (missReason == UiRenderCacheMissReason.Invalidation)
+            {
+                InvalidationMissCount++;
+            }
+            else if (missReason == UiRenderCacheMissReason.Interaction)
+            {
+                InteractionMissCount++;
+            }
+            else if (missReason == UiRenderCacheMissReason.Font)
+            {
+                FontMissCount++;
+            }
+        }
     }
 
     private UiElement? _mouseCaptureTarget;
@@ -70,8 +198,10 @@ public sealed class UiContext
     private Dictionary<UiElement, UiItemStateSnapshot> _itemStates = new();
     private Dictionary<UiElement, UiContainerStateSnapshot> _containerStates = new();
     private readonly UiMemoryClipboard _fallbackClipboard = new();
-    private readonly RenderCacheState _rootRenderCache = new();
-    private readonly RenderCacheState _overlayRenderCache = new();
+    private readonly RenderCacheState _rootRenderCache = new("Root");
+    private readonly RenderCacheState _overlayRenderCache = new("Overlay");
+    private bool _lastRenderHasVolatileState;
+    private string _lastRenderVolatileElementLabel = string.Empty;
 
     public UiContext(UiElement root)
     {
@@ -102,6 +232,14 @@ public sealed class UiContext
     public UiInvalidationReason RootInvalidationReasons => Root.SubtreeInvalidationReasons;
     public long RootInvalidationVersion => Root.SubtreeInvalidationVersion;
     public bool RenderCachingEnabled { get; set; }
+    public UiRenderCacheStatisticsSnapshot RenderCacheStatistics => new(
+        RenderCachingEnabled,
+        RootInvalidationReasons,
+        RootInvalidationVersion,
+        _lastRenderHasVolatileState,
+        _lastRenderVolatileElementLabel,
+        _rootRenderCache.BuildSnapshot(),
+        _overlayRenderCache.BuildSnapshot());
 
     public void Update(UiInputState input, float deltaSeconds = 0f)
     {
@@ -441,14 +579,17 @@ public sealed class UiContext
         renderer.DefaultFont = DefaultFont;
         UiRenderContext context = new(renderer, DefaultFont);
         int interactionSignature = ComputeRenderCacheInteractionSignature();
+        UiElement? volatileElement = FindFirstVolatileRenderState(Root);
+        _lastRenderHasVolatileState = volatileElement != null;
+        _lastRenderVolatileElementLabel = BuildProfilerElementLabel(volatileElement);
         using (UiProfiling.Scope("OpenControls.Context.Root"))
         {
-            RenderPass(renderer, context, _rootRenderCache, interactionSignature, static (element, renderContext) => element.Render(renderContext));
+            RenderPass(renderer, context, _rootRenderCache, "Root", interactionSignature, volatileElement, static (element, renderContext) => element.Render(renderContext));
         }
 
         using (UiProfiling.Scope("OpenControls.Context.Overlay"))
         {
-            RenderPass(renderer, context, _overlayRenderCache, interactionSignature, static (element, renderContext) => element.RenderOverlay(renderContext));
+            RenderPass(renderer, context, _overlayRenderCache, "Overlay", interactionSignature, volatileElement, static (element, renderContext) => element.RenderOverlay(renderContext));
         }
     }
 
@@ -456,26 +597,53 @@ public sealed class UiContext
         IUiRenderer renderer,
         UiRenderContext liveContext,
         RenderCacheState cacheState,
+        string passName,
         int interactionSignature,
+        UiElement? volatileElement,
         Action<UiElement, UiRenderContext> renderAction)
     {
-        if (!RenderCachingEnabled || HasVolatileRenderState(Root))
+        long invalidationVersion = Root.SubtreeInvalidationVersion;
+        if (!RenderCachingEnabled)
         {
             cacheState.Clear();
-            renderAction(Root, liveContext);
+            using (UiProfiling.Scope($"OpenControls.Context.{passName}.Bypass.Disabled"))
+            {
+                cacheState.MarkBypass(UiRenderCacheMissReason.Disabled, invalidationVersion, interactionSignature);
+                renderAction(Root, liveContext);
+            }
             return;
         }
 
-        long invalidationVersion = Root.SubtreeInvalidationVersion;
-        if (!cacheState.CanReplay(invalidationVersion, interactionSignature, DefaultFont))
+        if (volatileElement != null)
         {
-            UiRecordingRenderer recordingRenderer = new(renderer, DefaultFont);
-            UiRenderContext recordingContext = new(recordingRenderer, DefaultFont);
-            renderAction(Root, recordingContext);
-            cacheState.Store(recordingRenderer.BuildCommandList(), invalidationVersion, interactionSignature, DefaultFont);
+            cacheState.Clear();
+            using (UiProfiling.Scope($"OpenControls.Context.{passName}.Bypass.Volatile"))
+            {
+                cacheState.MarkBypass(UiRenderCacheMissReason.Volatile, invalidationVersion, interactionSignature);
+                renderAction(Root, liveContext);
+            }
+            return;
         }
 
-        cacheState.CommandList?.Replay(renderer);
+        UiRenderCacheMissReason missReason = cacheState.ClassifyMiss(invalidationVersion, interactionSignature, DefaultFont);
+        bool recordedThisPass = missReason != UiRenderCacheMissReason.None;
+        if (recordedThisPass)
+        {
+            using (UiProfiling.Scope($"OpenControls.Context.{passName}.Record"))
+            {
+                UiRecordingRenderer recordingRenderer = new(renderer, DefaultFont);
+                UiRenderContext recordingContext = new(recordingRenderer, DefaultFont);
+                renderAction(Root, recordingContext);
+                cacheState.Store(recordingRenderer.BuildCommandList(), invalidationVersion, interactionSignature, DefaultFont);
+                cacheState.MarkRecord(missReason);
+            }
+        }
+
+        using (UiProfiling.Scope($"OpenControls.Context.{passName}.Replay"))
+        {
+            cacheState.MarkReplay(recordedThisPass);
+            cacheState.CommandList?.Replay(renderer);
+        }
     }
 
     private void MoveFocus(bool reverse)
@@ -1178,32 +1346,33 @@ public sealed class UiContext
         return filtered ?? keys;
     }
 
-    private bool HasVolatileRenderState(UiElement element)
+    private UiElement? FindFirstVolatileRenderState(UiElement element)
     {
         if (!element.Visible)
         {
-            return false;
+            return null;
         }
 
         if (element.IsRenderCacheVolatile(this))
         {
-            return true;
+            return element;
         }
 
         if (!ShouldTraverseChildren(element))
         {
-            return false;
+            return null;
         }
 
         foreach (UiElement child in element.Children)
         {
-            if (HasVolatileRenderState(child))
+            UiElement? volatileElement = FindFirstVolatileRenderState(child);
+            if (volatileElement != null)
             {
-                return true;
+                return volatileElement;
             }
         }
 
-        return false;
+        return null;
     }
 
     private int ComputeRenderCacheInteractionSignature()
@@ -1276,6 +1445,21 @@ public sealed class UiContext
         hash.Add(navigation.KeypadEnter);
         hash.Add(navigation.Space);
         hash.Add(navigation.Escape);
+    }
+
+    private static string BuildProfilerElementLabel(UiElement? element)
+    {
+        if (element == null)
+        {
+            return string.Empty;
+        }
+
+        if (!string.IsNullOrWhiteSpace(element.Id))
+        {
+            return $"{element.GetType().Name}#{element.Id}";
+        }
+
+        return element.GetType().Name;
     }
 
     private static void AppendCharList(ref HashCode hash, IReadOnlyList<char> items)

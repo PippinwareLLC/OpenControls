@@ -29,6 +29,11 @@ public sealed class UiImageButton : UiElement
 
     public override bool IsFocusable => true;
 
+    public override bool IsRenderCacheVolatile(UiContext context)
+    {
+        return DrawImage != null || (ImageSource?.IsRenderCacheVolatile ?? false);
+    }
+
     public override void Update(UiUpdateContext context)
     {
         if (!Visible || !Enabled)

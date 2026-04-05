@@ -33,6 +33,11 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     public int CornerRadius { get; set; }
     public string SelectionScope { get; set; } = string.Empty;
 
+    public override bool IsRenderCacheVolatile(UiContext context)
+    {
+        return ImageSource?.IsRenderCacheVolatile ?? false;
+    }
+
     public UiRect ContentBounds
     {
         get

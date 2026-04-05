@@ -2,20 +2,95 @@ namespace OpenControls.Controls;
 
 public sealed class UiImage : UiElement
 {
-    public Action<IUiRenderer, UiRect>? DrawImage { get; set; }
-    public IUiImageSource? ImageSource { get; set; }
+    private Action<IUiRenderer, UiRect>? _drawImage;
+    private IUiImageSource? _imageSource;
+    private UiColor _background = UiColor.Transparent;
+    private UiColor _border = UiColor.Transparent;
+    private int _borderThickness = 1;
+    private int _padding;
+    private int _cornerRadius;
+    private bool _showCheckerboard;
+    private int _checkerSize = 6;
+    private UiColor _checkerColorLight = new UiColor(200, 200, 200);
+    private UiColor _checkerColorDark = new UiColor(120, 120, 120);
+    private UiColor _placeholderColor = new UiColor(60, 70, 90);
 
-    public UiColor Background { get; set; } = UiColor.Transparent;
-    public UiColor Border { get; set; } = UiColor.Transparent;
-    public int BorderThickness { get; set; } = 1;
-    public int Padding { get; set; } = 0;
-    public int CornerRadius { get; set; }
+    public Action<IUiRenderer, UiRect>? DrawImage
+    {
+        get => _drawImage;
+        set => SetInvalidatingValue(ref _drawImage, value, UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
 
-    public bool ShowCheckerboard { get; set; }
-    public int CheckerSize { get; set; } = 6;
-    public UiColor CheckerColorLight { get; set; } = new UiColor(200, 200, 200);
-    public UiColor CheckerColorDark { get; set; } = new UiColor(120, 120, 120);
-    public UiColor PlaceholderColor { get; set; } = new UiColor(60, 70, 90);
+    public IUiImageSource? ImageSource
+    {
+        get => _imageSource;
+        set => SetInvalidatingValue(ref _imageSource, value, UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    public UiColor Background
+    {
+        get => _background;
+        set => SetInvalidatingValue(ref _background, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor Border
+    {
+        get => _border;
+        set => SetInvalidatingValue(ref _border, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public int BorderThickness
+    {
+        get => _borderThickness;
+        set => SetInvalidatingValue(ref _borderThickness, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.Clip);
+    }
+
+    public int Padding
+    {
+        get => _padding;
+        set => SetInvalidatingValue(ref _padding, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.Clip);
+    }
+
+    public int CornerRadius
+    {
+        get => _cornerRadius;
+        set => SetInvalidatingValue(ref _cornerRadius, Math.Max(0, value), UiInvalidationReason.Style | UiInvalidationReason.Paint | UiInvalidationReason.Clip);
+    }
+
+    public bool ShowCheckerboard
+    {
+        get => _showCheckerboard;
+        set => SetInvalidatingValue(ref _showCheckerboard, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public int CheckerSize
+    {
+        get => _checkerSize;
+        set => SetInvalidatingValue(ref _checkerSize, Math.Max(1, value), UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor CheckerColorLight
+    {
+        get => _checkerColorLight;
+        set => SetInvalidatingValue(ref _checkerColorLight, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor CheckerColorDark
+    {
+        get => _checkerColorDark;
+        set => SetInvalidatingValue(ref _checkerColorDark, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor PlaceholderColor
+    {
+        get => _placeholderColor;
+        set => SetInvalidatingValue(ref _placeholderColor, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public override bool IsRenderCacheVolatile(UiContext context)
+    {
+        return DrawImage != null || (ImageSource?.IsRenderCacheVolatile ?? false);
+    }
 
     public override void Render(UiRenderContext context)
     {

@@ -157,5 +157,16 @@ public sealed class UiInvalidationTests
         button.CornerRadius = 6;
         Assert.True(button.LocalInvalidationVersion > buttonTextVersion);
         Assert.True(button.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Clip));
+
+        OpenControls.Controls.UiImage image = new();
+        long imageVersion = image.LocalInvalidationVersion;
+        image.ImageSource = new UiDelegateImageSource((_, _) => { });
+        Assert.True(image.LocalInvalidationVersion > imageVersion);
+        Assert.True(image.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Paint));
+
+        long imageSourceVersion = image.LocalInvalidationVersion;
+        image.Padding = 8;
+        Assert.True(image.LocalInvalidationVersion > imageSourceVersion);
+        Assert.True(image.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Clip));
     }
 }
