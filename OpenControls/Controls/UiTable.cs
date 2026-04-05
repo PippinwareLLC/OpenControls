@@ -360,6 +360,33 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         return _columnStates[columnIndex];
     }
 
+    public bool TryGetResolvedColumnWidth(int columnIndex, out int width)
+    {
+        width = 0;
+        if (columnIndex < 0 || columnIndex >= Columns.Count)
+        {
+            return false;
+        }
+
+        for (int slot = 0; slot < _visibleColumnModelIndices.Count; slot++)
+        {
+            if (_visibleColumnModelIndices[slot] != columnIndex)
+            {
+                continue;
+            }
+
+            if (slot < 0 || slot >= _visibleColumnWidths.Count)
+            {
+                return false;
+            }
+
+            width = _visibleColumnWidths[slot];
+            return width > 0;
+        }
+
+        return false;
+    }
+
     public void CaptureState(UiElementState state)
     {
         state.SelectedIndex = SelectedIndex;
@@ -1429,13 +1456,14 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
 
                 UiColor textColor = CellTextColorSelector?.Invoke(cellContext) ?? cell?.TextColor ?? rowTextColor;
                 int padding = cell?.Padding >= 0 ? cell.Padding : CellPadding;
-                bool clipText = !string.IsNullOrEmpty(effectiveCell.Text);
+                string drawText = effectiveCell.GetRenderText();
+                bool clipText = !string.IsNullOrEmpty(drawText);
                 if (clipText)
                 {
                     context.Renderer.PushClip(cellRect);
                 }
 
-                context.Renderer.DrawText(effectiveCell.Text, new UiPoint(cellRect.X + padding, textY), textColor, TextScale, font);
+                context.Renderer.DrawText(drawText, new UiPoint(cellRect.X + padding, textY), textColor, TextScale, font);
                 if (clipText)
                 {
                     context.Renderer.PopClip();

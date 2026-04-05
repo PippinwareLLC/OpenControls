@@ -8,9 +8,11 @@ public sealed class UiVirtualizationTests
     private sealed class TestRenderer : IUiRenderer
     {
         public UiFont DefaultFont { get; set; } = UiFont.Default;
+        public List<UiRect> FilledRects { get; } = new();
 
         public void FillRect(UiRect rect, UiColor color)
         {
+            FilledRects.Add(rect);
         }
 
         public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
@@ -184,6 +186,33 @@ public sealed class UiVirtualizationTests
         tree.Render(context);
 
         Assert.Equal(3, tree.VisibleItemCount);
+    }
+
+    [Fact]
+    public void TreeView_HierarchyLinesUseAncestorContinuationForChildRows()
+    {
+        UiTreeView tree = new()
+        {
+            Bounds = new UiRect(0, 0, 220, 120),
+            ItemHeight = 20,
+            OverscanItems = 1,
+            ShowHierarchyLines = true
+        };
+
+        UiTreeViewItem firstRoot = new("First") { IsOpen = true };
+        firstRoot.Children.Add(new UiTreeViewItem("Child"));
+        tree.RootItems.Add(firstRoot);
+        tree.RootItems.Add(new UiTreeViewItem("Second"));
+
+        TestRenderer renderer = new();
+        UiRenderContext context = new(renderer, renderer.DefaultFont);
+
+        tree.Render(context);
+
+        int connectorX = tree.Bounds.X + Math.Max(0, tree.Padding) + Math.Max(4, tree.ArrowSize) / 2;
+        UiRect expectedAncestorLine = new(connectorX, tree.Bounds.Y + tree.ItemHeight, Math.Max(1, tree.HierarchyLineThickness), tree.ItemHeight);
+
+        Assert.Contains(expectedAncestorLine, renderer.FilledRects);
     }
 
     private static void Update(UiElement element, UiInputState input)

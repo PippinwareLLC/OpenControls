@@ -311,6 +311,7 @@ public sealed class UiMenuBar : UiElement
     }
 
     private readonly List<UiRect> _topItemRects = new();
+    private readonly List<TopItemTextMetrics> _topItemTextMetrics = new();
     private readonly List<MenuLayout> _openLayouts = new();
     private readonly List<int> _openPath = new();
     private int _hoveredTopIndex = -1;
@@ -536,14 +537,17 @@ public sealed class UiMenuBar : UiElement
         UiInputState input = context.Input;
         UiPoint mouse = input.MousePosition;
         _hoveredTopIndex = GetTopItemIndex(mouse);
+        int layoutStateStamp = ComputeLayoutStateStamp();
 
-        TryDispatchShortcut(context);
-        BuildLayout(context.DefaultFont);
+        if (TryDispatchShortcut(context))
+        {
+            layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
+        }
 
         if (_openPath.Count > 0 && input.Navigation.Escape)
         {
             CloseMenu(context.Focus);
-            BuildLayout(context.DefaultFont);
+            layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
         }
 
         bool menuOpen = _openPath.Count > 0;
@@ -553,12 +557,12 @@ public sealed class UiMenuBar : UiElement
             if (_hoveredTopIndex >= 0)
             {
                 HandleTopClick(_hoveredTopIndex, context.Focus);
-                BuildLayout(context.DefaultFont);
+                layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
             }
             else if (menuOpen)
             {
                 HandleMenuClick(mouse, context.Focus);
-                BuildLayout(context.DefaultFont);
+                layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
             }
         }
 
@@ -569,19 +573,19 @@ public sealed class UiMenuBar : UiElement
             if (_hoveredTopIndex >= 0 && _hoveredTopIndex != _openPath[0])
             {
                 OpenTopOnHover(_hoveredTopIndex);
-                BuildLayout(context.DefaultFont);
+                layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
             }
             else
             {
                 UpdateHoverSubmenu(mouse);
-                BuildLayout();
+                layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
             }
         }
 
         if (EnableKeyboardNavigation)
         {
             HandleKeyboardNavigation(context);
-            BuildLayout(context.DefaultFont);
+            layoutStateStamp = ComputeLayoutStateStamp();
         }
 
         UpdateHoveredMenuItem(mouse);
@@ -658,7 +662,9 @@ public sealed class UiMenuBar : UiElement
             MenuItem item = Items[i];
             UiColor color = item.Enabled ? TextColor : DisabledTextColor;
             int textY = rect.Y + (rect.Height - textHeight) / 2;
-            TopItemTextMetrics textMetrics = GetTopItemTextMetrics(item.Text, font);
+            TopItemTextMetrics textMetrics = i < _topItemTextMetrics.Count
+                ? _topItemTextMetrics[i]
+                : GetTopItemTextMetrics(item.Text, font);
             context.Renderer.DrawText(item.Text, new UiPoint(rect.X + BarItemPadding + textMetrics.DrawOffsetX, textY), color, TextScale, font);
         }
 
@@ -857,12 +863,14 @@ public sealed class UiMenuBar : UiElement
     private void BuildTopItemRects(UiFont font)
     {
         _topItemRects.Clear();
+        _topItemTextMetrics.Clear();
         UiRect barBounds = GetBarBounds();
         int x = barBounds.X;
 
         foreach (MenuItem item in Items)
         {
             TopItemTextMetrics textMetrics = GetTopItemTextMetrics(item.Text, font);
+            _topItemTextMetrics.Add(textMetrics);
             int width = textMetrics.ContentWidth + BarItemPadding * 2;
             UiRect rect = new(x, barBounds.Y, width, barBounds.Height);
             _topItemRects.Add(rect);
@@ -2272,6 +2280,32 @@ public sealed class UiMenuBar : UiElement
         int inkExtent = Math.Max(0, inkBounds.X) + inkBounds.Width;
         int contentWidth = Math.Max(advanceWidth + drawOffsetX, inkExtent);
         return new TopItemTextMetrics(contentWidth, drawOffsetX);
+    }
+
+    private int ComputeLayoutStateStamp()
+    {
+        HashCode hash = new();
+        hash.Add(DisplayMode);
+        hash.Add(_popupOpen);
+        hash.Add(_openPath.Count);
+        for (int i = 0; i < _openPath.Count; i++)
+        {
+            hash.Add(_openPath[i]);
+        }
+
+        return hash.ToHashCode();
+    }
+
+    private int RefreshLayoutIfNeeded(int previousLayoutStateStamp, UiFont defaultFont)
+    {
+        int currentLayoutStateStamp = ComputeLayoutStateStamp();
+        if (currentLayoutStateStamp == previousLayoutStateStamp)
+        {
+            return previousLayoutStateStamp;
+        }
+
+        BuildLayout(defaultFont);
+        return ComputeLayoutStateStamp();
     }
 
     private int GetTextWidth(string text)

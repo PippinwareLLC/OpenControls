@@ -11,10 +11,27 @@ namespace OpenControls;
 public sealed class UiFont
 {
     private readonly record struct LayoutCacheKey(string Text, int Scale);
+    private readonly record struct BoundedLayoutCacheEntry(LayoutCacheKey Key, UiTextLayout Layout);
+
+    private enum LayoutCachePolicy
+    {
+        None,
+        Short,
+        Bounded
+    }
+
+    private const int ShortLayoutCacheMaxTextLength = 160;
+    private const int ShortLayoutCacheMaxNewlines = 3;
+    private const int BoundedLayoutCacheMaxTextLength = 1024;
+    private const int BoundedLayoutCacheMaxNewlines = 8;
+    private const int BoundedLayoutCacheCapacity = 256;
 
     private readonly UiFontLayer[] _layers;
     private readonly ConcurrentDictionary<GlyphCacheKey, UiRasterizedGlyph> _glyphCache = new();
     private readonly ConcurrentDictionary<LayoutCacheKey, UiTextLayout> _layoutCache = new();
+    private readonly object _boundedLayoutCacheLock = new();
+    private readonly Dictionary<LayoutCacheKey, LinkedListNode<BoundedLayoutCacheEntry>> _boundedLayoutCache = new();
+    private readonly LinkedList<BoundedLayoutCacheEntry> _boundedLayoutCacheLru = new();
 
     private static readonly Rune ReplacementRune = new('?');
 
@@ -122,13 +139,21 @@ public sealed class UiFont
 
     internal UiTextLayout LayoutText(string text, int scale = 1)
     {
-        if (ShouldCacheLayout(text))
+        string resolvedText = text ?? string.Empty;
+        int safeScale = Math.Max(1, scale);
+        LayoutCachePolicy cachePolicy = GetLayoutCachePolicy(resolvedText);
+        if (cachePolicy == LayoutCachePolicy.Short)
         {
-            LayoutCacheKey key = new(text, Math.Max(1, scale));
+            LayoutCacheKey key = new(resolvedText, safeScale);
             return _layoutCache.GetOrAdd(key, static (cacheKey, font) => font.LayoutTextCore(cacheKey.Text, cacheKey.Scale), this);
         }
 
-        return LayoutTextCore(text, scale);
+        if (cachePolicy == LayoutCachePolicy.Bounded)
+        {
+            return GetOrAddBoundedLayout(resolvedText, safeScale);
+        }
+
+        return LayoutTextCore(resolvedText, safeScale);
     }
 
     private UiTextLayout LayoutTextCore(string text, int scale)
@@ -165,18 +190,81 @@ public sealed class UiFont
         return new UiTextLayout(glyphs, width, height);
     }
 
-    private static bool ShouldCacheLayout(string text)
+    private UiTextLayout GetOrAddBoundedLayout(string text, int scale)
+    {
+        LayoutCacheKey key = new(text, scale);
+        lock (_boundedLayoutCacheLock)
+        {
+            if (_boundedLayoutCache.TryGetValue(key, out LinkedListNode<BoundedLayoutCacheEntry>? node))
+            {
+                MoveBoundedLayoutNodeToFront(node);
+                return node.Value.Layout;
+            }
+        }
+
+        UiTextLayout layout = LayoutTextCore(text, scale);
+        lock (_boundedLayoutCacheLock)
+        {
+            if (_boundedLayoutCache.TryGetValue(key, out LinkedListNode<BoundedLayoutCacheEntry>? existingNode))
+            {
+                MoveBoundedLayoutNodeToFront(existingNode);
+                return existingNode.Value.Layout;
+            }
+
+            LinkedListNode<BoundedLayoutCacheEntry> node = new(new BoundedLayoutCacheEntry(key, layout));
+            _boundedLayoutCacheLru.AddFirst(node);
+            _boundedLayoutCache[key] = node;
+            TrimBoundedLayoutCache();
+            return layout;
+        }
+    }
+
+    private void MoveBoundedLayoutNodeToFront(LinkedListNode<BoundedLayoutCacheEntry> node)
+    {
+        if (ReferenceEquals(_boundedLayoutCacheLru.First, node))
+        {
+            return;
+        }
+
+        _boundedLayoutCacheLru.Remove(node);
+        _boundedLayoutCacheLru.AddFirst(node);
+    }
+
+    private void TrimBoundedLayoutCache()
+    {
+        while (_boundedLayoutCache.Count > BoundedLayoutCacheCapacity
+            && _boundedLayoutCacheLru.Last is LinkedListNode<BoundedLayoutCacheEntry> last)
+        {
+            _boundedLayoutCache.Remove(last.Value.Key);
+            _boundedLayoutCacheLru.RemoveLast();
+        }
+    }
+
+    private static LayoutCachePolicy GetLayoutCachePolicy(string text)
     {
         if (string.IsNullOrEmpty(text))
         {
-            return true;
+            return LayoutCachePolicy.Short;
         }
 
-        if (text.Length > 160)
+        if (text.Length <= ShortLayoutCacheMaxTextLength
+            && CountNewlines(text, ShortLayoutCacheMaxNewlines + 1) <= ShortLayoutCacheMaxNewlines)
         {
-            return false;
+            return LayoutCachePolicy.Short;
         }
 
+        if (text.Length > BoundedLayoutCacheMaxTextLength)
+        {
+            return LayoutCachePolicy.None;
+        }
+
+        return CountNewlines(text, BoundedLayoutCacheMaxNewlines + 1) <= BoundedLayoutCacheMaxNewlines
+            ? LayoutCachePolicy.Bounded
+            : LayoutCachePolicy.None;
+    }
+
+    private static int CountNewlines(string text, int stopAfter)
+    {
         int newlineCount = 0;
         for (int i = 0; i < text.Length; i++)
         {
@@ -186,13 +274,13 @@ public sealed class UiFont
             }
 
             newlineCount++;
-            if (newlineCount > 3)
+            if (newlineCount >= stopAfter)
             {
-                return false;
+                break;
             }
         }
 
-        return true;
+        return newlineCount;
     }
 
     internal bool TryGetBitmapFont(out TinyBitmapFont? font)

@@ -1,17 +1,28 @@
+using System;
+
 namespace OpenControls.Controls;
 
 public sealed class UiTreeView : UiElement
 {
     private readonly struct VisibleRow
     {
-        public VisibleRow(UiTreeViewItem item, int depth)
+        public VisibleRow(UiTreeViewItem item, int depth, bool[] continuationDepths)
         {
             Item = item;
             Depth = depth;
+            ContinuationDepths = continuationDepths ?? Array.Empty<bool>();
         }
 
         public UiTreeViewItem Item { get; }
         public int Depth { get; }
+        public bool[] ContinuationDepths { get; }
+
+        public bool HasContinuationAtDepth(int depth)
+        {
+            return depth >= 0
+                && depth < ContinuationDepths.Length
+                && ContinuationDepths[depth];
+        }
     }
 
     private readonly List<VisibleRow> _visibleRows = new();
@@ -760,9 +771,10 @@ public sealed class UiTreeView : UiElement
     private void RebuildVisibleRows()
     {
         _visibleRows.Clear();
+        List<bool> ancestorContinuations = new();
         for (int i = 0; i < RootItems.Count; i++)
         {
-            AddVisibleRows(RootItems[i], 0);
+            AddVisibleRows(RootItems[i], 0, ancestorContinuations, i < RootItems.Count - 1);
         }
     }
 
@@ -972,7 +984,7 @@ public sealed class UiTreeView : UiElement
         int midY = rowRect.Y + rowRect.Height / 2;
         for (int depth = 0; depth < row.Depth; depth++)
         {
-            if (HasContinuationAtDepth(index, depth))
+            if (row.HasContinuationAtDepth(depth))
             {
                 DrawVerticalLine(context, GetConnectorX(depth), rowRect.Y, rowRect.Bottom, thickness);
             }
@@ -985,7 +997,7 @@ public sealed class UiTreeView : UiElement
 
         int connectorX = GetConnectorX(row.Depth);
         DrawVerticalLine(context, connectorX, rowRect.Y, midY + 1, thickness);
-        if (HasContinuationAtDepth(index, row.Depth))
+        if (row.HasContinuationAtDepth(row.Depth))
         {
             DrawVerticalLine(context, connectorX, midY, rowRect.Bottom, thickness);
         }
@@ -1007,36 +1019,46 @@ public sealed class UiTreeView : UiElement
         return Bounds.X + Math.Max(0, Padding) + depth * Math.Max(1, IndentWidth) + size / 2;
     }
 
-    private bool HasContinuationAtDepth(int index, int depth)
+    private void AddVisibleRows(
+        UiTreeViewItem item,
+        int depth,
+        List<bool> ancestorContinuations,
+        bool hasNextSibling)
     {
-        for (int i = index + 1; i < _visibleRows.Count; i++)
-        {
-            int nextDepth = _visibleRows[i].Depth;
-            if (nextDepth < depth)
-            {
-                return false;
-            }
-
-            if (nextDepth == depth)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void AddVisibleRows(UiTreeViewItem item, int depth)
-    {
-        _visibleRows.Add(new VisibleRow(item, depth));
+        bool[] continuationDepths = BuildContinuationDepths(depth, ancestorContinuations, hasNextSibling);
+        _visibleRows.Add(new VisibleRow(item, depth, continuationDepths));
         if (!item.IsOpen || !item.HasChildren)
         {
             return;
         }
 
+        while (ancestorContinuations.Count <= depth)
+        {
+            ancestorContinuations.Add(false);
+        }
+
+        ancestorContinuations[depth] = hasNextSibling;
         for (int i = 0; i < item.Children.Count; i++)
         {
-            AddVisibleRows(item.Children[i], depth + 1);
+            AddVisibleRows(item.Children[i], depth + 1, ancestorContinuations, i < item.Children.Count - 1);
         }
+    }
+
+    private static bool[] BuildContinuationDepths(int depth, List<bool> ancestorContinuations, bool hasNextSibling)
+    {
+        if (depth < 0)
+        {
+            return Array.Empty<bool>();
+        }
+
+        int length = depth + 1;
+        bool[] continuationDepths = new bool[length];
+        for (int i = 0; i < depth && i < ancestorContinuations.Count; i++)
+        {
+            continuationDepths[i] = ancestorContinuations[i];
+        }
+
+        continuationDepths[depth] = hasNextSibling;
+        return continuationDepths;
     }
 }

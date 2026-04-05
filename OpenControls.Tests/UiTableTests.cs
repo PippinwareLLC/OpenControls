@@ -5,6 +5,66 @@ namespace OpenControls.Tests;
 
 public sealed class UiTableTests
 {
+    private sealed class RecordingRenderer : IUiRenderer
+    {
+        public UiFont DefaultFont { get; set; } = UiFont.Default;
+        public List<string> DrawnText { get; } = new();
+
+        public void FillRect(UiRect rect, UiColor color)
+        {
+        }
+
+        public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
+        {
+        }
+
+        public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
+        {
+        }
+
+        public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
+        {
+            DrawText(text, position, color, scale, null);
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+            DrawnText.Add(text);
+        }
+
+        public int MeasureTextWidth(string text, int scale = 1)
+        {
+            return MeasureTextWidth(text, scale, null);
+        }
+
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            return (font ?? DefaultFont).MeasureTextWidth(text, scale);
+        }
+
+        public int MeasureTextHeight(int scale = 1)
+        {
+            return MeasureTextHeight(scale, null);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            return (font ?? DefaultFont).MeasureTextHeight(scale);
+        }
+
+        public void PushClip(UiRect rect)
+        {
+        }
+
+        public void PopClip()
+        {
+        }
+    }
+
     [Fact]
     public void Table_ReorderedVisibleColumnsStillSortByStableModelIndex()
     {
@@ -73,6 +133,61 @@ public sealed class UiTableTests
         Assert.True(table.ViewState.ContentSize.Y > table.ViewState.ViewportSize.Y);
         Assert.Equal(2, table.ViewState.FirstVisibleRowIndex);
         Assert.Equal(6, table.ViewState.LastVisibleRowIndex);
+    }
+
+    [Fact]
+    public void Table_TryGetResolvedColumnWidthReturnsVisibleResolvedWidth()
+    {
+        UiTable table = new()
+        {
+            Bounds = new UiRect(0, 0, 360, 120),
+            RowHeight = 20,
+            HeaderHeight = 20
+        };
+        table.Columns.Add(new UiTableColumn("Name", width: 80) { WidthMode = UiTableColumnWidthMode.Fixed });
+        table.Columns.Add(new UiTableColumn("Type", width: 100) { WidthMode = UiTableColumnWidthMode.Fixed });
+        table.Columns.Add(new UiTableColumn("Message", weight: 1f) { MinWidth = 120 });
+        table.Rows = new[]
+        {
+            new UiTableRow("Asset", "Info", "Message")
+        };
+
+        Update(table, new UiInputState());
+
+        Assert.True(table.TryGetResolvedColumnWidth(2, out int messageWidth));
+        Assert.Equal(180, messageWidth);
+    }
+
+    [Fact]
+    public void Table_RenderUsesCellRenderTextWhenProvided()
+    {
+        UiTable table = new()
+        {
+            Bounds = new UiRect(0, 0, 240, 80),
+            RowHeight = 24,
+            HeaderHeight = 20
+        };
+        table.Columns.Add(new UiTableColumn("Message", width: 240) { WidthMode = UiTableColumnWidthMode.Fixed });
+        table.Rows = new[]
+        {
+            new UiTableRow
+            {
+                CellItems = new[]
+                {
+                    new UiTableCell("This is the full value")
+                    {
+                        RenderText = "This is the display value"
+                    }
+                }
+            }
+        };
+
+        Update(table, new UiInputState());
+        RecordingRenderer renderer = new();
+        table.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        Assert.Contains("This is the display value", renderer.DrawnText);
+        Assert.DoesNotContain("This is the full value", renderer.DrawnText);
     }
 
     [Fact]

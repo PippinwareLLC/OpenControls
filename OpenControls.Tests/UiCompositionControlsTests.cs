@@ -5,6 +5,65 @@ namespace OpenControls.Tests;
 
 public sealed class UiCompositionControlsTests
 {
+    private sealed class RenderTestRenderer : IUiRenderer
+    {
+        public UiFont DefaultFont { get; set; } = UiFont.Default;
+
+        public void FillRect(UiRect rect, UiColor color)
+        {
+        }
+
+        public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
+        {
+        }
+
+        public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
+        {
+        }
+
+        public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+        }
+
+        public int MeasureTextWidth(string text, int scale = 1)
+        {
+            return MeasureTextWidth(text, scale, DefaultFont);
+        }
+
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            UiFont resolved = font ?? DefaultFont;
+            return resolved.MeasureTextWidth(text, scale);
+        }
+
+        public int MeasureTextHeight(int scale = 1)
+        {
+            return MeasureTextHeight(scale, DefaultFont);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            UiFont resolved = font ?? DefaultFont;
+            return resolved.MeasureTextHeight(scale);
+        }
+
+        public void PushClip(UiRect rect)
+        {
+        }
+
+        public void PopClip()
+        {
+        }
+    }
+
     [Fact]
     public void PopupHelpers_ClampContextBoundsToParent()
     {
@@ -150,6 +209,36 @@ public sealed class UiCompositionControlsTests
         Assert.Equal(10, menu.Bounds.X);
         Assert.Equal(20, menu.Bounds.Y);
         Assert.Equal(80, menu.Bounds.Width);
+    }
+
+    [Fact]
+    public void MenuBar_RenderReusesCachedTopItemTextMetrics()
+    {
+        UiMenuBar menu = new()
+        {
+            Bounds = new UiRect(0, 0, 240, 24)
+        };
+
+        menu.Items.Add(new UiMenuBar.MenuItem { Text = "File" });
+        menu.Items.Add(new UiMenuBar.MenuItem { Text = "Edit" });
+
+        int measureWidthCalls = 0;
+        menu.MeasureTextWidth = (text, scale) =>
+        {
+            measureWidthCalls++;
+            return UiFont.Default.MeasureTextWidth(text, scale);
+        };
+
+        UiFocusManager focus = new();
+        UiMemoryClipboard clipboard = new();
+        Update(menu, focus, clipboard, new UiInputState());
+        Assert.True(measureWidthCalls > 0);
+
+        measureWidthCalls = 0;
+        RenderTestRenderer renderer = new();
+        menu.Render(new UiRenderContext(renderer, renderer.DefaultFont));
+
+        Assert.Equal(0, measureWidthCalls);
     }
 
     private static UiListView CreateListView()
