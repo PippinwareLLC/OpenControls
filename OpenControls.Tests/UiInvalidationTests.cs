@@ -42,10 +42,15 @@ public sealed class UiInvalidationTests
         Assert.True(element.LocalInvalidationVersion > enabledVersion);
 
         long clipVersion = element.LocalInvalidationVersion;
+        element.RenderCacheRootEnabled = true;
+        Assert.True(element.LocalInvalidationReasons.HasFlag(UiInvalidationReason.State));
+        Assert.True(element.LocalInvalidationVersion > clipVersion);
+
+        long cacheRootVersion = element.LocalInvalidationVersion;
         element.Font = UiFont.Default;
         Assert.True(element.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Text));
         Assert.True(element.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Style));
-        Assert.True(element.LocalInvalidationVersion > clipVersion);
+        Assert.True(element.LocalInvalidationVersion > cacheRootVersion);
 
         long fontVersion = element.LocalInvalidationVersion;
         element.Id = "runtime-root";

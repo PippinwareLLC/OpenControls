@@ -379,6 +379,56 @@ public sealed class UiRenderCacheTests
         Assert.Equal(2, stats.RootPass.ReplayCount);
     }
 
+    [Fact]
+    public void RenderCaching_UiWindowOnlyActsAsCacheRootWhenOptedIn()
+    {
+        CountingElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 160, 120)
+        };
+        UiWindow cachedWindow = new()
+        {
+            Id = "cached-window",
+            Bounds = new UiRect(0, 0, 70, 60),
+            RenderCacheRootEnabled = true
+        };
+        CountingElement cachedContent = new()
+        {
+            Bounds = new UiRect(0, 24, 40, 20)
+        };
+        cachedWindow.AddChild(cachedContent);
+
+        UiWindow plainWindow = new()
+        {
+            Id = "plain-window",
+            Bounds = new UiRect(80, 0, 70, 60)
+        };
+        CountingElement plainContent = new()
+        {
+            Bounds = new UiRect(0, 24, 40, 20)
+        };
+        plainWindow.AddChild(plainContent);
+
+        root.AddChild(cachedWindow);
+        root.AddChild(plainWindow);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Render(renderer);
+        cachedWindow.Bounds = new UiRect(0, 0, 72, 62);
+        context.Render(renderer);
+
+        UiRenderCacheStatisticsSnapshot stats = context.RenderCacheStatistics;
+        Assert.Equal(1, root.RenderCount);
+        Assert.Equal(1, root.OverlayRenderCount);
+        Assert.Equal(2, cachedContent.RenderCount);
+        Assert.Equal(2, cachedContent.OverlayRenderCount);
+        Assert.Equal(1, plainContent.RenderCount);
+        Assert.Equal(1, plainContent.OverlayRenderCount);
+        Assert.Equal(UiRenderCachePassAction.Replay, stats.RootPass.LastAction);
+    }
+
     private static UiContext CreateContext(UiElement root)
     {
         UiContext context = new(root)

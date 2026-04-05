@@ -8,6 +8,7 @@ public abstract class UiElement
     private bool _visible = true;
     private bool _enabled = true;
     private bool _clipChildren;
+    private bool _renderCacheRootEnabled;
     private string _id = string.Empty;
     private UiFont? _font;
     private UiInvalidationReason _localInvalidationReasons;
@@ -38,11 +39,17 @@ public abstract class UiElement
     public virtual bool WantsTextInput => false;
     public virtual bool CapturesPointerInput => IsFocusable;
     public virtual bool IsRenderCacheVolatile(UiContext context) => false;
-    public virtual bool IsRenderCacheRoot(UiContext context) => false;
+    public virtual bool IsRenderCacheRoot(UiContext context) => RenderCacheRootEnabled;
     public virtual bool ClipChildren
     {
         get => _clipChildren;
         set => SetInvalidatingValue(ref _clipChildren, value, UiInvalidationReason.Clip | UiInvalidationReason.Paint);
+    }
+
+    public bool RenderCacheRootEnabled
+    {
+        get => _renderCacheRootEnabled;
+        set => SetInvalidatingValue(ref _renderCacheRootEnabled, value, UiInvalidationReason.State | UiInvalidationReason.Paint);
     }
 
     public string Id
