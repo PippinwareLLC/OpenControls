@@ -403,8 +403,15 @@ public sealed class UiContext
     {
         renderer.DefaultFont = DefaultFont;
         UiRenderContext context = new(renderer, DefaultFont);
-        Root.Render(context);
-        Root.RenderOverlay(context);
+        using (UiProfiling.Scope("OpenControls.Context.Root"))
+        {
+            Root.Render(context);
+        }
+
+        using (UiProfiling.Scope("OpenControls.Context.Overlay"))
+        {
+            Root.RenderOverlay(context);
+        }
     }
 
     private void MoveFocus(bool reverse)

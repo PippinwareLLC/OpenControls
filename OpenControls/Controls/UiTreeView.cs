@@ -378,6 +378,8 @@ public sealed class UiTreeView : UiElement
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.TreeView.Render.{GetProfileName()}");
+
         EnsureRenderState();
         ResolveScrollbars();
 
@@ -435,6 +437,16 @@ public sealed class UiTreeView : UiElement
 
         context.Renderer.PopClip();
         DrawScrollbars(context);
+    }
+
+    private string GetProfileName()
+    {
+        if (!string.IsNullOrWhiteSpace(Id))
+        {
+            return Id;
+        }
+
+        return "TreeView";
     }
 
     protected internal override void OnFocusGained()

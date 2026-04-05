@@ -484,6 +484,8 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.Table.Render.{GetProfileName()}");
+
         RefreshLayout();
 
         UiFont font = ResolveFont(context.DefaultFont);
@@ -565,6 +567,8 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.Table.RenderOverlay.{GetProfileName()}");
+
         RefreshLayout();
 
         if (_headerPlacements.Count > 0)
@@ -591,6 +595,16 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         {
             UiRenderHelpers.MaskRectRounded(context.Renderer, Bounds, CornerRadius, Background);
         }
+    }
+
+    private string GetProfileName()
+    {
+        if (!string.IsNullOrWhiteSpace(Id))
+        {
+            return Id;
+        }
+
+        return "Table";
     }
 
     public override UiElement? HitTest(UiPoint point)

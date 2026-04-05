@@ -637,6 +637,8 @@ public sealed class UiMenuBar : UiElement
             return;
         }
 
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.MenuBar.Render.{GetProfileName()}");
+
         UiRect barBounds = GetBarBounds();
         context.Renderer.FillRect(barBounds, BarBackground);
         context.Renderer.DrawRect(barBounds, BarBorder, 1);
@@ -674,6 +676,8 @@ public sealed class UiMenuBar : UiElement
         {
             return;
         }
+
+        using IDisposable scope = UiProfiling.Scope($"OpenControls.MenuBar.RenderOverlay.{GetProfileName()}");
 
         if (_openLayouts.Count == 0)
         {
@@ -746,6 +750,16 @@ public sealed class UiMenuBar : UiElement
         }
 
         base.RenderOverlay(context);
+    }
+
+    private string GetProfileName()
+    {
+        if (!string.IsNullOrWhiteSpace(Id))
+        {
+            return Id;
+        }
+
+        return DisplayMode == UiMenuDisplayMode.Popup ? "PopupMenuBar" : "MenuBar";
     }
 
     private void UpdatePopup(UiUpdateContext context, bool wasOpen)
