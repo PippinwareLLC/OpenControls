@@ -321,6 +321,84 @@ public sealed class UiLayoutAndDockingTests
         Assert.DoesNotContain(first, workspace.RootHost.Windows);
     }
 
+    [Fact]
+    public void DockWorkspace_CommitExternalDock_DocksWindowIntoHoveredHost()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        workspace.RootHost.DockWindow(new UiWindow { Title = "Root" });
+        UiDockHost targetHost = workspace.DockHosts[1];
+        targetHost.DockWindow(new UiWindow { Title = "Right" });
+        UiWindow external = new()
+        {
+            Title = "External"
+        };
+
+        Update(workspace, new UiInputState());
+
+        UiRect bounds = targetHost.Bounds;
+        UiPoint centerTarget = new(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
+
+        workspace.PreviewExternalDock(external, centerTarget, new UiRect(20, 20, 120, 80));
+
+        bool committed = workspace.CommitExternalDock(external);
+
+        Assert.True(committed);
+        Assert.Same(targetHost, external.Parent);
+        Assert.Contains(external, targetHost.Windows);
+    }
+
+    [Fact]
+    public void DockWorkspace_CommitExternalDock_SplitsHoveredHostForEdgeTargets()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        workspace.RootHost.DockWindow(new UiWindow { Title = "Root" });
+        UiWindow external = new()
+        {
+            Title = "External"
+        };
+
+        Update(workspace, new UiInputState());
+
+        int hostCountBefore = workspace.DockHosts.Count;
+        UiRect bounds = workspace.RootHost.Bounds;
+        int size = workspace.DropTargetSize;
+        int centerX = bounds.X + bounds.Width / 2;
+        int centerY = bounds.Y + bounds.Height / 2;
+        UiPoint leftTarget = new(centerX - size * 2 + size / 2, centerY);
+
+        workspace.PreviewExternalDock(external, leftTarget, new UiRect(20, 20, 120, 80));
+
+        bool committed = workspace.CommitExternalDock(external);
+
+        Assert.True(committed);
+        Assert.True(workspace.DockHosts.Count >= hostCountBefore);
+        Assert.DoesNotContain(external, workspace.RootHost.Windows);
+        Assert.Contains(workspace.DockHosts, host => host.Windows.Contains(external));
+    }
+
+    [Fact]
+    public void DockWorkspace_ClearExternalDockPreview_CancelsPendingDock()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiWindow external = new()
+        {
+            Title = "External"
+        };
+
+        Update(workspace, new UiInputState());
+
+        UiRect bounds = workspace.RootHost.Bounds;
+        UiPoint centerTarget = new(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
+
+        workspace.PreviewExternalDock(external, centerTarget, new UiRect(20, 20, 120, 80));
+        workspace.ClearExternalDockPreview(external);
+
+        bool committed = workspace.CommitExternalDock(external);
+
+        Assert.False(committed);
+        Assert.Null(external.Parent);
+    }
+
     private static UiDockWorkspace CreateWorkspace()
     {
         UiDockWorkspace workspace = new()

@@ -129,6 +129,7 @@ This is a brief overview of the current OpenControls surface area.
 ## Dock Host Events
 - `UiDockHost.TabDetached`: raised when a tab is dragged outside the host bounds.
 - `UiDockHost.TabClosed`: raised when a tab close button is clicked and the window is removed.
+- `UiDockWorkspace.PreviewExternalDock(...)` / `CommitExternalDock(...)` / `ClearExternalDockPreview(...)`: let an external host surface the normal workspace drop-preview and docking targets before committing a re-dock.
 
 ## Layout Notes
 - Use `UiStack` for retained row/column layout instead of manually spacing siblings when the arrangement is stable.

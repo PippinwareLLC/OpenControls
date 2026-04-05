@@ -90,6 +90,7 @@ root.AddChild(dock);
 ```
 
 Tabs can be dragged to reorder within the dock bar. Drag a tab outside the dock to detach it; handle `TabDetached` to reattach or host it elsewhere. Long titles can auto-size, ellipsize, and fall back to the overflow menu when the strip runs out of space.
+If a tab is being hosted by some external/native window system, `UiDockWorkspace.PreviewExternalDock(...)`, `CommitExternalDock(...)`, and `ClearExternalDockPreview(...)` let that host feed the window back through the same drop-target preview path before it is re-docked.
 
 ## 2b) Workspace docking with drop targets
 Use `UiDockWorkspace` to get drag previews, drop targets, and floating windows.

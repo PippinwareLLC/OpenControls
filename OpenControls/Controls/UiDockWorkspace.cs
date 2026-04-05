@@ -50,6 +50,8 @@ public sealed class UiDockWorkspace : UiElement
     private DockTarget _hoverTarget;
     private UiRect _previewBounds;
     private UiWindow? _floatingDragWindow;
+    private UiWindow? _externalPreviewWindow;
+    private UiRect _externalPreviewWindowBounds;
     private DockNode? _hoverSplitNode;
     private DockNode? _dragSplitNode;
     private int _dragSplitStartAxis;
@@ -295,6 +297,71 @@ public sealed class UiDockWorkspace : UiElement
         CollapseEmptyHosts();
     }
 
+    public void PreviewExternalDock(UiWindow window, UiPoint hoverPoint, UiRect previewWindowBounds)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+
+        _externalPreviewWindow = window;
+        _externalPreviewWindowBounds = previewWindowBounds;
+        UpdateExternalPreviewHover(hoverPoint, previewWindowBounds);
+    }
+
+    public void ClearExternalDockPreview(UiWindow? window = null)
+    {
+        if (window != null && !ReferenceEquals(_externalPreviewWindow, window))
+        {
+            return;
+        }
+
+        _externalPreviewWindow = null;
+        _externalPreviewWindowBounds = default;
+        if (_dragWindow == null || !_dragMoved)
+        {
+            _hoverHost = null;
+            _hoverTarget = DockTarget.None;
+            _previewBounds = default;
+        }
+    }
+
+    public bool CommitExternalDock(UiWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+
+        if (!ReferenceEquals(_externalPreviewWindow, window))
+        {
+            return false;
+        }
+
+        UiDockHost? hoverHost = _hoverHost;
+        DockTarget hoverTarget = _hoverTarget;
+        ClearExternalDockPreview(window);
+        if (hoverHost == null || hoverTarget == DockTarget.None)
+        {
+            return false;
+        }
+
+        if (window.Parent is UiDockHost currentHost)
+        {
+            currentHost.RemoveWindow(window);
+        }
+        else
+        {
+            window.Parent?.RemoveChild(window);
+        }
+
+        UiDockHost targetHost = hoverHost;
+        if (hoverTarget is DockTarget.Left or DockTarget.Right or DockTarget.Top or DockTarget.Bottom)
+        {
+            targetHost = SplitHost(hoverHost, hoverTarget);
+        }
+
+        window.AllowDrag = false;
+        targetHost.DockWindow(window);
+        targetHost.ActivateWindow(targetHost.Windows.Count - 1);
+        CollapseEmptyHosts();
+        return true;
+    }
+
     public void ResetLayout()
     {
         foreach (UiDockHost host in _hosts)
@@ -378,7 +445,7 @@ public sealed class UiDockWorkspace : UiElement
         base.Render(context);
         DrawSplitters(context);
 
-        if (_dragWindow != null && _dragMoved)
+        if ((_dragWindow != null && _dragMoved) || _externalPreviewWindow != null)
         {
             DrawPreview(context);
             DrawTargets(context);
@@ -657,6 +724,11 @@ public sealed class UiDockWorkspace : UiElement
     {
         if (_dragWindow == null || !_dragMoved)
         {
+            if (_externalPreviewWindow != null)
+            {
+                return;
+            }
+
             _hoverHost = null;
             _hoverTarget = DockTarget.None;
             _previewBounds = default;
@@ -771,6 +843,29 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         return host.CanDetachWindowPredicate?.Invoke(window) ?? true;
+    }
+
+    private void UpdateExternalPreviewHover(UiPoint hoverPoint, UiRect previewWindowBounds)
+    {
+        _hoverHost = null;
+        foreach (UiDockHost host in _hosts)
+        {
+            if (host.Bounds.Contains(hoverPoint))
+            {
+                _hoverHost = host;
+                break;
+            }
+        }
+
+        if (_hoverHost == null)
+        {
+            _hoverTarget = DockTarget.None;
+            _previewBounds = GetFloatingPreviewBounds(hoverPoint, previewWindowBounds);
+            return;
+        }
+
+        _hoverTarget = GetDockTarget(_hoverHost.Bounds, hoverPoint);
+        _previewBounds = GetDockPreviewBounds(_hoverHost.Bounds, _hoverTarget, previewWindowBounds);
     }
 
     private UiPoint GetDetachPoint(UiInputState input)
