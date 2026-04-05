@@ -65,6 +65,8 @@ public sealed class UiContext
     public UiContainerStateSnapshot HoveredContainerState => GetContainingContainerState(Hovered);
     public UiContainerStateSnapshot FocusedContainerState => GetContainingContainerState(Focus.Focused);
     public UiContainerStateSnapshot ActiveInputLayerState => GetContainerState(_activeInputLayer);
+    public UiInvalidationReason RootInvalidationReasons => Root.SubtreeInvalidationReasons;
+    public long RootInvalidationVersion => Root.SubtreeInvalidationVersion;
 
     public void Update(UiInputState input, float deltaSeconds = 0f)
     {
