@@ -265,6 +265,7 @@ public sealed class UiTextEditor : UiElement, IUiStatefulElement
     }
 
     public UiTextCompositionState Composition => _composition;
+    public override bool IsRenderCacheVolatile(UiContext context) => _hasFocus;
 
     public string Text
     {
@@ -290,6 +291,7 @@ public sealed class UiTextEditor : UiElement, IUiStatefulElement
         TextChanged?.Invoke();
         NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
         ResetCaretBlink();
+        Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
     public void SetCaretIndex(int index)
@@ -302,6 +304,7 @@ public sealed class UiTextEditor : UiElement, IUiStatefulElement
         EnsureCaretVisible();
         NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
         ResetCaretBlink();
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public void SelectAllText()
@@ -314,6 +317,7 @@ public sealed class UiTextEditor : UiElement, IUiStatefulElement
         EnsureCaretVisible();
         NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
         ResetCaretBlink();
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public void SelectRange(int anchorIndex, int caretIndex)
@@ -326,6 +330,7 @@ public sealed class UiTextEditor : UiElement, IUiStatefulElement
         EnsureCaretVisible();
         NotifyCaretAndSelectionChanges(previousCaret, previousSelectionStart, previousSelectionEnd);
         ResetCaretBlink();
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public override void Update(UiUpdateContext context)
@@ -1411,10 +1416,12 @@ public sealed class UiTextEditor : UiElement, IUiStatefulElement
             _caretVisible = false;
             _caretTimer = 0f;
             _composition = UiTextCompositionState.Empty;
+            Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Volatility);
             return;
         }
 
         ResetCaretBlink();
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Volatility);
     }
 
     private void UpdateCaretBlink(float deltaSeconds)

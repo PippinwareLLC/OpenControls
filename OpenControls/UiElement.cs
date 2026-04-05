@@ -37,6 +37,7 @@ public abstract class UiElement
     public virtual bool HandlesTabInput => false;
     public virtual bool WantsTextInput => false;
     public virtual bool CapturesPointerInput => IsFocusable;
+    public virtual bool IsRenderCacheVolatile(UiContext context) => false;
     public virtual bool ClipChildren
     {
         get => _clipChildren;

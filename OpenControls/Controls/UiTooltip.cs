@@ -27,6 +27,7 @@ public sealed class UiTooltip : UiElement
         _owner = owner;
         _offsetOverride = offsetOverride;
         IsOpen = !string.IsNullOrEmpty(Text);
+        Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Visibility);
     }
 
     public void Hide(object owner)
@@ -39,6 +40,7 @@ public sealed class UiTooltip : UiElement
         _owner = null;
         _offsetOverride = null;
         IsOpen = false;
+        Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Visibility);
     }
 
     public override void Render(UiRenderContext context)

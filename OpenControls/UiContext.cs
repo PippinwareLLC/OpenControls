@@ -32,12 +32,46 @@ public sealed class UiContext
         public bool IsPending => Kind != FocusRequestKind.None;
     }
 
+    private sealed class RenderCacheState
+    {
+        public UiRenderCommandList? CommandList { get; private set; }
+        public long RecordedInvalidationVersion { get; private set; }
+        public int InteractionSignature { get; private set; }
+        public UiFont? RecordedDefaultFont { get; private set; }
+
+        public bool CanReplay(long invalidationVersion, int interactionSignature, UiFont? defaultFont)
+        {
+            return CommandList != null
+                && RecordedInvalidationVersion == invalidationVersion
+                && InteractionSignature == interactionSignature
+                && ReferenceEquals(RecordedDefaultFont, defaultFont);
+        }
+
+        public void Store(UiRenderCommandList commandList, long invalidationVersion, int interactionSignature, UiFont? defaultFont)
+        {
+            CommandList = commandList ?? throw new ArgumentNullException(nameof(commandList));
+            RecordedInvalidationVersion = invalidationVersion;
+            InteractionSignature = interactionSignature;
+            RecordedDefaultFont = defaultFont;
+        }
+
+        public void Clear()
+        {
+            CommandList = null;
+            RecordedInvalidationVersion = 0;
+            InteractionSignature = 0;
+            RecordedDefaultFont = null;
+        }
+    }
+
     private UiElement? _mouseCaptureTarget;
     private UiElement? _activeInputLayer;
     private FocusRequest _pendingFocusRequest;
     private Dictionary<UiElement, UiItemStateSnapshot> _itemStates = new();
     private Dictionary<UiElement, UiContainerStateSnapshot> _containerStates = new();
     private readonly UiMemoryClipboard _fallbackClipboard = new();
+    private readonly RenderCacheState _rootRenderCache = new();
+    private readonly RenderCacheState _overlayRenderCache = new();
 
     public UiContext(UiElement root)
     {
@@ -67,6 +101,7 @@ public sealed class UiContext
     public UiContainerStateSnapshot ActiveInputLayerState => GetContainerState(_activeInputLayer);
     public UiInvalidationReason RootInvalidationReasons => Root.SubtreeInvalidationReasons;
     public long RootInvalidationVersion => Root.SubtreeInvalidationVersion;
+    public bool RenderCachingEnabled { get; set; }
 
     public void Update(UiInputState input, float deltaSeconds = 0f)
     {
@@ -405,15 +440,42 @@ public sealed class UiContext
     {
         renderer.DefaultFont = DefaultFont;
         UiRenderContext context = new(renderer, DefaultFont);
+        int interactionSignature = ComputeRenderCacheInteractionSignature();
         using (UiProfiling.Scope("OpenControls.Context.Root"))
         {
-            Root.Render(context);
+            RenderPass(renderer, context, _rootRenderCache, interactionSignature, static (element, renderContext) => element.Render(renderContext));
         }
 
         using (UiProfiling.Scope("OpenControls.Context.Overlay"))
         {
-            Root.RenderOverlay(context);
+            RenderPass(renderer, context, _overlayRenderCache, interactionSignature, static (element, renderContext) => element.RenderOverlay(renderContext));
         }
+    }
+
+    private void RenderPass(
+        IUiRenderer renderer,
+        UiRenderContext liveContext,
+        RenderCacheState cacheState,
+        int interactionSignature,
+        Action<UiElement, UiRenderContext> renderAction)
+    {
+        if (!RenderCachingEnabled || HasVolatileRenderState(Root))
+        {
+            cacheState.Clear();
+            renderAction(Root, liveContext);
+            return;
+        }
+
+        long invalidationVersion = Root.SubtreeInvalidationVersion;
+        if (!cacheState.CanReplay(invalidationVersion, interactionSignature, DefaultFont))
+        {
+            UiRecordingRenderer recordingRenderer = new(renderer, DefaultFont);
+            UiRenderContext recordingContext = new(recordingRenderer, DefaultFont);
+            renderAction(Root, recordingContext);
+            cacheState.Store(recordingRenderer.BuildCommandList(), invalidationVersion, interactionSignature, DefaultFont);
+        }
+
+        cacheState.CommandList?.Replay(renderer);
     }
 
     private void MoveFocus(bool reverse)
@@ -1114,5 +1176,123 @@ public sealed class UiContext
         }
 
         return filtered ?? keys;
+    }
+
+    private bool HasVolatileRenderState(UiElement element)
+    {
+        if (!element.Visible)
+        {
+            return false;
+        }
+
+        if (element.IsRenderCacheVolatile(this))
+        {
+            return true;
+        }
+
+        if (!ShouldTraverseChildren(element))
+        {
+            return false;
+        }
+
+        foreach (UiElement child in element.Children)
+        {
+            if (HasVolatileRenderState(child))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private int ComputeRenderCacheInteractionSignature()
+    {
+        HashCode hash = new();
+        hash.Add(Hovered);
+        hash.Add(Focus.Focused);
+        hash.Add(_activeInputLayer);
+        hash.Add(PointerCaptureTarget);
+        hash.Add(WantCaptureMouse);
+        hash.Add(WantCaptureKeyboard);
+        hash.Add(WantTextInput);
+        AppendInputSignature(ref hash, LastInput);
+        return hash.ToHashCode();
+    }
+
+    private static void AppendInputSignature(ref HashCode hash, UiInputState? input)
+    {
+        if (input == null)
+        {
+            hash.Add(0);
+            return;
+        }
+
+        hash.Add(input.MousePosition);
+        hash.Add(input.ScreenMousePosition);
+        hash.Add(input.LeftDown);
+        hash.Add(input.LeftClicked);
+        hash.Add(input.LeftDoubleClicked);
+        hash.Add(input.LeftReleased);
+        hash.Add(input.RightDown);
+        hash.Add(input.RightClicked);
+        hash.Add(input.RightDoubleClicked);
+        hash.Add(input.RightReleased);
+        hash.Add(input.MiddleDown);
+        hash.Add(input.MiddleClicked);
+        hash.Add(input.MiddleDoubleClicked);
+        hash.Add(input.MiddleReleased);
+        hash.Add(input.LeftDragOrigin);
+        hash.Add(input.RightDragOrigin);
+        hash.Add(input.MiddleDragOrigin);
+        hash.Add(input.DragThreshold);
+        hash.Add(input.ShiftDown);
+        hash.Add(input.CtrlDown);
+        hash.Add(input.AltDown);
+        hash.Add(input.SuperDown);
+        hash.Add(input.ScrollDeltaX);
+        hash.Add(input.ScrollDelta);
+        hash.Add(input.Composition.Text);
+        hash.Add(input.Composition.CaretIndex);
+
+        AppendCharList(ref hash, input.TextInput);
+        AppendKeyList(ref hash, input.KeysDown);
+        AppendKeyList(ref hash, input.KeysPressed);
+        AppendKeyList(ref hash, input.KeysReleased);
+
+        UiNavigationInput navigation = input.Navigation;
+        hash.Add(navigation.MoveLeft);
+        hash.Add(navigation.MoveRight);
+        hash.Add(navigation.MoveUp);
+        hash.Add(navigation.MoveDown);
+        hash.Add(navigation.PageUp);
+        hash.Add(navigation.PageDown);
+        hash.Add(navigation.Home);
+        hash.Add(navigation.End);
+        hash.Add(navigation.Backspace);
+        hash.Add(navigation.Delete);
+        hash.Add(navigation.Tab);
+        hash.Add(navigation.Enter);
+        hash.Add(navigation.KeypadEnter);
+        hash.Add(navigation.Space);
+        hash.Add(navigation.Escape);
+    }
+
+    private static void AppendCharList(ref HashCode hash, IReadOnlyList<char> items)
+    {
+        hash.Add(items.Count);
+        for (int i = 0; i < items.Count; i++)
+        {
+            hash.Add(items[i]);
+        }
+    }
+
+    private static void AppendKeyList(ref HashCode hash, IReadOnlyList<UiKey> items)
+    {
+        hash.Add(items.Count);
+        for (int i = 0; i < items.Count; i++)
+        {
+            hash.Add((int)items[i]);
+        }
     }
 }

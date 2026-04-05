@@ -23,6 +23,7 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
         {
             _editingState.SetText(value ?? string.Empty);
             ResetCaretBlink();
+            Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
         }
     }
 
@@ -59,6 +60,7 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
     public override bool IsFocusable => true;
     public override bool HandlesTabInput => AllowTabInput;
     public override bool WantsTextInput => !ReadOnly;
+    public override bool IsRenderCacheVolatile(UiContext context) => _focused;
 
     public event Action<string>? TextChanged;
     public event Action? Submitted;
@@ -80,23 +82,27 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
     {
         _editingState.SetCaret(index);
         ResetCaretBlink();
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public void SelectAllText()
     {
         _editingState.SelectAll();
         ResetCaretBlink();
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public void SelectRange(int anchorIndex, int caretIndex)
     {
         _editingState.SelectRange(anchorIndex, caretIndex);
         ResetCaretBlink();
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public void SetHorizontalScrollOffset(int offset)
     {
         _horizontalScrollOffset = Math.Max(0, offset);
+        Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public override void Update(UiUpdateContext context)
@@ -193,6 +199,7 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
         _focused = true;
         _editingState.BeginSession();
         ResetCaretBlink();
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Volatility);
     }
 
     protected internal override void OnFocusLost()
@@ -204,6 +211,7 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
         _composition = UiTextCompositionState.Empty;
         _editingState.ClearSelection();
         _editingState.EndSession();
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Volatility);
     }
 
     protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
