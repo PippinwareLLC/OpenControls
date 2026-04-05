@@ -46,6 +46,10 @@ public sealed class UiPlotPanel : UiElement
     private float _panStartYMin;
     private float _panStartYMax;
     private UiRect _plotBounds;
+    private float _xMin;
+    private float _xMax = 1f;
+    private float _yMin;
+    private float _yMax = 1f;
 
     public List<UiPlotSeries> Series { get; } = new();
 
@@ -53,10 +57,29 @@ public sealed class UiPlotPanel : UiElement
     public string XAxisLabel { get; set; } = string.Empty;
     public string YAxisLabel { get; set; } = string.Empty;
 
-    public float XMin { get; set; }
-    public float XMax { get; set; } = 1f;
-    public float YMin { get; set; }
-    public float YMax { get; set; } = 1f;
+    public float XMin
+    {
+        get => _xMin;
+        set => SetInvalidatingValue(ref _xMin, value, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    public float XMax
+    {
+        get => _xMax;
+        set => SetInvalidatingValue(ref _xMax, value, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    public float YMin
+    {
+        get => _yMin;
+        set => SetInvalidatingValue(ref _yMin, value, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    public float YMax
+    {
+        get => _yMax;
+        set => SetInvalidatingValue(ref _yMax, value, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
 
     public float MinXRange { get; set; } = 0.001f;
     public float MinYRange { get; set; } = 0.001f;
@@ -126,6 +149,12 @@ public sealed class UiPlotPanel : UiElement
         YMin = minY - marginY;
         YMax = maxY + marginY;
         NormalizeView();
+        NotifyPlotDataChanged();
+    }
+
+    public void NotifyPlotDataChanged(UiInvalidationReason reason = UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State)
+    {
+        Invalidate(reason);
     }
 
     public override void Update(UiUpdateContext context)

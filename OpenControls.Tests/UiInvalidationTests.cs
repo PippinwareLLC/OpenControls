@@ -270,4 +270,34 @@ public sealed class UiInvalidationTests
         Assert.True(menu.LocalInvalidationVersion > stateVersion);
         Assert.True(menu.LocalInvalidationReasons.HasFlag(UiInvalidationReason.State));
     }
+
+    [Fact]
+    public void PlotPanel_InvalidateWhenViewRangeAndSeriesDataChange()
+    {
+        OpenControls.Controls.UiPlotPanel plot = new();
+
+        long xMinVersion = plot.LocalInvalidationVersion;
+        plot.XMin = -2f;
+        Assert.True(plot.LocalInvalidationVersion > xMinVersion);
+        Assert.True(plot.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Layout));
+
+        long yMaxVersion = plot.LocalInvalidationVersion;
+        plot.YMax = 42f;
+        Assert.True(plot.LocalInvalidationVersion > yMaxVersion);
+        Assert.True(plot.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Text));
+
+        plot.Series.Add(new OpenControls.Controls.UiPlotSeries
+        {
+            Points = new[]
+            {
+                new OpenControls.Controls.UiPlotPoint(0f, 1f),
+                new OpenControls.Controls.UiPlotPoint(1f, 2f)
+            }
+        });
+
+        long pointsVersion = plot.LocalInvalidationVersion;
+        plot.NotifyPlotDataChanged();
+        Assert.True(plot.LocalInvalidationVersion > pointsVersion);
+        Assert.True(plot.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Paint));
+    }
 }
