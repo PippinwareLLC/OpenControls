@@ -32,6 +32,7 @@ public class UiPopup : UiElement
 
         IsOpen = true;
         _suppressOutsideClick = true;
+        Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Layout | UiInvalidationReason.Clip);
         Opened?.Invoke();
     }
 
@@ -61,6 +62,7 @@ public class UiPopup : UiElement
         }
 
         IsOpen = false;
+        Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Layout | UiInvalidationReason.Clip);
         Closed?.Invoke();
     }
 

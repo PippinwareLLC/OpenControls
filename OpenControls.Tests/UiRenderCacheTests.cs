@@ -1,4 +1,5 @@
 using Xunit;
+using OpenControls.Controls;
 
 namespace OpenControls.Tests;
 
@@ -134,6 +135,44 @@ public sealed class UiRenderCacheTests
         Assert.Equal(2, root.OverlayRenderCount);
         Assert.Equal(2, renderer.FillRectCalls);
         Assert.Equal(2, renderer.DrawRectCalls);
+    }
+
+    [Fact]
+    public void RenderCaching_ReRecordsWhenPopupOpenStateChanges()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 80, 80)
+        };
+        UiPopup popup = new()
+        {
+            Bounds = new UiRect(8, 8, 40, 40),
+            Background = UiColor.Transparent,
+            Border = UiColor.Transparent
+        };
+        CountingElement content = new()
+        {
+            Bounds = new UiRect(10, 10, 16, 16)
+        };
+        popup.AddChild(content);
+        root.AddChild(popup);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Render(renderer);
+        Assert.Equal(0, content.RenderCount);
+        Assert.Equal(0, content.OverlayRenderCount);
+
+        popup.Open();
+        context.Render(renderer);
+        Assert.Equal(1, content.RenderCount);
+        Assert.Equal(1, content.OverlayRenderCount);
+
+        popup.Close();
+        context.Render(renderer);
+        Assert.Equal(1, content.RenderCount);
+        Assert.Equal(1, content.OverlayRenderCount);
     }
 
     private static UiContext CreateContext(UiElement root)

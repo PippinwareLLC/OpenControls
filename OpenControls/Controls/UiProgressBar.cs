@@ -19,13 +19,33 @@ public sealed class UiProgressBar : UiElement
     private float _value;
     private float _min;
     private float _max = 1f;
+    private UiProgressBarStyle _style = UiProgressBarStyle.Linear;
+    private UiProgressBarFillDirection _fillDirection = UiProgressBarFillDirection.LeftToRight;
+    private int _segmentCount;
+    private int _segmentGap = 2;
+    private IReadOnlyList<UiColor>? _segmentFillColors;
+    private float _radialStartAngleDegrees = -90f;
+    private bool _radialClockwise = true;
+    private int _radialThickness;
+    private bool _showText = true;
+    private string? _text;
+    private int _textScale = 1;
+    private UiColor _background = new UiColor(24, 28, 38);
+    private UiColor _fill = new UiColor(70, 120, 180);
+    private UiColor _border = new UiColor(60, 70, 90);
+    private UiColor _textColor = UiColor.White;
+    private int _cornerRadius;
 
     public float Min
     {
         get => _min;
         set
         {
-            _min = value;
+            if (!SetInvalidatingValue(ref _min, value, UiInvalidationReason.State | UiInvalidationReason.Text | UiInvalidationReason.Paint))
+            {
+                return;
+            }
+
             _value = ClampValue(_value);
         }
     }
@@ -35,7 +55,11 @@ public sealed class UiProgressBar : UiElement
         get => _max;
         set
         {
-            _max = value;
+            if (!SetInvalidatingValue(ref _max, value, UiInvalidationReason.State | UiInvalidationReason.Text | UiInvalidationReason.Paint))
+            {
+                return;
+            }
+
             _value = ClampValue(_value);
         }
     }
@@ -43,25 +67,104 @@ public sealed class UiProgressBar : UiElement
     public float Value
     {
         get => _value;
-        set => _value = ClampValue(value);
+        set => SetInvalidatingValue(ref _value, ClampValue(value), UiInvalidationReason.State | UiInvalidationReason.Text | UiInvalidationReason.Paint);
     }
 
-    public UiProgressBarStyle Style { get; set; } = UiProgressBarStyle.Linear;
-    public UiProgressBarFillDirection FillDirection { get; set; } = UiProgressBarFillDirection.LeftToRight;
-    public int SegmentCount { get; set; }
-    public int SegmentGap { get; set; } = 2;
-    public IReadOnlyList<UiColor>? SegmentFillColors { get; set; }
-    public float RadialStartAngleDegrees { get; set; } = -90f;
-    public bool RadialClockwise { get; set; } = true;
-    public int RadialThickness { get; set; }
-    public bool ShowText { get; set; } = true;
-    public string? Text { get; set; }
-    public int TextScale { get; set; } = 1;
-    public UiColor Background { get; set; } = new UiColor(24, 28, 38);
-    public UiColor Fill { get; set; } = new UiColor(70, 120, 180);
-    public UiColor Border { get; set; } = new UiColor(60, 70, 90);
-    public UiColor TextColor { get; set; } = UiColor.White;
-    public int CornerRadius { get; set; }
+    public UiProgressBarStyle Style
+    {
+        get => _style;
+        set => SetInvalidatingValue(ref _style, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiProgressBarFillDirection FillDirection
+    {
+        get => _fillDirection;
+        set => SetInvalidatingValue(ref _fillDirection, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public int SegmentCount
+    {
+        get => _segmentCount;
+        set => SetInvalidatingValue(ref _segmentCount, Math.Max(0, value), UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public int SegmentGap
+    {
+        get => _segmentGap;
+        set => SetInvalidatingValue(ref _segmentGap, Math.Max(0, value), UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public IReadOnlyList<UiColor>? SegmentFillColors
+    {
+        get => _segmentFillColors;
+        set => SetInvalidatingValue(ref _segmentFillColors, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public float RadialStartAngleDegrees
+    {
+        get => _radialStartAngleDegrees;
+        set => SetInvalidatingValue(ref _radialStartAngleDegrees, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public bool RadialClockwise
+    {
+        get => _radialClockwise;
+        set => SetInvalidatingValue(ref _radialClockwise, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public int RadialThickness
+    {
+        get => _radialThickness;
+        set => SetInvalidatingValue(ref _radialThickness, Math.Max(0, value), UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public bool ShowText
+    {
+        get => _showText;
+        set => SetInvalidatingValue(ref _showText, value, UiInvalidationReason.Text | UiInvalidationReason.Paint);
+    }
+
+    public string? Text
+    {
+        get => _text;
+        set => SetInvalidatingValue(ref _text, value, UiInvalidationReason.Text | UiInvalidationReason.Paint);
+    }
+
+    public int TextScale
+    {
+        get => _textScale;
+        set => SetInvalidatingValue(ref _textScale, Math.Max(1, value), UiInvalidationReason.Text | UiInvalidationReason.Paint);
+    }
+
+    public UiColor Background
+    {
+        get => _background;
+        set => SetInvalidatingValue(ref _background, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor Fill
+    {
+        get => _fill;
+        set => SetInvalidatingValue(ref _fill, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor Border
+    {
+        get => _border;
+        set => SetInvalidatingValue(ref _border, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor TextColor
+    {
+        get => _textColor;
+        set => SetInvalidatingValue(ref _textColor, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public int CornerRadius
+    {
+        get => _cornerRadius;
+        set => SetInvalidatingValue(ref _cornerRadius, Math.Max(0, value), UiInvalidationReason.Style | UiInvalidationReason.Paint | UiInvalidationReason.Clip);
+    }
 
     public override void Render(UiRenderContext context)
     {

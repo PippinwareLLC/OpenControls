@@ -110,4 +110,52 @@ public sealed class UiInvalidationTests
         Assert.True(child.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Parent));
         Assert.True(child.SubtreeInvalidationReasons.HasFlag(UiInvalidationReason.Parent));
     }
+
+    [Fact]
+    public void CommonDisplayControls_MarkInvalidationWhenRenderedPropertiesChange()
+    {
+        OpenControls.Controls.UiLabel label = new();
+        long labelVersion = label.LocalInvalidationVersion;
+        label.Text = "Booting...";
+        Assert.True(label.LocalInvalidationVersion > labelVersion);
+        Assert.True(label.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Text));
+
+        long labelTextVersion = label.LocalInvalidationVersion;
+        label.Scale = 2;
+        Assert.True(label.LocalInvalidationVersion > labelTextVersion);
+        Assert.True(label.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Layout));
+
+        OpenControls.Controls.UiTextBlock textBlock = new();
+        long textBlockVersion = textBlock.LocalInvalidationVersion;
+        textBlock.Wrap = false;
+        Assert.True(textBlock.LocalInvalidationVersion > textBlockVersion);
+        Assert.True(textBlock.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Text));
+
+        long textBlockWrapVersion = textBlock.LocalInvalidationVersion;
+        textBlock.Padding = 12;
+        Assert.True(textBlock.LocalInvalidationVersion > textBlockWrapVersion);
+        Assert.True(textBlock.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Clip));
+
+        OpenControls.Controls.UiProgressBar progressBar = new();
+        long progressVersion = progressBar.LocalInvalidationVersion;
+        progressBar.Value = 0.75f;
+        Assert.True(progressBar.LocalInvalidationVersion > progressVersion);
+        Assert.True(progressBar.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Paint));
+
+        long progressValueVersion = progressBar.LocalInvalidationVersion;
+        progressBar.Text = "75%";
+        Assert.True(progressBar.LocalInvalidationVersion > progressValueVersion);
+        Assert.True(progressBar.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Text));
+
+        OpenControls.Controls.UiButton button = new();
+        long buttonVersion = button.LocalInvalidationVersion;
+        button.Text = "Reveal Output";
+        Assert.True(button.LocalInvalidationVersion > buttonVersion);
+        Assert.True(button.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Text));
+
+        long buttonTextVersion = button.LocalInvalidationVersion;
+        button.CornerRadius = 6;
+        Assert.True(button.LocalInvalidationVersion > buttonTextVersion);
+        Assert.True(button.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Clip));
+    }
 }

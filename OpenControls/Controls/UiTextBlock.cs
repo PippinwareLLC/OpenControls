@@ -2,14 +2,62 @@ namespace OpenControls.Controls;
 
 public sealed class UiTextBlock : UiElement
 {
-    public string Text { get; set; } = string.Empty;
-    public UiColor Color { get; set; } = UiColor.White;
-    public int Scale { get; set; } = 1;
-    public bool Bold { get; set; }
-    public bool Wrap { get; set; } = true;
-    public bool ClipToBounds { get; set; } = true;
-    public int LineSpacing { get; set; } = 0;
-    public int Padding { get; set; } = 0;
+    private string _text = string.Empty;
+    private UiColor _color = UiColor.White;
+    private int _scale = 1;
+    private bool _bold;
+    private bool _wrap = true;
+    private bool _clipToBounds = true;
+    private int _lineSpacing;
+    private int _padding;
+
+    public string Text
+    {
+        get => _text;
+        set => SetInvalidatingValue(ref _text, value ?? string.Empty, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public UiColor Color
+    {
+        get => _color;
+        set => SetInvalidatingValue(ref _color, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public int Scale
+    {
+        get => _scale;
+        set => SetInvalidatingValue(ref _scale, Math.Max(1, value), UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public bool Bold
+    {
+        get => _bold;
+        set => SetInvalidatingValue(ref _bold, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public bool Wrap
+    {
+        get => _wrap;
+        set => SetInvalidatingValue(ref _wrap, value, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public bool ClipToBounds
+    {
+        get => _clipToBounds;
+        set => SetInvalidatingValue(ref _clipToBounds, value, UiInvalidationReason.Clip | UiInvalidationReason.Paint);
+    }
+
+    public int LineSpacing
+    {
+        get => _lineSpacing;
+        set => SetInvalidatingValue(ref _lineSpacing, Math.Max(0, value), UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public int Padding
+    {
+        get => _padding;
+        set => SetInvalidatingValue(ref _padding, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.Clip);
+    }
 
     public int LastLineCount { get; private set; }
     public int LastMeasuredHeight { get; private set; }

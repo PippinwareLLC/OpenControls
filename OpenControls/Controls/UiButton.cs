@@ -6,15 +6,62 @@ public sealed class UiButton : UiElement
     private bool _hovered;
     private bool _focused;
     private bool _clickedThisFrame;
+    private string _text = string.Empty;
+    private UiColor _background = new UiColor(52, 60, 78);
+    private UiColor _hoverBackground = new UiColor(70, 82, 108);
+    private UiColor _pressedBackground = new UiColor(40, 48, 62);
+    private UiColor _border = new UiColor(90, 100, 120);
+    private UiColor _textColor = UiColor.White;
+    private int _textScale = 1;
+    private int _cornerRadius;
 
-    public string Text { get; set; } = string.Empty;
-    public UiColor Background { get; set; } = new UiColor(52, 60, 78);
-    public UiColor HoverBackground { get; set; } = new UiColor(70, 82, 108);
-    public UiColor PressedBackground { get; set; } = new UiColor(40, 48, 62);
-    public UiColor Border { get; set; } = new UiColor(90, 100, 120);
-    public UiColor TextColor { get; set; } = UiColor.White;
-    public int TextScale { get; set; } = 1;
-    public int CornerRadius { get; set; }
+    public string Text
+    {
+        get => _text;
+        set => SetInvalidatingValue(ref _text, value ?? string.Empty, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public UiColor Background
+    {
+        get => _background;
+        set => SetInvalidatingValue(ref _background, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor HoverBackground
+    {
+        get => _hoverBackground;
+        set => SetInvalidatingValue(ref _hoverBackground, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor PressedBackground
+    {
+        get => _pressedBackground;
+        set => SetInvalidatingValue(ref _pressedBackground, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor Border
+    {
+        get => _border;
+        set => SetInvalidatingValue(ref _border, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public UiColor TextColor
+    {
+        get => _textColor;
+        set => SetInvalidatingValue(ref _textColor, value, UiInvalidationReason.Style | UiInvalidationReason.Paint);
+    }
+
+    public int TextScale
+    {
+        get => _textScale;
+        set => SetInvalidatingValue(ref _textScale, Math.Max(1, value), UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public int CornerRadius
+    {
+        get => _cornerRadius;
+        set => SetInvalidatingValue(ref _cornerRadius, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.Clip);
+    }
 
     public event Action? Clicked;
 
@@ -84,13 +131,24 @@ public sealed class UiButton : UiElement
 
     protected internal override void OnFocusGained()
     {
+        if (_focused)
+        {
+            return;
+        }
+
         _focused = true;
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Volatility);
     }
 
     protected internal override void OnFocusLost()
     {
+        bool changed = _focused || _pressed;
         _focused = false;
         _pressed = false;
+        if (changed)
+        {
+            Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Volatility);
+        }
     }
 
     protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
