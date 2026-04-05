@@ -461,6 +461,38 @@ public sealed class UiRenderCacheTests
         Assert.Equal(UiRenderCacheMissReason.Invalidation, stats.RootPass.LastMissReason);
     }
 
+    [Fact]
+    public void RenderCaching_ReRecordsWhenMenuBarStateChanges()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 160, 120)
+        };
+        UiMenuBar menu = new()
+        {
+            Bounds = new UiRect(0, 0, 160, 24)
+        };
+        UiMenuBar.MenuItem file = new() { Text = "File" };
+        file.Items.Add(new UiMenuBar.MenuItem { Text = "Open", Enabled = true });
+        menu.Items.Add(file);
+        root.AddChild(menu);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Render(renderer);
+
+        file.Items[0].Enabled = false;
+        menu.NotifyMenuStateChanged();
+
+        context.Render(renderer);
+
+        UiRenderCacheStatisticsSnapshot stats = context.RenderCacheStatistics;
+        Assert.Equal(2, stats.RootPass.RecordCount);
+        Assert.Equal(UiRenderCachePassAction.RecordAndReplay, stats.RootPass.LastAction);
+        Assert.Equal(UiRenderCacheMissReason.Invalidation, stats.RootPass.LastMissReason);
+    }
+
     private static UiContext CreateContext(UiElement root)
     {
         UiContext context = new(root)

@@ -250,4 +250,24 @@ public sealed class UiInvalidationTests
         Assert.True(tree.LocalInvalidationVersion > scrollVersion);
         Assert.True(tree.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Layout));
     }
+
+    [Fact]
+    public void MenuBar_InvalidateWhenStructureAndStateChange()
+    {
+        OpenControls.Controls.UiMenuBar menu = new();
+        menu.Items.Add(new OpenControls.Controls.UiMenuBar.MenuItem
+        {
+            Text = "File"
+        });
+
+        long structureVersion = menu.LocalInvalidationVersion;
+        menu.NotifyMenuStructureChanged();
+        Assert.True(menu.LocalInvalidationVersion > structureVersion);
+        Assert.True(menu.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Children));
+
+        long stateVersion = menu.LocalInvalidationVersion;
+        menu.NotifyMenuStateChanged();
+        Assert.True(menu.LocalInvalidationVersion > stateVersion);
+        Assert.True(menu.LocalInvalidationReasons.HasFlag(UiInvalidationReason.State));
+    }
 }

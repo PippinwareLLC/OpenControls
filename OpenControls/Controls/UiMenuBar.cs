@@ -488,6 +488,24 @@ public sealed class UiMenuBar : UiElement
         }
     }
 
+    public void NotifyMenuStructureChanged()
+    {
+        BuildLayout();
+        Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Clip);
+    }
+
+    public void NotifyMenuStateChanged(bool layoutAffected = false)
+    {
+        BuildLayout();
+        UiInvalidationReason reasons = UiInvalidationReason.Paint | UiInvalidationReason.State;
+        if (layoutAffected)
+        {
+            reasons |= UiInvalidationReason.Layout | UiInvalidationReason.Clip | UiInvalidationReason.Text;
+        }
+
+        Invalidate(reasons);
+    }
+
     private void ClosePopup(UiFocusManager? focus)
     {
         if (!_popupOpen)
