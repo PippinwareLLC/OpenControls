@@ -31,6 +31,8 @@ public sealed class UiDockHost : UiElement
     private int _dragIndex = -1;
     private UiPoint _dragStart;
     private bool _dragMoved;
+    private int _dragPointerOffsetX;
+    private int _dragPointerOffsetY;
     private int _tabScrollOffset;
     private int _tabMaxScroll;
     private UiRect _tabAreaBounds;
@@ -507,6 +509,9 @@ public sealed class UiDockHost : UiElement
                     _dragIndex = index;
                     _dragStart = input.MousePosition;
                     _dragMoved = false;
+                    UiRect tabRect = GetTabRect(index);
+                    _dragPointerOffsetX = Math.Clamp(input.MousePosition.X - tabRect.X, 0, Math.Max(0, tabRect.Width));
+                    _dragPointerOffsetY = Math.Clamp(input.MousePosition.Y - tabRect.Y, 0, Math.Max(0, tabRect.Height));
                 }
             }
         }
@@ -529,6 +534,11 @@ public sealed class UiDockHost : UiElement
                     _dragIndex = targetIndex;
                 }
             }
+            else if (_dragMoved && CanDetachWindow(_dragIndex) && !Bounds.Contains(input.MousePosition))
+            {
+                TryDetachWindow(_dragIndex, GetDetachPoint(input));
+                ResetDragInteraction();
+            }
         }
 
         if (!handledInteraction && input.LeftReleased)
@@ -541,18 +551,17 @@ public sealed class UiDockHost : UiElement
                 }
 
                 _closePressedIndex = -1;
-                _dragWindow = null;
-                _dragIndex = -1;
-                _dragMoved = false;
+                ResetDragInteraction();
             }
             else if (_dragWindow != null && _dragMoved && CanDetachWindow(_dragIndex) && !Bounds.Contains(input.MousePosition))
             {
-                TryDetachWindow(_dragIndex, input.MousePosition);
+                TryDetachWindow(_dragIndex, GetDetachPoint(input));
+                ResetDragInteraction();
             }
-
-            _dragWindow = null;
-            _dragIndex = -1;
-            _dragMoved = false;
+            else
+            {
+                ResetDragInteraction();
+            }
         }
 
         if (startingActive != _activeIndex)
@@ -1185,6 +1194,22 @@ public sealed class UiDockHost : UiElement
         }
 
         return _tabRects.Count - 1;
+    }
+
+    private UiPoint GetDetachPoint(UiInputState input)
+    {
+        return new UiPoint(
+            input.ScreenMousePosition.X - _dragPointerOffsetX,
+            input.ScreenMousePosition.Y - _dragPointerOffsetY);
+    }
+
+    private void ResetDragInteraction()
+    {
+        _dragWindow = null;
+        _dragIndex = -1;
+        _dragMoved = false;
+        _dragPointerOffsetX = 0;
+        _dragPointerOffsetY = 0;
     }
 
     private UiRect GetTabRect(int index)

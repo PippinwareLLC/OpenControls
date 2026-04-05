@@ -111,6 +111,49 @@ public sealed class UiDockHostTabFeaturesTests
         Assert.Equal("Remover", host.Windows[0].Title);
     }
 
+    [Fact]
+    public void DockHost_DraggingTabOutsideBoundsDetachesImmediatelyUsingScreenCoordinates()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160)
+        };
+        host.AddWindow(new UiWindow { Title = "Window 0" });
+        host.AddWindow(new UiWindow { Title = "Window 1" });
+
+        UiRect tabBounds = host.GetTabBounds(0);
+        UiPoint dragStart = new(tabBounds.X + 10, tabBounds.Y + 12);
+        UiPoint screenDetachPoint = new(700, 500);
+
+        UiWindow? detachedWindow = null;
+        UiPoint detachedPoint = default;
+        host.TabDetached += (window, point) =>
+        {
+            detachedWindow = window;
+            detachedPoint = point;
+        };
+
+        Update(host, new UiInputState
+        {
+            MousePosition = dragStart,
+            ScreenMousePosition = new UiPoint(300, 200),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(host, new UiInputState
+        {
+            MousePosition = new UiPoint(400, 20),
+            ScreenMousePosition = screenDetachPoint,
+            LeftDown = true
+        });
+
+        Assert.NotNull(detachedWindow);
+        Assert.Equal("Window 0", detachedWindow!.Title);
+        Assert.Equal(new UiPoint(screenDetachPoint.X - 10, screenDetachPoint.Y - 12), detachedPoint);
+        Assert.Single(host.Windows);
+    }
+
     private static UiDockHost CreateHostWithFourWindows()
     {
         UiDockHost host = new()
@@ -140,5 +183,16 @@ public sealed class UiDockHostTabFeaturesTests
                 _host.RemoveWindow(_target);
             }
         }
+    }
+
+    private static void Update(UiElement element, UiInputState input)
+    {
+        element.Update(new UiUpdateContext(
+            input,
+            new UiFocusManager(),
+            new UiDragDropContext(),
+            1f / 60f,
+            UiFont.Default,
+            new UiMemoryClipboard()));
     }
 }

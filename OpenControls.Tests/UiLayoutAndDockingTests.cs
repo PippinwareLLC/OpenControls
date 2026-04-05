@@ -272,6 +272,55 @@ public sealed class UiLayoutAndDockingTests
         Assert.Same(window, workspace.RootHost.Windows[0]);
     }
 
+    [Fact]
+    public void DockWorkspace_DraggingTabOutsideBoundsDetachesImmediatelyUsingScreenCoordinates()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 180)
+        };
+        workspace.RootHost.AllowDetach = true;
+
+        UiWindow first = new() { Title = "First" };
+        UiWindow second = new() { Title = "Second" };
+        workspace.RootHost.DockWindow(first);
+        workspace.RootHost.DockWindow(second);
+        workspace.RootHost.ActivateWindow(0);
+
+        UiRect tabBounds = workspace.RootHost.GetTabBounds(0);
+        UiPoint dragStart = new(tabBounds.X + 14, tabBounds.Y + 10);
+        UiPoint screenDetachPoint = new(840, 640);
+
+        UiWindow? detachedWindow = null;
+        UiPoint detachedPoint = default;
+        workspace.TabDetached += (window, point) =>
+        {
+            detachedWindow = window;
+            detachedPoint = point;
+        };
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = dragStart,
+            ScreenMousePosition = new UiPoint(320, 220),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = new UiPoint(380, 24),
+            ScreenMousePosition = screenDetachPoint,
+            LeftDown = true
+        });
+
+        Assert.NotNull(detachedWindow);
+        Assert.Equal("First", detachedWindow!.Title);
+        Assert.Equal(new UiPoint(screenDetachPoint.X - 14, screenDetachPoint.Y - 10), detachedPoint);
+        Assert.Single(workspace.RootHost.Windows);
+        Assert.DoesNotContain(first, workspace.RootHost.Windows);
+    }
+
     private static UiDockWorkspace CreateWorkspace()
     {
         UiDockWorkspace workspace = new()

@@ -44,6 +44,8 @@ public sealed class UiDockWorkspace : UiElement
     private UiPoint _dragStart;
     private UiPoint _dragPosition;
     private bool _dragMoved;
+    private int _dragPointerOffsetX;
+    private int _dragPointerOffsetY;
     private UiDockHost? _hoverHost;
     private DockTarget _hoverTarget;
     private UiRect _previewBounds;
@@ -544,6 +546,9 @@ public sealed class UiDockWorkspace : UiElement
                     _dragStart = input.MousePosition;
                     _dragPosition = input.MousePosition;
                     _dragMoved = false;
+                    UiRect tabRect = host.GetTabBounds(index);
+                    _dragPointerOffsetX = Math.Clamp(input.MousePosition.X - tabRect.X, 0, Math.Max(0, tabRect.Width));
+                    _dragPointerOffsetY = Math.Clamp(input.MousePosition.Y - tabRect.Y, 0, Math.Max(0, tabRect.Height));
                     break;
                 }
             }
@@ -581,21 +586,28 @@ public sealed class UiDockWorkspace : UiElement
                     _dragSourceHost.MoveWindow(sourceIndex, targetIndex);
                 }
             }
+            else if (_dragMoved
+                && !Bounds.Contains(_dragPosition)
+                && CanDetachWindowExternally(_dragSourceHost, _dragWindow))
+            {
+                UiWindow window = _dragWindow;
+                UiDockHost sourceHost = _dragSourceHost;
+                sourceHost.RemoveWindow(window);
+                CollapseEmptyHosts();
+                TabDetached?.Invoke(window, GetDetachPoint(input));
+                ResetTabDragState();
+                return;
+            }
         }
 
         if (input.LeftReleased)
         {
             if (_dragMoved)
             {
-                HandleDrop(_dragWindow, input.MousePosition);
+                HandleDrop(_dragWindow, input.MousePosition, input.ScreenMousePosition);
             }
 
-            _dragWindow = null;
-            _dragSourceHost = null;
-            _dragMoved = false;
-            _hoverHost = null;
-            _hoverTarget = DockTarget.None;
-            _previewBounds = default;
+            ResetTabDragState();
         }
     }
 
@@ -631,7 +643,7 @@ public sealed class UiDockWorkspace : UiElement
 
         if (_floatingDragWindow != null && _dragWindow == _floatingDragWindow)
         {
-            HandleDrop(_floatingDragWindow, input.MousePosition);
+            HandleDrop(_floatingDragWindow, input.MousePosition, input.ScreenMousePosition);
             _dragWindow = null;
             _floatingDragWindow = null;
             _dragMoved = false;
@@ -672,7 +684,7 @@ public sealed class UiDockWorkspace : UiElement
         _previewBounds = GetDockPreviewBounds(_hoverHost.Bounds, _hoverTarget, _dragWindow.Bounds);
     }
 
-    private void HandleDrop(UiWindow window, UiPoint dropPoint)
+    private void HandleDrop(UiWindow window, UiPoint dropPoint, UiPoint screenDropPoint)
     {
         if (_dragSourceHost != null && _hoverHost == _dragSourceHost && _hoverTarget == DockTarget.Center)
         {
@@ -687,7 +699,7 @@ public sealed class UiDockWorkspace : UiElement
                 _dragSourceHost.RemoveWindow(window);
                 if (!Bounds.Contains(dropPoint) && CanDetachWindowExternally(_dragSourceHost, window))
                 {
-                    TabDetached?.Invoke(window, dropPoint);
+                    TabDetached?.Invoke(window, GetDetachPoint(screenDropPoint));
                 }
                 else
                 {
@@ -759,6 +771,30 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         return host.CanDetachWindowPredicate?.Invoke(window) ?? true;
+    }
+
+    private UiPoint GetDetachPoint(UiInputState input)
+    {
+        return GetDetachPoint(input.ScreenMousePosition);
+    }
+
+    private UiPoint GetDetachPoint(UiPoint screenPoint)
+    {
+        return new UiPoint(
+            screenPoint.X - _dragPointerOffsetX,
+            screenPoint.Y - _dragPointerOffsetY);
+    }
+
+    private void ResetTabDragState()
+    {
+        _dragWindow = null;
+        _dragSourceHost = null;
+        _dragMoved = false;
+        _dragPointerOffsetX = 0;
+        _dragPointerOffsetY = 0;
+        _hoverHost = null;
+        _hoverTarget = DockTarget.None;
+        _previewBounds = default;
     }
 
     private void AssignHostId(UiDockHost host)
