@@ -2099,9 +2099,9 @@ public sealed class UiMenuBar : UiElement
         }
 
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, new UiPoint(contentRect.X, contentRect.Y));
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
-        item.Content.Render(childContext);
-        item.Content.RenderOverlay(childContext);
+        UiRenderContext childContext = context.WithRenderer(offsetRenderer);
+        childContext.RenderChild(item.Content);
+        childContext.RenderChildOverlay(item.Content);
 
         if (item.ContentClip)
         {

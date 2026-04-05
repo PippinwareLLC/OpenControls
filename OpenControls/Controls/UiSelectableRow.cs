@@ -271,7 +271,7 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     {
         UiRect content = ContentBounds;
         UiOffsetRenderer offsetRenderer = new UiOffsetRenderer(context.Renderer, new UiPoint(content.X, content.Y));
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
+        UiRenderContext childContext = context.WithRenderer(offsetRenderer);
 
         if (ClipChildren)
         {
@@ -282,11 +282,11 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
         {
             if (overlay)
             {
-                child.RenderOverlay(childContext);
+                childContext.RenderChildOverlay(child);
             }
             else
             {
-                child.Render(childContext);
+                childContext.RenderChild(child);
             }
         }
 

@@ -9,6 +9,7 @@ public sealed class UiModal : UiPopup
 
     public UiColor Backdrop { get; set; } = new UiColor(0, 0, 0, 140);
     public UiRect? BackdropBounds { get; set; }
+    public override bool IsRenderCacheRoot(UiContext context) => IsOpen;
 
     public override void RenderOverlay(UiRenderContext context)
     {

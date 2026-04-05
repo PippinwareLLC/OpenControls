@@ -245,10 +245,10 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         DrawOrigin(context);
 
         CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY);
-        UiRenderContext childContext = new UiRenderContext(renderer, context.DefaultFont);
+        UiRenderContext childContext = context.WithRenderer(renderer);
         foreach (UiElement child in Children)
         {
-            child.Render(childContext);
+            childContext.RenderChild(child);
         }
 
         if (ClipContent)
@@ -275,10 +275,10 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         }
 
         CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY);
-        UiRenderContext childContext = new UiRenderContext(renderer, context.DefaultFont);
+        UiRenderContext childContext = context.WithRenderer(renderer);
         foreach (UiElement child in Children)
         {
-            child.RenderOverlay(childContext);
+            childContext.RenderChildOverlay(child);
         }
 
         if (ClipContent)

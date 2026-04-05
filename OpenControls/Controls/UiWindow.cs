@@ -41,6 +41,7 @@ public sealed class UiWindow : UiElement
     public UiScrollPanel? ScrollPanel => _scrollPanel;
     public UiElement ContentRoot => _scrollPanel != null ? _scrollPanel : this;
     public override bool CapturesPointerInput => true;
+    public override bool IsRenderCacheRoot(UiContext context) => true;
 
     public override UiRect ClipBounds => ContentBounds;
 

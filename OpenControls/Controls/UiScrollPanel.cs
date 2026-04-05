@@ -250,7 +250,7 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
         UiRect visibleContentBounds = new UiRect(_scrollX, _scrollY, viewport.Width, viewport.Height);
         UiPoint offset = new UiPoint(Bounds.X - _scrollX, Bounds.Y - _scrollY);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
+        UiRenderContext childContext = context.WithRenderer(offsetRenderer);
         bool requiresClip = RequiresViewportClip();
         if (requiresClip)
         {
@@ -264,7 +264,7 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
                 continue;
             }
 
-            child.Render(childContext);
+            childContext.RenderChild(child);
         }
 
         if (requiresClip)
@@ -300,7 +300,7 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
         UiRect visibleContentBounds = new UiRect(_scrollX, _scrollY, viewport.Width, viewport.Height);
         UiPoint offset = new UiPoint(Bounds.X - _scrollX, Bounds.Y - _scrollY);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
+        UiRenderContext childContext = context.WithRenderer(offsetRenderer);
         bool requiresClip = RequiresViewportClip();
         if (requiresClip)
         {
@@ -314,7 +314,7 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
                 continue;
             }
 
-            child.RenderOverlay(childContext);
+            childContext.RenderChildOverlay(child);
         }
 
         if (requiresClip)

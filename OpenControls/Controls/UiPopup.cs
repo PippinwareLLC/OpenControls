@@ -154,8 +154,8 @@ public class UiPopup : UiElement
 
         foreach (UiElement child in Children)
         {
-            child.Render(context);
-            child.RenderOverlay(context);
+            context.RenderChild(child);
+            context.RenderChildOverlay(child);
         }
 
         if (ClipChildren)

@@ -192,6 +192,21 @@ public sealed class UiContext
         }
     }
 
+    private sealed class CacheRootRenderCacheSet
+    {
+        public CacheRootRenderCacheSet(string elementLabel)
+        {
+            string safeLabel = string.IsNullOrWhiteSpace(elementLabel) ? "Element" : elementLabel;
+            MainPass = new RenderCacheState($"CacheRoot.{safeLabel}.Main");
+            OverlayPass = new RenderCacheState($"CacheRoot.{safeLabel}.Overlay");
+        }
+
+        public RenderCacheState MainPass { get; }
+        public RenderCacheState OverlayPass { get; }
+
+        public RenderCacheState Get(UiRenderPassKind passKind) => passKind == UiRenderPassKind.Overlay ? OverlayPass : MainPass;
+    }
+
     private UiElement? _mouseCaptureTarget;
     private UiElement? _activeInputLayer;
     private FocusRequest _pendingFocusRequest;
@@ -200,6 +215,7 @@ public sealed class UiContext
     private readonly UiMemoryClipboard _fallbackClipboard = new();
     private readonly RenderCacheState _rootRenderCache = new("Root");
     private readonly RenderCacheState _overlayRenderCache = new("Overlay");
+    private readonly Dictionary<UiElement, CacheRootRenderCacheSet> _cacheRootRenderCaches = new();
     private bool _lastRenderHasVolatileState;
     private string _lastRenderVolatileElementLabel = string.Empty;
 
@@ -577,39 +593,42 @@ public sealed class UiContext
     public void Render(IUiRenderer renderer)
     {
         renderer.DefaultFont = DefaultFont;
-        UiRenderContext context = new(renderer, DefaultFont);
-        int interactionSignature = ComputeRenderCacheInteractionSignature();
-        UiElement? volatileElement = FindFirstVolatileRenderState(Root);
+        PurgeDetachedCacheRoots();
+
+        UiElement? volatileElement = FindFirstVolatileRenderState(Root, Root);
         _lastRenderHasVolatileState = volatileElement != null;
         _lastRenderVolatileElementLabel = BuildProfilerElementLabel(volatileElement);
         using (UiProfiling.Scope("OpenControls.Context.Root"))
         {
-            RenderPass(renderer, context, _rootRenderCache, "Root", interactionSignature, volatileElement, static (element, renderContext) => element.Render(renderContext));
+            UiRenderContext context = CreateRenderContext(renderer, UiRenderPassKind.Main);
+            RenderPass(Root, context, _rootRenderCache, "Root", UiRenderPassKind.Main);
         }
 
         using (UiProfiling.Scope("OpenControls.Context.Overlay"))
         {
-            RenderPass(renderer, context, _overlayRenderCache, "Overlay", interactionSignature, volatileElement, static (element, renderContext) => element.RenderOverlay(renderContext));
+            UiRenderContext context = CreateRenderContext(renderer, UiRenderPassKind.Overlay);
+            RenderPass(Root, context, _overlayRenderCache, "Overlay", UiRenderPassKind.Overlay);
         }
     }
 
     private void RenderPass(
-        IUiRenderer renderer,
+        UiElement scopeRoot,
         UiRenderContext liveContext,
         RenderCacheState cacheState,
         string passName,
-        int interactionSignature,
-        UiElement? volatileElement,
-        Action<UiElement, UiRenderContext> renderAction)
+        UiRenderPassKind passKind)
     {
-        long invalidationVersion = Root.SubtreeInvalidationVersion;
+        long invalidationVersion = ComputeRenderCacheInvalidationVersion(scopeRoot);
+        int interactionSignature = ComputeRenderCacheInteractionSignature(scopeRoot);
+        UiElement? volatileElement = FindFirstVolatileRenderState(scopeRoot, scopeRoot);
+
         if (!RenderCachingEnabled)
         {
             cacheState.Clear();
             using (UiProfiling.Scope($"OpenControls.Context.{passName}.Bypass.Disabled"))
             {
                 cacheState.MarkBypass(UiRenderCacheMissReason.Disabled, invalidationVersion, interactionSignature);
-                renderAction(Root, liveContext);
+                RenderElementUncached(scopeRoot, liveContext, passKind);
             }
             return;
         }
@@ -620,7 +639,7 @@ public sealed class UiContext
             using (UiProfiling.Scope($"OpenControls.Context.{passName}.Bypass.Volatile"))
             {
                 cacheState.MarkBypass(UiRenderCacheMissReason.Volatile, invalidationVersion, interactionSignature);
-                renderAction(Root, liveContext);
+                RenderElementUncached(scopeRoot, liveContext, passKind);
             }
             return;
         }
@@ -631,9 +650,9 @@ public sealed class UiContext
         {
             using (UiProfiling.Scope($"OpenControls.Context.{passName}.Record"))
             {
-                UiRecordingRenderer recordingRenderer = new(renderer, DefaultFont);
-                UiRenderContext recordingContext = new(recordingRenderer, DefaultFont);
-                renderAction(Root, recordingContext);
+                UiRecordingRenderer recordingRenderer = new(liveContext.Renderer, DefaultFont);
+                UiRenderContext recordingContext = CreateRenderContext(recordingRenderer, passKind);
+                RenderElementUncached(scopeRoot, recordingContext, passKind);
                 cacheState.Store(recordingRenderer.BuildCommandList(), invalidationVersion, interactionSignature, DefaultFont);
                 cacheState.MarkRecord(missReason);
             }
@@ -642,7 +661,92 @@ public sealed class UiContext
         using (UiProfiling.Scope($"OpenControls.Context.{passName}.Replay"))
         {
             cacheState.MarkReplay(recordedThisPass);
-            cacheState.CommandList?.Replay(renderer);
+            cacheState.CommandList?.Replay(liveContext);
+        }
+    }
+
+    private UiRenderContext CreateRenderContext(IUiRenderer renderer, UiRenderPassKind passKind)
+    {
+        return new UiRenderContext(renderer, DefaultFont, RenderChildFromContext, passKind);
+    }
+
+    private void RenderChildFromContext(UiElement child, UiRenderContext context, UiRenderPassKind passKind)
+    {
+        if (child == null)
+        {
+            throw new ArgumentNullException(nameof(child));
+        }
+
+        if (child.IsRenderCacheRoot(this))
+        {
+            if (context.Renderer is UiRecordingRenderer recordingRenderer)
+            {
+                recordingRenderer.RecordSubtree(child, passKind);
+                return;
+            }
+
+            RenderCacheState cacheState = GetOrCreateCacheRootRenderCacheSet(child).Get(passKind);
+            string passName = BuildCacheRootPassName(child, passKind);
+            using (UiProfiling.Scope($"OpenControls.Context.{passName}"))
+            {
+                RenderPass(child, context, cacheState, passName, passKind);
+            }
+
+            return;
+        }
+
+        RenderElementUncached(child, context, passKind);
+    }
+
+    private static void RenderElementUncached(UiElement element, UiRenderContext context, UiRenderPassKind passKind)
+    {
+        if (passKind == UiRenderPassKind.Overlay)
+        {
+            element.RenderOverlay(context);
+        }
+        else
+        {
+            element.Render(context);
+        }
+    }
+
+    private CacheRootRenderCacheSet GetOrCreateCacheRootRenderCacheSet(UiElement element)
+    {
+        if (_cacheRootRenderCaches.TryGetValue(element, out CacheRootRenderCacheSet? existing))
+        {
+            return existing;
+        }
+
+        CacheRootRenderCacheSet created = new(BuildProfilerElementLabel(element));
+        _cacheRootRenderCaches[element] = created;
+        return created;
+    }
+
+    private void PurgeDetachedCacheRoots()
+    {
+        if (_cacheRootRenderCaches.Count == 0)
+        {
+            return;
+        }
+
+        List<UiElement>? stale = null;
+        foreach (UiElement element in _cacheRootRenderCaches.Keys)
+        {
+            if (!IsElementOrAncestor(Root, element))
+            {
+                stale ??= new List<UiElement>();
+                stale.Add(element);
+            }
+        }
+
+        if (stale == null)
+        {
+            return;
+        }
+
+        foreach (UiElement element in stale)
+        {
+            _cacheRootRenderCaches.Remove(element);
         }
     }
 
@@ -1346,9 +1450,14 @@ public sealed class UiContext
         return filtered ?? keys;
     }
 
-    private UiElement? FindFirstVolatileRenderState(UiElement element)
+    private UiElement? FindFirstVolatileRenderState(UiElement element, UiElement scopeRoot)
     {
         if (!element.Visible)
+        {
+            return null;
+        }
+
+        if (element != scopeRoot && element.IsRenderCacheRoot(this))
         {
             return null;
         }
@@ -1365,7 +1474,7 @@ public sealed class UiContext
 
         foreach (UiElement child in element.Children)
         {
-            UiElement? volatileElement = FindFirstVolatileRenderState(child);
+            UiElement? volatileElement = FindFirstVolatileRenderState(child, scopeRoot);
             if (volatileElement != null)
             {
                 return volatileElement;
@@ -1375,18 +1484,74 @@ public sealed class UiContext
         return null;
     }
 
-    private int ComputeRenderCacheInteractionSignature()
+    private long ComputeRenderCacheInvalidationVersion(UiElement element)
     {
+        long version = element.LocalInvalidationVersion;
+        if (!ShouldTraverseChildren(element))
+        {
+            return version;
+        }
+
+        foreach (UiElement child in element.Children)
+        {
+            if (child.IsRenderCacheRoot(this))
+            {
+                continue;
+            }
+
+            version = Math.Max(version, ComputeRenderCacheInvalidationVersion(child));
+        }
+
+        return version;
+    }
+
+    private int ComputeRenderCacheInteractionSignature(UiElement scopeRoot)
+    {
+        bool hoveredInScope = IsElementInRenderScope(scopeRoot, Hovered);
+        bool focusedInScope = IsElementInRenderScope(scopeRoot, Focus.Focused);
+        bool activeLayerInScope = IsElementInRenderScope(scopeRoot, _activeInputLayer);
+        bool pointerCaptureInScope = IsElementInRenderScope(scopeRoot, PointerCaptureTarget);
+
         HashCode hash = new();
-        hash.Add(Hovered);
-        hash.Add(Focus.Focused);
-        hash.Add(_activeInputLayer);
-        hash.Add(PointerCaptureTarget);
-        hash.Add(WantCaptureMouse);
-        hash.Add(WantCaptureKeyboard);
-        hash.Add(WantTextInput);
-        AppendInputSignature(ref hash, LastInput);
+        hash.Add(hoveredInScope ? Hovered : null);
+        hash.Add(focusedInScope ? Focus.Focused : null);
+        hash.Add(activeLayerInScope ? _activeInputLayer : null);
+        hash.Add(pointerCaptureInScope ? PointerCaptureTarget : null);
+        hash.Add(WantCaptureMouse && pointerCaptureInScope);
+        hash.Add(WantCaptureKeyboard && (focusedInScope || activeLayerInScope));
+        hash.Add(WantTextInput && focusedInScope);
+
+        if (hoveredInScope || focusedInScope || activeLayerInScope || pointerCaptureInScope)
+        {
+            AppendInputSignature(ref hash, LastInput);
+        }
+        else
+        {
+            hash.Add(0);
+        }
+
         return hash.ToHashCode();
+    }
+
+    private bool IsElementInRenderScope(UiElement scopeRoot, UiElement? candidate)
+    {
+        UiElement? current = candidate;
+        while (current != null)
+        {
+            if (current == scopeRoot)
+            {
+                return true;
+            }
+
+            if (current.IsRenderCacheRoot(this))
+            {
+                return false;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
     }
 
     private static void AppendInputSignature(ref HashCode hash, UiInputState? input)
@@ -1460,6 +1625,12 @@ public sealed class UiContext
         }
 
         return element.GetType().Name;
+    }
+
+    private static string BuildCacheRootPassName(UiElement element, UiRenderPassKind passKind)
+    {
+        string label = BuildProfilerElementLabel(element);
+        return $"CacheRoot.{(passKind == UiRenderPassKind.Overlay ? "Overlay" : "Root")}.{label}";
     }
 
     private static void AppendCharList(ref HashCode hash, IReadOnlyList<char> items)

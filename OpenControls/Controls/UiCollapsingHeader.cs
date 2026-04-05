@@ -234,7 +234,7 @@ public sealed class UiCollapsingHeader : UiElement, IUiDebugBoundsResolver
         UiRect content = ContentBounds;
         UiPoint offset = new UiPoint(content.X, content.Y);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
+        UiRenderContext childContext = context.WithRenderer(offsetRenderer);
 
         if (ClipChildren)
         {
@@ -243,7 +243,7 @@ public sealed class UiCollapsingHeader : UiElement, IUiDebugBoundsResolver
 
         foreach (UiElement child in Children)
         {
-            child.Render(childContext);
+            childContext.RenderChild(child);
         }
 
         if (ClipChildren)
@@ -257,7 +257,7 @@ public sealed class UiCollapsingHeader : UiElement, IUiDebugBoundsResolver
         UiRect content = ContentBounds;
         UiPoint offset = new UiPoint(content.X, content.Y);
         OffsetRenderer offsetRenderer = new OffsetRenderer(context.Renderer, offset);
-        UiRenderContext childContext = new UiRenderContext(offsetRenderer, context.DefaultFont);
+        UiRenderContext childContext = context.WithRenderer(offsetRenderer);
 
         if (ClipChildren)
         {
@@ -266,7 +266,7 @@ public sealed class UiCollapsingHeader : UiElement, IUiDebugBoundsResolver
 
         foreach (UiElement child in Children)
         {
-            child.RenderOverlay(childContext);
+            childContext.RenderChildOverlay(child);
         }
 
         if (ClipChildren)

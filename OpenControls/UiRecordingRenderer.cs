@@ -20,6 +20,11 @@ internal sealed class UiRecordingRenderer : IUiRenderer
         return new UiRenderCommandList(_commands.ToArray());
     }
 
+    public void RecordSubtree(UiElement element, UiRenderPassKind passKind)
+    {
+        _commands.Add(new UiRenderCommandList.RenderSubtreeCommand(element, passKind));
+    }
+
     public void FillRect(UiRect rect, UiColor color)
     {
         _commands.Add(new UiRenderCommandList.FillRectCommand(rect, color));

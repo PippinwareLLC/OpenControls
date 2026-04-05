@@ -38,6 +38,7 @@ public abstract class UiElement
     public virtual bool WantsTextInput => false;
     public virtual bool CapturesPointerInput => IsFocusable;
     public virtual bool IsRenderCacheVolatile(UiContext context) => false;
+    public virtual bool IsRenderCacheRoot(UiContext context) => false;
     public virtual bool ClipChildren
     {
         get => _clipChildren;
@@ -137,7 +138,7 @@ public abstract class UiElement
 
         foreach (UiElement child in _children)
         {
-            child.Render(context);
+            context.RenderChild(child);
         }
 
         if (ClipChildren)
@@ -155,7 +156,7 @@ public abstract class UiElement
 
         foreach (UiElement child in _children)
         {
-            child.RenderOverlay(context);
+            context.RenderChildOverlay(child);
         }
     }
 

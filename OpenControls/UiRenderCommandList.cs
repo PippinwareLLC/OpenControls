@@ -11,17 +11,17 @@ internal sealed class UiRenderCommandList
 
     public int Count => _commands.Count;
 
-    public void Replay(IUiRenderer renderer)
+    public void Replay(UiRenderContext context)
     {
         for (int i = 0; i < _commands.Count; i++)
         {
-            _commands[i].Replay(renderer);
+            _commands[i].Replay(context);
         }
     }
 
     internal abstract class UiRenderCommand
     {
-        public abstract void Replay(IUiRenderer renderer);
+        public abstract void Replay(UiRenderContext context);
     }
 
     internal sealed class FillRectCommand : UiRenderCommand
@@ -35,7 +35,7 @@ internal sealed class UiRenderCommandList
             _color = color;
         }
 
-        public override void Replay(IUiRenderer renderer) => renderer.FillRect(_rect, _color);
+        public override void Replay(UiRenderContext context) => context.Renderer.FillRect(_rect, _color);
     }
 
     internal sealed class DrawRectCommand : UiRenderCommand
@@ -51,7 +51,7 @@ internal sealed class UiRenderCommandList
             _thickness = thickness;
         }
 
-        public override void Replay(IUiRenderer renderer) => renderer.DrawRect(_rect, _color, _thickness);
+        public override void Replay(UiRenderContext context) => context.Renderer.DrawRect(_rect, _color, _thickness);
     }
 
     internal sealed class FillRectGradientCommand : UiRenderCommand
@@ -71,7 +71,7 @@ internal sealed class UiRenderCommandList
             _bottomRight = bottomRight;
         }
 
-        public override void Replay(IUiRenderer renderer) => renderer.FillRectGradient(_rect, _topLeft, _topRight, _bottomLeft, _bottomRight);
+        public override void Replay(UiRenderContext context) => context.Renderer.FillRectGradient(_rect, _topLeft, _topRight, _bottomLeft, _bottomRight);
     }
 
     internal sealed class FillRectCheckerboardCommand : UiRenderCommand
@@ -89,7 +89,7 @@ internal sealed class UiRenderCommandList
             _colorB = colorB;
         }
 
-        public override void Replay(IUiRenderer renderer) => renderer.FillRectCheckerboard(_rect, _cellSize, _colorA, _colorB);
+        public override void Replay(UiRenderContext context) => context.Renderer.FillRectCheckerboard(_rect, _cellSize, _colorA, _colorB);
     }
 
     internal sealed class DrawTextCommand : UiRenderCommand
@@ -109,7 +109,7 @@ internal sealed class UiRenderCommandList
             _font = font ?? UiFont.Default;
         }
 
-        public override void Replay(IUiRenderer renderer) => renderer.DrawText(_text, _position, _color, _scale, _font);
+        public override void Replay(UiRenderContext context) => context.Renderer.DrawText(_text, _position, _color, _scale, _font);
     }
 
     internal sealed class PushClipCommand : UiRenderCommand
@@ -121,7 +121,7 @@ internal sealed class UiRenderCommandList
             _rect = rect;
         }
 
-        public override void Replay(IUiRenderer renderer) => renderer.PushClip(_rect);
+        public override void Replay(UiRenderContext context) => context.Renderer.PushClip(_rect);
     }
 
     internal sealed class PopClipCommand : UiRenderCommand
@@ -132,6 +132,30 @@ internal sealed class UiRenderCommandList
         {
         }
 
-        public override void Replay(IUiRenderer renderer) => renderer.PopClip();
+        public override void Replay(UiRenderContext context) => context.Renderer.PopClip();
+    }
+
+    internal sealed class RenderSubtreeCommand : UiRenderCommand
+    {
+        private readonly UiElement _element;
+        private readonly UiRenderPassKind _passKind;
+
+        public RenderSubtreeCommand(UiElement element, UiRenderPassKind passKind)
+        {
+            _element = element ?? throw new ArgumentNullException(nameof(element));
+            _passKind = passKind;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (_passKind == UiRenderPassKind.Overlay)
+            {
+                context.RenderChildOverlay(_element);
+            }
+            else
+            {
+                context.RenderChild(_element);
+            }
+        }
     }
 }

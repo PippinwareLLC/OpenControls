@@ -48,7 +48,7 @@ public sealed class UiModalHost : UiElement
 
         foreach (UiElement child in Children)
         {
-            child.Render(context);
+            context.RenderChild(child);
         }
     }
 
@@ -66,14 +66,14 @@ public sealed class UiModalHost : UiElement
                 continue;
             }
 
-            child.RenderOverlay(context);
+            context.RenderChildOverlay(child);
         }
 
         foreach (UiElement child in Children)
         {
-            if (child is UiModal modal && modal.IsOpen)
+            if (child is UiModal modal)
             {
-                modal.RenderOverlay(context);
+                context.RenderChildOverlay(modal);
             }
         }
     }

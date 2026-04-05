@@ -53,6 +53,11 @@ public sealed class UiRenderCacheTests
         public override bool IsRenderCacheVolatile(UiContext context) => true;
     }
 
+    private sealed class CacheRootCountingElement : CountingElement
+    {
+        public override bool IsRenderCacheRoot(UiContext context) => true;
+    }
+
     [Fact]
     public void RenderCaching_ReplaysRecordedCommandsWithoutReinvokingRender()
     {
@@ -290,6 +295,88 @@ public sealed class UiRenderCacheTests
         Assert.Contains("delegate-image", stats.VolatileElementLabel);
         Assert.Equal(UiRenderCachePassAction.Bypass, stats.RootPass.LastAction);
         Assert.Equal(UiRenderCacheMissReason.Volatile, stats.RootPass.LastMissReason);
+    }
+
+    [Fact]
+    public void RenderCaching_CacheRootsReRecordIndependentlyWhenChildRootInvalidates()
+    {
+        CountingElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 120, 80)
+        };
+        CacheRootCountingElement first = new()
+        {
+            Id = "first-window",
+            Bounds = new UiRect(0, 0, 50, 40)
+        };
+        CacheRootCountingElement second = new()
+        {
+            Id = "second-window",
+            Bounds = new UiRect(60, 0, 50, 40)
+        };
+        root.AddChild(first);
+        root.AddChild(second);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Render(renderer);
+        first.Bounds = new UiRect(0, 0, 52, 42);
+        context.Render(renderer);
+
+        UiRenderCacheStatisticsSnapshot stats = context.RenderCacheStatistics;
+        Assert.Equal(1, root.RenderCount);
+        Assert.Equal(1, root.OverlayRenderCount);
+        Assert.Equal(2, first.RenderCount);
+        Assert.Equal(2, first.OverlayRenderCount);
+        Assert.Equal(1, second.RenderCount);
+        Assert.Equal(1, second.OverlayRenderCount);
+        Assert.Equal(UiRenderCachePassAction.Replay, stats.RootPass.LastAction);
+        Assert.Equal(1, stats.RootPass.RecordCount);
+        Assert.Equal(2, stats.RootPass.ReplayCount);
+    }
+
+    [Fact]
+    public void RenderCaching_CacheRootInteractionDoesNotInvalidateParentOrSiblings()
+    {
+        CountingElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 120, 80)
+        };
+        CacheRootCountingElement first = new()
+        {
+            Id = "first-window",
+            Bounds = new UiRect(0, 0, 50, 40)
+        };
+        CacheRootCountingElement second = new()
+        {
+            Id = "second-window",
+            Bounds = new UiRect(60, 0, 50, 40)
+        };
+        root.AddChild(first);
+        root.AddChild(second);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Render(renderer);
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(10, 10),
+            ScreenMousePosition = new UiPoint(10, 10)
+        });
+        context.Render(renderer);
+
+        UiRenderCacheStatisticsSnapshot stats = context.RenderCacheStatistics;
+        Assert.Equal(1, root.RenderCount);
+        Assert.Equal(1, root.OverlayRenderCount);
+        Assert.Equal(2, first.RenderCount);
+        Assert.Equal(2, first.OverlayRenderCount);
+        Assert.Equal(1, second.RenderCount);
+        Assert.Equal(1, second.OverlayRenderCount);
+        Assert.Equal(UiRenderCachePassAction.Replay, stats.RootPass.LastAction);
+        Assert.Equal(1, stats.RootPass.RecordCount);
+        Assert.Equal(2, stats.RootPass.ReplayCount);
     }
 
     private static UiContext CreateContext(UiElement root)
