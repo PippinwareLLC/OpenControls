@@ -2,6 +2,7 @@ namespace OpenControls.Controls;
 
 public sealed class UiListBox : UiElement
 {
+    private IReadOnlyList<string> _items = Array.Empty<string>();
     private int _selectedIndex = -1;
     private int _hoverIndex = -1;
     private bool _focused;
@@ -11,7 +12,26 @@ public sealed class UiListBox : UiElement
     private UiSelectionModel? _selectionModel;
     private string _selectionScope = string.Empty;
 
-    public IReadOnlyList<string> Items { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> Items
+    {
+        get => _items;
+        set
+        {
+            IReadOnlyList<string> normalized = value ?? Array.Empty<string>();
+            if (!SetInvalidatingValue(ref _items, normalized, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State))
+            {
+                return;
+            }
+
+            _selectionModel?.SetItemCount(_items.Count, SelectionScope);
+            if (_selectionModel == null && _selectedIndex >= _items.Count)
+            {
+                SetSelectedIndex(_items.Count - 1);
+            }
+
+            _hoverIndex = Math.Clamp(_hoverIndex, -1, _items.Count - 1);
+        }
+    }
     public string SelectionScope
     {
         get => _selectionScope;
@@ -100,13 +120,13 @@ public sealed class UiListBox : UiElement
     public int ScrollIndex
     {
         get => Math.Max(0, _scrollOffset / Math.Max(1, ItemHeight));
-        set => _scrollOffset = Math.Max(0, value) * Math.Max(1, ItemHeight);
+        set => SetInvalidatingValue(ref _scrollOffset, Math.Max(0, value) * Math.Max(1, ItemHeight), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
     public int ScrollOffset
     {
         get => _scrollOffset;
-        set => _scrollOffset = Math.Max(0, value);
+        set => SetInvalidatingValue(ref _scrollOffset, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
     public int ItemHeight { get; set; } = 20;
@@ -361,6 +381,7 @@ public sealed class UiListBox : UiElement
             EnsureVisible(_selectedIndex);
         }
 
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint);
         SelectionChanged?.Invoke(_selectedIndex);
     }
 
@@ -380,6 +401,7 @@ public sealed class UiListBox : UiElement
 
         if (previous != _selectedIndex)
         {
+            Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint);
             SelectionChanged?.Invoke(_selectedIndex);
         }
     }

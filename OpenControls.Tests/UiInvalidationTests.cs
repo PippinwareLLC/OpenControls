@@ -174,4 +174,55 @@ public sealed class UiInvalidationTests
         Assert.True(image.LocalInvalidationVersion > imageSourceVersion);
         Assert.True(image.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Clip));
     }
+
+    [Fact]
+    public void CollectionBackedControls_InvalidateWhenDataAndSelectionChange()
+    {
+        OpenControls.Controls.UiListBox listBox = new();
+        long listItemsVersion = listBox.LocalInvalidationVersion;
+        listBox.Items = new[] { "Alpha", "Beta" };
+        Assert.True(listBox.LocalInvalidationVersion > listItemsVersion);
+        Assert.True(listBox.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Text));
+
+        long listSelectionVersion = listBox.LocalInvalidationVersion;
+        listBox.SelectedIndex = 1;
+        Assert.True(listBox.LocalInvalidationVersion > listSelectionVersion);
+        Assert.True(listBox.LocalInvalidationReasons.HasFlag(UiInvalidationReason.State));
+
+        long listScrollVersion = listBox.LocalInvalidationVersion;
+        listBox.ScrollOffset = 24;
+        Assert.True(listBox.LocalInvalidationVersion > listScrollVersion);
+        Assert.True(listBox.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Layout));
+
+        OpenControls.Controls.UiTable table = new();
+        table.Columns.Add(new OpenControls.Controls.UiTableColumn("Name", width: 80));
+        long tableRowsVersion = table.LocalInvalidationVersion;
+        table.Rows = new[] { new OpenControls.Controls.UiTableRow("Alpha") };
+        Assert.True(table.LocalInvalidationVersion > tableRowsVersion);
+        Assert.True(table.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Text));
+
+        long tableSelectionVersion = table.LocalInvalidationVersion;
+        table.SelectedIndex = 0;
+        Assert.True(table.LocalInvalidationVersion > tableSelectionVersion);
+        Assert.True(table.LocalInvalidationReasons.HasFlag(UiInvalidationReason.State));
+
+        long tableScrollVersion = table.LocalInvalidationVersion;
+        table.ScrollY = 32;
+        Assert.True(table.LocalInvalidationVersion > tableScrollVersion);
+        Assert.True(table.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Layout));
+
+        OpenControls.Controls.UiComboBox comboBox = new();
+        long comboItemsVersion = comboBox.LocalInvalidationVersion;
+        comboBox.Items = new[] { "macos", "windows" };
+        Assert.True(comboBox.LocalInvalidationVersion > comboItemsVersion);
+        Assert.True(comboBox.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Text));
+
+        OpenControls.Controls.UiCombo combo = new();
+        combo.AddItem(new OpenControls.Controls.UiSelectableRow { Text = "First" });
+        combo.AddItem(new OpenControls.Controls.UiSelectableRow { Text = "Second" });
+        long comboSelectionVersion = combo.LocalInvalidationVersion;
+        combo.SelectedIndex = 1;
+        Assert.True(combo.LocalInvalidationVersion > comboSelectionVersion);
+        Assert.True(combo.LocalInvalidationReasons.HasFlag(UiInvalidationReason.State));
+    }
 }

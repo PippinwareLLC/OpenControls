@@ -156,9 +156,29 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
     private int _hoverHeaderMenuEntry = -1;
     private bool _suppressHeaderMenuClick;
     private string _selectionScope = string.Empty;
+    private IReadOnlyList<UiTableRow> _rows = Array.Empty<UiTableRow>();
 
     public List<UiTableColumn> Columns { get; } = new();
-    public IReadOnlyList<UiTableRow> Rows { get; set; } = Array.Empty<UiTableRow>();
+    public IReadOnlyList<UiTableRow> Rows
+    {
+        get => _rows;
+        set
+        {
+            IReadOnlyList<UiTableRow> normalized = value ?? Array.Empty<UiTableRow>();
+            if (!SetInvalidatingValue(ref _rows, normalized, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State))
+            {
+                return;
+            }
+
+            _selectionModel?.SetItemCount(_rows.Count, SelectionScope);
+            if (_selectionModel == null && _selectedIndex >= _rows.Count)
+            {
+                SetSelectedIndex(_rows.Count - 1);
+            }
+
+            _hoverIndex = Math.Clamp(_hoverIndex, -1, _rows.Count - 1);
+        }
+    }
 
     public int RowHeight { get; set; } = 22;
     public int OverscanRows { get; set; } = 1;
@@ -319,13 +339,13 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
     public int ScrollX
     {
         get => _scrollX;
-        set => _scrollX = value;
+        set => SetInvalidatingValue(ref _scrollX, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
     public int ScrollY
     {
         get => _scrollY;
-        set => _scrollY = value;
+        set => SetInvalidatingValue(ref _scrollY, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
     public UiPoint ScrollOffset
@@ -333,8 +353,12 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         get => new UiPoint(_scrollX, _scrollY);
         set
         {
-            _scrollX = value.X;
-            _scrollY = value.Y;
+            bool changedX = SetInvalidatingValue(ref _scrollX, Math.Max(0, value.X), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+            bool changedY = SetInvalidatingValue(ref _scrollY, Math.Max(0, value.Y), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+            if (!changedX && !changedY)
+            {
+                return;
+            }
         }
     }
 
@@ -1833,6 +1857,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         }
 
         _selectedIndex = clamped;
+        Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint);
         SelectionChanged?.Invoke(_selectedIndex);
     }
 
@@ -1852,6 +1877,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
 
         if (previous != _selectedIndex)
         {
+            Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint);
             SelectionChanged?.Invoke(_selectedIndex);
         }
     }
@@ -2723,6 +2749,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
     private void OnColumnStatesChanged()
     {
         NormalizeColumnStates();
+        Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State | UiInvalidationReason.Clip);
         ColumnStatesChanged?.Invoke();
     }
 

@@ -21,7 +21,19 @@ public sealed class UiComboBox : UiCombo
     public IReadOnlyList<string> Items
     {
         get => _items;
-        set => _items = value ?? Array.Empty<string>();
+        set
+        {
+            IReadOnlyList<string> normalized = value ?? Array.Empty<string>();
+            if (!SetInvalidatingValue(ref _items, normalized, UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State))
+            {
+                return;
+            }
+
+            if (SelectedIndex >= _items.Count)
+            {
+                SelectedIndex = _items.Count - 1;
+            }
+        }
     }
 
     public new string EmptyText
@@ -36,7 +48,7 @@ public sealed class UiComboBox : UiCombo
     public int ScrollIndex
     {
         get => Math.Max(0, _scrollIndex);
-        set => _scrollIndex = Math.Max(0, value);
+        set => SetInvalidatingValue(ref _scrollIndex, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
     public int ScrollWheelItems { get; set; } = 1;

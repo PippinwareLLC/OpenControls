@@ -33,7 +33,11 @@ public class UiCombo : UiElement, IUiStatefulElement
             ItemSpacing = 2
         };
 
-        _listView.SelectionChanged += index => SelectionChanged?.Invoke(index);
+        _listView.SelectionChanged += index =>
+        {
+            Invalidate(UiInvalidationReason.State | UiInvalidationReason.Text | UiInvalidationReason.Paint);
+            SelectionChanged?.Invoke(index);
+        };
         _listView.ItemInvoked += (_, _) =>
         {
             if (CloseOnSelection)
@@ -55,7 +59,15 @@ public class UiCombo : UiElement, IUiStatefulElement
     public int SelectedIndex
     {
         get => _listView.SelectedIndex;
-        set => _listView.SelectedIndex = value;
+        set
+        {
+            int previous = _listView.SelectedIndex;
+            _listView.SelectedIndex = value;
+            if (previous != _listView.SelectedIndex)
+            {
+                Invalidate(UiInvalidationReason.State | UiInvalidationReason.Text | UiInvalidationReason.Paint);
+            }
+        }
     }
 
     public UiSelectableRow? SelectedItem
