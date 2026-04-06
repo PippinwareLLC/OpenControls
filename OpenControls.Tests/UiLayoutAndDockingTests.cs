@@ -563,6 +563,56 @@ public sealed class UiLayoutAndDockingTests
         Assert.DoesNotContain(window, splitHost.Windows);
     }
 
+    [Fact]
+    public void DockWorkspace_WorkspaceOwnedTabDrag_CanFloatWithoutChildParentCrash()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockHost splitHost = workspace.DockHosts[1];
+        splitHost.AllowDetach = true;
+        splitHost.ExternalDragHandling = true;
+        splitHost.CanDetachWindowPredicate = _ => true;
+
+        UiWindow window = new()
+        {
+            Id = "floatable-window",
+            Title = "Floatable"
+        };
+        splitHost.DockWindow(window);
+        splitHost.ActivateWindow(0);
+
+        Update(workspace, new UiInputState());
+
+        UiRect tabBounds = splitHost.GetTabBounds(0);
+        UiPoint dragStart = new(tabBounds.X + 14, tabBounds.Y + 10);
+        UiPoint splitterDropPoint = new(workspace.RootHost.Bounds.Right + workspace.SplitterThickness / 2, dragStart.Y);
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = dragStart,
+            ScreenMousePosition = dragStart,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = splitterDropPoint,
+            ScreenMousePosition = splitterDropPoint,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = splitterDropPoint,
+            ScreenMousePosition = splitterDropPoint,
+            LeftReleased = true
+        });
+
+        Assert.Contains(window, workspace.FloatingWindows);
+        Assert.DoesNotContain(window, splitHost.Windows);
+        Assert.Same(workspace, window.Parent);
+    }
+
     private static UiDockWorkspace CreateWorkspace()
     {
         UiDockWorkspace workspace = new()
