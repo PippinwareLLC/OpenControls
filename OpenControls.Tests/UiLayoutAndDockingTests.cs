@@ -1,3 +1,4 @@
+using System;
 using OpenControls.Controls;
 using OpenControls.State;
 using Xunit;
@@ -464,6 +465,61 @@ public sealed class UiLayoutAndDockingTests
         Assert.Equal(previewWindowBounds, state.PreviewBounds);
         Assert.False(committed);
         Assert.Null(external.Parent);
+    }
+
+    [Fact]
+    public void DockWorkspace_SplitHost_InheritsExternalDetachBehavior()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 180)
+        };
+        workspace.RootHost.AllowDetach = true;
+        workspace.RootHost.CanDetachWindowPredicate = window => string.Equals(window.Title, "Detachable", StringComparison.Ordinal);
+
+        UiDockHost splitHost = workspace.SplitHost(workspace.RootHost, UiDockWorkspace.DockTarget.Right);
+        UiWindow window = new()
+        {
+            Id = "detachable-window",
+            Title = "Detachable"
+        };
+        splitHost.DockWindow(window);
+        splitHost.ActivateWindow(0);
+
+        Update(workspace, new UiInputState());
+
+        UiRect tabBounds = splitHost.GetTabBounds(0);
+        UiPoint dragStart = new(tabBounds.X + 14, tabBounds.Y + 10);
+        UiPoint screenDetachPoint = new(840, 640);
+
+        UiWindow? detachedWindow = null;
+        UiPoint detachedPoint = default;
+        workspace.TabDetached += (detached, point) =>
+        {
+            detachedWindow = detached;
+            detachedPoint = point;
+        };
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = dragStart,
+            ScreenMousePosition = new UiPoint(320, 220),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = new UiPoint(380, 24),
+            ScreenMousePosition = screenDetachPoint,
+            LeftDown = true
+        });
+
+        Assert.True(splitHost.AllowDetach);
+        Assert.NotNull(splitHost.CanDetachWindowPredicate);
+        Assert.Same(window, detachedWindow);
+        Assert.Equal(new UiPoint(screenDetachPoint.X - 14, screenDetachPoint.Y - 10), detachedPoint);
+        Assert.DoesNotContain(window, splitHost.Windows);
     }
 
     private static UiDockWorkspace CreateWorkspace()

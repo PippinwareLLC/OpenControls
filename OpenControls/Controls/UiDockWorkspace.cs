@@ -5,6 +5,7 @@ namespace OpenControls.Controls;
 public sealed class UiDockWorkspace : UiElement
 {
     public event Action<UiWindow, UiPoint>? TabDetached;
+    public event Action<string>? TearOffTelemetry;
 
     public readonly record struct ExternalDockDebugState(
         bool ExternalPreviewActive,
@@ -58,6 +59,7 @@ public sealed class UiDockWorkspace : UiElement
     private bool _dragMoved;
     private int _dragPointerOffsetX;
     private int _dragPointerOffsetY;
+    private bool _dragOutsideWorkspaceTelemetryEmitted;
     private UiDockHost? _hoverHost;
     private DockTarget _hoverTarget;
     private UiRect _previewBounds;
@@ -129,6 +131,9 @@ public sealed class UiDockWorkspace : UiElement
         node.Second = second;
         node.SplitHorizontal = horizontal;
         node.SplitRatio = 0.5f;
+
+        TraceTearOffTelemetry(
+            $"split-host sourceHost={FormatHost(host)} newHost={FormatHost(newHost)} target='{target}'");
 
         return newHost;
     }
@@ -508,8 +513,9 @@ public sealed class UiDockWorkspace : UiElement
             host.Id = hostId;
         }
 
-        host.ExternalDragHandling = true;
-        host.AllowDetach = false;
+        host.ExternalDragHandling = template?.ExternalDragHandling ?? true;
+        host.AllowDetach = template?.AllowDetach ?? false;
+        host.CanDetachWindowPredicate = template?.CanDetachWindowPredicate;
         AssignHostId(host);
 
         _hosts.Add(host);
@@ -643,9 +649,12 @@ public sealed class UiDockWorkspace : UiElement
                     _dragStart = input.MousePosition;
                     _dragPosition = input.MousePosition;
                     _dragMoved = false;
+                    _dragOutsideWorkspaceTelemetryEmitted = false;
                     UiRect tabRect = host.GetTabBounds(index);
                     _dragPointerOffsetX = Math.Clamp(input.MousePosition.X - tabRect.X, 0, Math.Max(0, tabRect.Width));
                     _dragPointerOffsetY = Math.Clamp(input.MousePosition.Y - tabRect.Y, 0, Math.Max(0, tabRect.Height));
+                    TraceTearOffTelemetry(
+                        $"drag-start host={FormatHost(host)} window={FormatWindow(_dragWindow)} index={index} mouse={FormatPoint(input.MousePosition)} screen={FormatPoint(input.ScreenMousePosition)}");
                     break;
                 }
             }
@@ -659,6 +668,11 @@ public sealed class UiDockWorkspace : UiElement
         if (input.LeftDown)
         {
             _dragPosition = input.MousePosition;
+            if (Bounds.Contains(_dragPosition))
+            {
+                _dragOutsideWorkspaceTelemetryEmitted = false;
+            }
+
             int deltaX = Math.Abs(_dragPosition.X - _dragStart.X);
             int deltaY = Math.Abs(_dragPosition.Y - _dragStart.Y);
             if (!_dragMoved && (deltaX >= DragThreshold || deltaY >= DragThreshold))
@@ -684,16 +698,29 @@ public sealed class UiDockWorkspace : UiElement
                 }
             }
             else if (_dragMoved
-                && !Bounds.Contains(_dragPosition)
-                && CanDetachWindowExternally(_dragSourceHost, _dragWindow))
+                && !Bounds.Contains(_dragPosition))
             {
-                UiWindow window = _dragWindow;
-                UiDockHost sourceHost = _dragSourceHost;
-                sourceHost.RemoveWindow(window);
-                CollapseEmptyHosts();
-                TabDetached?.Invoke(window, GetDetachPoint(input));
-                ResetTabDragState();
-                return;
+                ExternalDetachDecision detachDecision = EvaluateExternalDetach(_dragSourceHost, _dragWindow);
+                if (!_dragOutsideWorkspaceTelemetryEmitted)
+                {
+                    _dragOutsideWorkspaceTelemetryEmitted = true;
+                    TraceTearOffTelemetry(
+                        $"drag-detach-check host={FormatHost(_dragSourceHost)} window={FormatWindow(_dragWindow)} allowed={(detachDecision.Allowed ? 1 : 0)} reason='{detachDecision.Reason}' predicatePresent={(detachDecision.PredicatePresent ? 1 : 0)} predicateResult={(detachDecision.PredicateResult ? 1 : 0)} mouse={FormatPoint(_dragPosition)} screen={FormatPoint(input.ScreenMousePosition)} workspace={FormatRect(Bounds)}");
+                }
+
+                if (detachDecision.Allowed)
+                {
+                    UiWindow window = _dragWindow;
+                    UiDockHost sourceHost = _dragSourceHost;
+                    UiPoint detachPoint = GetDetachPoint(input);
+                    TraceTearOffTelemetry(
+                        $"drag-detach-dispatch host={FormatHost(sourceHost)} window={FormatWindow(window)} detachPoint={FormatPoint(detachPoint)}");
+                    sourceHost.RemoveWindow(window);
+                    CollapseEmptyHosts();
+                    TabDetached?.Invoke(window, detachPoint);
+                    ResetTabDragState();
+                    return;
+                }
             }
         }
 
@@ -798,14 +825,23 @@ public sealed class UiDockWorkspace : UiElement
         {
             if (_dragSourceHost != null)
             {
+                ExternalDetachDecision detachDecision = EvaluateExternalDetach(_dragSourceHost, window);
+                bool dropOutsideWorkspace = !Bounds.Contains(dropPoint);
+                TraceTearOffTelemetry(
+                    $"drop-detach-check host={FormatHost(_dragSourceHost)} window={FormatWindow(window)} allowed={(detachDecision.Allowed ? 1 : 0)} reason='{detachDecision.Reason}' predicatePresent={(detachDecision.PredicatePresent ? 1 : 0)} predicateResult={(detachDecision.PredicateResult ? 1 : 0)} dropOutside={(dropOutsideWorkspace ? 1 : 0)} drop={FormatPoint(dropPoint)} screenDrop={FormatPoint(screenDropPoint)} workspace={FormatRect(Bounds)}");
                 _dragSourceHost.RemoveWindow(window);
-                if (!Bounds.Contains(dropPoint) && CanDetachWindowExternally(_dragSourceHost, window))
+                if (dropOutsideWorkspace && detachDecision.Allowed)
                 {
-                    TabDetached?.Invoke(window, GetDetachPoint(screenDropPoint));
+                    UiPoint detachPoint = GetDetachPoint(screenDropPoint);
+                    TraceTearOffTelemetry(
+                        $"drop-detach-dispatch host={FormatHost(_dragSourceHost)} window={FormatWindow(window)} detachPoint={FormatPoint(detachPoint)}");
+                    TabDetached?.Invoke(window, detachPoint);
                 }
                 else
                 {
                     window.Bounds = ClampToBounds(GetFloatingPreviewBounds(dropPoint, window.Bounds), Bounds);
+                    TraceTearOffTelemetry(
+                        $"drop-floating-fallback host={FormatHost(_dragSourceHost)} window={FormatWindow(window)} bounds={FormatRect(window.Bounds)}");
                     AddFloatingWindow(window);
                 }
             }
@@ -852,14 +888,27 @@ public sealed class UiDockWorkspace : UiElement
         destination.TabHoverColor = source.TabHoverColor;
         destination.TabTextColor = source.TabTextColor;
         destination.TabBorderColor = source.TabBorderColor;
+        destination.MenuBackground = source.MenuBackground;
+        destination.MenuHoverColor = source.MenuHoverColor;
+        destination.MenuBorderColor = source.MenuBorderColor;
+        destination.MenuTextColor = source.MenuTextColor;
+        destination.MenuDisabledTextColor = source.MenuDisabledTextColor;
         destination.TabBarHeight = source.TabBarHeight;
         destination.TabWidth = source.TabWidth;
+        destination.TabMaxWidth = source.TabMaxWidth;
         destination.TabPadding = source.TabPadding;
+        destination.TabIconSpacing = source.TabIconSpacing;
         destination.TabTextScale = source.TabTextScale;
+        destination.TabTextBold = source.TabTextBold;
+        destination.AutoSizeTabs = source.AutoSizeTabs;
+        destination.TabTextOverflow = source.TabTextOverflow;
         destination.ShowCloseButtons = source.ShowCloseButtons;
         destination.CloseButtonPadding = source.CloseButtonPadding;
         destination.ScrollButtonWidth = source.ScrollButtonWidth;
+        destination.OverflowButtonWidth = source.OverflowButtonWidth;
         destination.ScrollStep = source.ScrollStep;
+        destination.ShowOverflowMenuButton = source.ShowOverflowMenuButton;
+        destination.ShowTabContextMenu = source.ShowTabContextMenu;
         destination.HideDockedTitleBars = source.HideDockedTitleBars;
         destination.AllowReorder = source.AllowReorder;
         destination.DragThreshold = source.DragThreshold;
@@ -867,12 +916,35 @@ public sealed class UiDockWorkspace : UiElement
 
     private static bool CanDetachWindowExternally(UiDockHost host, UiWindow window)
     {
+        return EvaluateExternalDetach(host, window).Allowed;
+    }
+
+    private static ExternalDetachDecision EvaluateExternalDetach(UiDockHost host, UiWindow window)
+    {
         if (!host.AllowDetach)
         {
-            return false;
+            return new ExternalDetachDecision(
+                Allowed: false,
+                PredicatePresent: host.CanDetachWindowPredicate != null,
+                PredicateResult: false,
+                Reason: "host-detach-disabled");
         }
 
-        return host.CanDetachWindowPredicate?.Invoke(window) ?? true;
+        if (host.CanDetachWindowPredicate == null)
+        {
+            return new ExternalDetachDecision(
+                Allowed: true,
+                PredicatePresent: false,
+                PredicateResult: true,
+                Reason: "allowed-no-predicate");
+        }
+
+        bool predicateResult = host.CanDetachWindowPredicate(window);
+        return new ExternalDetachDecision(
+            Allowed: predicateResult,
+            PredicatePresent: true,
+            PredicateResult: predicateResult,
+            Reason: predicateResult ? "allowed-by-predicate" : "blocked-by-predicate");
     }
 
     private void UpdateExternalPreviewHover(UiPoint hoverPoint, UiRect previewWindowBounds)
@@ -924,10 +996,42 @@ public sealed class UiDockWorkspace : UiElement
         _dragMoved = false;
         _dragPointerOffsetX = 0;
         _dragPointerOffsetY = 0;
+        _dragOutsideWorkspaceTelemetryEmitted = false;
         _hoverHost = null;
         _hoverTarget = DockTarget.None;
         _previewBounds = default;
     }
+
+    private void TraceTearOffTelemetry(string message)
+    {
+        TearOffTelemetry?.Invoke(message);
+    }
+
+    private static string FormatHost(UiDockHost host)
+    {
+        return $"id='{host.Id}' allowDetach={(host.AllowDetach ? 1 : 0)} externalDrag={(host.ExternalDragHandling ? 1 : 0)} allowReorder={(host.AllowReorder ? 1 : 0)} predicate={(host.CanDetachWindowPredicate != null ? 1 : 0)} windows={host.Windows.Count} bounds={FormatRect(host.Bounds)}";
+    }
+
+    private static string FormatWindow(UiWindow window)
+    {
+        return $"id='{window.Id}' title='{window.Title}' bounds={FormatRect(window.Bounds)}";
+    }
+
+    private static string FormatPoint(UiPoint point)
+    {
+        return $"({point.X},{point.Y})";
+    }
+
+    private static string FormatRect(UiRect rect)
+    {
+        return $"({rect.X},{rect.Y},{rect.Width},{rect.Height})";
+    }
+
+    private readonly record struct ExternalDetachDecision(
+        bool Allowed,
+        bool PredicatePresent,
+        bool PredicateResult,
+        string Reason);
 
     private void AssignHostId(UiDockHost host)
     {
