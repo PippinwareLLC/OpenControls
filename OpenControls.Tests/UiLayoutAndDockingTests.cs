@@ -468,6 +468,47 @@ public sealed class UiLayoutAndDockingTests
     }
 
     [Fact]
+    public void DockWorkspace_CommitExternalDockGroup_DocksAllWindowsToResolvedHost()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiWindow root = new()
+        {
+            Id = "root-window",
+            Title = "Root"
+        };
+        workspace.RootHost.DockWindow(root);
+
+        UiWindow first = new()
+        {
+            Id = "external-a",
+            Title = "External A"
+        };
+        UiWindow second = new()
+        {
+            Id = "external-b",
+            Title = "External B"
+        };
+
+        Update(workspace, new UiInputState());
+
+        UiRect hostBounds = workspace.RootHost.Bounds;
+        UiPoint centerPoint = new(hostBounds.X + hostBounds.Width / 2, hostBounds.Y + hostBounds.Height / 2);
+        UiRect previewWindowBounds = new(hostBounds.X + 12, hostBounds.Y + 10, 180, 120);
+
+        workspace.PreviewExternalDock(second, centerPoint, previewWindowBounds);
+
+        bool committed = workspace.CommitExternalDockGroup(new[] { first, second }, second, second);
+
+        Assert.True(committed);
+        Assert.Same(workspace.RootHost, first.Parent);
+        Assert.Same(workspace.RootHost, second.Parent);
+        Assert.Equal(3, workspace.RootHost.Windows.Count);
+        Assert.Same(first, workspace.RootHost.Windows[1]);
+        Assert.Same(second, workspace.RootHost.Windows[2]);
+        Assert.Same(second, workspace.RootHost.ActiveWindow);
+    }
+
+    [Fact]
     public void DockWorkspace_SplitHost_InheritsExternalDetachBehavior()
     {
         UiDockWorkspace workspace = new()

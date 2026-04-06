@@ -346,27 +346,25 @@ public sealed class UiDockWorkspace : UiElement
     public bool CommitExternalDock(UiWindow window)
     {
         ArgumentNullException.ThrowIfNull(window);
+        return CommitExternalDockGroup(new[] { window }, window, window);
+    }
 
-        if (!ReferenceEquals(_externalPreviewWindow, window))
+    public bool CommitExternalDockGroup(IReadOnlyList<UiWindow> windows, UiWindow previewWindow, UiWindow? activeWindow = null)
+    {
+        ArgumentNullException.ThrowIfNull(windows);
+        ArgumentNullException.ThrowIfNull(previewWindow);
+
+        if (windows.Count == 0 || !ReferenceEquals(_externalPreviewWindow, previewWindow))
         {
             return false;
         }
 
         UiDockHost? hoverHost = _hoverHost;
         DockTarget hoverTarget = _hoverTarget;
-        ClearExternalDockPreview(window);
+        ClearExternalDockPreview(previewWindow);
         if (hoverHost == null || hoverTarget == DockTarget.None)
         {
             return false;
-        }
-
-        if (window.Parent is UiDockHost currentHost)
-        {
-            currentHost.RemoveWindow(window);
-        }
-        else
-        {
-            window.Parent?.RemoveChild(window);
         }
 
         UiDockHost targetHost = hoverHost;
@@ -375,9 +373,21 @@ public sealed class UiDockWorkspace : UiElement
             targetHost = SplitHost(hoverHost, hoverTarget);
         }
 
-        window.AllowDrag = false;
-        targetHost.DockWindow(window);
-        targetHost.ActivateWindow(targetHost.Windows.Count - 1);
+        UiWindow desiredActiveWindow = activeWindow ?? previewWindow;
+        int activeIndex = -1;
+        for (int index = 0; index < windows.Count; index++)
+        {
+            UiWindow window = windows[index] ?? throw new ArgumentNullException(nameof(windows), "External dock groups cannot contain null windows.");
+            RemoveWindowFromCurrentParent(window);
+            window.AllowDrag = false;
+            targetHost.DockWindow(window);
+            if (ReferenceEquals(window, desiredActiveWindow))
+            {
+                activeIndex = targetHost.Windows.Count - 1;
+            }
+        }
+
+        targetHost.ActivateWindow(activeIndex >= 0 ? activeIndex : targetHost.Windows.Count - 1);
         CollapseEmptyHosts();
         return true;
     }
@@ -429,6 +439,17 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         _floatingWindows.Clear();
+    }
+
+    private static void RemoveWindowFromCurrentParent(UiWindow window)
+    {
+        if (window.Parent is UiDockHost currentHost)
+        {
+            currentHost.RemoveWindow(window);
+            return;
+        }
+
+        window.Parent?.RemoveChild(window);
     }
 
     private void DetachWindowInternal(UiWindow window)
