@@ -366,6 +366,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
     public int LastVisibleRowIndex => _visibleRowEndIndex;
 
     public event Action<int>? SelectionChanged;
+    public event Action<int>? RowActivated;
     public event Action? SortSpecsChanged;
     public event Action? ColumnStatesChanged;
     public event Action? ViewStateChanged;
@@ -1702,6 +1703,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
     private void HandleBodyInteractions(UiUpdateContext context, UiInputState input, UiElement? contentHit, bool pointerHandledByScrollbars)
     {
         bool clicked = input.LeftClicked && Bounds.Contains(input.MousePosition);
+        bool doubleClicked = input.LeftDoubleClicked && Bounds.Contains(input.MousePosition);
         if (clicked && !_headerViewport.Contains(input.MousePosition) && !pointerHandledByScrollbars && contentHit == null)
         {
             context.Focus.RequestFocus(this);
@@ -1720,6 +1722,17 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
                 {
                     SetSelectedIndex(-1);
                 }
+            }
+        }
+
+        if (doubleClicked && !_headerViewport.Contains(input.MousePosition) && !pointerHandledByScrollbars && contentHit == null)
+        {
+            context.Focus.RequestFocus(this);
+            if (_hoverIndex >= 0 && _hoverIndex < Rows.Count)
+            {
+                ApplySelection(_hoverIndex, input.ShiftDown, input.CtrlDown);
+                EnsureVisible(_hoverIndex);
+                RowActivated?.Invoke(_hoverIndex);
             }
         }
     }
@@ -1757,6 +1770,15 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         if (input.Navigation.PageDown)
         {
             MoveSelectionByPage(1, shift, ctrl);
+        }
+
+        if (input.Navigation.Activate)
+        {
+            int current = SelectedIndex;
+            if (current >= 0 && current < Rows.Count)
+            {
+                RowActivated?.Invoke(current);
+            }
         }
     }
 

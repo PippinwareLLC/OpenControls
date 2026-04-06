@@ -254,6 +254,39 @@ public sealed class UiTableTests
     }
 
     [Fact]
+    public void Table_RowActivated_FiresOnRowDoubleClick()
+    {
+        UiTable table = CreateTable(220, 120, rowCount: 3);
+        int activatedIndex = -1;
+        table.RowActivated += index => activatedIndex = index;
+
+        Update(table, new UiInputState());
+        Update(table, new UiInputState
+        {
+            MousePosition = new UiPoint(20, 32),
+            ScreenMousePosition = new UiPoint(20, 32),
+            LeftClicked = true,
+            LeftDown = true
+        });
+        Update(table, new UiInputState
+        {
+            MousePosition = new UiPoint(20, 32),
+            ScreenMousePosition = new UiPoint(20, 32),
+            LeftReleased = true
+        });
+        Update(table, new UiInputState
+        {
+            MousePosition = new UiPoint(20, 32),
+            ScreenMousePosition = new UiPoint(20, 32),
+            LeftDoubleClicked = true,
+            LeftDown = true
+        });
+
+        Assert.Equal(0, activatedIndex);
+        Assert.Equal(0, table.SelectedIndex);
+    }
+
+    [Fact]
     public void Table_RichCellContentExposesScreenSpaceDebugBoundsThroughUiContext()
     {
         UiLabel content = new()
