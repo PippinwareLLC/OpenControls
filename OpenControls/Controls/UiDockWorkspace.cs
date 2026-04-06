@@ -6,6 +6,18 @@ public sealed class UiDockWorkspace : UiElement
 {
     public event Action<UiWindow, UiPoint>? TabDetached;
 
+    public readonly record struct ExternalDockDebugState(
+        bool ExternalPreviewActive,
+        string? ExternalPreviewWindowId,
+        string? ExternalPreviewWindowTitle,
+        UiPoint HoverPoint,
+        string? HoverHostId,
+        DockTarget HoverTarget,
+        UiRect HoverHostBounds,
+        UiRect PreviewBounds,
+        UiRect PreviewWindowBounds,
+        UiRect WorkspaceBounds);
+
     public enum DockTarget
     {
         None,
@@ -51,6 +63,7 @@ public sealed class UiDockWorkspace : UiElement
     private UiRect _previewBounds;
     private UiWindow? _floatingDragWindow;
     private UiWindow? _externalPreviewWindow;
+    private UiPoint _externalPreviewHoverPoint;
     private UiRect _externalPreviewWindowBounds;
     private DockNode? _hoverSplitNode;
     private DockNode? _dragSplitNode;
@@ -302,6 +315,7 @@ public sealed class UiDockWorkspace : UiElement
         ArgumentNullException.ThrowIfNull(window);
 
         _externalPreviewWindow = window;
+        _externalPreviewHoverPoint = hoverPoint;
         _externalPreviewWindowBounds = previewWindowBounds;
         UpdateExternalPreviewHover(hoverPoint, previewWindowBounds);
     }
@@ -314,6 +328,7 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         _externalPreviewWindow = null;
+        _externalPreviewHoverPoint = default;
         _externalPreviewWindowBounds = default;
         if (_dragWindow == null || !_dragMoved)
         {
@@ -360,6 +375,21 @@ public sealed class UiDockWorkspace : UiElement
         targetHost.ActivateWindow(targetHost.Windows.Count - 1);
         CollapseEmptyHosts();
         return true;
+    }
+
+    public ExternalDockDebugState GetExternalDockDebugState()
+    {
+        return new ExternalDockDebugState(
+            ExternalPreviewActive: _externalPreviewWindow != null,
+            ExternalPreviewWindowId: _externalPreviewWindow?.Id,
+            ExternalPreviewWindowTitle: _externalPreviewWindow?.Title,
+            HoverPoint: _externalPreviewHoverPoint,
+            HoverHostId: _hoverHost?.Id,
+            HoverTarget: _hoverTarget,
+            HoverHostBounds: _hoverHost?.Bounds ?? default,
+            PreviewBounds: _previewBounds,
+            PreviewWindowBounds: _externalPreviewWindowBounds,
+            WorkspaceBounds: Bounds);
     }
 
     public void ResetLayout()
@@ -864,8 +894,15 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
-        _hoverTarget = GetDockTarget(_hoverHost.Bounds, hoverPoint);
-        _previewBounds = GetDockPreviewBounds(_hoverHost.Bounds, _hoverTarget, previewWindowBounds);
+        if (TryGetDockTargetRect(_hoverHost.Bounds, hoverPoint, out DockTarget externalTarget, out _))
+        {
+            _hoverTarget = externalTarget;
+            _previewBounds = GetDockPreviewBounds(_hoverHost.Bounds, _hoverTarget, previewWindowBounds);
+            return;
+        }
+
+        _hoverTarget = DockTarget.None;
+        _previewBounds = previewWindowBounds;
     }
 
     private UiPoint GetDetachPoint(UiInputState input)
@@ -1295,15 +1332,9 @@ public sealed class UiDockWorkspace : UiElement
 
     private DockTarget GetDockTarget(UiRect bounds, UiPoint point)
     {
-        foreach ((DockTarget target, UiRect rect) in GetTargetRects(bounds))
-        {
-            if (rect.Contains(point))
-            {
-                return target;
-            }
-        }
-
-        return DockTarget.Center;
+        return TryGetDockTargetRect(bounds, point, out DockTarget target, out _)
+            ? target
+            : DockTarget.Center;
     }
 
     private static int GetSplitterAxisPosition(DockNode node, UiPoint point)
@@ -1378,5 +1409,22 @@ public sealed class UiDockWorkspace : UiElement
         yield return (DockTarget.Top, top);
         yield return (DockTarget.Bottom, bottom);
         yield return (DockTarget.Center, center);
+    }
+
+    private bool TryGetDockTargetRect(UiRect bounds, UiPoint point, out DockTarget target, out UiRect rect)
+    {
+        foreach ((DockTarget candidateTarget, UiRect candidateRect) in GetTargetRects(bounds))
+        {
+            if (candidateRect.Contains(point))
+            {
+                target = candidateTarget;
+                rect = candidateRect;
+                return true;
+            }
+        }
+
+        target = DockTarget.None;
+        rect = default;
+        return false;
     }
 }

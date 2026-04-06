@@ -399,6 +399,73 @@ public sealed class UiLayoutAndDockingTests
         Assert.Null(external.Parent);
     }
 
+    [Fact]
+    public void DockWorkspace_ExternalDockDebugState_ReportsHoveredTarget()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        workspace.RootHost.DockWindow(new UiWindow { Title = "Root" });
+        UiDockHost targetHost = workspace.DockHosts[1];
+        targetHost.DockWindow(new UiWindow { Title = "Right" });
+        UiWindow external = new()
+        {
+            Id = "external-window",
+            Title = "External"
+        };
+
+        Update(workspace, new UiInputState());
+
+        UiRect bounds = targetHost.Bounds;
+        UiPoint hoverPoint = new(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
+        UiRect previewWindowBounds = new(20, 20, 120, 80);
+
+        workspace.PreviewExternalDock(external, hoverPoint, previewWindowBounds);
+
+        UiDockWorkspace.ExternalDockDebugState state = workspace.GetExternalDockDebugState();
+
+        Assert.True(state.ExternalPreviewActive);
+        Assert.Equal("external-window", state.ExternalPreviewWindowId);
+        Assert.Equal("External", state.ExternalPreviewWindowTitle);
+        Assert.Equal(hoverPoint, state.HoverPoint);
+        Assert.Equal(targetHost.Id, state.HoverHostId);
+        Assert.Equal(UiDockWorkspace.DockTarget.Center, state.HoverTarget);
+        Assert.Equal(targetHost.Bounds, state.HoverHostBounds);
+        Assert.Equal(previewWindowBounds, state.PreviewWindowBounds);
+        Assert.True(state.PreviewBounds.Width > 0);
+        Assert.True(state.PreviewBounds.Height > 0);
+    }
+
+    [Fact]
+    public void DockWorkspace_ExternalDockPreview_RequiresExplicitTargetInsteadOfDefaultingToCenter()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        workspace.RootHost.DockWindow(new UiWindow { Title = "Root" });
+        UiDockHost targetHost = workspace.DockHosts[1];
+        targetHost.DockWindow(new UiWindow { Title = "Right" });
+        UiWindow external = new()
+        {
+            Id = "external-window",
+            Title = "External"
+        };
+
+        Update(workspace, new UiInputState());
+
+        UiRect hostBounds = targetHost.Bounds;
+        UiRect previewWindowBounds = new(hostBounds.X + 24, hostBounds.Y + 18, 120, 80);
+        UiPoint nonTargetPoint = new(hostBounds.X + 12, hostBounds.Y + 12);
+
+        workspace.PreviewExternalDock(external, nonTargetPoint, previewWindowBounds);
+
+        UiDockWorkspace.ExternalDockDebugState state = workspace.GetExternalDockDebugState();
+        bool committed = workspace.CommitExternalDock(external);
+
+        Assert.True(state.ExternalPreviewActive);
+        Assert.Equal(targetHost.Id, state.HoverHostId);
+        Assert.Equal(UiDockWorkspace.DockTarget.None, state.HoverTarget);
+        Assert.Equal(previewWindowBounds, state.PreviewBounds);
+        Assert.False(committed);
+        Assert.Null(external.Parent);
+    }
+
     private static UiDockWorkspace CreateWorkspace()
     {
         UiDockWorkspace workspace = new()
