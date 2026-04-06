@@ -431,7 +431,7 @@ public sealed class UiDockHost : UiElement
             }
             else if (_contextMenuOpen && _contextMenuHoverIndex >= 0)
             {
-                ExecuteContextMenuCommand(_contextMenuHoverIndex);
+                ExecuteContextMenuCommand(_contextMenuHoverIndex, input.ScreenMousePosition);
                 _contextMenuOpen = false;
                 _contextMenuTabIndex = -1;
                 handledInteraction = true;
@@ -1528,7 +1528,7 @@ public sealed class UiDockHost : UiElement
         };
     }
 
-    private void ExecuteContextMenuCommand(int index)
+    private void ExecuteContextMenuCommand(int index, UiPoint screenMousePosition)
     {
         if (_contextMenuTabIndex < 0 || _contextMenuTabIndex >= _windows.Count)
         {
@@ -1544,11 +1544,7 @@ public sealed class UiDockHost : UiElement
         switch (commands[index])
         {
             case TabMenuCommand.Detach:
-                UiRect tabRect = GetTabRect(_contextMenuTabIndex);
-                UiPoint detachPoint = tabRect.Width > 0 && tabRect.Height > 0
-                    ? new UiPoint(tabRect.X + tabRect.Width / 2, tabRect.Bottom)
-                    : new UiPoint(_contextMenuBounds.X, _contextMenuBounds.Y);
-                TryDetachWindow(_contextMenuTabIndex, detachPoint);
+                TryDetachWindow(_contextMenuTabIndex, screenMousePosition);
                 break;
             case TabMenuCommand.Close:
                 CloseWindowCore(_contextMenuTabIndex, allowLastWindow: true);

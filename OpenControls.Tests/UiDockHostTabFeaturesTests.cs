@@ -154,6 +154,48 @@ public sealed class UiDockHostTabFeaturesTests
         Assert.Single(host.Windows);
     }
 
+    [Fact]
+    public void DockHost_ContextMenuDetach_UsesScreenCoordinates()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160)
+        };
+        host.AddWindow(new UiWindow { Title = "Window 0" });
+        host.AddWindow(new UiWindow { Title = "Window 1" });
+
+        UiRect tabBounds = host.GetTabBounds(0);
+        UiPoint rightClickPoint = new(tabBounds.X + 10, tabBounds.Y + 12);
+        UiPoint screenDetachPoint = new(1220, 760);
+
+        UiWindow? detachedWindow = null;
+        UiPoint detachedPoint = default;
+        host.TabDetached += (window, point) =>
+        {
+            detachedWindow = window;
+            detachedPoint = point;
+        };
+
+        Update(host, new UiInputState
+        {
+            MousePosition = rightClickPoint,
+            ScreenMousePosition = new UiPoint(480, 320),
+            RightClicked = true
+        });
+
+        Update(host, new UiInputState
+        {
+            MousePosition = new UiPoint(rightClickPoint.X, host.TabBarHeight + 1),
+            ScreenMousePosition = screenDetachPoint,
+            LeftClicked = true
+        });
+
+        Assert.NotNull(detachedWindow);
+        Assert.Equal("Window 0", detachedWindow!.Title);
+        Assert.Equal(screenDetachPoint, detachedPoint);
+        Assert.Single(host.Windows);
+    }
+
     private static UiDockHost CreateHostWithFourWindows()
     {
         UiDockHost host = new()
