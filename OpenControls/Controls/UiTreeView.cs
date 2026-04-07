@@ -168,7 +168,10 @@ public sealed class UiTreeView : UiElement
     public int ScrollOffset
     {
         get => _scrollOffset;
-        set => SetScrollOffsetInternal(value, UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+        set => SetScrollOffsetInternal(
+            value,
+            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State,
+            raiseEvent: true);
     }
 
     public int ItemHeight { get; set; } = 22;
@@ -218,6 +221,7 @@ public sealed class UiTreeView : UiElement
     public int CornerRadius { get; set; }
 
     public event Action<int>? SelectionChanged;
+    public event Action<int>? ScrollOffsetChanged;
     public event Action<UiTreeViewItem, bool>? ItemToggled;
 
     public override bool IsFocusable => true;
@@ -355,13 +359,15 @@ public sealed class UiTreeView : UiElement
             {
                 SetScrollOffsetInternal(
                     _scrollOffset - steps * Math.Max(1, ScrollWheelItems) * itemHeight,
-                    UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+                    UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State,
+                    raiseEvent: true);
             }
         }
 
         SetScrollOffsetInternal(
             UiClipper.ClampScrollOffset(_visibleRows.Count, itemHeight, viewportHeight, _scrollOffset),
-            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State,
+            raiseEvent: false);
         _clipRange = UiClipper.FixedHeight(_visibleRows.Count, itemHeight, _scrollOffset, viewportHeight, OverscanItems);
         _hoverIndex = mouseInScrollbar ? -1 : GetIndexAtPoint(input.MousePosition);
 
@@ -463,6 +469,14 @@ public sealed class UiTreeView : UiElement
             int textX = arrowBounds.Right + Math.Max(0, ArrowPadding) + Math.Max(0, row.Item.ExtraTextOffset);
             int textY = y + (itemHeight - textHeight) / 2;
             UiColor textColor = row.Item.TextColor ?? (IsItemSelected(index) ? SelectedTextColor : TextColor);
+            if (!string.IsNullOrWhiteSpace(row.Item.SecondaryText))
+            {
+                int secondaryWidth = context.Renderer.MeasureTextWidth(row.Item.SecondaryText, TextScale, font);
+                int secondaryX = System.Math.Max(textX, viewport.Right - Math.Max(0, Padding) - secondaryWidth);
+                UiColor secondaryColor = row.Item.SecondaryTextColor ?? textColor;
+                context.Renderer.DrawText(row.Item.SecondaryText, new UiPoint(secondaryX, textY), secondaryColor, TextScale, font);
+            }
+
             context.Renderer.DrawText(row.Item.Text, new UiPoint(textX, textY), textColor, TextScale, font);
         }
 
@@ -740,7 +754,8 @@ public sealed class UiTreeView : UiElement
 
         SetScrollOffsetInternal(
             UiClipper.EnsureVisible(_visibleRows.Count, Math.Max(1, ItemHeight), viewportHeight, _scrollOffset, index),
-            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State,
+            raiseEvent: true);
         _clipRange = UiClipper.FixedHeight(_visibleRows.Count, Math.Max(1, ItemHeight), _scrollOffset, viewportHeight, OverscanItems);
     }
 
@@ -913,7 +928,8 @@ public sealed class UiTreeView : UiElement
                 int deltaScroll = maxScroll <= 0 ? 0 : (int)Math.Round(deltaPixels * (maxScroll / (double)travel));
                 SetScrollOffsetInternal(
                     _scrollbarDragStartScrollOffset + deltaScroll,
-                    UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+                    UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State,
+                    raiseEvent: true);
             }
             else
             {
@@ -927,7 +943,8 @@ public sealed class UiTreeView : UiElement
         int page = Math.Max(1, Bounds.Height - Math.Max(1, ItemHeight));
         SetScrollOffsetInternal(
             _scrollOffset + (pageUp ? -page : page),
-            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+            UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State,
+            raiseEvent: true);
     }
 
     private void DrawScrollbars(UiRenderContext context)
@@ -1003,7 +1020,7 @@ public sealed class UiTreeView : UiElement
         return true;
     }
 
-    private bool SetScrollOffsetInternal(int value, UiInvalidationReason reason)
+    private bool SetScrollOffsetInternal(int value, UiInvalidationReason reason, bool raiseEvent = false)
     {
         int clamped = Math.Max(0, value);
         if (_scrollOffset == clamped)
@@ -1013,6 +1030,11 @@ public sealed class UiTreeView : UiElement
 
         _scrollOffset = clamped;
         Invalidate(reason);
+        if (raiseEvent)
+        {
+            ScrollOffsetChanged?.Invoke(clamped);
+        }
+
         return true;
     }
 

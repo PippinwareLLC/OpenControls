@@ -12,10 +12,12 @@ public sealed class UiTreeViewItem
     }
 
     public string Text { get; set; } = string.Empty;
+    public string SecondaryText { get; set; } = string.Empty;
     public int ExtraTextOffset { get; set; }
     public List<UiTreeViewItem> Children { get; } = new();
     public bool IsOpen { get; set; }
     public UiColor? TextColor { get; set; }
+    public UiColor? SecondaryTextColor { get; set; }
     public object? Tag { get; set; }
 
     public bool HasChildren => Children.Count > 0;
