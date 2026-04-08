@@ -274,6 +274,111 @@ public sealed class UiLayoutAndDockingTests
     }
 
     [Fact]
+    public void DockWorkspace_ApplyState_PreservesRatiosAcrossZeroSizedLayoutPass()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Id = "workspace",
+            Bounds = new UiRect(0, 0, 0, 0),
+            SplitterThickness = 6,
+            MinPaneSize = 80
+        };
+
+        UiDockHost leftHost = workspace.RootHost;
+        UiDockHost bottomHost = workspace.SplitHost(leftHost, UiDockWorkspace.DockTarget.Bottom);
+        UiDockHost centerHost = workspace.SplitHost(leftHost, UiDockWorkspace.DockTarget.Right);
+        UiDockHost rightHost = workspace.SplitHost(centerHost, UiDockWorkspace.DockTarget.Right);
+
+        UiWindow leftWindow = new() { Id = "left", Title = "Left" };
+        UiWindow bottomWindow = new() { Id = "bottom", Title = "Bottom" };
+        UiWindow centerWindow = new() { Id = "center", Title = "Center" };
+        UiWindow rightWindow = new() { Id = "right", Title = "Right" };
+
+        UiDockWorkspaceState restored = new()
+        {
+            Id = workspace.Id,
+            Root = new UiDockNodeState
+            {
+                First = new UiDockNodeState
+                {
+                    First = new UiDockNodeState
+                    {
+                        HostId = leftHost.Id
+                    },
+                    Second = new UiDockNodeState
+                    {
+                        First = new UiDockNodeState
+                        {
+                            HostId = centerHost.Id
+                        },
+                        Second = new UiDockNodeState
+                        {
+                            HostId = rightHost.Id
+                        },
+                        SplitHorizontal = false,
+                        SplitRatio = 0.741f
+                    },
+                    SplitHorizontal = false,
+                    SplitRatio = 0.172f
+                },
+                Second = new UiDockNodeState
+                {
+                    HostId = bottomHost.Id
+                },
+                SplitHorizontal = true,
+                SplitRatio = 0.721f
+            },
+            Hosts =
+            {
+                new UiDockHostState
+                {
+                    HostId = leftHost.Id,
+                    WindowIds = { leftWindow.Id },
+                    ActiveIndex = 0
+                },
+                new UiDockHostState
+                {
+                    HostId = bottomHost.Id,
+                    WindowIds = { bottomWindow.Id },
+                    ActiveIndex = 0
+                },
+                new UiDockHostState
+                {
+                    HostId = centerHost.Id,
+                    WindowIds = { centerWindow.Id },
+                    ActiveIndex = 0
+                },
+                new UiDockHostState
+                {
+                    HostId = rightHost.Id,
+                    WindowIds = { rightWindow.Id },
+                    ActiveIndex = 0
+                }
+            }
+        };
+
+        workspace.ApplyState(restored, new Dictionary<string, UiWindow>(StringComparer.Ordinal)
+        {
+            [leftWindow.Id] = leftWindow,
+            [bottomWindow.Id] = bottomWindow,
+            [centerWindow.Id] = centerWindow,
+            [rightWindow.Id] = rightWindow
+        });
+
+        Update(workspace, new UiInputState());
+        workspace.Bounds = new UiRect(0, 0, 1680, 918);
+        Update(workspace, new UiInputState());
+
+        UiDockWorkspaceState captured = workspace.CaptureState();
+        Assert.NotNull(captured.Root);
+        Assert.InRange(captured.Root!.SplitRatio, 0.720f, 0.722f);
+        Assert.NotNull(captured.Root.First);
+        Assert.InRange(captured.Root.First!.SplitRatio, 0.171f, 0.173f);
+        Assert.NotNull(captured.Root.First.Second);
+        Assert.InRange(captured.Root.First.Second!.SplitRatio, 0.740f, 0.742f);
+    }
+
+    [Fact]
     public void DockWorkspace_DraggingTabOutsideBoundsDetachesImmediatelyUsingScreenCoordinates()
     {
         UiDockWorkspace workspace = new()

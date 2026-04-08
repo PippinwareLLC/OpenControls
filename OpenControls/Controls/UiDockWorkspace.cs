@@ -1315,6 +1315,10 @@ public sealed class UiDockWorkspace : UiElement
         int splitterThickness = Math.Max(1, SplitterThickness);
         UiPoint firstMinSize = GetMinimumNodeSize(node.First);
         UiPoint secondMinSize = GetMinimumNodeSize(node.Second);
+        // Preserve the authored split ratio across transient layout passes.
+        // Startup and resize frames can report zero or constrained bounds before the
+        // workspace settles, and feeding those clamped sizes back into SplitRatio
+        // would permanently flatten a restored layout.
 
         if (node.SplitHorizontal)
         {
@@ -1330,7 +1334,6 @@ public sealed class UiDockWorkspace : UiElement
             node.FirstBounds = firstBounds;
             node.SecondBounds = secondBounds;
             node.SplitterBounds = splitterBounds;
-            node.SplitRatio = availableHeight > 0 ? firstHeight / (float)availableHeight : 0.5f;
 
             LayoutNode(node.First, firstBounds);
             LayoutNode(node.Second, secondBounds);
@@ -1349,7 +1352,6 @@ public sealed class UiDockWorkspace : UiElement
             node.FirstBounds = firstBounds;
             node.SecondBounds = secondBounds;
             node.SplitterBounds = splitterBounds;
-            node.SplitRatio = availableWidth > 0 ? firstWidth / (float)availableWidth : 0.5f;
 
             LayoutNode(node.First, firstBounds);
             LayoutNode(node.Second, secondBounds);
