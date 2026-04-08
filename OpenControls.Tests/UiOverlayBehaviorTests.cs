@@ -280,6 +280,54 @@ public sealed class UiOverlayBehaviorTests
     }
 
     [Fact]
+    public void ContextMenuRegion_ContextMenuUsesLocalMousePositionInsteadOfScreenMousePosition()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 200)
+        };
+
+        UiButton target = new()
+        {
+            Text = "Target",
+            Bounds = new UiRect(24, 32, 120, 28)
+        };
+        UiMenuBar menu = new()
+        {
+            DisplayMode = UiMenuDisplayMode.Popup,
+            DropdownMinWidth = 160
+        };
+        UiContextMenuRegion region = new()
+        {
+            Menu = menu,
+            Target = target,
+            OpenAttachedToBounds = false
+        };
+
+        root.AddChild(target);
+        root.AddChild(region);
+        root.AddChild(menu);
+
+        root.Update(new UiUpdateContext(
+            new UiInputState
+            {
+                MousePosition = new UiPoint(40, 40),
+                ScreenMousePosition = new UiPoint(180, 260),
+                RightClicked = true,
+                RightDown = true
+            },
+            new UiFocusManager(),
+            new UiDragDropContext(),
+            1f / 60f,
+            UiFont.Default,
+            new UiMemoryClipboard()));
+
+        Assert.True(menu.IsPopupOpen);
+        Assert.Equal(40, menu.Bounds.X);
+        Assert.Equal(40, menu.Bounds.Y);
+    }
+
+    [Fact]
     public void OpenMenuLayouts_HitTestBeforeLaterOverlappingSiblings()
     {
         UiPanel root = new()

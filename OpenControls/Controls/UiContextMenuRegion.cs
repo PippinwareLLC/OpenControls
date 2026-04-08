@@ -33,7 +33,7 @@ public sealed class UiContextMenuRegion : UiElement
         }
 
         Opening?.Invoke();
-        Open(input.ScreenMousePosition, targetBounds);
+        Open(input.MousePosition, targetBounds);
     }
 
     public override UiElement? HitTest(UiPoint point)
