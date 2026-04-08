@@ -9810,16 +9810,33 @@ public sealed class HeadlessUiRenderer : IUiRenderer
 
     private static string? FindIconFontPath()
     {
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string current = Directory.GetCurrentDirectory();
-
         List<string> candidates = new()
         {
-            Path.Combine(home, "Dev", "Alliance", "src", "Alliance.ImmediateUI.ImGui", "Fonts", "FontAwesome7ProSolid900.otf"),
-            Path.Combine(home, "Dev", "Alliance", "AllianceEditor", "FontAwesome", "kit-6232d65b41-desktop", "otfs", "Font Awesome 7 Pro-Solid-900.otf"),
-            Path.GetFullPath(Path.Combine(current, "..", "Alliance", "src", "Alliance.ImmediateUI.ImGui", "Fonts", "FontAwesome7ProSolid900.otf")),
-            Path.GetFullPath(Path.Combine(current, "..", "Alliance", "AllianceEditor", "FontAwesome", "kit-6232d65b41-desktop", "otfs", "Font Awesome 7 Pro-Solid-900.otf"))
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "assets", "fonts", "FontAwesome7ProSolid900.otf")),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "assets", "fonts", "Font Awesome 7 Pro-Solid-900.otf")),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "assets", "fonts", "FontAwesome7ProSolid900.otf")),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "assets", "fonts", "Font Awesome 7 Pro-Solid-900.otf"))
         };
+
+        if (OperatingSystem.IsMacOS())
+        {
+            candidates.Add("/Library/Fonts/Font Awesome 6 Free-Solid-900.otf");
+            candidates.Add("/Library/Fonts/Font Awesome 7 Free-Solid-900.otf");
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            string fonts = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+            candidates.Add(Path.Combine(fonts, "Font Awesome 6 Free-Solid-900.otf"));
+            candidates.Add(Path.Combine(fonts, "Font Awesome 7 Free-Solid-900.otf"));
+            candidates.Add(Path.Combine(fonts, "fa-solid-900.ttf"));
+        }
+        else
+        {
+            candidates.Add("/usr/share/fonts/opentype/font-awesome/FontAwesome.otf");
+            candidates.Add("/usr/share/fonts/opentype/font-awesome/Font Awesome 6 Free-Solid-900.otf");
+            candidates.Add("/usr/share/fonts/truetype/font-awesome/fontawesome-webfont.ttf");
+            candidates.Add("/usr/share/fonts/truetype/font-awesome/fa-solid-900.ttf");
+        }
 
         return FindFirstExistingPath(candidates);
     }

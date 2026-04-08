@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$repo_root"
 
 required_files=(
-  "IMGUI_PARITY_ATTACK_PLAN.MD"
+  "PARITY_EXECUTION_PLAN.MD"
   "tools/parity/README.MD"
   "tools/parity/BASELINE.MD"
   "tools/parity/STATUS.MD"

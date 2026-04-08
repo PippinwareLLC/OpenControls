@@ -1,24 +1,24 @@
 # Parity Baseline
 
-This file freezes the current Dear ImGui comparison target and Phase 0 scoping decisions.
+This file freezes the current reference capability snapshot and Phase 0 scoping decisions.
 
 ## Frozen Target
 
 | Field | Value |
 | --- | --- |
 | Capture date | `2026-03-25` |
-| Dear ImGui version string | `1.92.7 WIP` |
-| Dear ImGui version number | `19267` |
-| Dear ImGui branch | `master` |
-| Dear ImGui commit | `b62cf3894bc971a1aa8a8bb4006bd502491a06a0` |
-| Dear ImGui commit date | `2026-03-25T21:00:14Z` |
+| Reference snapshot label | `Phase 0 parity reference` |
+| Snapshot note | `Captured in maintainer audit notes on 2026-03-25` |
+| Tracking mode | `Repo-local milestone and widget coverage docs` |
+| Scope emphasis | `Tool-building, editor-readiness, and demo coverage` |
+| Snapshot date | `2026-03-25T21:00:14Z` |
 
-## Official Sources Used For This Baseline
+## Reference Inputs Used For This Baseline
 
-- `https://raw.githubusercontent.com/ocornut/imgui/master/imgui.h`
-- `https://raw.githubusercontent.com/ocornut/imgui/master/imgui_demo.cpp`
-- `https://raw.githubusercontent.com/ocornut/imgui/master/docs/FAQ.md`
-- `https://api.github.com/repos/ocornut/imgui/commits/master`
+- Maintainer audit notes captured when the baseline was frozen.
+- Public widget/demo surface review across `OpenControls.Examples`.
+- Regression coverage review across `OpenControls.Tests`.
+- Editor/runtime workflow gap review reflected in the Phase 0 roadmap and status docs.
 
 ## Scope Buckets
 
@@ -44,7 +44,7 @@ This file freezes the current Dear ImGui comparison target and Phase 0 scoping d
 ## Low-Priority Demo Completeness
 
 - Legacy columns API parity.
-- Exact API/UX emulation of immediate-mode layout helpers such as `SameLine()`.
+- Exact API/UX emulation of one-off line-flow helper idioms.
 - Demo-only curiosities that do not materially improve OpenControls as a retained-mode toolkit.
 - One-off parity work that adds maintenance cost without unlocking common editor/runtime use cases.
 
@@ -52,7 +52,7 @@ This file freezes the current Dear ImGui comparison target and Phase 0 scoping d
 
 - Converting OpenControls into an immediate-mode API.
 - Reintroducing historical parity assets or scripts unless they are checked in and maintained for real.
-- Chasing every Dear ImGui demo marker before the shared foundations exist.
+- Chasing every external-demo marker before the shared foundations exist.
 
 ## Lightweight Verification Hooks
 
@@ -70,7 +70,7 @@ What it currently verifies:
 
 ## Recommended Next Step
 
-Start Milestone 1 from `IMGUI_PARITY_ATTACK_PLAN.MD`:
+Start Milestone 1 from `PARITY_EXECUTION_PLAN.MD`:
 
 - expand `UiInputState`
 - add `UiContext` capture/cursor outputs

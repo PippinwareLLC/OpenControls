@@ -69,7 +69,7 @@ Parity deviations (documented and intentional):
 - WantCapture overrides: `UiContext` now exposes actual `WantCaptureMouse`, `WantCaptureKeyboard`, and `WantTextInput` outputs, but manual override toggles are not part of the core API.
 - Image demos: `UiImage` and `UiImageButton` intentionally rely on the stabilized image-adapter contract (`IUiImageSource` / draw callbacks), so hosts without texture bindings will show placeholders instead of pretending there is a first-class texture API today.
 
-Current roadmap priority after the latest Alliance-focused re-audit:
+Current roadmap priority after the latest backend/editor-readiness re-audit:
 - Milestone 13 is now complete for the shipped first-pass backend/editor-readiness target.
 - The next major milestone is Milestone 14: tooling, style-editor, and examples cleanup.
 - Remaining follow-on caveats are now mostly deeper bidi/RTL/layout polish beyond the shipped first-pass HarfBuzz shaping path, host-specific IME polish beyond the current SDL reference path plus the Silk bridge hooks, and general demo/tooling cleanup rather than per-pixel rendering or ultra-thin persistence fundamentals.
@@ -77,10 +77,10 @@ Current roadmap priority after the latest Alliance-focused re-audit:
 ## Parity Tracking
 Phase 0 parity tracking now lives in checked-in markdown files:
 - `tools/parity/README.MD`: entry point for parity tracking.
-- `tools/parity/BASELINE.MD`: frozen Dear ImGui target, scope buckets, and verification notes.
+- `tools/parity/BASELINE.MD`: frozen reference target, scope buckets, and verification notes.
 - `tools/parity/STATUS.MD`: current status board that maps major parity areas to roadmap milestones.
 - `tools/parity/WIDGET_DEMO_COVERAGE.MD`: exhaustive example-app coverage matrix for public widgets and options.
-- `IMGUI_PARITY_ATTACK_PLAN.MD`: execution roadmap and milestone checklists.
+- `PARITY_EXECUTION_PLAN.MD`: execution roadmap and milestone checklists.
 
 Current Phase 0 workflow:
 1. Review `tools/parity/BASELINE.MD` before changing what "parity" means.
@@ -89,7 +89,7 @@ Current Phase 0 workflow:
 4. Refresh `README.MD` whenever a milestone lands, parity caveats change, or the recommended next milestone changes.
 5. If no milestone has landed recently, do a quick README truthfulness pass before starting the next major parity phase so the top-level docs do not drift.
 6. Run `bash scripts/verify-phase0.sh` to verify the baseline files exist and the core/shared-examples projects still build.
-7. Use `IMGUI_PARITY_ATTACK_PLAN.MD` as the working implementation roadmap.
+7. Use `PARITY_EXECUTION_PLAN.MD` as the working implementation roadmap.
 
 Documentation cadence:
 - Treat the top-level `README.MD` as the public truth source for current parity, reference host guidance, and major caveats.
@@ -193,7 +193,7 @@ Planned expansion:
 - OpenControls.Examples now also includes a dedicated `Widget Gallery` window for the option-level coverage pass that complements the original `Widgets` tree, `Text Editor`, `Docking`, and `Clipping` windows.
 - A dedicated UI editor is planned and will be documented once available.
 - OpenControls includes a TinyBitmapFont helper that covers full printable ASCII plus Latin-1/CP437 code pages (shown in the Widgets ASCII table).
-- OpenControls now ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, custom font-file loading, fallback chains, and merged icon-font ranges for Dear ImGui-style inline icon text.
+- OpenControls now ships `UiFont`, `UiFontBuilder`, `UiFontRegistry`, per-element/inherited font selection, custom font-file loading, fallback chains, and merged icon-font ranges for inline icon text.
 - The shipped renderer path now uses shared atlas-backed grayscale glyph caches across MonoGame, SDL2-CS, Silk.NET, and OpenGL instead of per-pixel glyph loops, and outline-font shaping now has a first-pass HarfBuzz-backed path for ligatures, kerning, and script-aware glyph placement. Slug remains an optional follow-on GPU text-rendering path in the parity roadmap.
 - OpenControls now also ships `UiDpiCompensation` and `UiScaledRenderer` for default-on DPI-aware rendering from a 96 DPI baseline. The shipped Silk.NET, MonoGame, SDL2-CS, OpenGL, and editor hosts now keep layout/input in logical units while scaling rendering to the host DPI, and custom hosts can opt out by disabling the compensation object.
 

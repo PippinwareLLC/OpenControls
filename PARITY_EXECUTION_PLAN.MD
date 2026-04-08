@@ -1,8 +1,8 @@
-# OpenControls ImGui Parity Attack Plan
+# OpenControls Phase 0 Execution Plan
 
-This document turns the current OpenControls vs Dear ImGui audit into an execution plan.
+This document turns the current OpenControls capability/parity audit into an execution plan.
 
-The goal is not to clone Dear ImGui's immediate-mode API one-to-one. The goal is to close the high-value capability gaps while preserving OpenControls' retained-mode, explicit-bounds design.
+The goal is not to clone another toolkit one-to-one. The goal is to close the high-value capability gaps while preserving OpenControls' retained-mode, explicit-bounds design.
 
 ## Operating Principles
 
@@ -69,7 +69,7 @@ Implemented in:
 
 ### Checklist
 
-- [x] Record the Dear ImGui snapshot/version this roadmap targets.
+- [x] Record the reference snapshot/version this roadmap targets.
 - [x] Split features into three buckets:
   - [x] "Must have for tool-building"
   - [x] "High-value parity"
@@ -82,7 +82,7 @@ Implemented in:
   - [x] renderer-agnostic interaction tests
 - [x] Confirm what is intentionally out of scope for parity:
   - [x] immediate-mode layout idioms that conflict with retained mode
-  - [x] legacy ImGui APIs with poor long-term value
+  - [x] legacy compatibility APIs with poor long-term value
   - [x] niche styling flags that add complexity without product value
 
 ### Exit Criteria
@@ -161,7 +161,7 @@ Current documented parity gaps around shortcuts, mouse cursors, WantCapture beha
 
 ### Why This Matters
 
-Dear ImGui's power comes partly from easy access to item and window state. OpenControls needs a retained-mode equivalent so complex widgets and examples stop faking status with ad hoc hit tests.
+A strong tools UI often depends on easy access to item and window state. OpenControls needs a retained-mode equivalent so complex widgets and examples stop faking status with ad hoc hit tests.
 
 ### Primary Targets
 
@@ -206,7 +206,7 @@ Dear ImGui's power comes partly from easy access to item and window state. OpenC
 
 ### Why This Needs Its Own Milestone
 
-OpenControls currently assumes a tiny built-in bitmap font and a narrow code-page model. To reach real tooling parity, the framework needs a font asset pipeline that can load custom fonts, handle broader Unicode/code point ranges, and merge icon fonts like Font Awesome into the same text flow the way Dear ImGui does.
+OpenControls currently assumes a tiny built-in bitmap font and a narrow code-page model. To reach real tooling parity, the framework needs a font asset pipeline that can load custom fonts, handle broader Unicode/code point ranges, and merge icon fonts like Font Awesome into the same text flow cleanly.
 
 ### Implementation Note
 
@@ -264,7 +264,7 @@ Milestone 3 is complete for the scoped first-pass font/icon parity target. OpenC
   - [x] Font Awesome-style icon font merging
 - [x] If adopted, keep HarfBuzz integration behind a clean text-layout/shaping layer so simple hosts can still ship without it.
 
-### ImGui-Style Icon Font Parity Checklist
+### Icon Font Parity Checklist
 
 - [x] Add an API for merging icon fonts into an existing text font configuration.
 - [x] Support custom code point ranges like Font Awesome icon spans.
@@ -305,13 +305,13 @@ These items remain real backlog, but they are not required for Milestone 3 closu
 
 - [x] Add a custom font demo in `OpenControls.Examples`.
 - [x] Add an icon font demo using merged glyph ranges.
-- [x] Add a Silk.NET-first sample showing Font Awesome-style usage.
+- [x] Add a Silk.NET-first sample showing inline icon-font usage.
 - [x] Update `README.MD`, `API.MD`, and `Quickstart.MD` with font-loading guidance.
 
 ### Exit Criteria
 
 - [x] A user can load a custom TTF/OTF/WOFF2 font and use it throughout the UI.
-- [x] A user can merge an icon font range into a text font and render icons inline, Dear ImGui style.
+- [x] A user can merge an icon font range into a text font and render icons inline within standard text content.
 - [x] The roadmap clearly distinguishes first-pass custom-font/icon-font parity from optional HarfBuzz-backed shaping work.
 - [x] The built-in bitmap font path still works as a fallback/simple-host option.
 
@@ -456,7 +456,7 @@ These items remain backlog, but they do not block Milestone 5 closure:
 
 ### Why This Matters
 
-OpenControls has useful concrete widgets, but Dear ImGui's flexibility often comes from container-style composition APIs. In retained mode, this should become reusable retained containers, not just more string-only controls.
+OpenControls has useful concrete widgets, but a lot of tools-UI flexibility comes from container-style composition APIs. In retained mode, this should become reusable retained containers, not just more string-only controls.
 
 ### Combo/List/Popup Checklist
 
@@ -500,11 +500,11 @@ OpenControls has useful concrete widgets, but Dear ImGui's flexibility often com
 
 ### Why This Needs Its Own Milestone
 
-Many missing ImGui demos are really layout affordances, not widgets. OpenControls should solve them in retained-mode terms instead of chasing exact `SameLine()` parity.
+Many remaining layout gaps are really layout affordances, not widgets. OpenControls should solve them in retained-mode terms instead of chasing exact helper-for-helper imitation.
 
 ### Design Goal
 
-- [x] Add a small family of retained layout containers that cover the practical use cases behind ImGui layout demos.
+- [x] Add a small family of retained layout containers that cover the practical layout use cases still missing from the examples surface.
 
 ### Checklist
 
@@ -638,7 +638,7 @@ Milestone 10 is complete for the scoped first-pass selection/tree target. OpenCo
 
 ### Why This Matters
 
-Selection is already one of OpenControls' better stories, but Dear ImGui's newer multi-select demos show how much deeper the interaction model can go.
+Selection is already one of OpenControls' better stories, but larger editor-style multi-select workflows show how much deeper the interaction model can go.
 
 ### Checklist
 
@@ -684,7 +684,7 @@ OpenControls already covers these areas reasonably well. This phase is about dep
   - [x] no input / disable text entry path if desired
   - [x] no round to format precision
   - [x] wrap-around behavior
-- [x] Decide on the retained-mode equivalent of ImGui's Ctrl+Click-to-input behavior.
+- [x] Decide on the retained-mode equivalent of Ctrl+Click direct-input behavior.
 - [x] Ensure all vector/scalar variants inherit shared semantics consistently.
 
 ### Color Checklist
@@ -742,9 +742,9 @@ Milestone 12 is now complete for the shipped first-pass scope: `UiMenuBar` now e
 
 ### Why This Is Its Own Phase
 
-The latest Alliance-focused audit changed the priority order. Widget breadth is no longer the main blocker; the remaining swap risk is now concentrated in renderer/text sophistication, host IME/composition contracts, persistence depth, and a few editor-facing API breadth gaps.
+The latest backend/editor-readiness audit changed the priority order. Widget breadth is no longer the main blocker; the remaining swap risk is now concentrated in renderer/text sophistication, host IME/composition contracts, persistence depth, and a few editor-facing API breadth gaps.
 
-Milestone 13 is now complete for the shipped first-pass Alliance-readiness target. The shipping renderers no longer walk glyph alpha buffers pixel-by-pixel; they share atlas-backed textured glyph draws, the core text-input contract now carries composition/preedit plus caret/candidate bounds, persistence now restores richer editor/view state through `IUiStatefulElement`, and the editor-facing picker/image story now has an explicit convenience surface through `UiPicker` plus a stabilized image-adapter contract.
+Milestone 13 is now complete for the shipped first-pass backend/editor-readiness target. The shipping renderers no longer walk glyph alpha buffers pixel-by-pixel; they share atlas-backed textured glyph draws, the core text-input contract now carries composition/preedit plus caret/candidate bounds, persistence now restores richer editor/view state through `IUiStatefulElement`, and the editor-facing picker/image story now has an explicit convenience surface through `UiPicker` plus a stabilized image-adapter contract.
 
 ### Checklist
 
@@ -773,20 +773,20 @@ Milestone 13 is now complete for the shipped first-pass Alliance-readiness targe
   - [x] keep `UiComboBox` as the simple string-list convenience wrapper
   - [x] add a richer convenience picker surface for editor workflows if the existing composition path is still too low-level
   - [x] formalize image adapters as the intended renderer contract for now instead of adding a first-class renderer texture primitive in this milestone
-- [x] Add regression coverage around the remaining Alliance-readiness risks:
+- [x] Add regression coverage around the remaining backend/editor-readiness risks:
   - [x] renderer/text sanity checks where automation is practical
   - [x] persistence round-trips for richer state
   - [x] IME/host-input contract tests or harness coverage where feasible
 
 ### Exit Criteria
 
-- [x] The remaining Alliance-readiness risks are no longer per-pixel text rendering, ultra-thin IME request metadata, or ultra-narrow persistence fundamentals.
+- [x] The remaining backend/editor-readiness risks are no longer per-pixel text rendering, ultra-thin IME request metadata, or ultra-narrow persistence fundamentals.
 
 ### Deferred Follow-On Work
 
 - HarfBuzz shaping, bidi/RTL layout depth, and Slug evaluation remain follow-on text-system work rather than blockers for this milestone.
-- SDL currently provides the concrete native composition/candidate-rect example path; bringing the same level of platform IME integration to Silk.NET, MonoGame, OpenGL, and Alliance hosts remains host-specific follow-on work.
-- If Alliance later needs a first-class renderer texture primitive beyond the stabilized image-adapter contract, that decision can be revisited with real integration pressure instead of preemptive API churn.
+- SDL currently provides the concrete native composition/candidate-rect example path; bringing the same level of platform IME integration to Silk.NET, MonoGame, OpenGL, and other hosts remains host-specific follow-on work.
+- If a future host needs a first-class renderer texture primitive beyond the stabilized image-adapter contract, that decision can be revisited with real integration pressure instead of preemptive API churn.
 
 ## Milestone 14: Tooling, Style Editor, And Examples Parity
 
@@ -818,7 +818,7 @@ Once the infrastructure and core widgets are stronger, the examples app can stop
   - [ ] dock split resizing
   - [ ] menu shortcut dispatch
 - [ ] Add an editor-scale reference surface that proves OpenControls beyond toy/demo windows.
-- [ ] Re-run parity review against the target Dear ImGui snapshot.
+- [ ] Re-run parity review against the current reference snapshot.
 - [ ] Update `README.MD`, `API.MD`, `Samples.MD`, and `Quickstart.MD` to reflect the new reality.
 
 ### Exit Criteria

@@ -1,6 +1,6 @@
 # Parity Tracking
 
-This directory is the Phase 0 home for OpenControls vs Dear ImGui parity work.
+This directory is the Phase 0 home for OpenControls capability and parity tracking.
 
 ## Files
 
@@ -13,7 +13,7 @@ This directory is the Phase 0 home for OpenControls vs Dear ImGui parity work.
 1. Review `BASELINE.MD` before changing what "parity" means.
 2. Update `STATUS.MD` when priorities or milestone ownership change.
 3. Update `WIDGET_DEMO_COVERAGE.MD` when public widget surface area, example coverage, or intentional demo omissions change.
-4. Use `IMGUI_PARITY_ATTACK_PLAN.MD` as the execution roadmap.
+4. Use `PARITY_EXECUTION_PLAN.MD` as the execution roadmap.
 5. Run `bash scripts/verify-phase0.sh` after changing Phase 0 tracking or parity docs.
 
 ## Notes

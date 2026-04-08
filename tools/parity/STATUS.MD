@@ -2,7 +2,7 @@
 
 ## Phase 0 Delivered
 
-- [x] Dear ImGui comparison target frozen.
+- [x] Reference comparison target frozen.
 - [x] Scope buckets defined.
 - [x] Parity status board added.
 - [x] Lightweight verification hook added.
@@ -25,12 +25,12 @@
 - [x] The `Widget Gallery` now includes a dedicated Milestone 11 section for drag/slider flags, direct-input behavior, precision semantics, RGB/HSV/Hex color editing, and picker drag/drop coverage.
 - [x] Milestone 12 is complete for the scoped first-pass overlay/menu polish target.
 - [x] The `Widget Gallery` now includes a dedicated Milestone 12 section for command IDs, shortcut dispatch, keyboard menu navigation, attached context helpers, delayed tooltips, and nested popup dismissal.
-- [x] The latest Alliance-focused re-audit shifted the next priority away from tooling/showcase cleanup and toward backend/editor-readiness fundamentals.
+- [x] The latest backend/editor-readiness re-audit shifted the next priority away from tooling/showcase cleanup and toward backend/editor-readiness fundamentals.
 - [x] Milestone 13 is now the backend/text/persistence/editor-readiness milestone.
 - [x] Milestone 14 is now the tooling/style-editor/examples cleanup milestone that follows it.
 - [x] Milestone 13 is complete for the shipped first-pass backend/editor-readiness target.
 - [x] Milestone 14 is now the next recommended implementation target.
-- [x] The Silk.NET renderer path now runs on OpenGL 3.3 core profile rather than the old legacy immediate-mode backend, matching the Alliance desktop bootstrap much more closely.
+- [x] The Silk.NET renderer path now runs on OpenGL 3.3 core profile rather than the old legacy immediate-mode backend, matching the recommended desktop host setup much more closely.
 - [x] The Silk.NET example host now forwards `UiTextInputRequest` and `UiInputState.Composition` through `SilkTextInputBridge`, so platform-specific composition/candidate-window integration no longer has to fork the host loop.
 - [x] Outline-font layout now has a first-pass HarfBuzz-backed shaping path for ligatures, kerning, and script-aware glyph placement instead of rune-by-rune advances only.
 - [x] `OpenControls.Examples` now explicitly demonstrates tab-strip overflow/ellipsis behavior for `UiTabBar` and `UiDockHost`, plus dock overflow menus and right-click bulk-close commands.
@@ -54,10 +54,10 @@
 | Selection and tree depth | High-value parity | Complete / scoped first pass | Milestone 11 | Milestone 10 is complete for the shipped first-pass target: `UiSelectionModel` now supports scopes, delete-friendly mutation helpers, shared selection across multiple views, optional anchor persistence rules, and `UiTreeView` now adds hierarchy lines plus programmatic expand/collapse/reveal helpers. The Widget Gallery includes a dedicated Milestone 10 section for single-select, multi-select, shared list/table scopes, dual list boxes, and tree selection workflows. |
 | Drag/slider/color depth | High-value parity | Complete / scoped first pass | Milestone 14 | Milestone 11 is complete for the shipped first-pass target: sliders and drags now support direct-input entry, wrap/no-input/no-round flag depth, vector/range parity, and the color widgets now cover RGB/HSV/Hex editing, byte/float display modes, picker popup integration, side preview/input toggles, shared conversion helpers, and color drag/drop. The Widget Gallery includes a dedicated Milestone 11 section for these behaviors. |
 | Menus, popups, tooltips polish | High-value parity | Complete / scoped first pass | Milestone 14 | Milestone 12 is complete for the shipped first-pass target: `UiMenuBar` now has command IDs, parsed shortcut dispatch, keyboard navigation, consistent mouse/shortcut/programmatic activation, and better open-layout hit testing; `UiContextMenuRegion` adds reusable item-attached popup/menu helpers; `UiTooltipRegion` now supports delayed hover, focus-target tooltips, and drag suppression; and the Widget Gallery plus `OpenControls.Tests` both include explicit overlay-polish coverage. |
-| Renderer/text backend maturity | Alliance-readiness blocker | Complete / scoped first pass | Milestone 14 | Milestone 13 replaced the per-pixel glyph hot path with atlas-backed textured glyph draws across the shipping renderers, kept shared font metrics aligned, revalidated custom-font plus merged-icon rendering under the newer path, and now includes an OpenGL 3.3 core-profile Silk.NET renderer path instead of the old legacy/compatibility backend. |
-| DPI-aware host rendering | Alliance-readiness quality bar | Complete / default-on host path | Milestone 14 | The shipped hosts now keep layout/input in logical units and scale rendering through `UiDpiCompensation` + `UiScaledRenderer`, targeting a 96 DPI baseline by default while leaving an explicit opt-out path for custom hosts. |
-| Host text-input / IME contract | Alliance-readiness blocker | Complete / scoped first pass | Milestone 14 | Milestone 13 broadened `UiTextInputRequest` with caret/candidate bounds plus composition support metadata, added `UiInputState.Composition`, wired a concrete native composition/candidate-rect path through the SDL example host, and now exposes `SilkTextInputBridge` on the Silk.NET host so Alliance-style Silk integrations can forward composition/request state without forking the examples path. |
-| Persistence / session restore breadth | Alliance-readiness blocker | Complete / scoped first pass | Milestone 14 | Milestone 13 expanded `UiStateSnapshot` / `UiStateSerializer` to restore richer editor/view state including selection, scroll, table view, combo/list state, and custom control extensions through `IUiStatefulElement`. |
+| Renderer/text backend maturity | Backend/editor-readiness blocker | Complete / scoped first pass | Milestone 14 | Milestone 13 replaced the per-pixel glyph hot path with atlas-backed textured glyph draws across the shipping renderers, kept shared font metrics aligned, revalidated custom-font plus merged-icon rendering under the newer path, and now includes an OpenGL 3.3 core-profile Silk.NET renderer path instead of the old legacy/compatibility backend. |
+| DPI-aware host rendering | Backend/editor-readiness quality bar | Complete / default-on host path | Milestone 14 | The shipped hosts now keep layout/input in logical units and scale rendering through `UiDpiCompensation` + `UiScaledRenderer`, targeting a 96 DPI baseline by default while leaving an explicit opt-out path for custom hosts. |
+| Host text-input / IME contract | Backend/editor-readiness blocker | Complete / scoped first pass | Milestone 14 | Milestone 13 broadened `UiTextInputRequest` with caret/candidate bounds plus composition support metadata, added `UiInputState.Composition`, wired a concrete native composition/candidate-rect path through the SDL example host, and now exposes `SilkTextInputBridge` on the Silk.NET host so custom Silk.NET integrations can forward composition/request state without forking the examples path. |
+| Persistence / session restore breadth | Backend/editor-readiness blocker | Complete / scoped first pass | Milestone 14 | Milestone 13 expanded `UiStateSnapshot` / `UiStateSerializer` to restore richer editor/view state including selection, scroll, table view, combo/list state, and custom control extensions through `IUiStatefulElement`. |
 | Picker/image abstraction breadth | High-value parity | Complete / scoped first pass | Milestone 14 | Milestone 13 kept `UiComboBox` as the simple string-list wrapper, added `UiPicker` as the richer editor-facing convenience surface, and stabilized the image-adapter path through `IUiImageSource` / `UiDelegateImageSource` metadata instead of forcing a renderer texture primitive yet. |
 | Tooling, style editor, examples cleanup | High-value parity | Partial | Milestone 14 | This is still important, but the audit says it should follow the backend/editor-readiness milestone instead of coming next. |
 | Legacy columns and exact demo curiosities | Low-priority demo completeness | Deferred | Parking lot | Not worth front-loading. |
@@ -67,5 +67,5 @@
 - Update this file when milestone order changes.
 - Update `WIDGET_DEMO_COVERAGE.MD` in the same pass when widget surface area or example coverage changes.
 - Refresh `README.MD` in the same pass when milestone completion, parity caveats, or the recommended next target changes.
-- If the Dear ImGui target changes, update `BASELINE.MD` first and then revisit the milestone mapping here.
+- If the reference target changes, update `BASELINE.MD` first and then revisit the milestone mapping here.
 - Treat `OpenControls.SilkNet.Examples` as the reference host for parity work; keep the other hosts healthy, but bias new parity validation toward Silk.NET first.
