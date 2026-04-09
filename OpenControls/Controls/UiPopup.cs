@@ -1,8 +1,12 @@
+using System;
+
 namespace OpenControls.Controls;
 
 public class UiPopup : UiElement
 {
     private bool _suppressOutsideClick;
+    private UiElement? _pendingFocusTarget;
+    private Action? _beforeDeferredFocus;
 
     public UiPopup()
     {
@@ -22,6 +26,12 @@ public class UiPopup : UiElement
 
     public event Action? Opened;
     public event Action? Closed;
+
+    public void QueueFocus(UiElement? focusTarget, Action? beforeDeferredFocus = null)
+    {
+        _pendingFocusTarget = focusTarget;
+        _beforeDeferredFocus = beforeDeferredFocus;
+    }
 
     public void Open()
     {
@@ -83,6 +93,16 @@ public class UiPopup : UiElement
         if (!Visible || !Enabled || !IsOpen)
         {
             return;
+        }
+
+        if (_pendingFocusTarget != null || _beforeDeferredFocus != null)
+        {
+            UiElement? focusTarget = _pendingFocusTarget;
+            Action? beforeDeferredFocus = _beforeDeferredFocus;
+            _pendingFocusTarget = null;
+            _beforeDeferredFocus = null;
+            beforeDeferredFocus?.Invoke();
+            context.Focus.RequestFocus(focusTarget);
         }
 
         UiInputState input = context.Input;

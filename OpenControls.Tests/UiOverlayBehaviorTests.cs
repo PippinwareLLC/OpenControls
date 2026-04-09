@@ -252,6 +252,56 @@ public sealed class UiOverlayBehaviorTests
     }
 
     [Fact]
+    public void Modal_TextFieldReceivesFocusAndTextInput()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 640, 480)
+        };
+        UiModalHost modalHost = new()
+        {
+            Bounds = root.Bounds
+        };
+        root.AddChild(modalHost);
+
+        UiModal modal = new()
+        {
+            Bounds = new UiRect(100, 80, 320, 180)
+        };
+        UiTextField field = new()
+        {
+            Id = "field",
+            Bounds = new UiRect(120, 120, 180, 28),
+            Text = string.Empty
+        };
+        modal.AddChild(field);
+        modalHost.AddChild(modal);
+        modal.Open();
+
+        UiContext context = new(root);
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(140, 132),
+            ScreenMousePosition = new UiPoint(140, 132),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.Same(field, context.Focus.Focused);
+        Assert.True(context.WantTextInput);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(140, 132),
+            ScreenMousePosition = new UiPoint(140, 132),
+            TextInput = new[] { 'A' }
+        });
+
+        Assert.Equal("A", field.Text);
+        Assert.Same(field, context.Focus.Focused);
+    }
+
+    [Fact]
     public void OpenMenuLayouts_ParticipateInHoverAndMouseCapture()
     {
         UiPanel root = new()
