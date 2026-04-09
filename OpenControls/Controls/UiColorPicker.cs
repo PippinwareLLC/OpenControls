@@ -115,6 +115,11 @@ public sealed class UiColorPicker : UiElement
             }
         }
 
+        if (!_draggingSv && !_draggingHue && !_draggingAlpha)
+        {
+            TryRecoverGradientDragFromOrigin(context, input, svRect, hueRect, alphaRect);
+        }
+
         if (_draggingSv && input.LeftDown)
         {
             SetSvFromPoint(svRect, input.MousePosition);
@@ -210,6 +215,42 @@ public sealed class UiColorPicker : UiElement
         _draggingHue = false;
         _draggingAlpha = false;
         _previewPressed = false;
+    }
+
+    private void TryRecoverGradientDragFromOrigin(
+        UiUpdateContext context,
+        UiInputState input,
+        UiRect svRect,
+        UiRect hueRect,
+        UiRect alphaRect)
+    {
+        if (!input.LeftDown || input.LeftClicked || input.LeftDragOrigin is not UiPoint dragOrigin)
+        {
+            return;
+        }
+
+        if (svRect.Contains(dragOrigin))
+        {
+            _draggingSv = true;
+            context.Focus.RequestFocus(this);
+            SetSvFromPoint(svRect, input.MousePosition);
+            return;
+        }
+
+        if (hueRect.Contains(dragOrigin))
+        {
+            _draggingHue = true;
+            context.Focus.RequestFocus(this);
+            SetHueFromPoint(hueRect, input.MousePosition);
+            return;
+        }
+
+        if (ShowAlpha && alphaRect.Contains(dragOrigin))
+        {
+            _draggingAlpha = true;
+            context.Focus.RequestFocus(this);
+            SetAlphaFromPoint(alphaRect, input.MousePosition);
+        }
     }
 
     private void HandlePreviewDragDrop(UiUpdateContext context, UiInputState input, UiRect previewRect)

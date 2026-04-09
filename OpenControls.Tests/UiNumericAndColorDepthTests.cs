@@ -172,6 +172,54 @@ public sealed class UiNumericAndColorDepthTests
     }
 
     [Fact]
+    public void ColorPicker_DragOriginInsideSvSurface_UpdatesColorWhileMouseIsHeld()
+    {
+        UiColorPicker picker = new()
+        {
+            Bounds = new UiRect(0, 0, 280, 220),
+            ShowAlpha = false
+        };
+
+        UiColor initial = picker.Color;
+
+        Update(picker, new UiFocusManager(), new UiInputState
+        {
+            MousePosition = new UiPoint(78, 78),
+            ScreenMousePosition = new UiPoint(78, 78),
+            LeftDown = true,
+            LeftDragOrigin = new UiPoint(10, 10)
+        });
+
+        Assert.NotEqual(initial.R, picker.Color.R);
+        Assert.NotEqual(initial.G, picker.Color.G);
+        Assert.NotEqual(initial.B, picker.Color.B);
+    }
+
+    [Fact]
+    public void ColorPicker_DragOriginInsideHueSurface_UpdatesHueWhileMouseIsHeld()
+    {
+        UiColorPicker picker = new()
+        {
+            Bounds = new UiRect(0, 0, 280, 220),
+            ShowAlpha = false
+        };
+
+        UiColor initial = picker.Color;
+
+        Update(picker, new UiFocusManager(), new UiInputState
+        {
+            MousePosition = new UiPoint(92, 44),
+            ScreenMousePosition = new UiPoint(92, 44),
+            LeftDown = true,
+            LeftDragOrigin = new UiPoint(92, 10)
+        });
+
+        Assert.NotEqual(initial.R, picker.Color.R);
+        Assert.NotEqual(initial.G, picker.Color.G);
+        Assert.NotEqual(initial.B, picker.Color.B);
+    }
+
+    [Fact]
     public void ColorConversion_HexRoundTripsWithAlpha()
     {
         UiColor original = new(84, 146, 238, 220);
