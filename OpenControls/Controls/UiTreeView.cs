@@ -328,6 +328,18 @@ public sealed class UiTreeView : UiElement
         return -1;
     }
 
+    public bool TryGetVisibleItem(int index, out UiTreeViewItem item)
+    {
+        if (index >= 0 && index < _visibleRows.Count)
+        {
+            item = _visibleRows[index].Item;
+            return true;
+        }
+
+        item = null!;
+        return false;
+    }
+
     public override void Update(UiUpdateContext context)
     {
         if (!Visible || !Enabled)
