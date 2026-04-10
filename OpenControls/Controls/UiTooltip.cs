@@ -1,3 +1,5 @@
+using System;
+
 namespace OpenControls.Controls;
 
 public sealed class UiTooltip : UiElement
@@ -56,8 +58,15 @@ public sealed class UiTooltip : UiElement
         }
 
         UiPoint offset = _offsetOverride ?? Offset;
-        int textWidth = context.Renderer.MeasureTextWidth(Text, TextScale);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+        string[] lines = Text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        int lineHeight = context.Renderer.MeasureTextHeight(TextScale);
+        int textWidth = 0;
+        for (int index = 0; index < lines.Length; index++)
+        {
+            textWidth = Math.Max(textWidth, context.Renderer.MeasureTextWidth(lines[index], TextScale));
+        }
+
+        int textHeight = lineHeight * Math.Max(1, lines.Length);
         int width = textWidth + Padding * 2;
         int height = textHeight + Padding * 2;
         UiRect bounds = new UiRect(Anchor.X + offset.X, Anchor.Y + offset.Y, width, height);
@@ -80,7 +89,10 @@ public sealed class UiTooltip : UiElement
         }
 
         UiPoint textPos = new UiPoint(bounds.X + Padding, bounds.Y + Padding);
-        context.Renderer.DrawText(Text, textPos, TextColor, TextScale);
+        for (int index = 0; index < lines.Length; index++)
+        {
+            context.Renderer.DrawText(lines[index], new UiPoint(textPos.X, textPos.Y + lineHeight * index), TextColor, TextScale);
+        }
     }
 
     private static UiRect ClampToBounds(UiRect bounds, UiRect container)

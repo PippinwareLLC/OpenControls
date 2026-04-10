@@ -336,6 +336,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
     public UiPoint ContentSize => _contentSize;
     public UiRect ViewportBounds => _bodyViewport;
     public UiTableViewState ViewState => _viewState;
+    public int HoveredIndex => _hoverIndex;
     public int ScrollX
     {
         get => _scrollX;
@@ -383,6 +384,30 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         }
 
         return _columnStates[columnIndex];
+    }
+
+    public bool TryGetVisibleRowBounds(int index, out UiRect bounds)
+    {
+        bounds = default;
+        if (index < 0
+            || index >= Rows.Count
+            || index >= _rowTops.Count
+            || index >= _rowHeights.Count
+            || _bodyViewport.Width <= 0
+            || _bodyViewport.Height <= 0)
+        {
+            return false;
+        }
+
+        int rowY = _bodyViewport.Y + _rowTops[index] - _scrollY;
+        UiRect rowRect = new(_bodyViewport.X, rowY, _bodyViewport.Width, _rowHeights[index]);
+        if (rowRect.Bottom <= _bodyViewport.Y || rowRect.Y >= _bodyViewport.Bottom)
+        {
+            return false;
+        }
+
+        bounds = IntersectRect(rowRect, _bodyViewport);
+        return true;
     }
 
     public bool TryGetResolvedColumnWidth(int columnIndex, out int width)
