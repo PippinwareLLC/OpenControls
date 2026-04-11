@@ -464,6 +464,70 @@ public sealed class UiCompositionControlsTests
     }
 
     [Fact]
+    public void Picker_WheelOverPopup_ScrollsPopupWithoutScrollingAncestorPanel()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 220)
+        };
+
+        UiScrollPanel inspectorScroll = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 220),
+            ScrollWheelStep = 24
+        };
+        root.AddChild(inspectorScroll);
+
+        UiPicker picker = new()
+        {
+            Bounds = new UiRect(20, 20, 180, 26),
+            ShowFilterField = false,
+            ItemHeight = 28,
+            MaxVisibleItems = 4,
+            ScrollWheelItems = 1,
+            DropdownMaxHeight = 120,
+            Items = Enumerable.Range(0, 20)
+                .Select(index => new UiPickerItem { Text = $"Item {index:00}" })
+                .ToArray()
+        };
+        inspectorScroll.AddChild(picker);
+
+        UiPanel filler = new()
+        {
+            Bounds = new UiRect(0, 600, 40, 40)
+        };
+        inspectorScroll.AddChild(filler);
+
+        UiContext context = new(root);
+        context.Update(new UiInputState());
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(28, 28),
+            ScreenMousePosition = new UiPoint(28, 28),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.True(picker.IsOpen);
+        context.Update(new UiInputState());
+
+        UiPoint popupPoint = new UiPoint(
+            picker.ListView.Bounds.X + 12,
+            picker.ListView.Bounds.Y + 12);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = popupPoint,
+            ScreenMousePosition = popupPoint,
+            ScrollDelta = -120
+        });
+
+        Assert.Equal(0, inspectorScroll.ScrollY);
+        Assert.True(picker.ListView.ScrollPanel.ScrollY > 0);
+    }
+
+    [Fact]
     public void ComboBox_WrapsComboRowsAndPreservesStringSelection()
     {
         UiComboBox comboBox = new()

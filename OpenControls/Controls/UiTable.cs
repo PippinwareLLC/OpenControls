@@ -523,7 +523,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         ValidateSortSpecs();
         RefreshLayout();
 
-        UiInputState input = context.GetInputFor(this);
+        UiInputState input = context.GetSelfInput(this);
         UiElement? contentHit = HitTestPlacedContent(input.MousePosition);
         bool pointerHandledByMenu = UpdateHeaderContextMenu(input);
         bool pointerHandledByScrollbars = UpdateScrollbars(input, pointerHandledByMenu);

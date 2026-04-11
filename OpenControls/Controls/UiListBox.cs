@@ -170,7 +170,7 @@ public sealed class UiListBox : UiElement
             return;
         }
 
-        UiInputState input = context.GetInputFor(this);
+        UiInputState input = context.GetSelfInput(this);
         _selectionModel?.SetItemCount(Items.Count, SelectionScope);
         int itemHeight = Math.Max(1, ItemHeight);
         ResolveVerticalScrollbar();

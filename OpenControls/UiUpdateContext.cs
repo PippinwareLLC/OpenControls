@@ -59,6 +59,13 @@ public readonly struct UiUpdateContext
         return BlockInputFor(element, Input, ActiveInputLayer);
     }
 
+    public UiInputState GetSelfInput(UiElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+
+        return BlockSelfInputFor(element, Input, ActiveInputLayer);
+    }
+
     internal static UiElement? ResolveActiveInputLayer(UiElement element)
     {
         ArgumentNullException.ThrowIfNull(element);
@@ -120,6 +127,18 @@ public readonly struct UiUpdateContext
         return IsInputBlockedFor(element, activeInputLayer)
             ? BuildBlockedInput(input)
             : input;
+    }
+
+    private static UiInputState BlockSelfInputFor(UiElement element, UiInputState input, UiElement? activeInputLayer)
+    {
+        if (activeInputLayer == null)
+        {
+            return input;
+        }
+
+        return IsElementOrAncestor(activeInputLayer, element)
+            ? input
+            : BuildBlockedInput(input);
     }
 
     private static UiInputState BuildBlockedInput(UiInputState input)

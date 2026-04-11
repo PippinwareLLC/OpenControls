@@ -200,7 +200,8 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         UpdateLayout();
         ClampZoom();
 
-        UiInputState input = context.Input;
+        UiInputState input = context.GetSelfInput(this);
+        UiInputState propagatedInput = context.Input;
         UiPoint mouse = input.MousePosition;
         bool mouseInViewport = _viewportBounds.Contains(mouse);
         UiPoint worldMouse = mouseInViewport ? ScreenToWorld(mouse) : new UiPoint(int.MinValue / 4, int.MinValue / 4);
@@ -233,7 +234,8 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
             ApplyZoom(mouse, input.ScrollDelta);
         }
 
-        UiInputState childInput = BuildChildInput(input, mouseInViewport && !_panning);
+        bool propagatedMouseInViewport = _viewportBounds.Contains(propagatedInput.MousePosition);
+        UiInputState childInput = BuildChildInput(propagatedInput, propagatedMouseInViewport && !_panning);
         foreach (UiElement child in Children)
         {
             child.Update(context.CreateChildContext(this, child, childInput));

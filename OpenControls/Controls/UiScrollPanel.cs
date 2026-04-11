@@ -184,8 +184,9 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
 
         RefreshLayout();
 
-        UiInputState input = context.Input;
-        UiPoint mouse = input.MousePosition;
+        UiInputState input = context.GetSelfInput(this);
+        UiInputState propagatedInput = context.Input;
+        UiPoint mouse = propagatedInput.MousePosition;
         UiRect viewport = ViewportBounds;
         bool mouseInViewport = viewport.Contains(mouse);
         bool mouseInScrollbar = false;
@@ -222,7 +223,7 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
 
         ClampScrollOffset();
 
-        UiInputState childInput = BuildChildInput(input, mouseInViewport && !mouseInScrollbar);
+        UiInputState childInput = BuildChildInput(propagatedInput, mouseInViewport && !mouseInScrollbar);
         int childCount = Children.Count;
         if (childCount == 0)
         {

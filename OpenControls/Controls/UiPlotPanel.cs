@@ -168,7 +168,7 @@ public sealed class UiPlotPanel : UiElement
         PlotLayout layout = BuildLayout();
         UiRect plotBounds = layout.PlotBounds;
 
-        UiInputState input = context.Input;
+        UiInputState input = context.GetSelfInput(this);
         UiPoint mouse = input.MousePosition;
         bool mouseInPlot = plotBounds.Contains(mouse);
 

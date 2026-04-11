@@ -349,7 +349,7 @@ public sealed class UiTreeView : UiElement
 
         RefreshVisibleRows();
 
-        UiInputState input = context.GetInputFor(this);
+        UiInputState input = context.GetSelfInput(this);
         ResolveScrollbars();
 
         int itemHeight = Math.Max(1, ItemHeight);
