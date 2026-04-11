@@ -5,6 +5,7 @@ namespace OpenControls.Controls;
 public class UiPopup : UiElement
 {
     private bool _suppressOutsideClick;
+    private bool _suppressPointerInputOnOpen;
     private UiElement? _pendingFocusTarget;
     private Action? _beforeDeferredFocus;
 
@@ -42,6 +43,7 @@ public class UiPopup : UiElement
 
         IsOpen = true;
         _suppressOutsideClick = true;
+        _suppressPointerInputOnOpen = true;
         Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Layout | UiInvalidationReason.Clip);
         Opened?.Invoke();
     }
@@ -105,7 +107,9 @@ public class UiPopup : UiElement
             context.Focus.RequestFocus(focusTarget);
         }
 
-        UiInputState input = context.Input;
+        UiInputState input = _suppressPointerInputOnOpen
+            ? SuppressPointerInput(context.Input)
+            : context.Input;
         if (CloseOnEscape && input.Navigation.Escape)
         {
             Close();
@@ -122,7 +126,19 @@ public class UiPopup : UiElement
             return;
         }
 
-        base.Update(context);
+        UiUpdateContext childContext = _suppressPointerInputOnOpen
+            ? new UiUpdateContext(
+                input,
+                context.Focus,
+                context.DragDrop,
+                context.DeltaSeconds,
+                context.DefaultFont,
+                context.Clipboard,
+                context.ActiveInputLayer)
+            : context;
+
+        base.Update(childContext);
+        _suppressPointerInputOnOpen = false;
     }
 
     public override UiElement? HitTest(UiPoint point)
@@ -219,5 +235,27 @@ public class UiPopup : UiElement
     private static bool IsOutsideClick(UiInputState input)
     {
         return input.LeftClicked || input.RightClicked || input.MiddleClicked;
+    }
+
+    private static UiInputState SuppressPointerInput(UiInputState input)
+    {
+        return new UiInputState
+        {
+            MousePosition = input.MousePosition,
+            ScreenMousePosition = input.ScreenMousePosition,
+            DragThreshold = input.DragThreshold,
+            ShiftDown = input.ShiftDown,
+            CtrlDown = input.CtrlDown,
+            AltDown = input.AltDown,
+            SuperDown = input.SuperDown,
+            ScrollDeltaX = input.ScrollDeltaX,
+            ScrollDelta = input.ScrollDelta,
+            TextInput = input.TextInput,
+            Composition = input.Composition,
+            KeysDown = input.KeysDown,
+            KeysPressed = input.KeysPressed,
+            KeysReleased = input.KeysReleased,
+            Navigation = input.Navigation
+        };
     }
 }

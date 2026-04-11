@@ -56,6 +56,7 @@ public class UiCombo : UiElement, IUiStatefulElement
     public UiListView ListView => _listView;
     public UiTextField FilterField => _filterField;
     public bool IsOpen => _popup.IsOpen;
+    public UiRect PopupBounds => _popup.Bounds;
     public int SelectedIndex
     {
         get => _listView.SelectedIndex;

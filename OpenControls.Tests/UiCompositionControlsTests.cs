@@ -433,6 +433,56 @@ public sealed class UiCompositionControlsTests
     }
 
     [Fact]
+    public void Picker_OpeningClickInClampedOverlapRegion_DoesNotImmediatelyInvokeRow()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 200)
+        };
+
+        UiPicker picker = new()
+        {
+            Bounds = new UiRect(40, 132, 180, 32),
+            ShowFilterField = true,
+            ItemHeight = 28,
+            MaxVisibleItems = 5,
+            DropdownMaxHeight = 140,
+            Items = Enumerable.Range(0, 12)
+                .Select(index => new UiPickerItem { Text = $"Item {index:00}" })
+                .ToArray()
+        };
+        root.AddChild(picker);
+
+        UiContext context = new(root);
+        context.Update(new UiInputState());
+        picker.SelectedIndex = 7;
+
+        UiPoint openPoint = new UiPoint(48, 140);
+        context.Update(new UiInputState
+        {
+            MousePosition = openPoint,
+            ScreenMousePosition = openPoint,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.True(picker.IsOpen);
+        Assert.True(picker.Bounds.Contains(openPoint));
+        Assert.True(picker.PopupBounds.Contains(openPoint));
+
+        context.Update(new UiInputState
+        {
+            MousePosition = openPoint,
+            ScreenMousePosition = openPoint,
+            LeftReleased = true
+        });
+
+        Assert.True(picker.IsOpen);
+        Assert.Equal(7, picker.SelectedIndex);
+        Assert.Equal("Item 07", picker.SelectedItem?.Text);
+    }
+
+    [Fact]
     public void ScrollPanel_Update_AllowsChildrenToMutateTreeDuringIteration()
     {
         UiScrollPanel scrollPanel = new()
