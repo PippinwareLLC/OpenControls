@@ -97,9 +97,9 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         {
             int x = _origin.X + (int)Math.Round((rect.X - _panX) * _zoom);
             int y = _origin.Y + (int)Math.Round((rect.Y - _panY) * _zoom);
-            int width = (int)Math.Round(rect.Width * _zoom);
-            int height = (int)Math.Round(rect.Height * _zoom);
-            return new UiRect(x, y, Math.Max(0, width), Math.Max(0, height));
+            int width = ScaleExtent(rect.Width);
+            int height = ScaleExtent(rect.Height);
+            return new UiRect(x, y, width, height);
         }
 
         private UiPoint Transform(UiPoint point)
@@ -119,6 +119,17 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
             int scaled = (int)Math.Round(value * _zoom);
             return Math.Max(1, scaled);
         }
+
+        private int ScaleExtent(int value)
+        {
+            if (value <= 0)
+            {
+                return 0;
+            }
+
+            int scaled = (int)Math.Round(value * _zoom);
+            return Math.Max(1, scaled);
+        }
     }
 
     private UiRect _viewportBounds;
@@ -126,10 +137,28 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
     private UiPoint _panStartMouse;
     private float _panStartX;
     private float _panStartY;
+    private float _panX;
+    private float _panY;
+    private float _zoom = 1f;
 
-    public float PanX { get; set; }
-    public float PanY { get; set; }
-    public float Zoom { get; set; } = 1f;
+    public float PanX
+    {
+        get => _panX;
+        set => SetInvalidatingValue(ref _panX, value, UiInvalidationReason.Paint | UiInvalidationReason.Clip | UiInvalidationReason.State);
+    }
+
+    public float PanY
+    {
+        get => _panY;
+        set => SetInvalidatingValue(ref _panY, value, UiInvalidationReason.Paint | UiInvalidationReason.Clip | UiInvalidationReason.State);
+    }
+
+    public float Zoom
+    {
+        get => _zoom;
+        set => SetInvalidatingValue(ref _zoom, value, UiInvalidationReason.Paint | UiInvalidationReason.Clip | UiInvalidationReason.State);
+    }
+
     public float MinZoom { get; set; } = 0.1f;
     public float MaxZoom { get; set; } = 8f;
 
@@ -536,9 +565,20 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
     {
         int x = _viewportBounds.X + (int)Math.Round((rect.X - PanX) * Zoom);
         int y = _viewportBounds.Y + (int)Math.Round((rect.Y - PanY) * Zoom);
-        int width = (int)Math.Round(rect.Width * Zoom);
-        int height = (int)Math.Round(rect.Height * Zoom);
-        return new UiRect(x, y, Math.Max(0, width), Math.Max(0, height));
+        int width = ScaleExtent(rect.Width, Zoom);
+        int height = ScaleExtent(rect.Height, Zoom);
+        return new UiRect(x, y, width, height);
+    }
+
+    private static int ScaleExtent(int value, float zoom)
+    {
+        if (value <= 0)
+        {
+            return 0;
+        }
+
+        int scaled = (int)Math.Round(value * zoom);
+        return Math.Max(1, scaled);
     }
 
     private static bool IsElementOrAncestor(UiElement ancestor, UiElement element)
