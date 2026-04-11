@@ -125,9 +125,33 @@ public abstract class UiElement
             return;
         }
 
-        foreach (UiElement child in _children)
+        int childCount = _children.Count;
+        if (childCount == 0)
         {
-            child.Update(context.CreateChildContext(this, child));
+            return;
+        }
+
+        UiElement[] snapshot = System.Buffers.ArrayPool<UiElement>.Shared.Rent(childCount);
+        try
+        {
+            for (int index = 0; index < childCount; index++)
+            {
+                snapshot[index] = _children[index];
+            }
+
+            for (int index = 0; index < childCount; index++)
+            {
+                UiElement child = snapshot[index];
+                if (ReferenceEquals(child.Parent, this))
+                {
+                    child.Update(context.CreateChildContext(this, child));
+                }
+            }
+        }
+        finally
+        {
+            Array.Clear(snapshot, 0, childCount);
+            System.Buffers.ArrayPool<UiElement>.Shared.Return(snapshot);
         }
     }
 

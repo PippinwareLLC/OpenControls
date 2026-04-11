@@ -514,6 +514,37 @@ public sealed class UiCompositionControlsTests
     }
 
     [Fact]
+    public void WrapPanel_Update_AllowsChildrenToMutateTreeDuringIteration()
+    {
+        UiWrapPanel panel = new()
+        {
+            Bounds = new UiRect(0, 0, 200, 120)
+        };
+
+        TrackingElement sibling = new()
+        {
+            Bounds = new UiRect(84, 0, 80, 20)
+        };
+
+        RemovingElement remover = new()
+        {
+            Bounds = new UiRect(0, 0, 80, 20),
+            OnUpdateAction = () => panel.RemoveChild(sibling)
+        };
+
+        panel.AddChild(remover);
+        panel.AddChild(sibling);
+
+        UiFocusManager focus = new();
+        UiMemoryClipboard clipboard = new();
+
+        Update(panel, focus, clipboard, new UiInputState());
+
+        Assert.Equal(0, sibling.UpdateCount);
+        Assert.DoesNotContain(sibling, panel.Children);
+    }
+
+    [Fact]
     public void Picker_WheelOverPopup_ScrollsPopupWithoutScrollingAncestorPanel()
     {
         UiPanel root = new()
