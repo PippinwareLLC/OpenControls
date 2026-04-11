@@ -1207,14 +1207,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
     private void UpdatePlacement(ContentPlacement placement, UiUpdateContext context)
     {
         UiInputState childInput = BuildPlacementInput(context.Input, placement.Bounds, placement.ClipBounds);
-        placement.Element.Update(new UiUpdateContext(
-            childInput,
-            context.Focus,
-            context.DragDrop,
-            context.DeltaSeconds,
-            context.DefaultFont,
-            context.Clipboard,
-            context.ActiveInputLayer));
+        placement.Element.Update(context.CreateChildContext(this, placement.Element, childInput));
     }
 
     private static UiInputState BuildPlacementInput(UiInputState input, UiRect bounds, UiRect clipBounds)

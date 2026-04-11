@@ -225,8 +225,9 @@ public class UiCombo : UiElement, IUiStatefulElement
         }
 
         _hovered = Bounds.Contains(context.Input.MousePosition);
+        bool popupHit = _popup.IsOpen && _popup.HitTest(context.Input.MousePosition) != null;
 
-        if (context.Input.LeftClicked && _hovered)
+        if (context.Input.LeftClicked && _hovered && !popupHit)
         {
             context.Focus.RequestFocus(this);
             Toggle(context);

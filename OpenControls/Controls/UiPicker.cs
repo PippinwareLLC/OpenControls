@@ -4,7 +4,6 @@ public sealed class UiPicker : UiCombo
 {
     private IReadOnlyList<UiPickerItem> _items = Array.Empty<UiPickerItem>();
     private readonly List<UiSelectableRow> _rows = new();
-    private readonly List<UiPickerItem> _itemSnapshot = new();
     private int _scrollIndex;
 
     public UiPicker()
@@ -63,14 +62,12 @@ public sealed class UiPicker : UiCombo
         }
 
         int previousSelection = SelectedIndex;
-        _itemSnapshot.Clear();
         _rows.Clear();
         ClearItems();
 
         for (int i = 0; i < _items.Count; i++)
         {
             UiPickerItem item = _items[i] ?? new UiPickerItem();
-            _itemSnapshot.Add(item);
 
             UiSelectableRow row = new()
             {
@@ -109,6 +106,11 @@ public sealed class UiPicker : UiCombo
         for (int i = 0; i < _rows.Count; i++)
         {
             UiSelectableRow row = _rows[i];
+            UiPickerItem item = i < _items.Count ? (_items[i] ?? new UiPickerItem()) : new UiPickerItem();
+            row.Text = item.Text;
+            row.SecondaryText = ShowSecondaryText ? item.SecondaryText : string.Empty;
+            row.SearchText = item.SearchText;
+            row.ImageSource = ShowImages ? item.ImageSource : null;
             row.TextScale = TextScale;
             row.SecondaryTextScale = Math.Max(1, TextScale - 1);
             row.Padding = Padding;
@@ -122,20 +124,7 @@ public sealed class UiPicker : UiCombo
 
     private bool NeedsRowRefresh()
     {
-        if (_itemSnapshot.Count != _items.Count || _rows.Count != _items.Count)
-        {
-            return true;
-        }
-
-        for (int i = 0; i < _items.Count; i++)
-        {
-            if (!ReferenceEquals(_itemSnapshot[i], _items[i]))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return _rows.Count != _items.Count;
     }
 
     private void ApplyRequestedScrollIndex()

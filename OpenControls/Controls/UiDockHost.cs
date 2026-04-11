@@ -1309,10 +1309,6 @@ public sealed class UiDockHost : UiElement
 
     private void UpdateChildren(UiUpdateContext context, UiInputState childInput)
     {
-        UiUpdateContext childContext = ReferenceEquals(childInput, context.Input)
-            ? context
-            : new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont, context.Clipboard, context.ActiveInputLayer);
-
         int childCount = Children.Count;
         if (childCount == 0)
         {
@@ -1329,7 +1325,7 @@ public sealed class UiDockHost : UiElement
         {
             if (ReferenceEquals(child.Parent, this))
             {
-                child.Update(childContext);
+                child.Update(context.CreateChildContext(this, child, childInput));
             }
         }
     }

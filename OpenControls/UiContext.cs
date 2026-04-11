@@ -271,8 +271,9 @@ public sealed class UiContext
             Focus.ClearFocus();
         }
 
+        UiElement? activeInputLayer = UiUpdateContext.ResolveActiveInputLayer(Root) ?? _activeInputLayer;
         DragDrop.BeginFrame(effectiveInput);
-        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont, Clipboard, _activeInputLayer));
+        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont, Clipboard, activeInputLayer));
         DragDrop.EndFrame();
         RefreshOutputs(effectiveInput);
     }
@@ -941,9 +942,9 @@ public sealed class UiContext
     {
         UiElement? previousActiveInputLayer = _activeInputLayer;
         LastInput = input;
-        _activeInputLayer = FindActiveInputLayer(Root);
+        _activeInputLayer = UiUpdateContext.ResolveActiveInputLayer(Root);
         Hovered = ResolveHoveredElement(input.MousePosition);
-        if (input.LeftClicked && ResolveFocusTarget(Hovered) == null)
+        if (input.LeftClicked && _activeInputLayer == null && ResolveFocusTarget(Hovered) == null)
         {
             Focus.ClearFocus();
         }

@@ -167,10 +167,9 @@ public sealed class UiCollapsingHeader : UiElement, IUiDebugBoundsResolver
         if (_isOpen)
         {
             UiInputState childInput = BuildChildInput(input);
-            UiUpdateContext childContext = new UiUpdateContext(childInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont, context.Clipboard, context.ActiveInputLayer);
             foreach (UiElement child in Children)
             {
-                child.Update(childContext);
+                child.Update(context.CreateChildContext(this, child, childInput));
             }
         }
     }

@@ -132,6 +132,9 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     public event Action<bool>? SelectedChanged;
 
     public override bool IsFocusable => true;
+    internal bool DebugPressed => _pressed;
+    internal bool DebugHovered => _hovered;
+    internal bool DebugFocused => _focused;
 
     public override void Update(UiUpdateContext context)
     {
@@ -252,18 +255,10 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     {
         UiRect content = ContentBounds;
         UiInputState childInput = UiInputTransform.Translate(context.Input, content.X, content.Y);
-        UiUpdateContext childContext = new UiUpdateContext(
-            childInput,
-            context.Focus,
-            context.DragDrop,
-            context.DeltaSeconds,
-            context.DefaultFont,
-            context.Clipboard,
-            context.ActiveInputLayer);
 
         foreach (UiElement child in Children)
         {
-            child.Update(childContext);
+            child.Update(context.CreateChildContext(this, child, childInput));
         }
     }
 

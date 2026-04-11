@@ -473,6 +473,84 @@ public sealed class UiOverlayBehaviorTests
     }
 
     [Fact]
+    public void Popup_BlocksUnderlyingButtonFocusWhenAlreadyOpen()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 240)
+        };
+
+        UiButton button = new()
+        {
+            Bounds = new UiRect(20, 20, 120, 36),
+            Text = "Underlying"
+        };
+        UiPopup popup = new()
+        {
+            ClampToParent = false
+        };
+
+        root.AddChild(button);
+        root.AddChild(popup);
+        popup.Open(new UiRect(12, 12, 160, 72));
+
+        UiContext context = new(root);
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(40, 34),
+            ScreenMousePosition = new UiPoint(40, 34),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.Same(popup, context.ActiveInputLayer);
+        Assert.Same(popup, context.Hovered);
+        Assert.NotSame(button, context.Focus.Focused);
+    }
+
+    [Fact]
+    public void Popup_OpenedEarlierInFrame_BlocksLaterOverlappingSiblings()
+    {
+        UiPanel root = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 240)
+        };
+
+        UiPopup popup = new()
+        {
+            ClampToParent = false
+        };
+        PopupOpeningLauncher launcher = new(popup)
+        {
+            Bounds = new UiRect(20, 20, 120, 36)
+        };
+        launcher.AddChild(popup);
+
+        UiButton button = new()
+        {
+            Bounds = new UiRect(20, 20, 120, 36),
+            Text = "Later sibling"
+        };
+
+        root.AddChild(launcher);
+        root.AddChild(button);
+
+        UiContext context = new(root);
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(40, 34),
+            ScreenMousePosition = new UiPoint(40, 34),
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.True(popup.IsOpen);
+        Assert.Same(popup, context.ActiveInputLayer);
+        Assert.Same(popup, context.Hovered);
+        Assert.NotSame(button, context.Focus.Focused);
+    }
+
+    [Fact]
     public void PopupMenu_OverlapFromClamp_PrefersTopmostSubmenuLayoutForHoverAndClick()
     {
         UiPanel root = new()
@@ -537,5 +615,28 @@ public sealed class UiOverlayBehaviorTests
             EnableShortcutDispatch = true,
             AllowShortcutsDuringTextInput = true
         };
+    }
+
+    private sealed class PopupOpeningLauncher : UiElement
+    {
+        private readonly UiPopup _popup;
+
+        public PopupOpeningLauncher(UiPopup popup)
+        {
+            _popup = popup;
+        }
+
+        public override void Update(UiUpdateContext context)
+        {
+            if (Visible
+                && Enabled
+                && context.Input.LeftClicked
+                && Bounds.Contains(context.Input.MousePosition))
+            {
+                _popup.Open(Bounds);
+            }
+
+            base.Update(context);
+        }
     }
 }

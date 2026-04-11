@@ -17,24 +17,23 @@ public sealed class UiModalHost : UiElement
         {
             foreach (UiElement child in Children)
             {
-                child.Update(context);
+                child.Update(context.CreateChildContext(this, child));
             }
 
             return;
         }
 
         UiInputState blockedInput = BuildBlockedInput(context.Input);
-        UiUpdateContext blockedContext = new UiUpdateContext(blockedInput, context.Focus, context.DragDrop, context.DeltaSeconds, context.DefaultFont, context.Clipboard, context.ActiveInputLayer);
 
         foreach (UiElement child in Children)
         {
             if (child == activeModal)
             {
-                child.Update(context);
+                child.Update(context.CreateChildContext(this, child));
             }
             else
             {
-                child.Update(blockedContext);
+                child.Update(context.CreateChildContext(this, child, blockedInput));
             }
         }
     }

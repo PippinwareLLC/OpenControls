@@ -127,7 +127,7 @@ public abstract class UiElement
 
         foreach (UiElement child in _children)
         {
-            child.Update(context);
+            child.Update(context.CreateChildContext(this, child));
         }
     }
 
