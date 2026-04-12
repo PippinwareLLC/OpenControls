@@ -67,6 +67,74 @@ public sealed class UiDockHostTabFeaturesTests
     }
 
     [Fact]
+    public void DockHost_CloseButtonCanRemoveLastWindowWhenEnabled()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160),
+            AllowClosingLastWindow = true
+        };
+        host.AddWindow(new UiWindow
+        {
+            Title = "Window 0",
+            AllowClose = true
+        });
+
+        UiRect tabBounds = host.GetTabBounds(0);
+        UiPoint closePoint = new(tabBounds.Right - 2, tabBounds.Y + tabBounds.Height / 2);
+
+        Update(host, new UiInputState
+        {
+            MousePosition = closePoint,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(host, new UiInputState
+        {
+            MousePosition = closePoint,
+            LeftReleased = true
+        });
+
+        Assert.Empty(host.Windows);
+        Assert.Equal(-1, host.ActiveIndex);
+    }
+
+    [Fact]
+    public void DockHost_CloseButtonKeepsLastWindowWhenDisabled()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160),
+            AllowClosingLastWindow = false
+        };
+        host.AddWindow(new UiWindow
+        {
+            Title = "Window 0",
+            AllowClose = true
+        });
+
+        UiRect tabBounds = host.GetTabBounds(0);
+        UiPoint closePoint = new(tabBounds.Right - 2, tabBounds.Y + tabBounds.Height / 2);
+
+        Update(host, new UiInputState
+        {
+            MousePosition = closePoint,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(host, new UiInputState
+        {
+            MousePosition = closePoint,
+            LeftReleased = true
+        });
+
+        Assert.Single(host.Windows);
+        Assert.Equal("Window 0", host.Windows[0].Title);
+    }
+
+    [Fact]
     public void DockHost_TryDetachWindow_RespectsDetachPredicate()
     {
         UiDockHost host = CreateHostWithFourWindows();

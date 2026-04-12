@@ -90,6 +90,7 @@ public sealed class UiDockHost : UiElement
     public bool AutoSizeTabs { get; set; }
     public UiTabTextOverflowMode TabTextOverflow { get; set; } = UiTabTextOverflowMode.Clip;
     public bool ShowCloseButtons { get; set; } = true;
+    public bool AllowClosingLastWindow { get; set; }
     public int CloseButtonPadding { get; set; } = 4;
     public int ScrollButtonWidth { get; set; } = 18;
     public int OverflowButtonWidth { get; set; } = 18;
@@ -982,7 +983,7 @@ public sealed class UiDockHost : UiElement
 
     private bool CanCloseWindow(int index)
     {
-        return CanRemoveWindow(index) && _windows.Count > 1;
+        return CanRemoveWindow(index) && (AllowClosingLastWindow || _windows.Count > 1);
     }
 
     private bool CloseWindow(int index)
@@ -992,7 +993,8 @@ public sealed class UiDockHost : UiElement
 
     private bool CloseWindowCore(int index, bool allowLastWindow)
     {
-        if (!CanRemoveWindow(index) || (!allowLastWindow && _windows.Count <= 1))
+        bool canCloseLastWindow = allowLastWindow || AllowClosingLastWindow;
+        if (!CanRemoveWindow(index) || (!canCloseLastWindow && _windows.Count <= 1))
         {
             return false;
         }
