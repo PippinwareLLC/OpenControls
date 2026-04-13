@@ -48,6 +48,11 @@ public sealed class UiWindow : UiElement
     {
         get
         {
+            if (Parent is UiDockHost dockHost && dockHost.HideDockedTitleBars)
+            {
+                return Bounds;
+            }
+
             if (!ShowTitleBar)
             {
                 return Bounds;

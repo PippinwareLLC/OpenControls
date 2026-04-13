@@ -180,6 +180,27 @@ public sealed class UiDockHostTabFeaturesTests
     }
 
     [Fact]
+    public void DockHost_ContentBoundsUseFullWindowBoundsWhenDockHostHidesTitleBars()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160),
+            HideDockedTitleBars = true
+        };
+
+        UiWindow window = new()
+        {
+            Title = "Window 0",
+            ShowTitleBar = true,
+            Bounds = new UiRect(10, 20, 200, 100)
+        };
+
+        host.AddWindow(window);
+
+        Assert.Equal(window.Bounds, window.ContentBounds);
+    }
+
+    [Fact]
     public void DockHost_DraggingTabOutsideBoundsDetachesImmediatelyUsingScreenCoordinates()
     {
         UiDockHost host = new()
