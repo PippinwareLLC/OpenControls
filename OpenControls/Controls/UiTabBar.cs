@@ -242,7 +242,6 @@ public sealed class UiTabBar : UiElement
         {
             UiRect clipBounds = _tabsOverflow ? _tabAreaBounds : tabBar;
             context.Renderer.PushClip(clipBounds);
-            int textHeight = context.Renderer.MeasureTextHeight(TabTextScale, font);
             int closeTextWidth = MeasureTextWidth("X", TabTextScale, font);
             for (int i = 0; i < tabs.Count; i++)
             {
@@ -253,7 +252,7 @@ public sealed class UiTabBar : UiElement
                 context.Renderer.DrawRect(tabRect, TabBorderColor, 1);
 
                 UiColor textColor = i == _activeIndex ? TabActiveTextColor : TabTextColor;
-                int textY = tabRect.Y + (tabRect.Height - textHeight) / 2;
+                int textY = UiRenderHelpers.GetVerticallyCenteredTextY(tabRect, tab.Text, TabTextScale, font);
                 int textX = tabRect.X + Math.Max(0, TabPadding);
                 if (ShowCloseButtons
                     && CloseButtonPlacement == UiTabCloseButtonPlacement.Left
@@ -278,7 +277,7 @@ public sealed class UiTabBar : UiElement
                     UiRect closeBounds = tab.CloseBounds;
                     UiColor closeColor = _closeHoverIndex == i ? TabActiveTextColor : TabTextColor;
                     int closeTextX = closeBounds.X + (closeBounds.Width - closeTextWidth) / 2;
-                    int closeTextY = closeBounds.Y + (closeBounds.Height - textHeight) / 2;
+                    int closeTextY = UiRenderHelpers.GetVerticallyCenteredTextY(closeBounds, "X", TabTextScale, font);
                     context.Renderer.DrawText("X", new UiPoint(closeTextX, closeTextY), closeColor, TabTextScale, font);
                 }
             }
@@ -585,7 +584,6 @@ public sealed class UiTabBar : UiElement
         }
 
         UiFont font = ResolveFont(context.DefaultFont);
-        int textHeight = context.Renderer.MeasureTextHeight(TabTextScale, font);
         for (int i = 0; i < buttons.Count; i++)
         {
             UiTabItemButton button = buttons[i];
@@ -603,7 +601,7 @@ public sealed class UiTabBar : UiElement
             context.Renderer.DrawRect(rect, TabBorderColor, 1);
 
             int textX = rect.X + Math.Max(0, TabPadding);
-            int textY = rect.Y + (rect.Height - textHeight) / 2;
+            int textY = UiRenderHelpers.GetVerticallyCenteredTextY(rect, button.Text, TabTextScale, font);
             if (TabTextBold)
             {
                 UiRenderHelpers.DrawTextBold(context.Renderer, button.Text, new UiPoint(textX, textY), textColor, TabTextScale, font);

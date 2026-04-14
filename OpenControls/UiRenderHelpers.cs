@@ -2,6 +2,26 @@ namespace OpenControls;
 
 public static class UiRenderHelpers
 {
+    public static int GetVerticallyCenteredTextY(UiRect bounds, string text, int scale = 1, UiFont? font = null)
+    {
+        UiFont resolvedFont = font ?? UiFont.Default;
+        int safeScale = Math.Max(1, scale);
+        UiRect inkBounds = resolvedFont.MeasureTextInkBounds(text ?? string.Empty, safeScale);
+        if (inkBounds.Height > 0)
+        {
+            int centeredInkTop = bounds.Y + Math.Max(0, (bounds.Height - inkBounds.Height) / 2);
+            return centeredInkTop - inkBounds.Y;
+        }
+
+        int lineHeight = resolvedFont.MeasureTextHeight(safeScale);
+        return bounds.Y + Math.Max(0, (bounds.Height - lineHeight) / 2);
+    }
+
+    public static UiPoint GetVerticallyCenteredTextPosition(UiRect bounds, int x, string text, int scale = 1, UiFont? font = null)
+    {
+        return new UiPoint(x, GetVerticallyCenteredTextY(bounds, text, scale, font));
+    }
+
     public static void DrawTextBold(IUiRenderer renderer, string text, UiPoint position, UiColor color, int scale = 1, UiFont? font = null)
     {
         if (string.IsNullOrEmpty(text))

@@ -596,7 +596,6 @@ public sealed class UiDockHost : UiElement
 
         UiRect clipBounds = _tabsOverflow ? _tabAreaBounds : tabBar;
         context.Renderer.PushClip(clipBounds);
-        int textHeight = context.Renderer.MeasureTextHeight(TabTextScale, font);
         int closeTextWidth = MeasureTextWidth("X", TabTextScale, font);
         for (int i = 0; i < _windows.Count; i++)
         {
@@ -607,7 +606,7 @@ public sealed class UiDockHost : UiElement
 
             UiWindow window = _windows[i];
             string title = GetRenderedWindowTitle(i);
-            int textY = tabRect.Y + (tabRect.Height - textHeight) / 2;
+            int titleTextY = UiRenderHelpers.GetVerticallyCenteredTextY(tabRect, title, TabTextScale, font);
             int textX = tabRect.X + Math.Max(0, TabPadding);
             if (ShowCloseButtons
                 && CloseButtonPlacement == UiTabCloseButtonPlacement.Left
@@ -619,11 +618,12 @@ public sealed class UiDockHost : UiElement
 
             if (!string.IsNullOrEmpty(window.TabIconText))
             {
-                context.Renderer.DrawText(window.TabIconText, new UiPoint(textX, textY), TabTextColor, TabTextScale, font);
+                int iconTextY = UiRenderHelpers.GetVerticallyCenteredTextY(tabRect, window.TabIconText, TabTextScale, font);
+                context.Renderer.DrawText(window.TabIconText, new UiPoint(textX, iconTextY), TabTextColor, TabTextScale, font);
                 textX += GetTabIconRenderWidth(i);
             }
 
-            UiPoint textPoint = new(textX, textY);
+            UiPoint textPoint = new(textX, titleTextY);
             if (TabTextBold)
             {
                 UiRenderHelpers.DrawTextBold(context.Renderer, title, textPoint, TabTextColor, TabTextScale, font);
@@ -637,7 +637,7 @@ public sealed class UiDockHost : UiElement
             {
                 UiRect closeBounds = GetCloseBounds(i);
                 int closeTextX = closeBounds.X + (closeBounds.Width - closeTextWidth) / 2;
-                int closeTextY = closeBounds.Y + (closeBounds.Height - textHeight) / 2;
+                int closeTextY = UiRenderHelpers.GetVerticallyCenteredTextY(closeBounds, "X", TabTextScale, font);
                 context.Renderer.DrawText("X", new UiPoint(closeTextX, closeTextY), TabTextColor, TabTextScale, font);
             }
         }
