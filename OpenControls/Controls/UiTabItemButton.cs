@@ -6,6 +6,12 @@ public enum UiTabItemButtonPlacement
     Trailing
 }
 
+public enum UiTabCloseButtonPlacement
+{
+    Left,
+    Right
+}
+
 public sealed class UiTabItemButton : UiElement
 {
     public string Text { get; set; } = string.Empty;

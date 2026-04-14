@@ -924,6 +924,7 @@ public sealed class UiDockWorkspace : UiElement
         destination.AutoSizeTabs = source.AutoSizeTabs;
         destination.TabTextOverflow = source.TabTextOverflow;
         destination.ShowCloseButtons = source.ShowCloseButtons;
+        destination.CloseButtonPlacement = source.CloseButtonPlacement;
         destination.CloseButtonPadding = source.CloseButtonPadding;
         destination.ScrollButtonWidth = source.ScrollButtonWidth;
         destination.OverflowButtonWidth = source.OverflowButtonWidth;

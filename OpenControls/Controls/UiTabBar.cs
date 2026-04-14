@@ -39,6 +39,7 @@ public sealed class UiTabBar : UiElement
     public int TabWidth { get; set; }
     public int TabMaxWidth { get; set; }
     public bool ShowCloseButtons { get; set; } = true;
+    public UiTabCloseButtonPlacement CloseButtonPlacement { get; set; } = UiTabCloseButtonPlacement.Right;
     public int CloseButtonPadding { get; set; } = 4;
     public int ScrollButtonWidth { get; set; } = 18;
     public int ScrollStep { get; set; } = 80;
@@ -254,6 +255,14 @@ public sealed class UiTabBar : UiElement
                 UiColor textColor = i == _activeIndex ? TabActiveTextColor : TabTextColor;
                 int textY = tabRect.Y + (tabRect.Height - textHeight) / 2;
                 int textX = tabRect.X + Math.Max(0, TabPadding);
+                if (ShowCloseButtons
+                    && CloseButtonPlacement == UiTabCloseButtonPlacement.Left
+                    && tab.AllowClose
+                    && closeTextWidth > 0)
+                {
+                    textX += GetCloseAreaWidth();
+                }
+
                 string renderText = GetRenderedTabText(tab, tabRect);
                 if (TabTextBold)
                 {
@@ -395,7 +404,10 @@ public sealed class UiTabBar : UiElement
             tab.TabBounds = new UiRect(x, Bounds.Y, width, tabHeight);
             if (ShowCloseButtons && tab.AllowClose && closeAreaWidth > 0)
             {
-                tab.CloseBounds = new UiRect(tab.TabBounds.Right - closeAreaWidth, Bounds.Y, closeAreaWidth, tabHeight);
+                int closeX = CloseButtonPlacement == UiTabCloseButtonPlacement.Left
+                    ? tab.TabBounds.X
+                    : tab.TabBounds.Right - closeAreaWidth;
+                tab.CloseBounds = new UiRect(closeX, Bounds.Y, closeAreaWidth, tabHeight);
             }
             else
             {

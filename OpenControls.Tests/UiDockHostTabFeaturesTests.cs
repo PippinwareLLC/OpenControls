@@ -101,6 +101,41 @@ public sealed class UiDockHostTabFeaturesTests
     }
 
     [Fact]
+    public void DockHost_LeftCloseButtonPlacement_ClosesFromLeadingEdge()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160),
+            AllowClosingLastWindow = true,
+            CloseButtonPlacement = UiTabCloseButtonPlacement.Left
+        };
+        host.AddWindow(new UiWindow
+        {
+            Title = "Window 0",
+            AllowClose = true
+        });
+
+        UiRect tabBounds = host.GetTabBounds(0);
+        UiPoint closePoint = new(tabBounds.X + 2, tabBounds.Y + tabBounds.Height / 2);
+
+        Update(host, new UiInputState
+        {
+            MousePosition = closePoint,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(host, new UiInputState
+        {
+            MousePosition = closePoint,
+            LeftReleased = true
+        });
+
+        Assert.Empty(host.Windows);
+        Assert.Equal(-1, host.ActiveIndex);
+    }
+
+    [Fact]
     public void DockHost_CloseButtonKeepsLastWindowWhenDisabled()
     {
         UiDockHost host = new()
@@ -132,6 +167,28 @@ public sealed class UiDockHostTabFeaturesTests
 
         Assert.Single(host.Windows);
         Assert.Equal("Window 0", host.Windows[0].Title);
+    }
+
+    [Fact]
+    public void TabBar_LeftCloseButtonPlacement_UsesLeadingCloseBounds()
+    {
+        UiTabBar bar = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 120),
+            CloseButtonPlacement = UiTabCloseButtonPlacement.Left
+        };
+        bar.AddChild(new UiTabItem
+        {
+            Text = "Overview",
+            AllowClose = true
+        });
+
+        Update(bar, new UiInputState());
+        UiRect tabBounds = bar.GetTabBounds(0);
+        UiRect closeBounds = bar.GetTabCloseBounds(0);
+
+        Assert.Equal(tabBounds.X, closeBounds.X);
+        Assert.True(closeBounds.Width > 0);
     }
 
     [Fact]

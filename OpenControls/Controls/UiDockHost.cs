@@ -91,6 +91,7 @@ public sealed class UiDockHost : UiElement
     public UiTabTextOverflowMode TabTextOverflow { get; set; } = UiTabTextOverflowMode.Clip;
     public bool ShowCloseButtons { get; set; } = true;
     public bool AllowClosingLastWindow { get; set; }
+    public UiTabCloseButtonPlacement CloseButtonPlacement { get; set; } = UiTabCloseButtonPlacement.Right;
     public int CloseButtonPadding { get; set; } = 4;
     public int ScrollButtonWidth { get; set; } = 18;
     public int OverflowButtonWidth { get; set; } = 18;
@@ -608,6 +609,14 @@ public sealed class UiDockHost : UiElement
             string title = GetRenderedWindowTitle(i);
             int textY = tabRect.Y + (tabRect.Height - textHeight) / 2;
             int textX = tabRect.X + Math.Max(0, TabPadding);
+            if (ShowCloseButtons
+                && CloseButtonPlacement == UiTabCloseButtonPlacement.Left
+                && CanRemoveWindow(i)
+                && closeTextWidth > 0)
+            {
+                textX += GetCloseAreaWidth();
+            }
+
             if (!string.IsNullOrEmpty(window.TabIconText))
             {
                 context.Renderer.DrawText(window.TabIconText, new UiPoint(textX, textY), TabTextColor, TabTextScale, font);
@@ -947,7 +956,10 @@ public sealed class UiDockHost : UiElement
         }
 
         UiRect tabRect = _tabRects[index];
-        return new UiRect(tabRect.Right - closeWidth, tabRect.Y, closeWidth, tabRect.Height);
+        int closeX = CloseButtonPlacement == UiTabCloseButtonPlacement.Left
+            ? tabRect.X
+            : tabRect.Right - closeWidth;
+        return new UiRect(closeX, tabRect.Y, closeWidth, tabRect.Height);
     }
 
     private int GetCloseIndexAt(UiPoint point)
