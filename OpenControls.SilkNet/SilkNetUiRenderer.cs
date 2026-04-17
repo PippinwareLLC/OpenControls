@@ -311,6 +311,19 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     public void DrawTexture(uint textureId, UiRect rect, bool flipVertical = false, UiColor? tint = null)
     {
+        DrawTexture(textureId, rect, 0f, 0f, 1f, 1f, flipVertical, tint);
+    }
+
+    public void DrawTexture(
+        uint textureId,
+        UiRect rect,
+        float sourceX,
+        float sourceY,
+        float sourceWidth,
+        float sourceHeight,
+        bool flipVertical = false,
+        UiColor? tint = null)
+    {
         long startTimestamp = BeginMetric();
         if (textureId == 0 || rect.Width <= 0 || rect.Height <= 0)
         {
@@ -319,9 +332,25 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         }
 
         UiColor drawColor = tint ?? UiColor.White;
-        float vTop = flipVertical ? 1f : 0f;
-        float vBottom = flipVertical ? 0f : 1f;
-        QueueQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, 0f, vTop, 1f, vBottom, drawColor);
+        float clampedSourceX = Math.Clamp(sourceX, 0f, 1f);
+        float clampedSourceY = Math.Clamp(sourceY, 0f, 1f);
+        float clampedSourceWidth = Math.Clamp(sourceWidth, 0f, 1f - clampedSourceX);
+        float clampedSourceHeight = Math.Clamp(sourceHeight, 0f, 1f - clampedSourceY);
+        if (clampedSourceWidth <= 0f || clampedSourceHeight <= 0f)
+        {
+            EndMetric(MetricKind.DrawTexture, startTimestamp);
+            return;
+        }
+
+        float uLeft = clampedSourceX;
+        float uRight = clampedSourceX + clampedSourceWidth;
+        float vTop = flipVertical
+            ? clampedSourceY + clampedSourceHeight
+            : clampedSourceY;
+        float vBottom = flipVertical
+            ? clampedSourceY
+            : clampedSourceY + clampedSourceHeight;
+        QueueQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, uLeft, vTop, uRight, vBottom, drawColor);
         EndMetric(MetricKind.DrawTexture, startTimestamp);
     }
 
