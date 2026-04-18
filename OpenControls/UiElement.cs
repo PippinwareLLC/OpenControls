@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace OpenControls;
 
 public abstract class UiElement
@@ -10,6 +12,10 @@ public abstract class UiElement
     private bool _clipChildren;
     private bool _renderCacheRootEnabled;
     private string _id = string.Empty;
+    private string _automationId = string.Empty;
+    private string _automationName = string.Empty;
+    private string _automationRole = string.Empty;
+    private string[] _automationTags = Array.Empty<string>();
     private UiFont? _font;
     private UiInvalidationReason _localInvalidationReasons;
     private UiInvalidationReason _subtreeInvalidationReasons;
@@ -58,6 +64,26 @@ public abstract class UiElement
         set => SetInvalidatingValue(ref _id, value ?? string.Empty, UiInvalidationReason.State);
     }
 
+    public string AutomationId
+    {
+        get => _automationId;
+        set => SetInvalidatingValue(ref _automationId, value ?? string.Empty, UiInvalidationReason.State);
+    }
+
+    public string AutomationName
+    {
+        get => _automationName;
+        set => SetInvalidatingValue(ref _automationName, value ?? string.Empty, UiInvalidationReason.State);
+    }
+
+    public string AutomationRole
+    {
+        get => _automationRole;
+        set => SetInvalidatingValue(ref _automationRole, value ?? string.Empty, UiInvalidationReason.State);
+    }
+
+    public IReadOnlyList<string> AutomationTags => _automationTags;
+
     public UiFont? Font
     {
         get => _font;
@@ -74,6 +100,87 @@ public abstract class UiElement
     public bool IsSubtreeInvalidated => _subtreeInvalidationReasons != UiInvalidationReason.None;
 
     public virtual UiRect ClipBounds => Bounds;
+
+    public void SetAutomationTags(params string[] tags)
+    {
+        SetAutomationTags((IEnumerable<string>?)tags);
+    }
+
+    public void SetAutomationTags(IEnumerable<string>? tags)
+    {
+        string[] normalized = NormalizeAutomationTags(tags);
+        if (AreAutomationTagsEqual(_automationTags, normalized))
+        {
+            return;
+        }
+
+        _automationTags = normalized;
+        Invalidate(UiInvalidationReason.State);
+    }
+
+    public bool HasAutomationTag(string tag)
+    {
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            return false;
+        }
+
+        string candidate = tag.Trim();
+        for (int i = 0; i < _automationTags.Length; i++)
+        {
+            if (string.Equals(_automationTags[i], candidate, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool MatchesAutomationId(string automationId)
+    {
+        if (string.IsNullOrWhiteSpace(automationId))
+        {
+            return false;
+        }
+
+        return string.Equals(ResolveAutomationId(), automationId, StringComparison.Ordinal);
+    }
+
+    public string? ResolveAutomationId()
+    {
+        if (!string.IsNullOrWhiteSpace(AutomationId))
+        {
+            return AutomationId;
+        }
+
+        return string.IsNullOrWhiteSpace(Id) ? null : Id;
+    }
+
+    public string? ResolveAutomationName(string? fallbackText = null)
+    {
+        if (!string.IsNullOrWhiteSpace(AutomationName))
+        {
+            return AutomationName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallbackText))
+        {
+            return fallbackText;
+        }
+
+        return ResolveAutomationId();
+    }
+
+    public string ResolveAutomationRole()
+    {
+        if (!string.IsNullOrWhiteSpace(AutomationRole))
+        {
+            return AutomationRole;
+        }
+
+        return DeriveAutomationRole(GetType().Name);
+    }
 
     public void AddChild(UiElement child)
     {
@@ -338,5 +445,86 @@ public abstract class UiElement
     private static long NextInvalidationVersion()
     {
         return Interlocked.Increment(ref s_nextInvalidationVersion);
+    }
+
+    private static bool AreAutomationTagsEqual(IReadOnlyList<string> left, IReadOnlyList<string> right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < left.Count; i++)
+        {
+            if (!string.Equals(left[i], right[i], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string[] NormalizeAutomationTags(IEnumerable<string>? tags)
+    {
+        if (tags == null)
+        {
+            return Array.Empty<string>();
+        }
+
+        List<string>? normalized = null;
+        HashSet<string>? seen = null;
+        foreach (string? tag in tags)
+        {
+            if (string.IsNullOrWhiteSpace(tag))
+            {
+                continue;
+            }
+
+            string trimmed = tag.Trim();
+            seen ??= new HashSet<string>(StringComparer.Ordinal);
+            if (!seen.Add(trimmed))
+            {
+                continue;
+            }
+
+            normalized ??= new List<string>();
+            normalized.Add(trimmed);
+        }
+
+        return normalized?.ToArray() ?? Array.Empty<string>();
+    }
+
+    private static string DeriveAutomationRole(string typeName)
+    {
+        ReadOnlySpan<char> source = typeName.AsSpan();
+        if (source.StartsWith("Ui", StringComparison.Ordinal))
+        {
+            source = source[2..];
+        }
+
+        if (source.IsEmpty)
+        {
+            return "element";
+        }
+
+        StringBuilder builder = new(source.Length + 8);
+        for (int i = 0; i < source.Length; i++)
+        {
+            char current = source[i];
+            if (char.IsUpper(current) && i > 0 && source[i - 1] != '-')
+            {
+                builder.Append('-');
+            }
+
+            builder.Append(char.ToLowerInvariant(current));
+        }
+
+        return builder.Length == 0 ? "element" : builder.ToString();
     }
 }

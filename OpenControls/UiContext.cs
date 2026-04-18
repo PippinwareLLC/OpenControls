@@ -9,6 +9,7 @@ public sealed class UiContext
         None,
         Element,
         Id,
+        AutomationId,
         FirstFocusableChild,
         FocusableChild
     }
@@ -440,6 +441,40 @@ public sealed class UiContext
         return FindElementById(scope ?? Root, id);
     }
 
+    public UiElement? FindElementByAutomationId(string automationId, UiElement? scope = null)
+    {
+        if (string.IsNullOrWhiteSpace(automationId))
+        {
+            return null;
+        }
+
+        return FindElementByAutomationId(scope ?? Root, automationId);
+    }
+
+    public IReadOnlyList<UiElement> FindElementsByAutomationRole(string automationRole, UiElement? scope = null)
+    {
+        if (string.IsNullOrWhiteSpace(automationRole))
+        {
+            return Array.Empty<UiElement>();
+        }
+
+        List<UiElement> matches = new();
+        CollectElementsByAutomationRole(scope ?? Root, automationRole, matches);
+        return matches;
+    }
+
+    public IReadOnlyList<UiElement> FindElementsByAutomationTag(string automationTag, UiElement? scope = null)
+    {
+        if (string.IsNullOrWhiteSpace(automationTag))
+        {
+            return Array.Empty<UiElement>();
+        }
+
+        List<UiElement> matches = new();
+        CollectElementsByAutomationTag(scope ?? Root, automationTag.Trim(), matches);
+        return matches;
+    }
+
     public IReadOnlyList<UiElement> GetFocusableElements(UiElement? scope = null)
     {
         List<UiElement> focusables = new();
@@ -546,6 +581,19 @@ public sealed class UiContext
         }
 
         UiElement? target = ResolveFocusableTarget(FindElementById(id, scope));
+        Focus.RequestFocus(target);
+        return target != null;
+    }
+
+    public bool RequestFocusByAutomationId(string automationId, UiElement? scope = null, bool nextFrame = false)
+    {
+        if (nextFrame)
+        {
+            _pendingFocusRequest = new FocusRequest(FocusRequestKind.AutomationId, scope: scope, id: automationId);
+            return true;
+        }
+
+        UiElement? target = ResolveFocusableTarget(FindElementByAutomationId(automationId, scope));
         Focus.RequestFocus(target);
         return target != null;
     }
@@ -1156,6 +1204,7 @@ public sealed class UiContext
         {
             FocusRequestKind.Element => ResolveFocusableTarget(request.Element),
             FocusRequestKind.Id => ResolveFocusableTarget(FindElementById(request.Id ?? string.Empty, request.Scope)),
+            FocusRequestKind.AutomationId => ResolveFocusableTarget(FindElementByAutomationId(request.Id ?? string.Empty, request.Scope)),
             FocusRequestKind.FirstFocusableChild => FindFocusable(request.Scope ?? Root, 0),
             FocusRequestKind.FocusableChild => FindFocusable(request.Scope ?? Root, request.FocusableIndex),
             _ => null
@@ -1391,6 +1440,81 @@ public sealed class UiContext
         }
 
         return null;
+    }
+
+    private static UiElement? FindElementByAutomationId(UiElement scope, string automationId)
+    {
+        if (!scope.Visible)
+        {
+            return null;
+        }
+
+        if (scope.MatchesAutomationId(automationId))
+        {
+            return scope;
+        }
+
+        if (!ShouldTraverseChildren(scope))
+        {
+            return null;
+        }
+
+        foreach (UiElement child in scope.Children)
+        {
+            UiElement? match = FindElementByAutomationId(child, automationId);
+            if (match != null)
+            {
+                return match;
+            }
+        }
+
+        return null;
+    }
+
+    private static void CollectElementsByAutomationRole(UiElement scope, string automationRole, List<UiElement> matches)
+    {
+        if (!scope.Visible)
+        {
+            return;
+        }
+
+        if (string.Equals(scope.ResolveAutomationRole(), automationRole, StringComparison.Ordinal))
+        {
+            matches.Add(scope);
+        }
+
+        if (!ShouldTraverseChildren(scope))
+        {
+            return;
+        }
+
+        foreach (UiElement child in scope.Children)
+        {
+            CollectElementsByAutomationRole(child, automationRole, matches);
+        }
+    }
+
+    private static void CollectElementsByAutomationTag(UiElement scope, string automationTag, List<UiElement> matches)
+    {
+        if (!scope.Visible)
+        {
+            return;
+        }
+
+        if (scope.HasAutomationTag(automationTag))
+        {
+            matches.Add(scope);
+        }
+
+        if (!ShouldTraverseChildren(scope))
+        {
+            return;
+        }
+
+        foreach (UiElement child in scope.Children)
+        {
+            CollectElementsByAutomationTag(child, automationTag, matches);
+        }
     }
 
     private static UiElement? FindFocusable(UiElement scope, int focusableIndex)
