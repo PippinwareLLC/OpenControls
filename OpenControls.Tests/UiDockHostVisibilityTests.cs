@@ -55,4 +55,35 @@ public sealed class UiDockHostVisibilityTests
         Assert.True(second.Visible);
         Assert.Equal(second, host.ActiveWindow);
     }
+
+    [Fact]
+    public void DockHost_SyncWindowVisibilityToActiveTab_HidesInactiveTabsAfterExternalVisibilityMutation()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160)
+        };
+
+        UiWindow first = new()
+        {
+            Title = "First"
+        };
+        UiWindow second = new()
+        {
+            Title = "Second"
+        };
+
+        host.AddWindow(first);
+        host.AddWindow(second);
+        host.ActivateWindow(0);
+
+        first.Visible = true;
+        second.Visible = true;
+
+        host.SyncWindowVisibilityToActiveTab();
+
+        Assert.True(first.Visible);
+        Assert.False(second.Visible);
+        Assert.Equal(first, host.ActiveWindow);
+    }
 }

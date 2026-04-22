@@ -217,6 +217,11 @@ public sealed class UiDockHost : UiElement
         SetWindowVisibility();
     }
 
+    public void SyncWindowVisibilityToActiveTab()
+    {
+        SetWindowVisibility();
+    }
+
     public int GetTabIndexAt(UiPoint point)
     {
         UpdateTabLayout();
