@@ -129,6 +129,8 @@ public sealed class UiDockHost : UiElement
             _activeIndex = 0;
             _keepActiveTabVisible = true;
         }
+
+        SetWindowVisibility();
     }
 
     public void DockWindow(UiWindow window, int index)
@@ -146,6 +148,7 @@ public sealed class UiDockHost : UiElement
         AddChild(window);
         _activeIndex = index;
         _keepActiveTabVisible = true;
+        SetWindowVisibility();
     }
 
     public bool RemoveWindow(UiWindow window)
@@ -172,6 +175,8 @@ public sealed class UiDockHost : UiElement
             _contextMenuOpen = false;
             _contextMenuTabIndex = -1;
         }
+
+        SetWindowVisibility();
 
         return true;
     }
@@ -209,6 +214,7 @@ public sealed class UiDockHost : UiElement
 
         _activeIndex = index;
         _keepActiveTabVisible = true;
+        SetWindowVisibility();
     }
 
     public int GetTabIndexAt(UiPoint point)
@@ -274,6 +280,7 @@ public sealed class UiDockHost : UiElement
         _windows.Insert(toIndex, window);
         _activeIndex = toIndex;
         _keepActiveTabVisible = true;
+        SetWindowVisibility();
     }
 
     public void MoveWindow(UiWindow window, int index)
