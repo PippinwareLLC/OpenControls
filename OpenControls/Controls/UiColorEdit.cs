@@ -61,11 +61,14 @@ public sealed class UiColorEdit : UiElement
     public bool ShowHex { get; set; } = true;
     public bool ShowOptionsSurface { get; set; } = true;
     public bool EnablePickerPopup { get; set; } = true;
+    public bool CompactLayout { get; set; }
     public UiColorDisplayMode DisplayMode { get; set; } = UiColorDisplayMode.Rgb;
     public UiColorValueDisplayMode ValueDisplayMode { get; set; } = UiColorValueDisplayMode.Byte;
     public UiPopupPlacement PickerPlacement { get; set; } = UiPopupPlacement.BottomLeft;
     public int PickerPopupWidth { get; set; } = 220;
     public int PickerPopupHeight { get; set; } = 244;
+    public bool PickerShowPreview { get; set; }
+    public bool PickerShowInputFields { get; set; }
     public int TextScale { get; set; } = 1;
     public int HeaderHeight { get; set; } = 24;
     public int RowHeight { get; set; } = 22;
@@ -104,6 +107,28 @@ public sealed class UiColorEdit : UiElement
         UiInputState input = context.Input;
         UpdateHeaderRects();
         SyncChildState(context.Focus.Focused == _hexField);
+        if (CompactLayout)
+        {
+            _hoverChannel = -1;
+            if (input.LeftClicked && Bounds.Contains(input.MousePosition))
+            {
+                if (_pickerPopup != null && EnablePickerPopup)
+                {
+                    TogglePickerPopup();
+                }
+
+                context.Focus.RequestFocus(this);
+            }
+
+            if (!input.LeftDown)
+            {
+                _dragging = false;
+                _dragChannel = -1;
+            }
+
+            base.Update(context);
+            return;
+        }
 
         _hoverChannel = DisplayMode == UiColorDisplayMode.Hex ? -1 : GetChannelAtPoint(input.MousePosition);
 
@@ -158,6 +183,13 @@ public sealed class UiColorEdit : UiElement
         if (Border.A > 0)
         {
             UiRenderHelpers.DrawRectRounded(context.Renderer, Bounds, CornerRadius, Border, 1);
+        }
+
+        if (CompactLayout)
+        {
+            RenderCompactLayout(context);
+            base.Render(context);
+            return;
         }
 
         RenderHeader(context);
@@ -294,6 +326,91 @@ public sealed class UiColorEdit : UiElement
         }
     }
 
+    private void RenderCompactLayout(UiRenderContext context)
+    {
+        UpdateHeaderRects();
+
+        int padding = Math.Max(0, Padding);
+        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
+
+        if (ShowPreview && _previewRect.Width > 0 && _previewRect.Height > 0)
+        {
+            context.Renderer.FillRectCheckerboard(_previewRect, 6, new UiColor(90, 100, 120), new UiColor(60, 70, 90));
+            UiRenderHelpers.FillRectRounded(context.Renderer, _previewRect, Math.Min(6, _previewRect.Height / 2), _color);
+            if (PreviewBorder.A > 0)
+            {
+                UiRenderHelpers.DrawRectRounded(context.Renderer, _previewRect, Math.Min(6, _previewRect.Height / 2), PreviewBorder, 1);
+            }
+        }
+
+        int valueLeft = ShowPreview && _previewRect.Width > 0
+            ? _previewRect.Right + padding
+            : Bounds.X + padding;
+        int valueRight = EnablePickerPopup && _pickerButtonRect.Width > 0
+            ? _pickerButtonRect.X - padding
+            : Bounds.Right - padding;
+        UiRect valueRect = new(
+            valueLeft,
+            Bounds.Y + padding,
+            Math.Max(0, valueRight - valueLeft),
+            Math.Max(0, Bounds.Height - padding * 2));
+
+        if (valueRect.Width > 0 && valueRect.Height > 0)
+        {
+            int valueRadius = Math.Min(6, valueRect.Height / 2);
+            UiColor gradientStart = BlendColors(Background, _color, 0.22f);
+            UiColor gradientEnd = BlendColors(Background, _color, 0.7f);
+            UiRenderHelpers.FillRectRounded(context.Renderer, valueRect, valueRadius, gradientStart);
+
+            UiRect gradientFillRect = new(
+                valueRect.X + 1,
+                valueRect.Y + 1,
+                Math.Max(0, valueRect.Width - 2),
+                Math.Max(0, valueRect.Height - 2));
+            if (gradientFillRect.Width > 0 && gradientFillRect.Height > 0)
+            {
+                context.Renderer.FillRectGradient(
+                    gradientFillRect,
+                    gradientStart,
+                    gradientEnd,
+                    gradientStart,
+                    gradientEnd);
+            }
+
+            if (Border.A > 0)
+            {
+                UiRenderHelpers.DrawRectRounded(context.Renderer, valueRect, valueRadius, Border, 1);
+            }
+
+            string valueText = UiColorConversion.ToHex(_color, ShowAlpha);
+            int availableWidth = Math.Max(0, valueRect.Width - padding * 2);
+            if (availableWidth > 0)
+            {
+                string drawText = valueText;
+                int drawWidth = context.Renderer.MeasureTextWidth(drawText, TextScale);
+                while (drawText.Length > 3 && drawWidth > availableWidth)
+                {
+                    drawText = drawText[..^1];
+                    drawWidth = context.Renderer.MeasureTextWidth(drawText + "...", TextScale);
+                    if (drawWidth <= availableWidth)
+                    {
+                        drawText += "...";
+                        break;
+                    }
+                }
+
+                int textX = valueRect.X + padding;
+                int textY = valueRect.Y + (valueRect.Height - textHeight) / 2;
+                context.Renderer.DrawText(drawText, new UiPoint(textX, textY), HexColor, TextScale);
+            }
+        }
+
+        if (EnablePickerPopup)
+        {
+            DrawOptionButton(context, _pickerButtonRect, _pickerPopup != null && _pickerPopup.IsOpen ? "Hide" : "Pick");
+        }
+    }
+
     private void DrawOptionButton(UiRenderContext context, UiRect rect, string text)
     {
         if (rect.Width <= 0 || rect.Height <= 0)
@@ -317,6 +434,27 @@ public sealed class UiColorEdit : UiElement
     private void UpdateHeaderRects()
     {
         int padding = Math.Max(0, Padding);
+        if (CompactLayout)
+        {
+            int contentHeight = Math.Max(0, Bounds.Height - padding * 2);
+            int previewSize = ShowPreview
+                ? Math.Min(Math.Max(24, contentHeight), Math.Max(24, Bounds.Width / 4))
+                : 0;
+            _previewRect = ShowPreview && contentHeight > 0
+                ? new UiRect(Bounds.X + padding, Bounds.Y + padding, previewSize, contentHeight)
+                : default;
+
+            int compactButtonHeight = Math.Max(18, contentHeight);
+            int compactButtonWidth = EnablePickerPopup ? Math.Max(36, Math.Min(46, compactButtonHeight + 10)) : 0;
+            int compactButtonY = Bounds.Y + (Bounds.Height - compactButtonHeight) / 2;
+            _pickerButtonRect = EnablePickerPopup
+                ? new UiRect(Bounds.Right - padding - compactButtonWidth, compactButtonY, compactButtonWidth, compactButtonHeight)
+                : new UiRect(Bounds.Right - padding, compactButtonY, 0, compactButtonHeight);
+            _modeButtonRect = default;
+            _valueModeButtonRect = default;
+            return;
+        }
+
         int headerHeight = Math.Max(1, HeaderHeight);
         int buttonWidth = Math.Max(36, OptionButtonWidth);
         int buttonHeight = Math.Max(18, headerHeight - 6);
@@ -350,9 +488,9 @@ public sealed class UiColorEdit : UiElement
 
     private void SyncChildState(bool hexFieldFocused)
     {
-        bool hexMode = DisplayMode == UiColorDisplayMode.Hex;
+        bool hexMode = !CompactLayout && DisplayMode == UiColorDisplayMode.Hex;
         _hexField.Visible = hexMode;
-        _hexField.Bounds = GetHexFieldRect();
+        _hexField.Bounds = hexMode ? GetHexFieldRect() : new UiRect(0, 0, 0, 0);
         _hexField.TextScale = TextScale;
         _hexField.Padding = Padding;
         _hexField.Placeholder = ShowAlpha ? "#RRGGBBAA" : "#RRGGBB";
@@ -370,6 +508,8 @@ public sealed class UiColorEdit : UiElement
         if (_picker != null)
         {
             _picker.ShowAlpha = ShowAlpha;
+            _picker.ShowPreview = PickerShowPreview;
+            _picker.ShowInputFields = PickerShowInputFields;
             _picker.Color = _color;
         }
 
@@ -651,6 +791,21 @@ public sealed class UiColorEdit : UiElement
 
             SetColor(parsed);
         }
+    }
+
+    private static UiColor BlendColors(UiColor from, UiColor to, float amount)
+    {
+        amount = Math.Clamp(amount, 0f, 1f);
+        return new UiColor(
+            LerpChannel(from.R, to.R, amount),
+            LerpChannel(from.G, to.G, amount),
+            LerpChannel(from.B, to.B, amount),
+            LerpChannel(from.A, to.A, amount));
+    }
+
+    private static byte LerpChannel(byte from, byte to, float amount)
+    {
+        return (byte)Math.Clamp((int)Math.Round(from + (to - from) * amount), 0, 255);
     }
 
     private bool IsHexCharacter(char character)
