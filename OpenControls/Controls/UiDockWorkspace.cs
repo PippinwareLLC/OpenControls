@@ -80,10 +80,14 @@ public sealed class UiDockWorkspace : UiElement
     public int DropTargetSize { get; set; } = 48;
     public int DragThreshold { get; set; } = 6;
     public int SplitterThickness { get; set; } = 6;
+    public int SplitterVisualThickness { get; set; } = 2;
+    public int SplitterVisualInset { get; set; } = 2;
     public int MinPaneSize { get; set; } = 80;
     public UiColor SplitterColor { get; set; } = new(44, 52, 68);
     public UiColor SplitterHoverColor { get; set; } = new(68, 82, 106);
     public UiColor SplitterActiveColor { get; set; } = new(96, 120, 154);
+    public UiColor SplitterTrackHoverColor { get; set; } = new(68, 82, 106, 32);
+    public UiColor SplitterTrackActiveColor { get; set; } = new(96, 120, 154, 44);
 
     public UiDockHost RootHost { get; }
     public IReadOnlyList<UiDockHost> DockHosts => _hosts;
@@ -1270,11 +1274,52 @@ public sealed class UiDockWorkspace : UiElement
                 : node == _hoverSplitNode
                     ? SplitterHoverColor
                     : SplitterColor;
-            context.Renderer.FillRect(node.SplitterBounds, splitterColor);
+            UiColor trackColor = node == _dragSplitNode
+                ? SplitterTrackActiveColor
+                : node == _hoverSplitNode
+                    ? SplitterTrackHoverColor
+                    : UiColor.Transparent;
+            RenderSplitter(context, node.SplitterBounds, node.SplitHorizontal, splitterColor, trackColor);
         }
 
         DrawSplitters(context, node.First);
         DrawSplitters(context, node.Second);
+    }
+
+    private void RenderSplitter(UiRenderContext context, UiRect bounds, bool horizontal, UiColor splitterColor, UiColor trackColor)
+    {
+        if (trackColor.A > 0)
+        {
+            UiRenderHelpers.FillRectRounded(context.Renderer, bounds, 2, trackColor);
+        }
+
+        int inset = Math.Max(0, SplitterVisualInset);
+        if (horizontal)
+        {
+            int thickness = Math.Max(1, Math.Min(bounds.Height, SplitterVisualThickness));
+            UiRect lineRect = new(
+                bounds.X + inset,
+                bounds.Y + (bounds.Height - thickness) / 2,
+                Math.Max(0, bounds.Width - inset * 2),
+                thickness);
+            if (lineRect.Width > 0 && lineRect.Height > 0)
+            {
+                UiRenderHelpers.FillRectRounded(context.Renderer, lineRect, Math.Min(2, thickness / 2), splitterColor);
+            }
+
+            return;
+        }
+
+        int verticalThickness = Math.Max(1, Math.Min(bounds.Width, SplitterVisualThickness));
+        UiRect verticalLineRect = new(
+            bounds.X + (bounds.Width - verticalThickness) / 2,
+            bounds.Y + inset,
+            verticalThickness,
+            Math.Max(0, bounds.Height - inset * 2));
+        if (verticalLineRect.Width > 0 && verticalLineRect.Height > 0)
+        {
+            UiRenderHelpers.FillRectRounded(context.Renderer, verticalLineRect, Math.Min(2, verticalThickness / 2), splitterColor);
+        }
     }
 
     private void DrawTargets(UiRenderContext context)

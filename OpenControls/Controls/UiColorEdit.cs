@@ -186,10 +186,11 @@ public sealed class UiColorEdit : UiElement
 
             if (trackRect.Width > 0 && trackRect.Height > 0)
             {
-                context.Renderer.FillRect(trackRect, TrackColor);
+                int trackRadius = Math.Min(4, trackRect.Height / 2);
+                UiRenderHelpers.FillRectRounded(context.Renderer, trackRect, trackRadius, TrackColor);
                 if (Border.A > 0)
                 {
-                    context.Renderer.DrawRect(trackRect, Border, 1);
+                    UiRenderHelpers.DrawRectRounded(context.Renderer, trackRect, trackRadius, Border, 1);
                 }
 
                 float t = GetChannelValueNormalized(channel);
@@ -207,10 +208,11 @@ public sealed class UiColorEdit : UiElement
                 int thumbY = rowRect.Y + (rowRect.Height - thumbHeight) / 2;
                 UiRect thumbRect = new(thumbX, thumbY, thumbWidth, thumbHeight);
                 UiColor thumbColor = (_dragChannel == channel || _hoverChannel == channel) ? ThumbHoverColor : ThumbColor;
-                context.Renderer.FillRect(thumbRect, thumbColor);
+                int thumbRadius = Math.Min(4, thumbRect.Width / 2);
+                UiRenderHelpers.FillRectRounded(context.Renderer, thumbRect, thumbRadius, thumbColor);
                 if (Border.A > 0)
                 {
-                    context.Renderer.DrawRect(thumbRect, Border, 1);
+                    UiRenderHelpers.DrawRectRounded(context.Renderer, thumbRect, thumbRadius, Border, 1);
                 }
             }
 
@@ -244,10 +246,10 @@ public sealed class UiColorEdit : UiElement
         if (ShowPreview && _previewRect.Width > 0 && _previewRect.Height > 0)
         {
             context.Renderer.FillRectCheckerboard(_previewRect, 6, new UiColor(90, 100, 120), new UiColor(60, 70, 90));
-            context.Renderer.FillRect(_previewRect, _color);
+            UiRenderHelpers.FillRectRounded(context.Renderer, _previewRect, 4, _color);
             if (PreviewBorder.A > 0)
             {
-                context.Renderer.DrawRect(_previewRect, PreviewBorder, 1);
+                UiRenderHelpers.DrawRectRounded(context.Renderer, _previewRect, 4, PreviewBorder, 1);
             }
 
             textX = _previewRect.Right + padding;
