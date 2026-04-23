@@ -74,7 +74,9 @@ public sealed class UiDockHost : UiElement
     public UiColor TabActiveColor { get; set; } = new(45, 52, 70);
     public UiColor TabHoverColor { get; set; } = new(32, 36, 48);
     public UiColor TabTextColor { get; set; } = UiColor.White;
+    public UiColor TabActiveTextColor { get; set; } = UiColor.White;
     public UiColor TabBorderColor { get; set; } = new(60, 70, 90);
+    public UiColor TabActiveAccentColor { get; set; } = new(98, 148, 222);
     public UiColor MenuBackground { get; set; } = new(18, 22, 32);
     public UiColor MenuHoverColor { get; set; } = new(36, 42, 58);
     public UiColor MenuBorderColor { get; set; } = new(60, 70, 90);
@@ -85,6 +87,9 @@ public sealed class UiDockHost : UiElement
     public int TabMaxWidth { get; set; }
     public int TabPadding { get; set; } = 6;
     public int TabIconSpacing { get; set; } = 4;
+    public int TabInset { get; set; } = 0;
+    public int TabCornerRadius { get; set; } = 0;
+    public int TabActiveAccentHeight { get; set; } = 0;
     public int TabTextScale { get; set; } = 1;
     public bool TabTextBold { get; set; }
     public bool AutoSizeTabs { get; set; }
@@ -612,14 +617,47 @@ public sealed class UiDockHost : UiElement
         for (int i = 0; i < _windows.Count; i++)
         {
             UiRect tabRect = GetTabRect(i);
-            UiColor tabColor = i == _activeIndex ? TabActiveColor : (_dragIndex == i ? TabHoverColor : TabBarColor);
-            context.Renderer.FillRect(tabRect, tabColor);
-            context.Renderer.DrawRect(tabRect, TabBorderColor, 1);
+            bool active = i == _activeIndex;
+            UiColor tabColor = active ? TabActiveColor : (_dragIndex == i ? TabHoverColor : TabBarColor);
+            UiColor textColor = active ? TabActiveTextColor : TabTextColor;
+            UiRect renderRect = GetRenderedTabRect(tabRect);
+            if (renderRect.Width <= 0 || renderRect.Height <= 0)
+            {
+                continue;
+            }
+
+            if (TabCornerRadius > 0)
+            {
+                UiRenderHelpers.FillRectRounded(context.Renderer, renderRect, TabCornerRadius, tabColor);
+                UiRenderHelpers.DrawRectRounded(context.Renderer, renderRect, TabCornerRadius, TabBorderColor, 1);
+            }
+            else
+            {
+                context.Renderer.FillRect(renderRect, tabColor);
+                context.Renderer.DrawRect(renderRect, TabBorderColor, 1);
+            }
+
+            if (active && TabActiveAccentHeight > 0 && TabActiveAccentColor.A > 0)
+            {
+                UiRect accentRect = new(
+                    renderRect.X + 1,
+                    renderRect.Y + 1,
+                    Math.Max(0, renderRect.Width - 2),
+                    Math.Min(TabActiveAccentHeight, Math.Max(0, renderRect.Height - 2)));
+                if (accentRect.Width > 0 && accentRect.Height > 0)
+                {
+                    UiRenderHelpers.FillRectRounded(
+                        context.Renderer,
+                        accentRect,
+                        Math.Min(TabCornerRadius, accentRect.Height),
+                        TabActiveAccentColor);
+                }
+            }
 
             UiWindow window = _windows[i];
             string title = GetRenderedWindowTitle(i);
-            int titleTextY = UiRenderHelpers.GetVerticallyCenteredTextY(tabRect, title, TabTextScale, font);
-            int textX = tabRect.X + Math.Max(0, TabPadding);
+            int titleTextY = UiRenderHelpers.GetVerticallyCenteredTextY(renderRect, title, TabTextScale, font);
+            int textX = renderRect.X + Math.Max(0, TabPadding);
             if (ShowCloseButtons
                 && CloseButtonPlacement == UiTabCloseButtonPlacement.Left
                 && CanRemoveWindow(i)
@@ -630,19 +668,19 @@ public sealed class UiDockHost : UiElement
 
             if (!string.IsNullOrEmpty(window.TabIconText))
             {
-                int iconTextY = UiRenderHelpers.GetVerticallyCenteredTextY(tabRect, window.TabIconText, TabTextScale, font);
-                context.Renderer.DrawText(window.TabIconText, new UiPoint(textX, iconTextY), TabTextColor, TabTextScale, font);
+                int iconTextY = UiRenderHelpers.GetVerticallyCenteredTextY(renderRect, window.TabIconText, TabTextScale, font);
+                context.Renderer.DrawText(window.TabIconText, new UiPoint(textX, iconTextY), textColor, TabTextScale, font);
                 textX += GetTabIconRenderWidth(i);
             }
 
             UiPoint textPoint = new(textX, titleTextY);
             if (TabTextBold)
             {
-                UiRenderHelpers.DrawTextBold(context.Renderer, title, textPoint, TabTextColor, TabTextScale, font);
+                UiRenderHelpers.DrawTextBold(context.Renderer, title, textPoint, textColor, TabTextScale, font);
             }
             else
             {
-                context.Renderer.DrawText(title, textPoint, TabTextColor, TabTextScale, font);
+                context.Renderer.DrawText(title, textPoint, textColor, TabTextScale, font);
             }
 
             if (ShowCloseButtons && CanCloseWindow(i))
@@ -650,7 +688,7 @@ public sealed class UiDockHost : UiElement
                 UiRect closeBounds = GetCloseBounds(i);
                 int closeTextX = closeBounds.X + (closeBounds.Width - closeTextWidth) / 2;
                 int closeTextY = UiRenderHelpers.GetVerticallyCenteredTextY(closeBounds, "X", TabTextScale, font);
-                context.Renderer.DrawText("X", new UiPoint(closeTextX, closeTextY), TabTextColor, TabTextScale, font);
+                context.Renderer.DrawText("X", new UiPoint(closeTextX, closeTextY), textColor, TabTextScale, font);
             }
         }
         context.Renderer.PopClip();
@@ -1065,16 +1103,25 @@ public sealed class UiDockHost : UiElement
         }
 
         UiColor background = hover && enabled ? TabHoverColor : TabBarColor;
-        context.Renderer.FillRect(bounds, background);
-        context.Renderer.DrawRect(bounds, TabBorderColor, 1);
+        UiRect renderRect = GetRenderedButtonRect(bounds);
+        if (TabCornerRadius > 0)
+        {
+            UiRenderHelpers.FillRectRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), background);
+            UiRenderHelpers.DrawRectRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), TabBorderColor, 1);
+        }
+        else
+        {
+            context.Renderer.FillRect(renderRect, background);
+            context.Renderer.DrawRect(renderRect, TabBorderColor, 1);
+        }
 
         UiColor arrowColor = enabled ? TabTextColor : TabBorderColor;
-        int inset = Math.Max(2, bounds.Height / 4);
+        int inset = Math.Max(2, renderRect.Height / 4);
         UiRect arrowBounds = new(
-            bounds.X + inset,
-            bounds.Y + inset,
-            Math.Max(0, bounds.Width - inset * 2),
-            Math.Max(0, bounds.Height - inset * 2));
+            renderRect.X + inset,
+            renderRect.Y + inset,
+            Math.Max(0, renderRect.Width - inset * 2),
+            Math.Max(0, renderRect.Height - inset * 2));
         UiArrow.DrawTriangle(context.Renderer, arrowBounds, direction, arrowColor);
     }
 
@@ -1086,16 +1133,41 @@ public sealed class UiDockHost : UiElement
         }
 
         UiColor background = (_overflowButtonHover || _overflowMenuOpen) ? TabHoverColor : TabBarColor;
-        context.Renderer.FillRect(_overflowButtonBounds, background);
-        context.Renderer.DrawRect(_overflowButtonBounds, TabBorderColor, 1);
+        UiRect renderRect = GetRenderedButtonRect(_overflowButtonBounds);
+        if (TabCornerRadius > 0)
+        {
+            UiRenderHelpers.FillRectRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), background);
+            UiRenderHelpers.DrawRectRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), TabBorderColor, 1);
+        }
+        else
+        {
+            context.Renderer.FillRect(renderRect, background);
+            context.Renderer.DrawRect(renderRect, TabBorderColor, 1);
+        }
 
-        int inset = Math.Max(2, _overflowButtonBounds.Height / 4);
+        int inset = Math.Max(2, renderRect.Height / 4);
         UiRect arrowBounds = new(
-            _overflowButtonBounds.X + inset,
-            _overflowButtonBounds.Y + inset,
-            Math.Max(0, _overflowButtonBounds.Width - inset * 2),
-            Math.Max(0, _overflowButtonBounds.Height - inset * 2));
+            renderRect.X + inset,
+            renderRect.Y + inset,
+            Math.Max(0, renderRect.Width - inset * 2),
+            Math.Max(0, renderRect.Height - inset * 2));
         UiArrow.DrawTriangle(context.Renderer, arrowBounds, UiArrowDirection.Down, TabTextColor);
+    }
+
+    private UiRect GetRenderedTabRect(UiRect tabRect)
+    {
+        int inset = Math.Max(0, TabInset);
+        int width = Math.Max(0, tabRect.Width - inset * 2);
+        int height = Math.Max(0, tabRect.Height - Math.Max(0, inset));
+        return new UiRect(tabRect.X + inset, tabRect.Y + Math.Max(0, inset), width, height);
+    }
+
+    private UiRect GetRenderedButtonRect(UiRect bounds)
+    {
+        int inset = Math.Max(0, TabInset);
+        int width = Math.Max(0, bounds.Width - inset * 2);
+        int height = Math.Max(0, bounds.Height - inset * 2);
+        return new UiRect(bounds.X + inset, bounds.Y + inset, width, height);
     }
 
     private string GetRenderedWindowTitle(int index)
