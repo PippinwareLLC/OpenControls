@@ -933,6 +933,7 @@ public sealed class UiDockWorkspace : UiElement
         destination.ShowCloseButtons = source.ShowCloseButtons;
         destination.CloseButtonPlacement = source.CloseButtonPlacement;
         destination.CloseButtonPadding = source.CloseButtonPadding;
+        destination.CloseButtonText = source.CloseButtonText;
         destination.ScrollButtonWidth = source.ScrollButtonWidth;
         destination.OverflowButtonWidth = source.OverflowButtonWidth;
         destination.ScrollStep = source.ScrollStep;

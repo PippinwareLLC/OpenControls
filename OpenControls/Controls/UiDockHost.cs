@@ -65,6 +65,7 @@ public sealed class UiDockHost : UiElement
     private int _tabMetricsTabIconSpacing = -1;
     private bool _tabMetricsShowCloseButtons;
     private int _tabMetricsCloseButtonPadding = -1;
+    private string _tabMetricsCloseButtonText = string.Empty;
     private UiTabTextOverflowMode _tabMetricsOverflowMode;
     private int _cachedCloseAreaWidth = -1;
 
@@ -100,6 +101,7 @@ public sealed class UiDockHost : UiElement
     public bool AllowClosingLastWindow { get; set; }
     public UiTabCloseButtonPlacement CloseButtonPlacement { get; set; } = UiTabCloseButtonPlacement.Right;
     public int CloseButtonPadding { get; set; } = 4;
+    public string CloseButtonText { get; set; } = "X";
     public int ScrollButtonWidth { get; set; } = 18;
     public int OverflowButtonWidth { get; set; } = 18;
     public int ScrollStep { get; set; } = 80;
@@ -623,7 +625,7 @@ public sealed class UiDockHost : UiElement
 
         UiRect clipBounds = _tabsOverflow ? _tabAreaBounds : tabBar;
         context.Renderer.PushClip(clipBounds);
-        int closeTextWidth = MeasureTextWidth("X", TabTextScale, font);
+        int closeTextWidth = MeasureTextWidth(GetCloseButtonText(), TabTextScale, font);
         for (int i = 0; i < _windows.Count; i++)
         {
             UiRect tabRect = GetTabRect(i);
@@ -695,10 +697,12 @@ public sealed class UiDockHost : UiElement
 
             if (ShowCloseButtons && CanCloseWindow(i))
             {
+                string closeText = GetCloseButtonText();
                 UiRect closeBounds = GetCloseBounds(i);
-                int closeTextX = closeBounds.X + (closeBounds.Width - closeTextWidth) / 2;
-                int closeTextY = UiRenderHelpers.GetVerticallyCenteredTextY(closeBounds, "X", TabTextScale, font);
-                context.Renderer.DrawText("X", new UiPoint(closeTextX, closeTextY), textColor, TabTextScale, font);
+                int closeGlyphWidth = MeasureTextWidth(closeText, TabTextScale, font);
+                int closeTextX = closeBounds.X + (closeBounds.Width - closeGlyphWidth) / 2;
+                int closeTextY = UiRenderHelpers.GetVerticallyCenteredTextY(closeBounds, closeText, TabTextScale, font);
+                context.Renderer.DrawText(closeText, new UiPoint(closeTextX, closeTextY), TabTextColor, TabTextScale, font);
             }
         }
         context.Renderer.PopClip();
@@ -896,6 +900,7 @@ public sealed class UiDockHost : UiElement
             || _tabMetricsTabIconSpacing != TabIconSpacing
             || _tabMetricsShowCloseButtons != ShowCloseButtons
             || _tabMetricsCloseButtonPadding != CloseButtonPadding
+            || !string.Equals(_tabMetricsCloseButtonText, CloseButtonText, StringComparison.Ordinal)
             || _tabMetricsOverflowMode != TabTextOverflow;
 
         if (invalidateAll)
@@ -912,6 +917,7 @@ public sealed class UiDockHost : UiElement
             _tabMetricsTabIconSpacing = TabIconSpacing;
             _tabMetricsShowCloseButtons = ShowCloseButtons;
             _tabMetricsCloseButtonPadding = CloseButtonPadding;
+            _tabMetricsCloseButtonText = CloseButtonText ?? string.Empty;
             _tabMetricsOverflowMode = TabTextOverflow;
         }
 
@@ -1005,10 +1011,13 @@ public sealed class UiDockHost : UiElement
         }
 
         int padding = Math.Max(0, CloseButtonPadding);
-        int glyphWidth = MeasureTextWidth("X", TabTextScale, _layoutFont);
+        int glyphWidth = MeasureTextWidth(GetCloseButtonText(), TabTextScale, _layoutFont);
         _cachedCloseAreaWidth = glyphWidth + padding * 2;
         return _cachedCloseAreaWidth;
     }
+
+    private string GetCloseButtonText()
+        => string.IsNullOrEmpty(CloseButtonText) ? "X" : CloseButtonText;
 
     private UiRect GetCloseBounds(int index)
     {
