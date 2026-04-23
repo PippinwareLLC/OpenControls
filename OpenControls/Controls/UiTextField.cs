@@ -150,9 +150,11 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
         _layoutFont = font;
         int textX = Bounds.X + Padding;
         int textY = GetTextTopY(font);
-        int clipWidth = Math.Max(0, Bounds.Width - Padding * 2);
-        int clipHeight = Math.Max(0, Bounds.Height - Padding * 2);
-        UiRect clip = new UiRect(textX, textY, clipWidth, clipHeight);
+        int padding = Math.Max(0, Padding);
+        int clipWidth = Math.Max(0, Bounds.Width - padding * 2);
+        int verticalClipInset = Border.A > 0 ? 1 : 0;
+        int clipHeight = Math.Max(0, Bounds.Height - verticalClipInset * 2);
+        UiRect clip = new UiRect(Bounds.X + padding, Bounds.Y + verticalClipInset, clipWidth, clipHeight);
         string renderText = GetDisplayText();
 
         UpdateHorizontalScroll(context.Renderer, renderText, clipWidth, font);
@@ -717,11 +719,7 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
 
     private int GetTextTopY(UiFont font)
     {
-        int padding = Math.Max(0, Padding);
-        int innerHeight = Math.Max(0, Bounds.Height - padding * 2);
-        int textHeight = font.MeasureTextHeight(TextScale);
-        int centeredOffset = Math.Max(0, (innerHeight - textHeight) / 2);
-        return Bounds.Y + padding + centeredOffset;
+        return UiRenderHelpers.GetVerticallyCenteredTextY(Bounds, GetDisplayText(), TextScale, font);
     }
 
     private int MeasureCompositionWidth(UiFont font)

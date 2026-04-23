@@ -231,9 +231,8 @@ public abstract class UiDragFloatVectorBase : UiElement
 
             string text = FormatComponentText(i, _values[i]);
             int textWidth = context.Renderer.MeasureTextWidth(text, TextScale);
-            int textHeight = context.Renderer.MeasureTextHeight(TextScale);
             int textX = rect.X + (rect.Width - textWidth) / 2;
-            int textY = rect.Y + (rect.Height - textHeight) / 2;
+            int textY = UiRenderHelpers.GetVerticallyCenteredTextY(rect, text, TextScale);
             context.Renderer.DrawText(text, new UiPoint(textX, textY), TextColor, TextScale);
         }
 

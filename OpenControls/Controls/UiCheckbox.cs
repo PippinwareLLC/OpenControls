@@ -86,8 +86,7 @@ public sealed class UiCheckbox : UiElement
         }
 
         UiFont font = ResolveFont(context.DefaultFont);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
-        int textY = Bounds.Y + (Bounds.Height - textHeight) / 2;
+        int textY = UiRenderHelpers.GetVerticallyCenteredTextY(Bounds, Text, TextScale, font);
         context.Renderer.DrawText(Text, new UiPoint(box.Right + Padding, textY), TextColor, TextScale, font);
 
         base.Render(context);

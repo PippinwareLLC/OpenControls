@@ -264,7 +264,6 @@ public sealed class UiListBox : UiElement
         int itemHeight = Math.Max(1, ItemHeight);
         _clipRange = UiClipper.FixedHeight(Items.Count, itemHeight, _scrollOffset, Math.Max(0, Bounds.Height), OverscanItems);
         UiFont font = ResolveFont(context.DefaultFont);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         UiRect viewportBounds = GetViewportBounds();
 
         context.Renderer.PushClip(viewportBounds);
@@ -284,7 +283,7 @@ public sealed class UiListBox : UiElement
                     context.Renderer.FillRect(itemRect, HoverColor);
                 }
 
-                int textY = y + (itemHeight - textHeight) / 2;
+                int textY = UiRenderHelpers.GetVerticallyCenteredTextY(itemRect, Items[i], TextScale, font);
                 UiColor textColor = IsItemSelected(i) ? SelectedTextColor : TextColor;
                 context.Renderer.DrawText(Items[i], new UiPoint(viewportBounds.X + Padding, textY), textColor, TextScale, font);
             }

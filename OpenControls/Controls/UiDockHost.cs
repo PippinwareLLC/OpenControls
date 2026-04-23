@@ -672,7 +672,7 @@ public sealed class UiDockHost : UiElement
             int textX = renderRect.X + Math.Max(0, TabPadding);
             if (ShowCloseButtons
                 && CloseButtonPlacement == UiTabCloseButtonPlacement.Left
-                && CanRemoveWindow(i)
+                && CanShowCloseButton(i)
                 && closeTextWidth > 0)
             {
                 textX += GetCloseAreaWidth();
@@ -681,7 +681,8 @@ public sealed class UiDockHost : UiElement
             if (!string.IsNullOrEmpty(window.TabIconText))
             {
                 int iconTextY = UiRenderHelpers.GetVerticallyCenteredTextY(renderRect, window.TabIconText, TabTextScale, font);
-                context.Renderer.DrawText(window.TabIconText, new UiPoint(textX, iconTextY), textColor, TabTextScale, font);
+                UiColor iconColor = active && TabActiveAccentColor.A > 0 ? TabActiveAccentColor : textColor;
+                context.Renderer.DrawText(window.TabIconText, new UiPoint(textX, iconTextY), iconColor, TabTextScale, font);
                 textX += GetTabIconRenderWidth(i);
             }
 
@@ -695,7 +696,7 @@ public sealed class UiDockHost : UiElement
                 context.Renderer.DrawText(title, textPoint, textColor, TabTextScale, font);
             }
 
-            if (ShowCloseButtons && CanCloseWindow(i))
+            if (ShowCloseButtons && CanShowCloseButton(i))
             {
                 string closeText = GetCloseButtonText();
                 UiRect closeBounds = GetCloseBounds(i);
@@ -1048,7 +1049,7 @@ public sealed class UiDockHost : UiElement
 
         for (int i = 0; i < _windows.Count; i++)
         {
-            if (!CanCloseWindow(i))
+            if (!CanShowCloseButton(i))
             {
                 continue;
             }
@@ -1073,6 +1074,11 @@ public sealed class UiDockHost : UiElement
     private bool CanCloseWindow(int index)
     {
         return CanRemoveWindow(index) && (AllowClosingLastWindow || _windows.Count > 1);
+    }
+
+    private bool CanShowCloseButton(int index)
+    {
+        return index == _activeIndex && CanCloseWindow(index);
     }
 
     private bool CloseWindow(int index)

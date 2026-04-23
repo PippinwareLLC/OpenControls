@@ -318,7 +318,7 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
         int primaryHeight = context.Renderer.MeasureTextHeight(TextScale, font);
         if (string.IsNullOrEmpty(SecondaryText))
         {
-            int textY = content.Y + (content.Height - primaryHeight) / 2;
+            int textY = UiRenderHelpers.GetVerticallyCenteredTextY(content, Text, TextScale, font);
             context.Renderer.DrawText(Text, new UiPoint(x, textY), textColor, TextScale, font);
             return;
         }

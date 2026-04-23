@@ -187,9 +187,8 @@ public sealed class UiDragInt : UiElement
 
         string text = FormatValue(_value);
         int textWidth = context.Renderer.MeasureTextWidth(text, TextScale);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
         int textX = Bounds.X + Padding + (Bounds.Width - Padding * 2 - textWidth) / 2;
-        int textY = Bounds.Y + (Bounds.Height - textHeight) / 2;
+        int textY = UiRenderHelpers.GetVerticallyCenteredTextY(Bounds, text, TextScale);
         context.Renderer.DrawText(text, new UiPoint(textX, textY), TextColor, TextScale);
 
         base.Render(context);

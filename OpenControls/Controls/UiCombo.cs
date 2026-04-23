@@ -261,8 +261,7 @@ public class UiCombo : UiElement, IUiStatefulElement
         UiFont font = ResolveFont(context.DefaultFont);
         string text = GetDisplayText();
         UiColor textColor = string.IsNullOrEmpty(text) ? PlaceholderColor : TextColor;
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale, font);
-        int textY = Bounds.Y + (Bounds.Height - textHeight) / 2;
+        int textY = UiRenderHelpers.GetVerticallyCenteredTextY(Bounds, text, TextScale, font);
         context.Renderer.DrawText(text, new UiPoint(Bounds.X + Padding, textY), textColor, TextScale, font);
 
         DrawArrow(context);

@@ -256,7 +256,7 @@ public sealed class UiTabBar : UiElement
                 int textX = tabRect.X + Math.Max(0, TabPadding);
                 if (ShowCloseButtons
                     && CloseButtonPlacement == UiTabCloseButtonPlacement.Left
-                    && tab.AllowClose
+                    && IsTabCloseButtonVisible(tabs, i)
                     && closeTextWidth > 0)
                 {
                     textX += GetCloseAreaWidth();
@@ -272,7 +272,7 @@ public sealed class UiTabBar : UiElement
                     context.Renderer.DrawText(renderText, new UiPoint(textX, textY), textColor, TabTextScale, font);
                 }
 
-                if (ShowCloseButtons && tab.AllowClose)
+                if (IsTabCloseButtonVisible(tabs, i))
                 {
                     UiRect closeBounds = tab.CloseBounds;
                     UiColor closeColor = _closeHoverIndex == i ? TabActiveTextColor : TabTextColor;
@@ -480,7 +480,7 @@ public sealed class UiTabBar : UiElement
 
         for (int i = 0; i < tabs.Count; i++)
         {
-            if (!IsTabClosable(tabs, i))
+            if (!IsTabCloseButtonVisible(tabs, i))
             {
                 continue;
             }
@@ -502,6 +502,11 @@ public sealed class UiTabBar : UiElement
             && tabs[index].Enabled
             && tabs[index].AllowClose
             && ShowCloseButtons;
+    }
+
+    private bool IsTabCloseButtonVisible(List<UiTabItem> tabs, int index)
+    {
+        return index == _activeIndex && IsTabClosable(tabs, index);
     }
 
     private bool CloseTab(List<UiTabItem> tabs, int index)

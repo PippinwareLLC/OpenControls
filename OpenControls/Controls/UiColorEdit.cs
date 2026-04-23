@@ -69,6 +69,8 @@ public sealed class UiColorEdit : UiElement
     public int PickerPopupHeight { get; set; } = 244;
     public bool PickerShowPreview { get; set; }
     public bool PickerShowInputFields { get; set; }
+    public string PickerButtonText { get; set; } = "Pick";
+    public string PickerButtonOpenText { get; set; } = "Hide";
     public int TextScale { get; set; } = 1;
     public int HeaderHeight { get; set; } = 24;
     public int RowHeight { get; set; } = 22;
@@ -272,7 +274,6 @@ public sealed class UiColorEdit : UiElement
     {
         UiRect headerRect = new(Bounds.X, Bounds.Y, Bounds.Width, Math.Max(1, HeaderHeight));
         int padding = Math.Max(0, Padding);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
         int textX = headerRect.X + padding;
 
         if (ShowPreview && _previewRect.Width > 0 && _previewRect.Height > 0)
@@ -290,7 +291,7 @@ public sealed class UiColorEdit : UiElement
         if (ShowHex)
         {
             string hex = UiColorConversion.ToHex(_color, ShowAlpha);
-            int textY = headerRect.Y + (headerRect.Height - textHeight) / 2;
+            int textY = UiRenderHelpers.GetVerticallyCenteredTextY(headerRect, hex, TextScale);
             int rightLimit = ShowOptionsSurface
                 ? Math.Min(_modeButtonRect.X, _valueModeButtonRect.X)
                 : headerRect.Right - padding;
@@ -322,7 +323,10 @@ public sealed class UiColorEdit : UiElement
 
         if (EnablePickerPopup)
         {
-            DrawOptionButton(context, _pickerButtonRect, _pickerPopup != null && _pickerPopup.IsOpen ? "Hide" : "Pick");
+            DrawOptionButton(
+                context,
+                _pickerButtonRect,
+                _pickerPopup != null && _pickerPopup.IsOpen ? PickerButtonOpenText : PickerButtonText);
         }
     }
 
@@ -382,32 +386,38 @@ public sealed class UiColorEdit : UiElement
                 UiRenderHelpers.DrawRectRounded(context.Renderer, valueRect, valueRadius, Border, 1);
             }
 
-            string valueText = UiColorConversion.ToHex(_color, ShowAlpha);
-            int availableWidth = Math.Max(0, valueRect.Width - padding * 2);
-            if (availableWidth > 0)
+            if (ShowHex)
             {
-                string drawText = valueText;
-                int drawWidth = context.Renderer.MeasureTextWidth(drawText, TextScale);
-                while (drawText.Length > 3 && drawWidth > availableWidth)
+                string valueText = UiColorConversion.ToHex(_color, ShowAlpha);
+                int availableWidth = Math.Max(0, valueRect.Width - padding * 2);
+                if (availableWidth > 0)
                 {
-                    drawText = drawText[..^1];
-                    drawWidth = context.Renderer.MeasureTextWidth(drawText + "...", TextScale);
-                    if (drawWidth <= availableWidth)
+                    string drawText = valueText;
+                    int drawWidth = context.Renderer.MeasureTextWidth(drawText, TextScale);
+                    while (drawText.Length > 3 && drawWidth > availableWidth)
                     {
-                        drawText += "...";
-                        break;
+                        drawText = drawText[..^1];
+                        drawWidth = context.Renderer.MeasureTextWidth(drawText + "...", TextScale);
+                        if (drawWidth <= availableWidth)
+                        {
+                            drawText += "...";
+                            break;
+                        }
                     }
-                }
 
-                int textX = valueRect.X + padding;
-                int textY = valueRect.Y + (valueRect.Height - textHeight) / 2;
-                context.Renderer.DrawText(drawText, new UiPoint(textX, textY), HexColor, TextScale);
+                    int textX = valueRect.X + padding;
+                    int textY = UiRenderHelpers.GetVerticallyCenteredTextY(valueRect, drawText, TextScale);
+                    context.Renderer.DrawText(drawText, new UiPoint(textX, textY), HexColor, TextScale);
+                }
             }
         }
 
         if (EnablePickerPopup)
         {
-            DrawOptionButton(context, _pickerButtonRect, _pickerPopup != null && _pickerPopup.IsOpen ? "Hide" : "Pick");
+            DrawOptionButton(
+                context,
+                _pickerButtonRect,
+                _pickerPopup != null && _pickerPopup.IsOpen ? PickerButtonOpenText : PickerButtonText);
         }
     }
 
@@ -425,9 +435,8 @@ public sealed class UiColorEdit : UiElement
         }
 
         int textWidth = context.Renderer.MeasureTextWidth(text, TextScale);
-        int textHeight = context.Renderer.MeasureTextHeight(TextScale);
         int textX = rect.X + (rect.Width - textWidth) / 2;
-        int textY = rect.Y + (rect.Height - textHeight) / 2;
+        int textY = UiRenderHelpers.GetVerticallyCenteredTextY(rect, text, TextScale);
         context.Renderer.DrawText(text, new UiPoint(textX, textY), OptionButtonTextColor, TextScale);
     }
 
