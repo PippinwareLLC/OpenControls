@@ -918,6 +918,9 @@ public sealed class UiDockWorkspace : UiElement
         destination.MenuBorderColor = source.MenuBorderColor;
         destination.MenuTextColor = source.MenuTextColor;
         destination.MenuDisabledTextColor = source.MenuDisabledTextColor;
+        destination.PanelInset = source.PanelInset;
+        destination.CornerRadius = source.CornerRadius;
+        destination.ClipChildren = source.ClipChildren;
         destination.TabBarHeight = source.TabBarHeight;
         destination.TabWidth = source.TabWidth;
         destination.TabMaxWidth = source.TabMaxWidth;

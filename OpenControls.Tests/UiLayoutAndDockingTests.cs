@@ -226,6 +226,25 @@ public sealed class UiLayoutAndDockingTests
     }
 
     [Fact]
+    public void DockWorkspace_SplitHostCopiesDockHostIslandStyle()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 180)
+        };
+
+        workspace.RootHost.PanelInset = 4;
+        workspace.RootHost.CornerRadius = 7;
+        workspace.RootHost.ClipChildren = true;
+
+        UiDockHost rightHost = workspace.SplitHost(workspace.RootHost, UiDockWorkspace.DockTarget.Right);
+
+        Assert.Equal(4, rightHost.PanelInset);
+        Assert.Equal(7, rightHost.CornerRadius);
+        Assert.True(rightHost.ClipChildren);
+    }
+
+    [Fact]
     public void DockWorkspace_ApplyState_ReparentsWindowsFromRemovedHosts()
     {
         UiDockWorkspace workspace = new()

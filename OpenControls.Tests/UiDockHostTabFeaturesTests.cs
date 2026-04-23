@@ -258,6 +258,30 @@ public sealed class UiDockHostTabFeaturesTests
     }
 
     [Fact]
+    public void DockHost_PanelInsetOffsetsTabsAndDockedContent()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160),
+            HideDockedTitleBars = true,
+            PanelInset = 4,
+            TabBarHeight = 24
+        };
+
+        UiWindow window = new()
+        {
+            Title = "Window 0"
+        };
+        host.AddWindow(window);
+
+        Update(host, new UiInputState());
+
+        Assert.Equal(new UiRect(4, 4, 120, 24), host.GetTabBounds(0));
+        Assert.Equal(new UiRect(4, 28, 312, 128), window.Bounds);
+        Assert.Equal(window.Bounds, window.ContentBounds);
+    }
+
+    [Fact]
     public void DockHost_DraggingTabOutsideBoundsDetachesImmediatelyUsingScreenCoordinates()
     {
         UiDockHost host = new()
