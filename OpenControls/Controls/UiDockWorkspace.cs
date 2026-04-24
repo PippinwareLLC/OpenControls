@@ -909,10 +909,13 @@ public sealed class UiDockWorkspace : UiElement
         destination.Background = source.Background;
         destination.Border = source.Border;
         destination.TabBarColor = source.TabBarColor;
+        destination.TabInactiveColor = source.TabInactiveColor;
         destination.TabActiveColor = source.TabActiveColor;
         destination.TabHoverColor = source.TabHoverColor;
         destination.TabTextColor = source.TabTextColor;
+        destination.TabActiveTextColor = source.TabActiveTextColor;
         destination.TabBorderColor = source.TabBorderColor;
+        destination.TabActiveAccentColor = source.TabActiveAccentColor;
         destination.MenuBackground = source.MenuBackground;
         destination.MenuHoverColor = source.MenuHoverColor;
         destination.MenuBorderColor = source.MenuBorderColor;
@@ -926,6 +929,10 @@ public sealed class UiDockWorkspace : UiElement
         destination.TabMaxWidth = source.TabMaxWidth;
         destination.TabPadding = source.TabPadding;
         destination.TabIconSpacing = source.TabIconSpacing;
+        destination.TabInset = source.TabInset;
+        destination.TabBottomInset = source.TabBottomInset;
+        destination.TabCornerRadius = source.TabCornerRadius;
+        destination.TabActiveAccentHeight = source.TabActiveAccentHeight;
         destination.TabTextScale = source.TabTextScale;
         destination.TabTextBold = source.TabTextBold;
         destination.AutoSizeTabs = source.AutoSizeTabs;

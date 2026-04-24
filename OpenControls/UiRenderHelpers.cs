@@ -74,6 +74,36 @@ public static class UiRenderHelpers
         }
     }
 
+    public static void FillRectTopRounded(IUiRenderer renderer, UiRect rect, int radius, UiColor color)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            return;
+        }
+
+        int clampedRadius = ClampRadius(rect, radius);
+        if (clampedRadius <= 0)
+        {
+            renderer.FillRect(rect, color);
+            return;
+        }
+
+        for (int row = 0; row < rect.Height; row++)
+        {
+            int inset = row < clampedRadius
+                ? ComputeCornerInset(clampedRadius, row)
+                : 0;
+
+            int width = rect.Width - inset * 2;
+            if (width <= 0)
+            {
+                continue;
+            }
+
+            renderer.FillRect(new UiRect(rect.X + inset, rect.Y + row, width, 1), color);
+        }
+    }
+
     public static void MaskRectRounded(IUiRenderer renderer, UiRect rect, int radius, UiColor maskColor)
     {
         if (rect.Width <= 0 || rect.Height <= 0 || maskColor.A == 0)
@@ -135,6 +165,28 @@ public static class UiRenderHelpers
 
             int insetRadius = Math.Max(0, clampedRadius - t);
             DrawRectRoundedOutline(renderer, insetRect, insetRadius, color);
+        }
+    }
+
+    public static void DrawRectTopRounded(IUiRenderer renderer, UiRect rect, int radius, UiColor color, int thickness = 1)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0 || thickness <= 0)
+        {
+            return;
+        }
+
+        int clampedRadius = ClampRadius(rect, radius);
+        int maxThickness = Math.Min(thickness, Math.Min(rect.Width, rect.Height));
+        for (int t = 0; t < maxThickness; t++)
+        {
+            UiRect insetRect = new UiRect(rect.X + t, rect.Y + t, rect.Width - t * 2, rect.Height - t * 2);
+            if (insetRect.Width <= 0 || insetRect.Height <= 0)
+            {
+                break;
+            }
+
+            int insetRadius = Math.Max(0, clampedRadius - t);
+            DrawRectTopRoundedOutline(renderer, insetRect, insetRadius, color);
         }
     }
 
@@ -279,6 +331,59 @@ public static class UiRenderHelpers
             int rightX = right - inset;
 
             if (row == 0 || row == rect.Height - 1)
+            {
+                renderer.FillRect(new UiRect(leftX, y, width, 1), color);
+                continue;
+            }
+
+            if (leftX == rightX)
+            {
+                renderer.FillRect(new UiRect(leftX, y, 1, 1), color);
+                continue;
+            }
+
+            renderer.FillRect(new UiRect(leftX, y, 1, 1), color);
+            renderer.FillRect(new UiRect(rightX, y, 1, 1), color);
+        }
+    }
+
+    private static void DrawRectTopRoundedOutline(IUiRenderer renderer, UiRect rect, int radius, UiColor color)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            return;
+        }
+
+        if (radius <= 0)
+        {
+            renderer.FillRect(new UiRect(rect.X, rect.Y, rect.Width, 1), color);
+            if (rect.Height > 1)
+            {
+                renderer.FillRect(new UiRect(rect.X, rect.Y + 1, 1, rect.Height - 1), color);
+                renderer.FillRect(new UiRect(rect.Right - 1, rect.Y + 1, 1, rect.Height - 1), color);
+            }
+
+            return;
+        }
+
+        int right = rect.Right - 1;
+        for (int row = 0; row < rect.Height; row++)
+        {
+            int inset = row < radius
+                ? ComputeCornerInset(radius, row)
+                : 0;
+
+            int width = rect.Width - inset * 2;
+            if (width <= 0)
+            {
+                continue;
+            }
+
+            int y = rect.Y + row;
+            int leftX = rect.X + inset;
+            int rightX = right - inset;
+
+            if (row == 0)
             {
                 renderer.FillRect(new UiRect(leftX, y, width, 1), color);
                 continue;

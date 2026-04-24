@@ -72,6 +72,7 @@ public sealed class UiDockHost : UiElement
     public UiColor Background { get; set; } = new(20, 24, 34);
     public UiColor Border { get; set; } = new(90, 100, 120);
     public UiColor TabBarColor { get; set; } = new(22, 26, 36);
+    public UiColor TabInactiveColor { get; set; } = new(22, 26, 36);
     public UiColor TabActiveColor { get; set; } = new(45, 52, 70);
     public UiColor TabHoverColor { get; set; } = new(32, 36, 48);
     public UiColor TabTextColor { get; set; } = UiColor.White;
@@ -91,6 +92,7 @@ public sealed class UiDockHost : UiElement
     public int TabPadding { get; set; } = 6;
     public int TabIconSpacing { get; set; } = 4;
     public int TabInset { get; set; } = 0;
+    public int TabBottomInset { get; set; } = 0;
     public int TabCornerRadius { get; set; } = 0;
     public int TabActiveAccentHeight { get; set; } = 0;
     public int TabTextScale { get; set; } = 1;
@@ -621,6 +623,11 @@ public sealed class UiDockHost : UiElement
 
         int tabHeight = GetEffectiveTabBarHeight(panelBounds);
         UiRect tabBar = new(panelBounds.X, panelBounds.Y, panelBounds.Width, tabHeight);
+        UiRect contentBounds = new(
+            panelBounds.X,
+            panelBounds.Y + tabHeight,
+            panelBounds.Width,
+            Math.Max(0, panelBounds.Height - tabHeight));
         FillTabBarRect(context, tabBar);
 
         UiRect clipBounds = _tabsOverflow ? _tabAreaBounds : tabBar;
@@ -630,7 +637,7 @@ public sealed class UiDockHost : UiElement
         {
             UiRect tabRect = GetTabRect(i);
             bool active = i == _activeIndex;
-            UiColor tabColor = active ? TabActiveColor : (_dragIndex == i ? TabHoverColor : TabBarColor);
+            UiColor tabColor = active ? TabActiveColor : (_dragIndex == i ? TabHoverColor : TabInactiveColor);
             UiColor textColor = active ? TabActiveTextColor : TabTextColor;
             UiRect renderRect = GetRenderedTabRect(tabRect);
             if (renderRect.Width <= 0 || renderRect.Height <= 0)
@@ -640,8 +647,8 @@ public sealed class UiDockHost : UiElement
 
             if (TabCornerRadius > 0)
             {
-                UiRenderHelpers.FillRectRounded(context.Renderer, renderRect, TabCornerRadius, tabColor);
-                UiRenderHelpers.DrawRectRounded(context.Renderer, renderRect, TabCornerRadius, TabBorderColor, 1);
+                UiRenderHelpers.FillRectTopRounded(context.Renderer, renderRect, TabCornerRadius, tabColor);
+                UiRenderHelpers.DrawRectTopRounded(context.Renderer, renderRect, TabCornerRadius, TabBorderColor, 1);
             }
             else
             {
@@ -728,7 +735,7 @@ public sealed class UiDockHost : UiElement
             UiRenderHelpers.MaskRectRounded(context.Renderer, panelBounds, CornerRadius, Background);
         }
 
-        DrawPanelRect(context, panelBounds, Border);
+        DrawPanelRect(context, contentBounds, Border);
     }
 
     public override void RenderOverlay(UiRenderContext context)
@@ -1190,9 +1197,10 @@ public sealed class UiDockHost : UiElement
     private UiRect GetRenderedTabRect(UiRect tabRect)
     {
         int inset = Math.Max(0, TabInset);
+        int bottomInset = Math.Max(0, TabBottomInset);
         int width = Math.Max(0, tabRect.Width - inset * 2);
-        int height = Math.Max(0, tabRect.Height - Math.Max(0, inset));
-        return new UiRect(tabRect.X + inset, tabRect.Y + Math.Max(0, inset), width, height);
+        int height = Math.Max(0, tabRect.Height - inset - bottomInset);
+        return new UiRect(tabRect.X + inset, tabRect.Y + inset, width, height);
     }
 
     private UiRect GetRenderedButtonRect(UiRect bounds)
