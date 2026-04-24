@@ -793,19 +793,46 @@ public sealed class UiDockHost : UiElement
         if (_tabsOverflow)
         {
             scrollButtonWidth = Math.Min(scrollButtonWidth, Math.Max(0, panelBounds.Width / 3));
-            overflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, panelBounds.Width - scrollButtonWidth * 2));
+            overflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, panelBounds.Width - scrollButtonWidth));
         }
 
-        int tabAreaWidth = Math.Max(0, panelBounds.Width - scrollButtonWidth * 2 - overflowButtonWidth);
-        _scrollLeftBounds = new UiRect(panelBounds.X, panelBounds.Y, scrollButtonWidth, tabHeight);
-        _tabAreaBounds = new UiRect(panelBounds.X + scrollButtonWidth, panelBounds.Y, tabAreaWidth, tabHeight);
-        _overflowButtonBounds = overflowButtonWidth > 0
-            ? new UiRect(_tabAreaBounds.Right, panelBounds.Y, overflowButtonWidth, tabHeight)
-            : default;
-        _scrollRightBounds = new UiRect(panelBounds.Right - scrollButtonWidth, panelBounds.Y, scrollButtonWidth, tabHeight);
+        bool showScrollLeft = _tabsOverflow && _tabScrollOffset > 0 && scrollButtonWidth > 0;
+        bool showScrollRight = _tabsOverflow && scrollButtonWidth > 0;
+        int leftScrollWidth = 0;
+        int rightScrollWidth = 0;
+        int tabAreaWidth = panelBounds.Width;
+        int appliedOverflowButtonWidth = overflowButtonWidth;
+        for (int pass = 0; pass < 4; pass++)
+        {
+            leftScrollWidth = showScrollLeft ? scrollButtonWidth : 0;
+            rightScrollWidth = showScrollRight ? scrollButtonWidth : 0;
+            appliedOverflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, panelBounds.Width - leftScrollWidth - rightScrollWidth));
+            tabAreaWidth = Math.Max(0, panelBounds.Width - leftScrollWidth - rightScrollWidth - appliedOverflowButtonWidth);
 
-        _tabMaxScroll = Math.Max(0, totalWidth - tabAreaWidth);
-        _tabScrollOffset = Math.Clamp(_tabScrollOffset, 0, _tabMaxScroll);
+            _tabMaxScroll = Math.Max(0, totalWidth - tabAreaWidth);
+            _tabScrollOffset = Math.Clamp(_tabScrollOffset, 0, _tabMaxScroll);
+
+            bool nextShowScrollLeft = _tabsOverflow && _tabScrollOffset > 0 && scrollButtonWidth > 0;
+            bool nextShowScrollRight = _tabsOverflow && _tabScrollOffset < _tabMaxScroll && scrollButtonWidth > 0;
+            if (nextShowScrollLeft == showScrollLeft && nextShowScrollRight == showScrollRight)
+            {
+                break;
+            }
+
+            showScrollLeft = nextShowScrollLeft;
+            showScrollRight = nextShowScrollRight;
+        }
+
+        _scrollLeftBounds = leftScrollWidth > 0
+            ? new UiRect(panelBounds.X, panelBounds.Y, leftScrollWidth, tabHeight)
+            : default;
+        _tabAreaBounds = new UiRect(panelBounds.X + leftScrollWidth, panelBounds.Y, tabAreaWidth, tabHeight);
+        _overflowButtonBounds = appliedOverflowButtonWidth > 0
+            ? new UiRect(_tabAreaBounds.Right, panelBounds.Y, appliedOverflowButtonWidth, tabHeight)
+            : default;
+        _scrollRightBounds = rightScrollWidth > 0
+            ? new UiRect(panelBounds.Right - rightScrollWidth, panelBounds.Y, rightScrollWidth, tabHeight)
+            : default;
 
         LayoutTabRects(_tabAreaBounds.X - _tabScrollOffset, tabHeight);
 
@@ -1142,12 +1169,12 @@ public sealed class UiDockHost : UiElement
             return;
         }
 
-        UiColor background = hover && enabled ? TabHoverColor : TabBarColor;
+        UiColor background = hover && enabled ? TabHoverColor : TabInactiveColor;
         UiRect renderRect = GetRenderedButtonRect(bounds);
         if (TabCornerRadius > 0)
         {
-            UiRenderHelpers.FillRectRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), background);
-            UiRenderHelpers.DrawRectRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), TabBorderColor, 1);
+            UiRenderHelpers.FillRectTopRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), background);
+            UiRenderHelpers.DrawRectTopRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), TabBorderColor, 1);
         }
         else
         {
@@ -1156,13 +1183,7 @@ public sealed class UiDockHost : UiElement
         }
 
         UiColor arrowColor = enabled ? TabTextColor : TabBorderColor;
-        int inset = Math.Max(2, renderRect.Height / 4);
-        UiRect arrowBounds = new(
-            renderRect.X + inset,
-            renderRect.Y + inset,
-            Math.Max(0, renderRect.Width - inset * 2),
-            Math.Max(0, renderRect.Height - inset * 2));
-        UiArrow.DrawTriangle(context.Renderer, arrowBounds, direction, arrowColor);
+        UiArrow.DrawTriangle(context.Renderer, GetTabButtonArrowBounds(renderRect), direction, arrowColor);
     }
 
     private void RenderOverflowButton(UiRenderContext context)
@@ -1172,12 +1193,12 @@ public sealed class UiDockHost : UiElement
             return;
         }
 
-        UiColor background = (_overflowButtonHover || _overflowMenuOpen) ? TabHoverColor : TabBarColor;
+        UiColor background = (_overflowButtonHover || _overflowMenuOpen) ? TabHoverColor : TabInactiveColor;
         UiRect renderRect = GetRenderedButtonRect(_overflowButtonBounds);
         if (TabCornerRadius > 0)
         {
-            UiRenderHelpers.FillRectRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), background);
-            UiRenderHelpers.DrawRectRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), TabBorderColor, 1);
+            UiRenderHelpers.FillRectTopRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), background);
+            UiRenderHelpers.DrawRectTopRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), TabBorderColor, 1);
         }
         else
         {
@@ -1185,13 +1206,7 @@ public sealed class UiDockHost : UiElement
             context.Renderer.DrawRect(renderRect, TabBorderColor, 1);
         }
 
-        int inset = Math.Max(2, renderRect.Height / 4);
-        UiRect arrowBounds = new(
-            renderRect.X + inset,
-            renderRect.Y + inset,
-            Math.Max(0, renderRect.Width - inset * 2),
-            Math.Max(0, renderRect.Height - inset * 2));
-        UiArrow.DrawTriangle(context.Renderer, arrowBounds, UiArrowDirection.Down, TabTextColor);
+        UiArrow.DrawTriangle(context.Renderer, GetTabButtonArrowBounds(renderRect), UiArrowDirection.Down, TabTextColor);
     }
 
     private UiRect GetRenderedTabRect(UiRect tabRect)
@@ -1206,9 +1221,26 @@ public sealed class UiDockHost : UiElement
     private UiRect GetRenderedButtonRect(UiRect bounds)
     {
         int inset = Math.Max(0, TabInset);
+        int bottomInset = Math.Max(0, TabBottomInset);
         int width = Math.Max(0, bounds.Width - inset * 2);
-        int height = Math.Max(0, bounds.Height - inset * 2);
+        int height = Math.Max(0, bounds.Height - inset - bottomInset);
         return new UiRect(bounds.X + inset, bounds.Y + inset, width, height);
+    }
+
+    private static UiRect GetTabButtonArrowBounds(UiRect renderRect)
+    {
+        if (renderRect.Width <= 0 || renderRect.Height <= 0)
+        {
+            return default;
+        }
+
+        int horizontalInset = Math.Clamp(renderRect.Width / 4, 2, Math.Max(2, renderRect.Width / 3));
+        int verticalInset = Math.Clamp(renderRect.Height / 3, 3, Math.Max(3, renderRect.Height / 2 - 1));
+        return new UiRect(
+            renderRect.X + horizontalInset,
+            renderRect.Y + verticalInset,
+            Math.Max(0, renderRect.Width - horizontalInset * 2),
+            Math.Max(0, renderRect.Height - verticalInset * 2));
     }
 
     private string GetRenderedWindowTitle(int index)
