@@ -16,8 +16,12 @@ public sealed class UiCheckbox : UiElement
     public UiColor HoverBackground { get; set; } = new UiColor(36, 42, 58);
     public UiColor PressedBackground { get; set; } = new UiColor(22, 26, 36);
     public UiColor Border { get; set; } = new UiColor(60, 70, 90);
+    public UiColor CheckedBackground { get; set; } = UiColor.Transparent;
+    public UiColor CheckedBorder { get; set; } = new UiColor(120, 140, 200);
     public UiColor CheckColor { get; set; } = new UiColor(120, 140, 200);
     public UiColor TextColor { get; set; } = UiColor.White;
+    public int CornerRadius { get; set; } = 3;
+    public int CheckThickness { get; set; } = 2;
 
     public bool Checked
     {
@@ -74,15 +78,15 @@ public sealed class UiCheckbox : UiElement
         }
 
         UiRect box = GetBoxRect();
-        UiColor fill = _pressed ? PressedBackground : (_hovered ? HoverBackground : Background);
-        context.Renderer.FillRect(box, fill);
-        context.Renderer.DrawRect(box, Border, 1);
+        UiColor stateFill = _pressed ? PressedBackground : (_hovered ? HoverBackground : Background);
+        UiColor fill = Checked && CheckedBackground.A > 0 ? CheckedBackground : stateFill;
+        UiColor border = Checked ? CheckedBorder : Border;
+        UiRenderHelpers.FillRectRounded(context.Renderer, box, CornerRadius, fill);
+        UiRenderHelpers.DrawRectRounded(context.Renderer, box, CornerRadius, border, 1);
 
         if (Checked)
         {
-            int inset = Math.Max(2, box.Width / 4);
-            UiRect checkRect = new UiRect(box.X + inset, box.Y + inset, box.Width - inset * 2, box.Height - inset * 2);
-            context.Renderer.FillRect(checkRect, CheckColor);
+            DrawCheckmark(context.Renderer, box);
         }
 
         UiFont font = ResolveFont(context.DefaultFont);
@@ -123,6 +127,45 @@ public sealed class UiCheckbox : UiElement
         int size = Math.Max(4, BoxSize);
         int y = Bounds.Y + (Bounds.Height - size) / 2;
         return new UiRect(Bounds.X, y, size, size);
+    }
+
+    private void DrawCheckmark(IUiRenderer renderer, UiRect box)
+    {
+        int thickness = Math.Max(1, Math.Min(CheckThickness, Math.Max(1, box.Width / 4)));
+        UiPoint start = new(
+            box.X + Math.Max(3, box.Width * 4 / 14),
+            box.Y + Math.Max(6, box.Height * 8 / 14));
+        UiPoint mid = new(
+            box.X + Math.Max(5, box.Width * 6 / 14),
+            box.Y + Math.Max(8, box.Height * 10 / 14));
+        UiPoint end = new(
+            box.X + Math.Max(8, box.Width * 11 / 14),
+            box.Y + Math.Max(4, box.Height * 4 / 14));
+
+        DrawLine(renderer, start, mid, thickness, CheckColor);
+        DrawLine(renderer, mid, end, thickness, CheckColor);
+    }
+
+    private static void DrawLine(IUiRenderer renderer, UiPoint start, UiPoint end, int thickness, UiColor color)
+    {
+        int dx = end.X - start.X;
+        int dy = end.Y - start.Y;
+        int steps = Math.Max(Math.Abs(dx), Math.Abs(dy));
+        int size = Math.Max(1, thickness);
+        int half = size / 2;
+
+        if (steps == 0)
+        {
+            renderer.FillRect(new UiRect(start.X - half, start.Y - half, size, size), color);
+            return;
+        }
+
+        for (int step = 0; step <= steps; step++)
+        {
+            int x = start.X + (dx * step) / steps;
+            int y = start.Y + (dy * step) / steps;
+            renderer.FillRect(new UiRect(x - half, y - half, size, size), color);
+        }
     }
 
     private void Toggle()
