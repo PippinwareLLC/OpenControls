@@ -658,18 +658,17 @@ public sealed class UiDockHost : UiElement
 
             if (active && TabActiveAccentHeight > 0 && TabActiveAccentColor.A > 0)
             {
+                int accentInset = Math.Min(
+                    Math.Max(1, TabCornerRadius),
+                    Math.Max(1, renderRect.Width / 2));
                 UiRect accentRect = new(
-                    renderRect.X + 1,
+                    renderRect.X + accentInset,
                     renderRect.Y + 1,
-                    Math.Max(0, renderRect.Width - 2),
+                    Math.Max(0, renderRect.Width - accentInset * 2),
                     Math.Min(TabActiveAccentHeight, Math.Max(0, renderRect.Height - 2)));
                 if (accentRect.Width > 0 && accentRect.Height > 0)
                 {
-                    UiRenderHelpers.FillRectRounded(
-                        context.Renderer,
-                        accentRect,
-                        Math.Min(TabCornerRadius, accentRect.Height),
-                        TabActiveAccentColor);
+                    context.Renderer.FillRect(accentRect, TabActiveAccentColor);
                 }
             }
 
