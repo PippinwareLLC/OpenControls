@@ -63,6 +63,8 @@ public sealed class UiDockWorkspace : UiElement
     private UiDockHost? _hoverHost;
     private DockTarget _hoverTarget;
     private UiRect _previewBounds;
+    private string? _lastTelemetryHoverHostId;
+    private DockTarget _lastTelemetryHoverTarget;
     private UiWindow? _floatingDragWindow;
     private UiWindow? _externalPreviewWindow;
     private UiPoint _externalPreviewHoverPoint;
@@ -678,6 +680,7 @@ public sealed class UiDockWorkspace : UiElement
                     UiRect tabRect = host.GetTabBounds(index);
                     _dragPointerOffsetX = Math.Clamp(input.MousePosition.X - tabRect.X, 0, Math.Max(0, tabRect.Width));
                     _dragPointerOffsetY = Math.Clamp(input.MousePosition.Y - tabRect.Y, 0, Math.Max(0, tabRect.Height));
+                    ResetDockHoverTelemetry();
                     TraceTearOffTelemetry(
                         $"drag-start host={FormatHost(host)} window={FormatWindow(_dragWindow)} index={index} mouse={FormatPoint(input.MousePosition)} screen={FormatPoint(input.ScreenMousePosition)}");
                     break;
@@ -753,6 +756,7 @@ public sealed class UiDockWorkspace : UiElement
         {
             if (_dragMoved)
             {
+                UpdateHover(input.MousePosition);
                 HandleDrop(_dragWindow, input.MousePosition, input.ScreenMousePosition);
             }
 
@@ -792,6 +796,7 @@ public sealed class UiDockWorkspace : UiElement
 
         if (_floatingDragWindow != null && _dragWindow == _floatingDragWindow)
         {
+            UpdateHover(input.MousePosition);
             HandleDrop(_floatingDragWindow, input.MousePosition, input.ScreenMousePosition);
             _dragWindow = null;
             _floatingDragWindow = null;
@@ -834,14 +839,20 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
-        _hoverTarget = GetDockTarget(_hoverHost.Bounds, mousePosition);
+        _hoverTarget = GetDockTarget(_hoverHost, mousePosition, inferEdgeTarget: true);
         _previewBounds = GetDockPreviewBounds(_hoverHost.Bounds, _hoverTarget, _dragWindow.Bounds);
+        TraceDockHoverIfChanged(mousePosition);
     }
 
     private void HandleDrop(UiWindow window, UiPoint dropPoint, UiPoint screenDropPoint)
     {
+        TraceTearOffTelemetry(
+            $"drop-start sourceHost={FormatHostOrNone(_dragSourceHost)} hoverHost={FormatHostOrNone(_hoverHost)} target='{_hoverTarget}' window={FormatWindow(window)} drop={FormatPoint(dropPoint)} screenDrop={FormatPoint(screenDropPoint)} workspace={FormatRect(Bounds)}");
+
         if (_dragSourceHost != null && _hoverHost == _dragSourceHost && _hoverTarget == DockTarget.Center)
         {
+            TraceTearOffTelemetry(
+                $"drop-skip reason='same-host-center' sourceHost={FormatHost(_dragSourceHost)} window={FormatWindow(window)} drop={FormatPoint(dropPoint)}");
             return;
         }
 
@@ -897,6 +908,8 @@ public sealed class UiDockWorkspace : UiElement
         window.AllowDrag = false;
         targetHost.DockWindow(window);
         targetHost.ActivateWindow(targetHost.Windows.Count - 1);
+        TraceTearOffTelemetry(
+            $"drop-dock targetHost={FormatHost(targetHost)} target='{_hoverTarget}' window={FormatWindow(window)} split={(_hoverTarget is DockTarget.Left or DockTarget.Right or DockTarget.Top or DockTarget.Bottom ? 1 : 0)}");
 
         if (collapseEmptyHosts)
         {
@@ -1037,6 +1050,7 @@ public sealed class UiDockWorkspace : UiElement
         _hoverHost = null;
         _hoverTarget = DockTarget.None;
         _previewBounds = default;
+        ResetDockHoverTelemetry();
     }
 
     private void TraceTearOffTelemetry(string message)
@@ -1049,9 +1063,40 @@ public sealed class UiDockWorkspace : UiElement
         return $"id='{host.Id}' allowDetach={(host.AllowDetach ? 1 : 0)} externalDrag={(host.ExternalDragHandling ? 1 : 0)} allowReorder={(host.AllowReorder ? 1 : 0)} predicate={(host.CanDetachWindowPredicate != null ? 1 : 0)} windows={host.Windows.Count} bounds={FormatRect(host.Bounds)}";
     }
 
+    private static string FormatHostOrNone(UiDockHost? host)
+    {
+        return host == null ? "none" : FormatHost(host);
+    }
+
     private static string FormatWindow(UiWindow window)
     {
         return $"id='{window.Id}' title='{window.Title}' bounds={FormatRect(window.Bounds)}";
+    }
+
+    private void TraceDockHoverIfChanged(UiPoint mousePosition)
+    {
+        if (_dragWindow == null || !_dragMoved)
+        {
+            return;
+        }
+
+        string? hoverHostId = _hoverHost?.Id;
+        if (string.Equals(_lastTelemetryHoverHostId, hoverHostId, StringComparison.Ordinal)
+            && _lastTelemetryHoverTarget == _hoverTarget)
+        {
+            return;
+        }
+
+        _lastTelemetryHoverHostId = hoverHostId;
+        _lastTelemetryHoverTarget = _hoverTarget;
+        TraceTearOffTelemetry(
+            $"dock-hover sourceHost={FormatHostOrNone(_dragSourceHost)} hoverHost={FormatHostOrNone(_hoverHost)} target='{_hoverTarget}' window={FormatWindow(_dragWindow)} mouse={FormatPoint(mousePosition)} preview={FormatRect(_previewBounds)}");
+    }
+
+    private void ResetDockHoverTelemetry()
+    {
+        _lastTelemetryHoverHostId = null;
+        _lastTelemetryHoverTarget = DockTarget.None;
     }
 
     private static string FormatPoint(UiPoint point)
@@ -1514,11 +1559,21 @@ public sealed class UiDockWorkspace : UiElement
         return node.SplitterBounds.Contains(point) ? node : null;
     }
 
-    private DockTarget GetDockTarget(UiRect bounds, UiPoint point)
+    private DockTarget GetDockTarget(UiDockHost host, UiPoint point, bool inferEdgeTarget)
     {
-        return TryGetDockTargetRect(bounds, point, out DockTarget target, out _)
-            ? target
-            : DockTarget.Center;
+        if (TryGetDockTargetRect(host.Bounds, point, out DockTarget target, out _))
+        {
+            return target;
+        }
+
+        if (inferEdgeTarget
+            && !host.IsPointInTabBar(point)
+            && TryGetEdgeDockTarget(host.Bounds, point, out DockTarget edgeTarget))
+        {
+            return edgeTarget;
+        }
+
+        return DockTarget.Center;
     }
 
     private static int GetSplitterAxisPosition(DockNode node, UiPoint point)
@@ -1609,6 +1664,44 @@ public sealed class UiDockWorkspace : UiElement
 
         target = DockTarget.None;
         rect = default;
+        return false;
+    }
+
+    private bool TryGetEdgeDockTarget(UiRect bounds, UiPoint point, out DockTarget target)
+    {
+        int horizontalBand = Math.Clamp(bounds.Width / 5, DropTargetSize, DropTargetSize * 3);
+        int verticalBand = Math.Clamp(bounds.Height / 5, DropTargetSize, DropTargetSize * 3);
+
+        int leftDistance = point.X - bounds.X;
+        int rightDistance = bounds.Right - point.X;
+        int topDistance = point.Y - bounds.Y;
+        int bottomDistance = bounds.Bottom - point.Y;
+
+        if (topDistance >= 0 && topDistance <= verticalBand)
+        {
+            target = DockTarget.Top;
+            return true;
+        }
+
+        if (bottomDistance >= 0 && bottomDistance <= verticalBand)
+        {
+            target = DockTarget.Bottom;
+            return true;
+        }
+
+        if (leftDistance >= 0 && leftDistance <= horizontalBand)
+        {
+            target = DockTarget.Left;
+            return true;
+        }
+
+        if (rightDistance >= 0 && rightDistance <= horizontalBand)
+        {
+            target = DockTarget.Right;
+            return true;
+        }
+
+        target = DockTarget.None;
         return false;
     }
 }

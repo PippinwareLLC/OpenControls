@@ -737,6 +737,249 @@ public sealed class UiLayoutAndDockingTests
         Assert.Same(workspace, window.Parent);
     }
 
+    [Fact]
+    public void DockWorkspace_WorkspaceOwnedTabDrag_DocksUsingReleasePoint()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiWindow root = new()
+        {
+            Id = "root-window",
+            Title = "Root"
+        };
+        workspace.RootHost.DockWindow(root);
+
+        UiDockHost splitHost = workspace.DockHosts[1];
+        splitHost.ExternalDragHandling = true;
+        UiWindow window = new()
+        {
+            Id = "dragged-window",
+            Title = "Dragged"
+        };
+        splitHost.DockWindow(window);
+        splitHost.ActivateWindow(0);
+
+        Update(workspace, new UiInputState());
+
+        UiRect tabBounds = splitHost.GetTabBounds(0);
+        UiPoint dragStart = new(tabBounds.X + 14, tabBounds.Y + 10);
+        UiPoint staleHoverPoint = new(dragStart.X + workspace.DragThreshold + 1, dragStart.Y);
+        UiPoint releasePoint = new(
+            workspace.RootHost.Bounds.X + workspace.RootHost.Bounds.Width / 2,
+            workspace.RootHost.Bounds.Y + workspace.RootHost.Bounds.Height / 2);
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = dragStart,
+            ScreenMousePosition = dragStart,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = staleHoverPoint,
+            ScreenMousePosition = staleHoverPoint,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = releasePoint,
+            ScreenMousePosition = releasePoint,
+            LeftReleased = true
+        });
+
+        Assert.Contains(window, workspace.RootHost.Windows);
+        Assert.DoesNotContain(window, splitHost.Windows);
+        Assert.Same(workspace.RootHost, window.Parent);
+    }
+
+    [Fact]
+    public void DockWorkspace_WorkspaceOwnedTabDrag_CanSplitSameHostFromContentEdge()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 400, 220),
+            SplitterThickness = 6,
+            MinPaneSize = 80
+        };
+
+        UiWindow scene = new()
+        {
+            Id = "scene-window",
+            Title = "Scene"
+        };
+        UiWindow game = new()
+        {
+            Id = "game-window",
+            Title = "Game"
+        };
+        workspace.RootHost.DockWindow(scene);
+        workspace.RootHost.DockWindow(game);
+        workspace.RootHost.ActivateWindow(1);
+
+        Update(workspace, new UiInputState());
+
+        UiRect tabBounds = workspace.RootHost.GetTabBounds(1);
+        UiPoint dragStart = new(tabBounds.X + 14, tabBounds.Y + 10);
+        UiPoint releasePoint = new(
+            workspace.RootHost.Bounds.Right - workspace.DropTargetSize,
+            workspace.RootHost.Bounds.Y + workspace.RootHost.Bounds.Height / 2);
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = dragStart,
+            ScreenMousePosition = dragStart,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = releasePoint,
+            ScreenMousePosition = releasePoint,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = releasePoint,
+            ScreenMousePosition = releasePoint,
+            LeftReleased = true
+        });
+
+        UiDockHost gameHost = Assert.Single(workspace.DockHosts, host => host.Windows.Contains(game));
+        Assert.NotSame(workspace.RootHost, gameHost);
+        Assert.Contains(scene, workspace.RootHost.Windows);
+        Assert.DoesNotContain(game, workspace.RootHost.Windows);
+        Assert.Same(gameHost, game.Parent);
+    }
+
+    [Fact]
+    public void DockWorkspace_WorkspaceOwnedTabDrag_TopContentEdgeWinsCornerAmbiguity()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 400, 220),
+            SplitterThickness = 6,
+            MinPaneSize = 80
+        };
+
+        UiWindow scene = new()
+        {
+            Id = "scene-window",
+            Title = "Scene"
+        };
+        UiWindow game = new()
+        {
+            Id = "game-window",
+            Title = "Game"
+        };
+        workspace.RootHost.DockWindow(scene);
+        workspace.RootHost.DockWindow(game);
+        workspace.RootHost.ActivateWindow(1);
+
+        Update(workspace, new UiInputState());
+
+        UiRect hostBounds = workspace.RootHost.Bounds;
+        UiRect tabBounds = workspace.RootHost.GetTabBounds(1);
+        UiPoint dragStart = new(tabBounds.X + 14, tabBounds.Y + 10);
+        UiPoint releasePoint = new(
+            hostBounds.X + workspace.DropTargetSize / 2,
+            hostBounds.Y + workspace.RootHost.TabBarHeight + 4);
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = dragStart,
+            ScreenMousePosition = dragStart,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = releasePoint,
+            ScreenMousePosition = releasePoint,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = releasePoint,
+            ScreenMousePosition = releasePoint,
+            LeftReleased = true
+        });
+
+        Update(workspace, new UiInputState());
+
+        UiDockHost gameHost = Assert.Single(workspace.DockHosts, host => host.Windows.Contains(game));
+        Assert.NotSame(workspace.RootHost, gameHost);
+        Assert.Contains(scene, workspace.RootHost.Windows);
+        Assert.DoesNotContain(game, workspace.RootHost.Windows);
+        Assert.True(gameHost.Bounds.Y < workspace.RootHost.Bounds.Y);
+        Assert.Equal(workspace.RootHost.Bounds.X, gameHost.Bounds.X);
+        Assert.Equal(workspace.RootHost.Bounds.Width, gameHost.Bounds.Width);
+    }
+
+    [Fact]
+    public void DockWorkspace_WorkspaceOwnedTabDrag_TabBarReleaseDoesNotSplitSameHost()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 400, 220),
+            SplitterThickness = 6,
+            MinPaneSize = 80
+        };
+
+        UiWindow scene = new()
+        {
+            Id = "scene-window",
+            Title = "Scene"
+        };
+        UiWindow game = new()
+        {
+            Id = "game-window",
+            Title = "Game"
+        };
+        workspace.RootHost.DockWindow(scene);
+        workspace.RootHost.DockWindow(game);
+        workspace.RootHost.ActivateWindow(0);
+
+        Update(workspace, new UiInputState());
+
+        UiRect tabBounds = workspace.RootHost.GetTabBounds(0);
+        UiPoint dragStart = new(tabBounds.X + 14, tabBounds.Y + 10);
+        UiPoint releasePoint = new(
+            workspace.RootHost.Bounds.Right - workspace.DropTargetSize,
+            tabBounds.Y + tabBounds.Height / 2);
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = dragStart,
+            ScreenMousePosition = dragStart,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = releasePoint,
+            ScreenMousePosition = releasePoint,
+            LeftDown = true
+        });
+
+        Update(workspace, new UiInputState
+        {
+            MousePosition = releasePoint,
+            ScreenMousePosition = releasePoint,
+            LeftReleased = true
+        });
+
+        Assert.Single(workspace.DockHosts);
+        Assert.Same(workspace.RootHost, scene.Parent);
+        Assert.Same(workspace.RootHost, game.Parent);
+    }
+
     private static UiDockWorkspace CreateWorkspace()
     {
         UiDockWorkspace workspace = new()
