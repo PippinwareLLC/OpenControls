@@ -4,7 +4,8 @@ public sealed class UiDpiCompensation
 {
     private float _targetDpi = 96f;
     private float _currentDpi = 96f;
-    private float _minimumScale = 1f;
+    private float _minimumScale = 0.1f;
+    private float _userScaleFactor = 1f;
 
     public bool Enabled { get; set; } = true;
 
@@ -26,6 +27,12 @@ public sealed class UiDpiCompensation
         set => _minimumScale = Math.Max(0.1f, value);
     }
 
+    public float UserScaleFactor
+    {
+        get => _userScaleFactor;
+        set => _userScaleFactor = Math.Max(0.1f, value);
+    }
+
     public float ScaleFactor
     {
         get
@@ -35,7 +42,7 @@ public sealed class UiDpiCompensation
                 return 1f;
             }
 
-            float scale = CurrentDpi / TargetDpi;
+            float scale = (CurrentDpi / TargetDpi) * UserScaleFactor;
             return Math.Max(MinimumScale, scale);
         }
     }

@@ -82,10 +82,25 @@ public sealed class UiDpiCompensationTests
     }
 
     [Fact]
-    public void ResolveScaleFactor_Uses96DpiBaselineAndClampsToOneByDefault()
+    public void ResolveScaleFactor_Uses96DpiBaselineAndClampsFramebufferScaleToOneByDefault()
     {
         Assert.Equal(2f, UiDpiCompensation.ResolveScaleFactor(1280, 720, 2560, 1440));
         Assert.Equal(1f, UiDpiCompensation.ResolveScaleFactor(1280, 720, 960, 540));
+    }
+
+    [Fact]
+    public void ScaleFactor_MultipliesFramebufferScaleAndUserScale()
+    {
+        UiDpiCompensation compensation = new()
+        {
+            UserScaleFactor = 0.85f
+        };
+
+        compensation.SetScaleFromContentSize(1280, 720, 2560, 1440);
+        Assert.Equal(1.7f, compensation.ScaleFactor, 3);
+
+        compensation.SetScaleFromContentSize(1280, 720, 1280, 720);
+        Assert.Equal(0.85f, compensation.ScaleFactor, 3);
     }
 
     [Fact]
