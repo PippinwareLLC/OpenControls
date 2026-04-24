@@ -58,10 +58,27 @@ public sealed class UiComboBox : UiCombo
 
     public override void Update(UiUpdateContext context)
     {
-        SyncRows();
-        SyncSettings();
-        base.Update(context);
-        SyncScrollIndexFromView();
+        bool suppressSelectionChangedForRowRefresh = NeedsRowRefresh();
+        bool previousSuppressSelectionChanged = SuppressSelectionChanged;
+        if (suppressSelectionChangedForRowRefresh)
+        {
+            SuppressSelectionChanged = true;
+        }
+
+        try
+        {
+            SyncRows();
+            SyncSettings();
+            base.Update(context);
+            SyncScrollIndexFromView();
+        }
+        finally
+        {
+            if (suppressSelectionChangedForRowRefresh)
+            {
+                SuppressSelectionChanged = previousSuppressSelectionChanged;
+            }
+        }
     }
 
     private void SyncRows()
@@ -73,27 +90,36 @@ public sealed class UiComboBox : UiCombo
         }
 
         int previousSelection = SelectedIndex;
-        _itemSnapshot.Clear();
-        _rows.Clear();
-        ClearItems();
-
-        for (int i = 0; i < _items.Count; i++)
+        bool previousSuppressSelectionChanged = SuppressSelectionChanged;
+        SuppressSelectionChanged = true;
+        try
         {
-            string itemText = _items[i] ?? string.Empty;
-            _itemSnapshot.Add(itemText);
+            _itemSnapshot.Clear();
+            _rows.Clear();
+            ClearItems();
 
-            UiSelectableRow row = new()
+            for (int i = 0; i < _items.Count; i++)
             {
-                Text = itemText
-            };
+                string itemText = _items[i] ?? string.Empty;
+                _itemSnapshot.Add(itemText);
 
-            _rows.Add(row);
-            AddItem(row);
+                UiSelectableRow row = new()
+                {
+                    Text = itemText
+                };
+
+                _rows.Add(row);
+                AddItem(row);
+            }
+
+            if (previousSelection >= 0 && previousSelection < _rows.Count)
+            {
+                SelectedIndex = previousSelection;
+            }
         }
-
-        if (previousSelection >= 0 && previousSelection < _rows.Count)
+        finally
         {
-            SelectedIndex = previousSelection;
+            SuppressSelectionChanged = previousSuppressSelectionChanged;
         }
 
         SyncRowStyles();

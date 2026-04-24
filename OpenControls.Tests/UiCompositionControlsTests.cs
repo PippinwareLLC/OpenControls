@@ -630,6 +630,29 @@ public sealed class UiCompositionControlsTests
     }
 
     [Fact]
+    public void ComboBox_PreservesSelectionSetBeforeRowsAreSynced()
+    {
+        UiComboBox comboBox = new()
+        {
+            Bounds = new UiRect(0, 0, 180, 24),
+            Items = new[] { "3D", "2D" }
+        };
+        int selectionChanged = 0;
+        comboBox.SelectionChanged += _ => selectionChanged++;
+
+        comboBox.SelectedIndex = 1;
+        selectionChanged = 0;
+
+        UiFocusManager focus = new();
+        UiMemoryClipboard clipboard = new();
+        Update(comboBox, focus, clipboard, new UiInputState());
+
+        Assert.Equal(1, comboBox.SelectedIndex);
+        Assert.Equal("2D", comboBox.SelectedItem?.Text);
+        Assert.Equal(0, selectionChanged);
+    }
+
+    [Fact]
     public void MenuBar_OpenContextAndAttachedHelpers_EnablePopupMode()
     {
         UiMenuBar menu = new()

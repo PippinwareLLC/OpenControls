@@ -9,6 +9,7 @@ public class UiCombo : UiElement, IUiStatefulElement
     private readonly UiListView _listView;
     private bool _hovered;
     private bool _focused;
+    private int _requestedSelectedIndex = -1;
 
     public UiCombo()
     {
@@ -35,8 +36,12 @@ public class UiCombo : UiElement, IUiStatefulElement
 
         _listView.SelectionChanged += index =>
         {
+            _requestedSelectedIndex = index;
             Invalidate(UiInvalidationReason.State | UiInvalidationReason.Text | UiInvalidationReason.Paint);
-            SelectionChanged?.Invoke(index);
+            if (!SuppressSelectionChanged)
+            {
+                SelectionChanged?.Invoke(index);
+            }
         };
         _listView.ItemInvoked += (_, _) =>
         {
@@ -59,17 +64,22 @@ public class UiCombo : UiElement, IUiStatefulElement
     public UiRect PopupBounds => _popup.Bounds;
     public int SelectedIndex
     {
-        get => _listView.SelectedIndex;
+        get => _listView.Items.Count == 0 && _requestedSelectedIndex >= 0
+            ? _requestedSelectedIndex
+            : _listView.SelectedIndex;
         set
         {
-            int previous = _listView.SelectedIndex;
+            int previous = SelectedIndex;
+            _requestedSelectedIndex = value;
             _listView.SelectedIndex = value;
-            if (previous != _listView.SelectedIndex)
+            if (previous != SelectedIndex)
             {
                 Invalidate(UiInvalidationReason.State | UiInvalidationReason.Text | UiInvalidationReason.Paint);
             }
         }
     }
+
+    protected bool SuppressSelectionChanged { get; set; }
 
     public UiSelectableRow? SelectedItem
     {
