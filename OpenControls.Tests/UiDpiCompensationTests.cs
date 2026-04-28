@@ -146,6 +146,36 @@ public sealed class UiDpiCompensationTests
     }
 
     [Fact]
+    public void ToPhysical_RectUsesRoundedAnchorAndCeiledExtentAtFractionalScale()
+    {
+        UiDpiCompensation compensation = new();
+        compensation.SetScaleFactor(0.8f);
+
+        UiRect physical = compensation.ToPhysical(new UiRect(2, 3, 1, 1));
+
+        Assert.Equal(new UiRect(2, 2, 1, 1), physical);
+    }
+
+    [Fact]
+    public void ToPhysical_RectPreservesThinExtentsAtFractionalScale()
+    {
+        UiDpiCompensation compensation = new();
+        compensation.SetScaleFactor(0.8f);
+
+        for (int x = 0; x < 24; x++)
+        {
+            UiRect verticalLine = compensation.ToPhysical(new UiRect(x, 0, 1, 12));
+            Assert.True(verticalLine.Width >= 1, $"Expected vertical line at logical x={x} to preserve at least one physical pixel.");
+        }
+
+        for (int y = 0; y < 24; y++)
+        {
+            UiRect horizontalLine = compensation.ToPhysical(new UiRect(0, y, 12, 1));
+            Assert.True(horizontalLine.Height >= 1, $"Expected horizontal line at logical y={y} to preserve at least one physical pixel.");
+        }
+    }
+
+    [Fact]
     public void ScaledRenderer_ScalesGeometryButPreservesLogicalMeasurements()
     {
         RecordingRenderer inner = new();
@@ -177,5 +207,21 @@ public sealed class UiDpiCompensationTests
         Assert.Equal(baseFont.PixelSize * 2, inner.LastTextFont!.PixelSize);
         Assert.Equal(baseFont.PixelSize * 2, inner.LastMeasureFont!.PixelSize);
         Assert.Equal(new UiRect(8, 12, 40, 20), inner.LastClipRect);
+    }
+
+    [Fact]
+    public void ScaledRenderer_PreservesThinGeometryAtFractionalScale()
+    {
+        RecordingRenderer inner = new();
+        UiDpiCompensation compensation = new();
+        compensation.SetScaleFactor(0.8f);
+
+        UiScaledRenderer renderer = new(inner, compensation);
+
+        renderer.FillRect(new UiRect(2, 3, 1, 1), UiColor.White);
+        renderer.PushClip(new UiRect(7, 11, 1, 1));
+
+        Assert.Equal(new UiRect(2, 2, 1, 1), inner.LastFillRect);
+        Assert.Equal(new UiRect(6, 9, 1, 1), inner.LastClipRect);
     }
 }

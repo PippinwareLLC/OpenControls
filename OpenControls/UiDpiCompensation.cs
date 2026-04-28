@@ -101,9 +101,9 @@ public sealed class UiDpiCompensation
     {
         int left = ToPhysicalPixels(rect.Left);
         int top = ToPhysicalPixels(rect.Top);
-        int right = ToPhysicalPixels(rect.Right);
-        int bottom = ToPhysicalPixels(rect.Bottom);
-        return new UiRect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+        int width = Math.Max(0, ToPhysicalExtent(rect.Width));
+        int height = Math.Max(0, ToPhysicalExtent(rect.Height));
+        return new UiRect(left, top, width, height);
     }
 
     public UiTextInputRequest ToPhysical(UiTextInputRequest request)
