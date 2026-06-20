@@ -5,7 +5,7 @@ namespace OpenControls.Tests;
 
 public sealed class UiTabAlignmentTests
 {
-    private const string FolderIconGlyph = "\uf07b";
+    private const string FolderIconGlyph = "#";
 
     [Fact]
     public void RenderHelpers_VerticallyCenterGlyphInk_ForDifferentGlyphShapes()
@@ -67,33 +67,7 @@ public sealed class UiTabAlignmentTests
 
     private static UiFont CreateEditorStyleFont()
     {
-        UiFontBuilder builder = new("TabAlignmentTest", 14);
-        builder.AddFile(ResolveRepoFile("third_party/BlocksEternal/assets/fonts/NotoSans-Variable.ttf"), layerName: "Body");
-        builder.AddFile(
-            ResolveRepoFile("src/Alliance.UI.OpenControls/Fonts/FontAwesome7ProSolid900.ttf"),
-            ranges: new[] { UiCodePointRange.PrivateUseArea },
-            baselineOffset: 1,
-            layerName: "Icons");
-        builder.AddBitmapFallback(layerName: "Fallback");
-        return builder.Build();
-    }
-
-    private static string ResolveRepoFile(string relativePath)
-    {
-        string? current = AppContext.BaseDirectory;
-        while (!string.IsNullOrWhiteSpace(current))
-        {
-            string candidate = Path.Combine(current, relativePath);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            DirectoryInfo? parent = Directory.GetParent(current);
-            current = parent?.FullName;
-        }
-
-        throw new Xunit.Sdk.XunitException($"Could not locate '{relativePath}' from '{AppContext.BaseDirectory}'.");
+        return UiFont.Default.WithPixelSize(14, "TabAlignmentTest");
     }
 
     private readonly record struct DrawTextCall(string Text, UiPoint Position, int Scale, UiFont Font);
