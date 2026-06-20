@@ -52,15 +52,13 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
         {
             UiPoint screen = Transform(position);
-            int scaled = Math.Max(1, (int)Math.Round(scale * _zoom));
-            _inner.DrawText(text, screen, color, scaled);
+            _inner.DrawText(text, screen, color, Math.Max(1, scale), ResolveZoomedFont(null));
         }
 
         public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
         {
             UiPoint screen = Transform(position);
-            int scaled = Math.Max(1, (int)Math.Round(scale * _zoom));
-            _inner.DrawText(text, screen, color, scaled, font);
+            _inner.DrawText(text, screen, color, Math.Max(1, scale), ResolveZoomedFont(font));
         }
 
         public int MeasureTextWidth(string text, int scale = 1)
@@ -107,6 +105,15 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
             int x = _origin.X + (int)Math.Round((point.X - _panX) * _zoom);
             int y = _origin.Y + (int)Math.Round((point.Y - _panY) * _zoom);
             return new UiPoint(x, y);
+        }
+
+        private UiFont ResolveZoomedFont(UiFont? font)
+        {
+            UiFont resolved = font ?? _inner.DefaultFont;
+            int pixelSize = Math.Max(1, (int)Math.Round(resolved.PixelSize * Math.Max(_zoom, 0.0001f)));
+            return pixelSize == resolved.PixelSize
+                ? resolved
+                : resolved.WithPixelSize(pixelSize);
         }
 
         private int ScaleThickness(int value)

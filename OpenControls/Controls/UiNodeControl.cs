@@ -349,7 +349,10 @@ public sealed class UiNodeControl : UiElement
         {
             UiNodePin pin = _pins[i];
             int rowIndex = pin.Direction == UiNodePinDirection.Input ? inputRow++ : outputRow++;
-            UiNodePinLayout layout = BuildPinLayout(pin, rowIndex, bodyBounds, font, textHeight);
+            bool hasOppositePinInRow = pin.Direction == UiNodePinDirection.Input
+                ? outputCount > rowIndex
+                : inputCount > rowIndex;
+            UiNodePinLayout layout = BuildPinLayout(pin, rowIndex, bodyBounds, font, textHeight, hasOppositePinInRow);
             pin.Layout = layout;
             layouts.Add(layout);
         }
@@ -359,20 +362,18 @@ public sealed class UiNodeControl : UiElement
         if (!string.IsNullOrEmpty(BodyText) && bodyBounds.Width > 0 && bodyBounds.Height > 0)
         {
             int bodyTextY = bodyBounds.Y + padding + rowCount * Math.Max(12, PinRowHeight) + padding;
-            if (bodyTextY + textHeight > bodyBounds.Bottom - padding)
+            if (bodyTextY + textHeight <= bodyBounds.Bottom - padding)
             {
-                bodyTextY = bodyBounds.Y + padding;
+                int bodyTextAvailableWidth = Math.Max(0, bodyBounds.Width - padding * 2);
+                int bodyTextWidth = Math.Min(bodyTextAvailableWidth, font.MeasureTextWidth(BodyText, scale));
+                bodyTextBounds = new(bodyBounds.X + padding, bodyTextY, bodyTextWidth, textHeight);
             }
-
-            int bodyTextAvailableWidth = Math.Max(0, bodyBounds.Width - padding * 2);
-            int bodyTextWidth = Math.Min(bodyTextAvailableWidth, font.MeasureTextWidth(BodyText, scale));
-            bodyTextBounds = new(bodyBounds.X + padding, bodyTextY, bodyTextWidth, textHeight);
         }
 
         _debugLayout = new UiNodeDebugLayout(Bounds, headerBounds, bodyBounds, titleBounds, bodyTextBounds, layouts.ToArray());
     }
 
-    private UiNodePinLayout BuildPinLayout(UiNodePin pin, int rowIndex, UiRect bodyBounds, UiFont font, int textHeight)
+    private UiNodePinLayout BuildPinLayout(UiNodePin pin, int rowIndex, UiRect bodyBounds, UiFont font, int textHeight, bool hasOppositePinInRow)
     {
         int rowHeight = Math.Max(12, PinRowHeight);
         int padding = Math.Max(0, Padding);
@@ -386,7 +387,11 @@ public sealed class UiNodeControl : UiElement
         int labelWidth = font.MeasureTextWidth(pin.Text, TextScale);
         int labelY = center.Y - textHeight / 2;
         int sidePadding = Math.Max(PinVisualSize, PinHitSize) + Math.Max(4, padding / 2);
-        int maxLabelWidth = Math.Max(0, Bounds.Width / 2 - padding);
+        int laneGap = Math.Max(6, padding / 2);
+        int sharedLabelWidth = Math.Max(0, Bounds.Width - sidePadding * 2);
+        int maxLabelWidth = hasOppositePinInRow
+            ? Math.Max(0, (sharedLabelWidth - laneGap) / 2)
+            : sharedLabelWidth;
         int clampedLabelWidth = Math.Min(maxLabelWidth, labelWidth);
         int labelX = pin.Direction == UiNodePinDirection.Input
             ? Bounds.X + sidePadding

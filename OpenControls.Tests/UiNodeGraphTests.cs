@@ -9,6 +9,7 @@ public sealed class UiNodeGraphTests
     {
         public UiFont DefaultFont { get; set; } = UiFont.Default;
         public List<UiRect> FilledRects { get; } = new();
+        public List<(string Text, int Scale, int PixelSize)> DrawnTexts { get; } = new();
 
         public void FillRect(UiRect rect, UiColor color)
         {
@@ -31,10 +32,12 @@ public sealed class UiNodeGraphTests
 
         public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
         {
+            DrawText(text, position, color, scale, DefaultFont);
         }
 
         public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
         {
+            DrawnTexts.Add((text, scale, (font ?? DefaultFont).PixelSize));
         }
 
         public int MeasureTextWidth(string text, int scale = 1)
@@ -89,6 +92,88 @@ public sealed class UiNodeGraphTests
         UiNodePinLayout input = Assert.Single(layout.Pins, pin => pin.Pin?.Id == "in");
         UiNodePinLayout output = Assert.Single(layout.Pins, pin => pin.Pin?.Id == "then");
         Assert.True(input.Center.X < output.Center.X);
+    }
+
+    [Fact]
+    public void NodeControl_LongOpposingPinLabelsReserveSeparateTextLanes()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeControl node = new()
+        {
+            Id = "long-labels",
+            AutomationId = "long-labels",
+            AutomationName = "Long Label Node",
+            AutomationRole = "node",
+            Bounds = new UiRect(120, 96, 220, 126),
+            Title = "Very Long Function Call Node Title",
+            BodyText = "Long pin lane stress",
+            Padding = 10,
+            PinHitSize = 18,
+            PinVisualSize = 10
+        };
+        node.AddInput("payload", "Extremely Long Input Payload Name", UiNodePinKind.Data);
+        node.AddOutput("result", "Very Long Output Result Name", UiNodePinKind.Data);
+        graph.AddNode(node);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiNodePinLayout input = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "payload");
+        UiNodePinLayout output = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "result");
+
+        Assert.False(Intersects(input.LabelBounds, output.LabelBounds));
+        Assert.False(Intersects(input.HitBounds, input.LabelBounds));
+        Assert.False(Intersects(output.HitBounds, output.LabelBounds));
+        Assert.True(input.LabelBounds.X >= node.Bounds.X);
+        Assert.True(input.LabelBounds.Right < output.LabelBounds.X);
+        Assert.True(output.LabelBounds.Right <= node.Bounds.Right);
+    }
+
+    [Fact]
+    public void NodeControl_DensePinsHideBodyTextInsteadOfOverlappingRows()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeControl node = new()
+        {
+            Id = "dense",
+            AutomationId = "dense",
+            AutomationName = "Dense Node",
+            AutomationRole = "node",
+            Bounds = new UiRect(120, 96, 220, 112),
+            Title = "Dense Node",
+            BodyText = "This subtitle should not cover pin rows",
+            Padding = 10,
+            PinRowHeight = 24,
+            PinHitSize = 18
+        };
+        node.AddInput("in", "In", UiNodePinKind.Exec);
+        node.AddOutput("then", "Then", UiNodePinKind.Exec);
+        node.AddInput("first", "First Value", UiNodePinKind.Data);
+        node.AddOutput("valid", "Is Valid", UiNodePinKind.Data);
+        node.AddInput("second", "Second Value", UiNodePinKind.Data);
+        node.AddOutput("result", "Result Value", UiNodePinKind.Data);
+        graph.AddNode(node);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        Assert.Equal(default, node.DebugLayout.BodyTextBounds);
+        Assert.All(node.DebugLayout.Pins, pin =>
+        {
+            Assert.False(Intersects(pin.HitBounds, node.DebugLayout.TitleBounds));
+        });
     }
 
     [Fact]
@@ -218,6 +303,22 @@ public sealed class UiNodeGraphTests
         UiItemStateSnapshot state = context.GetItemState(print);
 
         Assert.Equal(graph.Canvas.WorldToScreen(print.Bounds), state.Bounds);
+    }
+
+    [Fact]
+    public void NodeGraph_ZoomedOutCanvasUsesSmallerFontForNodeText()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        graph.Zoom = 0.55f;
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        var entryTitle = Assert.Single(renderer.DrawnTexts, text => text.Text == entry.Title);
+        Assert.True(entryTitle.PixelSize < UiFont.Default.PixelSize);
+        Assert.True(entryTitle.PixelSize <= graph.Canvas.WorldToScreen(entry.DebugLayout.HeaderBounds).Height);
     }
 
     private static UiNodeGraph CreateGraph(
