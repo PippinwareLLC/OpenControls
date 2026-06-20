@@ -120,7 +120,7 @@ Historical note:
 - Inputs: `UiCheckbox`, `UiRadioButton`, `UiTextField`, `UiTextEditor`, `UiInputFloat/Int/Double`, `UiInputFloat2/3/4`, `UiInputInt2/3/4`, `UiNumericField`, `UiNumericVector`, `UiSlider`, `UiSliderFloat2/3/4`, `UiSliderInt2/3/4`, `UiSliderVector`, `UiVSlider`, `UiDragFloat`, `UiDragInt`, `UiDragFloat2/3/4`, `UiDragInt2/3/4`, `UiDragFloatRange`, `UiDragIntRange`.
 - Lists and tables: `UiListBox`, `UiSelectable`, `UiComboBox`, `UiTable`, `UiTreeView`.
 - Data display: `UiProgressBar` (horizontal/vertical, segmented, radial), `UiPlotPanel`, `UiWaveform`, `UiColorEdit`, `UiColorPicker`, `UiColorButton`, `UiImage`, `UiImageButton`.
-- Layout: `UiStack`, `UiWrapPanel`, `UiGrid`, `UiSplitter`, `UiScrollPanel`, `UiCanvas`, `UiWindow`, `UiDockHost`, `UiDockWorkspace`.
+- Layout: `UiStack`, `UiWrapPanel`, `UiGrid`, `UiSplitter`, `UiScrollPanel`, `UiCanvas`, `UiNodeGraph`, `UiNodeControl`, `UiWindow`, `UiDockHost`, `UiDockWorkspace`.
 - Interaction: `UiTabBar`, `UiTabItem`, `UiTabItemButton`, `UiDragDropSource`, `UiDragDropTarget`.
 - Overlays: `UiMenuBar`, `UiTreeNode`, `UiCollapsingHeader`, `UiTooltip`, `UiTooltipRegion`, `UiPopup`, `UiModal`, `UiModalHost`.
 
@@ -152,7 +152,8 @@ Planned expansion:
 - Plotting panel control supports axes, tick labels, grid lines, and zoom/pan input.
 - Waveform control renders sample buffers with min/max or line modes and an optional zero line.
 - Grid layout control assigns children to rows/columns with spacing and padding.
-- Canvas control supports pan/zoom with optional grid and origin helpers.
+- Canvas control supports pan/zoom with optional grid and origin helpers, plus public world/screen coordinate conversion helpers.
+- Node graph primitives (`UiNodeGraph`, `UiNodeControl`, `UiNodePin`, `UiNodeWire`) build on `UiCanvas` for reusable editor-style nodes, exec/data pins, routed wires, wire-preview state, and debug layout metadata.
 - Color edit and color picker controls now cover RGB / HSV / HEX workflows, byte-vs-float value displays, picker-popup integration, side preview/input toggles, alpha bars, checkerboard transparency, and color drag/drop.
 - Multi-select selection model for list boxes and selectables (Ctrl/Shift range) is available.
 - Scroll panels support auto/always scrollbars for overflowing content.

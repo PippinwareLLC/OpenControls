@@ -190,6 +190,24 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
     public UiRect ViewportBounds => _viewportBounds;
     public override bool IsFocusable => true;
 
+    public UiPoint WorldToScreen(UiPoint world)
+    {
+        UpdateLayout();
+        return new UiPoint(WorldToScreenX(world.X), WorldToScreenY(world.Y));
+    }
+
+    public UiRect WorldToScreen(UiRect world)
+    {
+        UpdateLayout();
+        return TransformRect(world);
+    }
+
+    public UiPoint ScreenToWorld(UiPoint screen)
+    {
+        UpdateLayout();
+        return ScreenToWorldCore(screen);
+    }
+
     public override void Update(UiUpdateContext context)
     {
         if (!Visible || !Enabled)
@@ -204,7 +222,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         UiInputState propagatedInput = context.Input;
         UiPoint mouse = input.MousePosition;
         bool mouseInViewport = _viewportBounds.Contains(mouse);
-        UiPoint worldMouse = mouseInViewport ? ScreenToWorld(mouse) : new UiPoint(int.MinValue / 4, int.MinValue / 4);
+        UiPoint worldMouse = mouseInViewport ? ScreenToWorldCore(mouse) : new UiPoint(int.MinValue / 4, int.MinValue / 4);
         bool overFocusableChild = mouseInViewport && IsOverFocusableChild(worldMouse);
 
         if (EnablePan && input.LeftClicked && mouseInViewport && !overFocusableChild)
@@ -340,7 +358,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
     private UiInputState BuildChildInput(UiInputState input, bool allowMouse)
     {
         UiPoint localMouse = allowMouse
-            ? ScreenToWorld(input.MousePosition)
+            ? ScreenToWorldCore(input.MousePosition)
             : new UiPoint(int.MinValue / 4, int.MinValue / 4);
         UiPoint? leftDragOrigin = allowMouse ? TransformPoint(input.LeftDragOrigin) : null;
         UiPoint? rightDragOrigin = allowMouse ? TransformPoint(input.RightDragOrigin) : null;
@@ -383,7 +401,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
 
     private UiPoint? TransformPoint(UiPoint? point)
     {
-        return point is UiPoint value ? ScreenToWorld(value) : null;
+        return point is UiPoint value ? ScreenToWorldCore(value) : null;
     }
 
     private void ApplyZoom(UiPoint mouse, int scrollDelta)
@@ -487,7 +505,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         return _viewportBounds.Y + (int)Math.Round((worldY - PanY) * Zoom);
     }
 
-    private UiPoint ScreenToWorld(UiPoint screen)
+    private UiPoint ScreenToWorldCore(UiPoint screen)
     {
         float invZoom = 1f / Math.Max(Zoom, 0.0001f);
         int worldX = (int)Math.Round(PanX + (screen.X - _viewportBounds.X) * invZoom);

@@ -74,6 +74,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiWrapPanel`: retained flow layout container for wrapped rows of child content.
 - `UiGroup`: logical grouped region for treating multiple children as one retained section.
 - `UiCanvas`: pannable/zoomable canvas that renders child elements with an optional grid and origin.
+- `UiNodeGraph`, `UiNodeControl`, `UiNodePin`, `UiNodeWire`, `UiNodeWireDebugLayout`: reusable node-graph primitives built on `UiCanvas`, with exec/data pins, routed wires, pin/wire preview state, and debug layout snapshots.
 - `UiColorEdit`: RGB/HSV/Hex color editor with per-channel sliders or hex entry, byte/float value displays, preview swatch, retained option surface, and optional picker popup integration.
 - `UiColorPicker`: HSV picker with a gradient SV area, hue bar, optional alpha bar, side preview, optional embedded `UiColorEdit`, and color drag/drop support.
 - `UiColorButton`: clickable color swatch with optional alpha checkerboard plus optional color drag/drop source/target behavior.
@@ -250,9 +251,17 @@ This is a brief overview of the current OpenControls surface area.
 
 ## Canvas Notes
 - `UiCanvas` expects child bounds in world coordinates; `PanX`/`PanY` represent the world-space origin at the viewport top-left.
+- `WorldToScreen(UiPoint/UiRect)` and `ScreenToWorld(UiPoint)` expose the same transform used for child rendering, input propagation, and debug bounds.
 - `Zoom`, `EnablePan`, and `EnableZoom` control the interaction; `ZoomToCursor` keeps the cursor anchored when zooming.
 - `ShowGrid`, `GridSpacing`, and `MajorGridSpacing` control the background grid; `ShowOrigin`/`OriginX`/`OriginY` draw a crosshair.
 - `Padding` shrinks the viewport inside the canvas bounds; `ClipContent` limits rendering to the viewport.
+
+## Node Graph Notes
+- `UiNodeGraph.Canvas` exposes the backing `UiCanvas`; `PanX`, `PanY`, and `Zoom` are convenience proxies.
+- Add nodes with `AddNode`, add pins with `UiNodeControl.AddInput/AddOutput`, and connect output-to-input pins with `Connect`.
+- `UiNodeControl.DebugLayout` exposes node/header/body/text/pin bounds; each pin exposes `Layout` with row, label, hit bounds, and center.
+- `UiNodeGraph.GetWireDebugLayouts()` exposes routed wire points, draw bounds, hit bounds, kind, selected, and hovered state.
+- `HoveredNode`, `HoveredPin`, `HoveredWire`, `PreviewWire`, and preview events provide lightweight interaction hooks for editors.
 
 ## Color Notes
 - `UiColorEdit.Color`: set or read the current color (RGB/A).
