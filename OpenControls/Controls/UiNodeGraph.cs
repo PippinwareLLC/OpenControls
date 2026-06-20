@@ -27,7 +27,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             {
                 UiNodeWire wire = _graph._wires[i];
                 UiColor color = _graph.ResolveWireColor(wire);
-                DrawRoute(context.Renderer, wire.Route, Math.Max(1, wire.Thickness), color);
+                DrawRoute(context.Renderer, wire.Route, _graph.ResolveWireThickness(wire), color);
             }
 
             if (_graph.PreviewWire.Active)
@@ -44,6 +44,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             }
 
             int half = thickness / 2;
+            if (route.Count >= 5)
+            {
+                DrawBezierRoute(renderer, route, thickness, color);
+                return;
+            }
+
             for (int i = 1; i < route.Count; i++)
             {
                 UiPoint a = route[i - 1];
@@ -78,6 +84,58 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             int height = Math.Max(1, Math.Abs(b.Y - mid.Y));
             renderer.FillRect(new UiRect(b.X - half, top, thickness, height), color);
         }
+
+        private static void DrawBezierRoute(IUiRenderer renderer, IReadOnlyList<UiPoint> route, int thickness, UiColor color)
+        {
+            UiPoint start = route[0];
+            UiPoint startControl = route.Count > 1 ? route[1] : start;
+            UiPoint endControl = route.Count > 2 ? route[^2] : route[^1];
+            UiPoint end = route[^1];
+            int steps = Math.Max(16, Math.Abs(end.X - start.X) / 12 + Math.Abs(end.Y - start.Y) / 16);
+            UiPoint previous = start;
+            for (int step = 1; step <= steps; step++)
+            {
+                float t = step / (float)steps;
+                UiPoint current = Cubic(start, startControl, endControl, end, t);
+                DrawLine(renderer, previous, current, thickness, color);
+                previous = current;
+            }
+        }
+
+        private static UiPoint Cubic(UiPoint a, UiPoint b, UiPoint c, UiPoint d, float t)
+        {
+            float inv = 1f - t;
+            float x = inv * inv * inv * a.X
+                + 3f * inv * inv * t * b.X
+                + 3f * inv * t * t * c.X
+                + t * t * t * d.X;
+            float y = inv * inv * inv * a.Y
+                + 3f * inv * inv * t * b.Y
+                + 3f * inv * t * t * c.Y
+                + t * t * t * d.Y;
+            return new UiPoint((int)Math.Round(x), (int)Math.Round(y));
+        }
+
+        private static void DrawLine(IUiRenderer renderer, UiPoint a, UiPoint b, int thickness, UiColor color)
+        {
+            int dx = b.X - a.X;
+            int dy = b.Y - a.Y;
+            int steps = Math.Max(Math.Abs(dx), Math.Abs(dy));
+            int radius = Math.Max(1, thickness / 2);
+            if (steps == 0)
+            {
+                UiRenderHelpers.FillCircle(renderer, a, radius, color);
+                return;
+            }
+
+            for (int step = 0; step <= steps; step++)
+            {
+                float t = step / (float)steps;
+                int x = (int)Math.Round(a.X + dx * t);
+                int y = (int)Math.Round(a.Y + dy * t);
+                UiRenderHelpers.FillCircle(renderer, new UiPoint(x, y), radius, color);
+            }
+        }
     }
 
     private readonly UiCanvas _canvas = new();
@@ -104,9 +162,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public bool EnableWirePreview { get; set; } = true;
     public bool EnableWireSelection { get; set; } = true;
     public int WireHitSlop { get; set; } = 5;
-    public int PreviewWireThickness { get; set; } = 2;
+    public int PreviewWireThickness { get; set; } = 3;
+    public int DataWireThickness { get; set; } = 2;
+    public int ExecWireThickness { get; set; } = 4;
     public UiColor DataWireColor { get; set; } = new(95, 170, 230);
-    public UiColor ExecWireColor { get; set; } = new(235, 190, 80);
+    public UiColor ExecWireColor { get; set; } = UiColor.White;
     public UiColor HoverWireColor { get; set; } = new(230, 235, 245);
     public UiColor SelectedWireColor { get; set; } = new(245, 205, 110);
     public UiColor PreviewWireColor { get; set; } = new(220, 225, 235, 180);
@@ -220,8 +280,18 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         for (int i = 0; i < _wires.Count; i++)
         {
             UiNodeWire wire = _wires[i];
-            UiRect hitBounds = ExpandRect(wire.Bounds, Math.Max(WireHitSlop, wire.Thickness));
-            layouts[i] = new UiNodeWireDebugLayout(wire, wire.Route, wire.Bounds, hitBounds, wire.Kind, wire.Selected, wire.Hovered);
+            int thickness = ResolveWireThickness(wire);
+            UiRect hitBounds = ExpandRect(wire.Bounds, Math.Max(WireHitSlop, thickness));
+            layouts[i] = new UiNodeWireDebugLayout(
+                wire,
+                wire.Route,
+                wire.Bounds,
+                hitBounds,
+                wire.Kind,
+                thickness,
+                ResolveWireColor(wire),
+                wire.Selected,
+                wire.Hovered);
         }
 
         return layouts;
@@ -307,7 +377,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     {
         for (int i = 0; i < _wires.Count; i++)
         {
-            _wires[i].RefreshRoute();
+            _wires[i].RefreshRoute(ResolveWireThickness(_wires[i]));
         }
     }
 
@@ -342,7 +412,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         for (int i = _wires.Count - 1; i >= 0; i--)
         {
             UiNodeWire wire = _wires[i];
-            if (IsPointNearRoute(worldMouse, wire.Route, Math.Max(WireHitSlop, wire.Thickness)))
+            if (IsPointNearRoute(worldMouse, wire.Route, Math.Max(WireHitSlop, ResolveWireThickness(wire))))
             {
                 HoveredWire = wire;
                 wire.Hovered = true;
@@ -416,7 +486,17 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return HoverWireColor;
         }
 
-        return wire.Kind == UiNodePinKind.Exec ? ExecWireColor : DataWireColor;
+        if (wire.Kind == UiNodePinKind.Exec)
+        {
+            return ExecWireColor;
+        }
+
+        return wire.FromPin.Color ?? wire.ToPin.Color ?? DataWireColor;
+    }
+
+    private int ResolveWireThickness(UiNodeWire wire)
+    {
+        return Math.Max(1, wire.Kind == UiNodePinKind.Exec ? ExecWireThickness : DataWireThickness);
     }
 
     private static bool IsPointNearRoute(UiPoint point, IReadOnlyList<UiPoint> route, int slop)

@@ -272,6 +272,67 @@ public static class UiRenderHelpers
         }
     }
 
+    public static void FillCircle(IUiRenderer renderer, UiPoint center, int radius, UiColor color)
+    {
+        if (radius <= 0 || color.A == 0)
+        {
+            return;
+        }
+
+        long r = radius;
+        long radiusSquared = r * r;
+        for (int dy = -radius; dy <= radius; dy++)
+        {
+            long dySquared = (long)dy * dy;
+            long remaining = radiusSquared - dySquared;
+            if (remaining < 0)
+            {
+                continue;
+            }
+
+            int halfWidth = (int)Math.Floor(Math.Sqrt(remaining));
+            renderer.FillRect(new UiRect(center.X - halfWidth, center.Y + dy, halfWidth * 2 + 1, 1), color);
+        }
+    }
+
+    public static void DrawCircle(IUiRenderer renderer, UiPoint center, int radius, UiColor color, int thickness = 1)
+    {
+        if (radius <= 0 || thickness <= 0 || color.A == 0)
+        {
+            return;
+        }
+
+        int safeThickness = Math.Min(thickness, radius);
+        for (int i = 0; i < safeThickness; i++)
+        {
+            DrawCircleOutline(renderer, center, radius - i, color);
+        }
+    }
+
+    public static void FillTriangleRight(IUiRenderer renderer, UiRect rect, UiColor color)
+    {
+        if (rect.Width <= 0 || rect.Height <= 0 || color.A == 0)
+        {
+            return;
+        }
+
+        int height = rect.Height;
+        int centerY = rect.Y + height / 2;
+        int halfHeight = Math.Max(1, height / 2);
+        for (int row = 0; row < height; row++)
+        {
+            int y = rect.Y + row;
+            int distanceFromCenter = Math.Abs(y - centerY);
+            int width = rect.Width - (distanceFromCenter * rect.Width / Math.Max(1, halfHeight));
+            if (width <= 0)
+            {
+                continue;
+            }
+
+            renderer.FillRect(new UiRect(rect.X, y, width, 1), color);
+        }
+    }
+
     private static UiColor Lerp(UiColor a, UiColor b, float t)
     {
         t = Math.Clamp(t, 0f, 1f);
@@ -290,6 +351,44 @@ public static class UiRenderHelpers
     private static bool SameColor(UiColor a, UiColor b)
     {
         return a.R == b.R && a.G == b.G && a.B == b.B && a.A == b.A;
+    }
+
+    private static void DrawCircleOutline(IUiRenderer renderer, UiPoint center, int radius, UiColor color)
+    {
+        if (radius <= 0)
+        {
+            return;
+        }
+
+        int x = radius;
+        int y = 0;
+        int error = 1 - x;
+        while (x >= y)
+        {
+            PlotCircleOctants(renderer, center, x, y, color);
+            y++;
+            if (error < 0)
+            {
+                error += 2 * y + 1;
+            }
+            else
+            {
+                x--;
+                error += 2 * (y - x) + 1;
+            }
+        }
+    }
+
+    private static void PlotCircleOctants(IUiRenderer renderer, UiPoint center, int x, int y, UiColor color)
+    {
+        renderer.FillRect(new UiRect(center.X + x, center.Y + y, 1, 1), color);
+        renderer.FillRect(new UiRect(center.X + y, center.Y + x, 1, 1), color);
+        renderer.FillRect(new UiRect(center.X - y, center.Y + x, 1, 1), color);
+        renderer.FillRect(new UiRect(center.X - x, center.Y + y, 1, 1), color);
+        renderer.FillRect(new UiRect(center.X - x, center.Y - y, 1, 1), color);
+        renderer.FillRect(new UiRect(center.X - y, center.Y - x, 1, 1), color);
+        renderer.FillRect(new UiRect(center.X + y, center.Y - x, 1, 1), color);
+        renderer.FillRect(new UiRect(center.X + x, center.Y - y, 1, 1), color);
     }
 
     private static void DrawRectRoundedOutline(IUiRenderer renderer, UiRect rect, int radius, UiColor color)

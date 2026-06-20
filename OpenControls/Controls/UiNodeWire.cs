@@ -25,10 +25,10 @@ public sealed class UiNodeWire
         ? UiNodePinKind.Exec
         : UiNodePinKind.Data;
 
-    internal void RefreshRoute()
+    internal void RefreshRoute(int thickness)
     {
         _route = BuildRoute(FromPin.Layout.Center, FromPin.Direction, ToPin.Layout.Center, ToPin.Direction);
-        Bounds = CalculateBounds(_route, Math.Max(1, Thickness));
+        Bounds = CalculateBounds(_route, Math.Max(1, thickness));
     }
 
     internal static UiPoint[] BuildRoute(
@@ -109,6 +109,8 @@ public readonly struct UiNodeWireDebugLayout
         UiRect bounds,
         UiRect hitBounds,
         UiNodePinKind kind,
+        int thickness,
+        UiColor color,
         bool selected,
         bool hovered)
     {
@@ -117,6 +119,8 @@ public readonly struct UiNodeWireDebugLayout
         Bounds = bounds;
         HitBounds = hitBounds;
         Kind = kind;
+        Thickness = thickness;
+        Color = color;
         Selected = selected;
         Hovered = hovered;
     }
@@ -126,6 +130,8 @@ public readonly struct UiNodeWireDebugLayout
     public UiRect Bounds { get; }
     public UiRect HitBounds { get; }
     public UiNodePinKind Kind { get; }
+    public int Thickness { get; }
+    public UiColor Color { get; }
     public bool Selected { get; }
     public bool Hovered { get; }
     public bool IsValid => Wire != null;

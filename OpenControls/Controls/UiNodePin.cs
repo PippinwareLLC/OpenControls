@@ -44,6 +44,7 @@ public sealed class UiNodePin
 
     public UiNodePinDirection Direction { get; set; }
     public UiNodePinKind Kind { get; set; } = UiNodePinKind.Data;
+    public UiColor? Color { get; set; }
 
     public string DataType
     {
@@ -87,11 +88,24 @@ public readonly struct UiNodeDebugLayout
         UiRect titleBounds,
         UiRect bodyTextBounds,
         IReadOnlyList<UiNodePinLayout> pins)
+        : this(bounds, headerBounds, bodyBounds, titleBounds, default, bodyTextBounds, pins)
+    {
+    }
+
+    public UiNodeDebugLayout(
+        UiRect bounds,
+        UiRect headerBounds,
+        UiRect bodyBounds,
+        UiRect titleBounds,
+        UiRect subtitleBounds,
+        UiRect bodyTextBounds,
+        IReadOnlyList<UiNodePinLayout> pins)
     {
         Bounds = bounds;
         HeaderBounds = headerBounds;
         BodyBounds = bodyBounds;
         TitleBounds = titleBounds;
+        SubtitleBounds = subtitleBounds;
         BodyTextBounds = bodyTextBounds;
         Pins = pins ?? Array.Empty<UiNodePinLayout>();
     }
@@ -100,10 +114,11 @@ public readonly struct UiNodeDebugLayout
     public UiRect HeaderBounds { get; }
     public UiRect BodyBounds { get; }
     public UiRect TitleBounds { get; }
+    public UiRect SubtitleBounds { get; }
     public UiRect BodyTextBounds { get; }
     public IReadOnlyList<UiNodePinLayout> Pins { get; }
 
-    public static UiNodeDebugLayout Empty => new(default, default, default, default, default, Array.Empty<UiNodePinLayout>());
+    public static UiNodeDebugLayout Empty => new(default, default, default, default, default, default, Array.Empty<UiNodePinLayout>());
 }
 
 public readonly struct UiNodeWirePreviewState

@@ -9,11 +9,13 @@ public sealed class UiNodeGraphTests
     {
         public UiFont DefaultFont { get; set; } = UiFont.Default;
         public List<UiRect> FilledRects { get; } = new();
+        public List<(UiRect Rect, UiColor Color)> FillCalls { get; } = new();
         public List<(string Text, int Scale, int PixelSize)> DrawnTexts { get; } = new();
 
         public void FillRect(UiRect rect, UiColor color)
         {
             FilledRects.Add(rect);
+            FillCalls.Add((rect, color));
         }
 
         public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
@@ -79,19 +81,64 @@ public sealed class UiNodeGraphTests
 
         UiNodeDebugLayout layout = print.DebugLayout;
         Assert.Equal(new UiRect(260, 100, 240, 148), layout.Bounds);
-        Assert.True(layout.HeaderBounds.Height > 0);
+        Assert.True(layout.HeaderBounds.Height >= 30);
         Assert.True(layout.TitleBounds.Bottom <= layout.HeaderBounds.Bottom);
+        Assert.True(layout.SubtitleBounds.Width > 0);
+        Assert.True(layout.SubtitleBounds.Bottom <= layout.HeaderBounds.Bottom);
+        Assert.False(Intersects(layout.TitleBounds, layout.SubtitleBounds));
         Assert.All(layout.Pins, pin =>
         {
             Assert.True(pin.HitBounds.Width >= print.PinHitSize);
             Assert.True(pin.HitBounds.Height >= print.PinHitSize);
             Assert.False(Intersects(pin.HitBounds, layout.TitleBounds));
+            Assert.False(Intersects(pin.HitBounds, layout.SubtitleBounds));
             Assert.False(Intersects(pin.HitBounds, layout.BodyTextBounds));
         });
 
         UiNodePinLayout input = Assert.Single(layout.Pins, pin => pin.Pin?.Id == "in");
         UiNodePinLayout output = Assert.Single(layout.Pins, pin => pin.Pin?.Id == "then");
         Assert.True(input.Center.X < output.Center.X);
+    }
+
+    [Fact]
+    public void NodeControl_SubtitleUsesDedicatedHeaderRegion()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeControl node = new()
+        {
+            Id = "subtitle-node",
+            AutomationId = "subtitle-node",
+            AutomationName = "Subtitle Node",
+            AutomationRole = "node",
+            Bounds = new UiRect(120, 96, 240, 132),
+            Title = "Print String",
+            Subtitle = "Console / Development",
+            HeaderHeight = 52,
+            Padding = 10
+        };
+        node.AddInput("in", "In", UiNodePinKind.Exec);
+        node.AddInput("message", "Message", UiNodePinKind.Data);
+        graph.AddNode(node);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        Assert.True(node.DebugLayout.HeaderBounds.Height >= 30);
+        Assert.True(node.DebugLayout.SubtitleBounds.Width > 0);
+        Assert.True(Contains(node.DebugLayout.HeaderBounds, node.DebugLayout.TitleBounds));
+        Assert.True(Contains(node.DebugLayout.HeaderBounds, node.DebugLayout.SubtitleBounds));
+        Assert.False(Intersects(node.DebugLayout.TitleBounds, node.DebugLayout.SubtitleBounds));
+        Assert.All(node.DebugLayout.Pins, pin =>
+        {
+            Assert.False(Intersects(pin.HitBounds, node.DebugLayout.TitleBounds));
+            Assert.False(Intersects(pin.HitBounds, node.DebugLayout.SubtitleBounds));
+        });
     }
 
     [Fact]
@@ -191,6 +238,8 @@ public sealed class UiNodeGraphTests
         Assert.Same(wire, debug.Wire);
         Assert.Equal(UiNodePinKind.Exec, debug.Kind);
         Assert.Equal(6, debug.Route.Count);
+        Assert.Equal(graph.ExecWireThickness, debug.Thickness);
+        Assert.Equal(graph.ExecWireColor, debug.Color);
         Assert.True(debug.Bounds.Width > 0);
         Assert.True(debug.HitBounds.Width > debug.Bounds.Width);
         Assert.True(debug.HitBounds.Height > debug.Bounds.Height);
@@ -199,6 +248,46 @@ public sealed class UiNodeGraphTests
         graph.Render(new UiRenderContext(renderer, UiFont.Default));
 
         Assert.NotEmpty(renderer.FilledRects);
+    }
+
+    [Fact]
+    public void NodeGraph_UsesCanonExecAndDataWireStyles()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);
+        UiNodePin dataOut = entry.AddOutput("value", "Value", UiNodePinKind.Data);
+        dataOut.Color = new UiColor(218, 45, 157);
+        UiNodePin dataIn = print.Pins.Single(pin => pin.Id == "message");
+        dataIn.Color = new UiColor(218, 45, 157);
+        graph.Connect(entry, entryThen, print, printIn);
+        graph.Connect(entry, dataOut, print, dataIn);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiNodeWireDebugLayout[] layouts = graph.GetWireDebugLayouts().ToArray();
+        UiNodeWireDebugLayout exec = Assert.Single(layouts, layout => layout.Kind == UiNodePinKind.Exec);
+        UiNodeWireDebugLayout data = Assert.Single(layouts, layout => layout.Kind == UiNodePinKind.Data);
+
+        Assert.Equal(UiColor.White, exec.Color);
+        Assert.Equal(graph.ExecWireThickness, exec.Thickness);
+        Assert.Equal(new UiColor(218, 45, 157), data.Color);
+        Assert.Equal(graph.DataWireThickness, data.Thickness);
+        Assert.True(exec.Thickness > data.Thickness);
+    }
+
+    [Fact]
+    public void NodeControl_RendersWhiteExecWedgesAndTypedCircularDataPins()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out UiNodeControl print, out _, out _);
+        var message = print.Pins.Single(pin => pin.Id == "message");
+        message.Color = new UiColor(218, 45, 157);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        RecordingRenderer renderer = new();
+        print.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        Assert.Contains(renderer.FillCalls, fill => fill.Color.Equals(UiColor.White));
+        Assert.Contains(renderer.FillCalls, fill => fill.Color.Equals(new UiColor(218, 45, 157)));
     }
 
     [Fact]
@@ -354,7 +443,8 @@ public sealed class UiNodeGraphTests
             AutomationRole = "node",
             Bounds = new UiRect(260, 100, 240, 148),
             Title = "Print String",
-            BodyText = "Console / Development"
+            Subtitle = "Console / Development",
+            HeaderHeight = 52
         };
         printIn = print.AddInput("in", "In", UiNodePinKind.Exec);
         print.AddInput("message", "Message", UiNodePinKind.Data).DataType = "string";
@@ -376,5 +466,18 @@ public sealed class UiNodeGraphTests
             && a.Right > b.Left
             && a.Top < b.Bottom
             && a.Bottom > b.Top;
+    }
+
+    private static bool Contains(UiRect outer, UiRect inner)
+    {
+        if (outer.Width <= 0 || outer.Height <= 0 || inner.Width <= 0 || inner.Height <= 0)
+        {
+            return false;
+        }
+
+        return inner.Left >= outer.Left
+            && inner.Top >= outer.Top
+            && inner.Right <= outer.Right
+            && inner.Bottom <= outer.Bottom;
     }
 }

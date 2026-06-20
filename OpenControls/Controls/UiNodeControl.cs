@@ -5,6 +5,7 @@ public sealed class UiNodeControl : UiElement
     private readonly List<UiNodePin> _pins = new();
     private UiNodeDebugLayout _debugLayout = UiNodeDebugLayout.Empty;
     private string _title = string.Empty;
+    private string _subtitle = string.Empty;
     private string _bodyText = string.Empty;
     private bool _hovered;
     private bool _selected;
@@ -13,13 +14,13 @@ public sealed class UiNodeControl : UiElement
     private bool _clickedThisFrame;
     private UiPoint _dragStartMouse;
     private UiRect _dragStartBounds;
-    private int _headerHeight = 26;
+    private int _headerHeight = 32;
     private int _pinRowHeight = 22;
     private int _pinHitSize = 14;
     private int _pinVisualSize = 8;
     private int _padding = 8;
     private int _textScale = 1;
-    private int _cornerRadius = 5;
+    private int _cornerRadius = 6;
 
     public string Title
     {
@@ -33,6 +34,12 @@ public sealed class UiNodeControl : UiElement
         set => SetInvalidatingValue(ref _bodyText, value ?? string.Empty, UiInvalidationReason.Text | UiInvalidationReason.Paint | UiInvalidationReason.Layout);
     }
 
+    public string Subtitle
+    {
+        get => _subtitle;
+        set => SetInvalidatingValue(ref _subtitle, value ?? string.Empty, UiInvalidationReason.Text | UiInvalidationReason.Paint | UiInvalidationReason.Layout);
+    }
+
     public IList<UiNodePin> Pins => _pins;
     public UiNodeDebugLayout DebugLayout => _debugLayout;
     public UiNodePin? HoveredPin { get; private set; }
@@ -42,20 +49,22 @@ public sealed class UiNodeControl : UiElement
     public bool DragFromHeaderOnly { get; set; } = true;
     public UiColor Background { get; set; } = new(34, 38, 48);
     public UiColor HeaderBackground { get; set; } = new(48, 56, 72);
+    public UiColor ShadowColor { get; set; } = new(0, 0, 0, 130);
     public UiColor HoverBorder { get; set; } = new(120, 150, 210);
     public UiColor SelectedBorder { get; set; } = new(225, 175, 80);
     public UiColor Border { get; set; } = new(82, 92, 112);
     public UiColor TitleColor { get; set; } = UiColor.White;
+    public UiColor SubtitleColor { get; set; } = new(172, 186, 205);
     public UiColor BodyTextColor { get; set; } = new(190, 200, 216);
     public UiColor DataPinColor { get; set; } = new(95, 170, 230);
-    public UiColor ExecPinColor { get; set; } = new(235, 190, 80);
+    public UiColor ExecPinColor { get; set; } = UiColor.White;
     public UiColor PinBorder { get; set; } = new(18, 22, 30);
     public UiColor PinHoverBorder { get; set; } = UiColor.White;
 
     public int HeaderHeight
     {
         get => _headerHeight;
-        set => SetInvalidatingValue(ref _headerHeight, Math.Max(12, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+        set => SetInvalidatingValue(ref _headerHeight, Math.Max(30, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public int PinRowHeight
@@ -246,12 +255,22 @@ public sealed class UiNodeControl : UiElement
         UiFont font = ResolveFont(context.DefaultFont);
         UpdateLayout(font);
 
+        if (ShadowColor.A > 0)
+        {
+            UiRenderHelpers.FillRectRounded(
+                context.Renderer,
+                new UiRect(Bounds.X + 3, Bounds.Y + 4, Bounds.Width, Bounds.Height),
+                CornerRadius,
+                ShadowColor);
+        }
+
         UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, Background);
-        context.Renderer.FillRect(_debugLayout.HeaderBounds, HeaderBackground);
+        UiRenderHelpers.FillRectTopRounded(context.Renderer, _debugLayout.HeaderBounds, CornerRadius, HeaderBackground);
         UiColor border = Selected ? SelectedBorder : (_hovered ? HoverBorder : Border);
         UiRenderHelpers.DrawRectRounded(context.Renderer, Bounds, CornerRadius, border, Selected ? 2 : 1);
 
         DrawTitle(context, font);
+        DrawSubtitle(context, font);
         DrawBodyText(context, font);
         DrawPins(context, font);
 
@@ -317,7 +336,7 @@ public sealed class UiNodeControl : UiElement
 
     private void UpdateLayout(UiFont font)
     {
-        int headerHeight = Math.Min(Math.Max(0, Bounds.Height), Math.Max(12, HeaderHeight));
+        int headerHeight = Math.Min(Math.Max(0, Bounds.Height), Math.Max(30, HeaderHeight));
         UiRect headerBounds = new(Bounds.X, Bounds.Y, Bounds.Width, headerHeight);
         UiRect bodyBounds = new(Bounds.X, Bounds.Y + headerHeight, Bounds.Width, Math.Max(0, Bounds.Height - headerHeight));
         int padding = Math.Max(0, Padding);
@@ -325,8 +344,22 @@ public sealed class UiNodeControl : UiElement
         int textHeight = font.MeasureTextHeight(scale);
         int titleAvailableWidth = Math.Max(0, headerBounds.Width - padding * 2);
         int titleWidth = Math.Min(titleAvailableWidth, font.MeasureTextWidth(Title, scale));
-        int titleY = headerBounds.Y + Math.Max(0, (headerBounds.Height - textHeight) / 2);
+        bool hasSubtitle = !string.IsNullOrWhiteSpace(Subtitle);
+        int titleY = hasSubtitle
+            ? headerBounds.Y + Math.Max(4, padding / 2)
+            : headerBounds.Y + Math.Max(0, (headerBounds.Height - textHeight) / 2);
         UiRect titleBounds = new(headerBounds.X + padding, titleY, titleWidth, textHeight);
+        UiRect subtitleBounds = default;
+        if (hasSubtitle)
+        {
+            int subtitleY = titleBounds.Bottom + 3;
+            int subtitleAvailableWidth = Math.Max(0, headerBounds.Width - padding * 2);
+            if (subtitleY + textHeight <= headerBounds.Bottom - Math.Max(2, padding / 3))
+            {
+                int subtitleWidth = Math.Min(subtitleAvailableWidth, font.MeasureTextWidth(Subtitle, scale));
+                subtitleBounds = new(headerBounds.X + padding, subtitleY, subtitleWidth, textHeight);
+            }
+        }
 
         List<UiNodePinLayout> layouts = new(_pins.Count);
         int inputRow = 0;
@@ -370,7 +403,7 @@ public sealed class UiNodeControl : UiElement
             }
         }
 
-        _debugLayout = new UiNodeDebugLayout(Bounds, headerBounds, bodyBounds, titleBounds, bodyTextBounds, layouts.ToArray());
+        _debugLayout = new UiNodeDebugLayout(Bounds, headerBounds, bodyBounds, titleBounds, subtitleBounds, bodyTextBounds, layouts.ToArray());
     }
 
     private UiNodePinLayout BuildPinLayout(UiNodePin pin, int rowIndex, UiRect bodyBounds, UiFont font, int textHeight, bool hasOppositePinInRow)
@@ -429,19 +462,41 @@ public sealed class UiNodeControl : UiElement
         context.Renderer.PopClip();
     }
 
+    private void DrawSubtitle(UiRenderContext context, UiFont font)
+    {
+        if (string.IsNullOrEmpty(Subtitle) || _debugLayout.SubtitleBounds.Width <= 0 || _debugLayout.SubtitleBounds.Height <= 0)
+        {
+            return;
+        }
+
+        int availableWidth = Math.Max(0, _debugLayout.HeaderBounds.Width - Padding * 2);
+        string drawText = UiRenderHelpers.BuildElidedText(Subtitle, availableWidth, TextScale, font);
+        context.Renderer.PushClip(_debugLayout.HeaderBounds);
+        context.Renderer.DrawText(drawText, new UiPoint(_debugLayout.SubtitleBounds.X, _debugLayout.SubtitleBounds.Y), SubtitleColor, TextScale, font);
+        context.Renderer.PopClip();
+    }
+
     private void DrawPins(UiRenderContext context, UiFont font)
     {
         for (int i = 0; i < _pins.Count; i++)
         {
             UiNodePin pin = _pins[i];
             UiNodePinLayout layout = pin.Layout;
-            UiColor pinColor = pin.Kind == UiNodePinKind.Exec ? ExecPinColor : DataPinColor;
+            UiColor pinColor = ResolvePinColor(pin);
             UiColor border = pin.Hovered || pin.Selected ? PinHoverBorder : PinBorder;
             int visualSize = Math.Max(2, PinVisualSize + (pin.Kind == UiNodePinKind.Exec ? 2 : 0));
             UiRect visual = new(layout.Center.X - visualSize / 2, layout.Center.Y - visualSize / 2, visualSize, visualSize);
 
-            context.Renderer.FillRect(visual, pinColor);
-            context.Renderer.DrawRect(visual, border, 1);
+            if (pin.Kind == UiNodePinKind.Exec)
+            {
+                UiRenderHelpers.FillTriangleRight(context.Renderer, visual, pinColor);
+            }
+            else
+            {
+                int radius = Math.Max(2, visualSize / 2);
+                UiRenderHelpers.FillCircle(context.Renderer, layout.Center, radius, pinColor);
+                UiRenderHelpers.DrawCircle(context.Renderer, layout.Center, radius, border, 1);
+            }
 
             if (layout.LabelBounds.Width > 0 && layout.LabelBounds.Height > 0)
             {
@@ -449,6 +504,13 @@ public sealed class UiNodeControl : UiElement
                 context.Renderer.DrawText(drawText, new UiPoint(layout.LabelBounds.X, layout.LabelBounds.Y), BodyTextColor, TextScale, font);
             }
         }
+    }
+
+    private UiColor ResolvePinColor(UiNodePin pin)
+    {
+        return pin.Kind == UiNodePinKind.Exec
+            ? ExecPinColor
+            : pin.Color ?? DataPinColor;
     }
 
     private bool CanStartDrag(UiPoint mouse)
