@@ -309,6 +309,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeWirePreviewState>? WirePreviewStarted;
     public event Action<UiNodeWirePreviewState>? WirePreviewUpdated;
     public event Action<UiNodeWirePreviewState, UiNodePin?>? WirePreviewEnded;
+    public event Action<UiNodeWireConnectionRequestedEvent>? WireConnectionRequested;
     public event Action<UiNodeSelectionRequestedEvent>? NodeSelectionRequested;
     public event Action<UiNodeDragEvent>? NodeDragStarted;
     public event Action<UiNodeDragEvent>? NodeDragged;
@@ -951,9 +952,16 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         if (input.LeftReleased)
         {
             UiNodePin? targetPin = HoveredPin != _previewStartPin ? HoveredPin : null;
+            UiNodeControl? startNode = _previewStartNode;
+            UiNodePin? startPin = _previewStartPin;
+            UiNodeControl? targetNode = targetPin is not null ? HoveredNode : null;
             UiNodeWirePreviewState endedState = PreviewWire;
             ClearPreview();
             WirePreviewEnded?.Invoke(endedState, targetPin);
+            if (startNode is not null && startPin is not null && targetNode is not null && targetPin is not null)
+            {
+                WireConnectionRequested?.Invoke(new UiNodeWireConnectionRequestedEvent(this, startNode, startPin, targetNode, targetPin, endedState));
+            }
         }
     }
 
@@ -1128,6 +1136,14 @@ public sealed record UiNodeDragEvent(
     UiRect StartBounds,
     UiRect CurrentBounds,
     UiPoint Delta);
+
+public sealed record UiNodeWireConnectionRequestedEvent(
+    UiNodeGraph Graph,
+    UiNodeControl StartNode,
+    UiNodePin StartPin,
+    UiNodeControl TargetNode,
+    UiNodePin TargetPin,
+    UiNodeWirePreviewState Preview);
 
 public sealed record UiNodeValueEditStartedEvent(
     UiNodeGraph Graph,

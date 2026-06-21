@@ -506,10 +506,12 @@ public sealed class UiNodeGraphTests
         UiNodeValueEditCommittedEvent? committed = null;
         var selectionRequests = 0;
         var previewStarts = 0;
+        var connectionRequests = 0;
         graph.ValueEditStarted += ev => started = ev;
         graph.ValueEditCommitted += ev => committed = ev;
         graph.NodeSelectionRequested += _ => selectionRequests++;
         graph.WirePreviewStarted += _ => previewStarts++;
+        graph.WireConnectionRequested += _ => connectionRequests++;
 
         UiContext context = new(graph);
         context.Update(new UiInputState(), 1f / 60f);
@@ -530,6 +532,7 @@ public sealed class UiNodeGraphTests
         Assert.Equal("41", started.InitialText);
         Assert.Equal(0, selectionRequests);
         Assert.Equal(0, previewStarts);
+        Assert.Equal(0, connectionRequests);
         Assert.False(graph.PreviewWire.Active);
 
         context.Update(new UiInputState
@@ -1166,9 +1169,13 @@ public sealed class UiNodeGraphTests
         List<UiNodeDragEvent> dragStartedEvents = [];
         List<UiNodeDragEvent> draggedEvents = [];
         List<UiNodeDragEvent> dragEndedEvents = [];
+        List<UiNodeSelectionRequestedEvent> selectionRequests = [];
+        List<UiNodeWireConnectionRequestedEvent> connectionRequests = [];
         graph.NodeDragStarted += dragStartedEvents.Add;
         graph.NodeDragged += draggedEvents.Add;
         graph.NodeDragEnded += dragEndedEvents.Add;
+        graph.NodeSelectionRequested += selectionRequests.Add;
+        graph.WireConnectionRequested += connectionRequests.Add;
         UiContext context = new(graph);
         context.Update(new UiInputState(), 1f / 60f);
 
@@ -1202,6 +1209,7 @@ public sealed class UiNodeGraphTests
         Assert.True(graph.PreviewWire.Route.Count >= 5);
         Assert.Empty(dragStartedEvents);
         Assert.Empty(draggedEvents);
+        Assert.Empty(selectionRequests);
 
         context.Update(new UiInputState
         {
@@ -1212,6 +1220,44 @@ public sealed class UiNodeGraphTests
 
         Assert.False(graph.PreviewWire.Active);
         Assert.Empty(dragEndedEvents);
+        Assert.Empty(connectionRequests);
+    }
+
+    [Fact]
+    public void NodeGraph_RaisesConnectionRequestedWhenWireReleasedOnTargetPin()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);
+        List<UiNodeWireConnectionRequestedEvent> connectionRequests = [];
+        graph.WireConnectionRequested += connectionRequests.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint outputScreen = graph.Canvas.WorldToScreen(entryThen.Layout.Center);
+        context.Update(new UiInputState
+        {
+            MousePosition = outputScreen,
+            ScreenMousePosition = outputScreen,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        UiPoint inputScreen = graph.Canvas.WorldToScreen(printIn.Layout.Center);
+        context.Update(new UiInputState
+        {
+            MousePosition = inputScreen,
+            ScreenMousePosition = inputScreen,
+            LeftReleased = true
+        }, 1f / 60f);
+
+        var request = Assert.Single(connectionRequests);
+        Assert.Same(entry, request.StartNode);
+        Assert.Same(entryThen, request.StartPin);
+        Assert.Same(print, request.TargetNode);
+        Assert.Same(printIn, request.TargetPin);
+        Assert.True(request.Preview.Active);
+        Assert.Same(entryThen, request.Preview.StartPin);
+        Assert.False(graph.PreviewWire.Active);
     }
 
     [Fact]
