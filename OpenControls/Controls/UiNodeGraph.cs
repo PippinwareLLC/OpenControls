@@ -3,12 +3,20 @@ namespace OpenControls.Controls;
 public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 {
     private const int ValueEditorMaxLength = 2048;
+    private const int CommentEditorMaxLength = 4096;
 
     private enum ValueEditAction
     {
         None,
         Commit,
         Cancel
+    }
+
+    private enum CommentEditField
+    {
+        None,
+        Title,
+        Body
     }
 
     private sealed class UiNodeWireLayer : UiElement
@@ -187,6 +195,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private readonly UiNodeCommentLayer _commentLayer = new();
     private readonly UiNodeOverlayLayer _overlayLayer = new();
     private readonly UiTextEditingState _valueEditingState = new();
+    private readonly UiTextEditingState _commentEditingState = new();
     private readonly List<UiNodeControl> _nodes = new();
     private readonly Dictionary<string, UiNodeControl> _nodesById = new(StringComparer.Ordinal);
     private readonly List<UiNodeCommentBox> _comments = new();
@@ -207,14 +216,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private UiNodePin? _previewStartPin;
     private UiNodeControl? _editingValueNode;
     private UiNodePin? _editingValuePin;
+    private UiNodeCommentBox? _editingComment;
+    private CommentEditField _editingCommentField;
     private UiTextCompositionState _valueComposition;
+    private UiTextCompositionState _commentComposition;
     private UiFont _valueEditFont = UiFont.Default;
+    private UiFont _commentEditFont = UiFont.Default;
     private bool _valueCaretVisible = true;
+    private bool _commentCaretVisible = true;
     private bool _valueDragSelecting;
     private float _valueCaretTimer;
+    private float _commentCaretTimer;
     private int _valueDragSelectionAnchor;
     private int _valueHorizontalScrollOffset;
     private ValueEditAction _pendingValueEditAction;
+    private ValueEditAction _pendingCommentEditAction;
 
     public UiNodeGraph()
     {
@@ -234,11 +250,14 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public UiNodeControl? HoveredNode { get; private set; }
     public UiNodePin? HoveredPin { get; private set; }
     public UiNodePin? HoveredValuePin { get; private set; }
+    public UiNodeCommentBox? HoveredComment { get; private set; }
     public UiNodeWire? HoveredWire { get; private set; }
     public UiNodeWirePreviewState PreviewWire { get; private set; } = UiNodeWirePreviewState.Inactive;
     public bool IsEditingValue => _editingValueNode is not null && _editingValuePin is not null;
+    public bool IsEditingComment => _editingComment is not null && _editingCommentField != CommentEditField.None;
+    public bool IsEditingText => IsEditingValue || IsEditingComment;
     public override bool IsFocusable => true;
-    public override bool WantsTextInput => IsEditingValue;
+    public override bool WantsTextInput => IsEditingText;
     public bool EnableWirePreview { get; set; } = true;
     public bool EnableWireSelection { get; set; } = true;
     public int WireHitSlop { get; set; } = 5;
@@ -316,12 +335,15 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeValueEditStartedEvent>? ValueEditStarted;
     public event Action<UiNodeValueEditCommittedEvent>? ValueEditCommitted;
     public event Action<UiNodeValueEditCancelledEvent>? ValueEditCancelled;
+    public event Action<UiNodeCommentEditStartedEvent>? CommentEditStarted;
+    public event Action<UiNodeCommentEditCommittedEvent>? CommentEditCommitted;
+    public event Action<UiNodeCommentEditCancelledEvent>? CommentEditCancelled;
     public event Action<UiNodeGraphViewportChangedEvent>? ViewportChanged;
     public event Action<UiNodeGraphCommandRequestedEvent>? CommandRequested;
 
     public override bool IsRenderCacheVolatile(UiContext context)
     {
-        return IsEditingValue && ReferenceEquals(context.Focus.Focused, this);
+        return IsEditingText && ReferenceEquals(context.Focus.Focused, this);
     }
 
     public void AddNode(UiNodeControl node)
@@ -474,6 +496,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return false;
         }
 
+        if (ReferenceEquals(_editingComment, comment))
+        {
+            CancelCommentEdit();
+        }
+
         if (!string.IsNullOrEmpty(comment.Id) && ReferenceEquals(_commentsById.GetValueOrDefault(comment.Id), comment))
         {
             _commentsById.Remove(comment.Id);
@@ -580,7 +607,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
         UpdateCanvasLayout();
         UiInputState graphInput = context.GetSelfInput(this);
-        if (!IsEditingValue
+        if (!IsEditingText
             && graphInput.LeftClicked
             && _canvas.ViewportBounds.Contains(graphInput.MousePosition))
         {
@@ -592,10 +619,16 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             _valueEditFont = ResolveFont(context.DefaultFont);
             HandleValueEditInput(context, graphInput, _valueEditFont);
         }
+        else if (IsEditingComment && ReferenceEquals(context.Focus.Focused, this))
+        {
+            _commentEditFont = ResolveFont(context.DefaultFont);
+            HandleCommentEditInput(context, graphInput);
+        }
 
         base.Update(context);
         RefreshGraphState(context, graphInput);
         ProcessValueEditorState(context);
+        ProcessCommentEditorState(context);
         ProcessGraphCommandInput(context, graphInput);
     }
 
@@ -639,6 +672,15 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return true;
         }
 
+        if (IsEditingComment
+            && _editingComment is { } comment
+            && ResolveCommentEditBounds(comment, _editingCommentField) is { Width: > 0, Height: > 0 } commentBounds
+            && commentBounds.Contains(_canvas.ScreenToWorld(input.MousePosition)))
+        {
+            cursor = UiMouseCursor.TextInput;
+            return true;
+        }
+
         cursor = UiMouseCursor.Arrow;
         return false;
     }
@@ -646,30 +688,49 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     protected internal override bool TryGetTextInputRequest(out UiTextInputRequest request)
     {
         request = default;
-        if (!IsEditingValue || _editingValueNode is null || _editingValuePin is null)
+        if (IsEditingValue && _editingValueNode is not null && _editingValuePin is not null)
         {
-            return false;
+            UiRect valueBounds = _editingValuePin.Layout.ValueBounds;
+            if (valueBounds.Width <= 0 || valueBounds.Height <= 0)
+            {
+                return false;
+            }
+
+            UiRect screenBounds = _canvas.WorldToScreen(valueBounds);
+            UiRect caretBounds = _canvas.WorldToScreen(GetValueEditCaretBounds(_editingValueNode, _editingValuePin, _valueEditFont));
+            UiRect candidateBounds = caretBounds;
+            if (_valueComposition.IsActive)
+            {
+                int compositionWidth = Math.Max(
+                    caretBounds.Width,
+                    (int)MathF.Round(_valueEditFont.MeasureTextWidth(_valueComposition.Text, _editingValueNode.TextScale) * Math.Max(_canvas.Zoom, 0.0001f)));
+                candidateBounds = new UiRect(caretBounds.X, caretBounds.Y, Math.Max(1, compositionWidth), caretBounds.Height);
+            }
+
+            request = new UiTextInputRequest(screenBounds, isMultiLine: false, caretBounds: caretBounds, candidateBounds: candidateBounds);
+            return true;
         }
 
-        UiRect valueBounds = _editingValuePin.Layout.ValueBounds;
-        if (valueBounds.Width <= 0 || valueBounds.Height <= 0)
+        if (IsEditingComment && _editingComment is { } comment)
         {
-            return false;
+            UiRect fieldBounds = ResolveCommentEditBounds(comment, _editingCommentField);
+            if (fieldBounds.Width <= 0 || fieldBounds.Height <= 0)
+            {
+                return false;
+            }
+
+            UiRect screenBounds = _canvas.WorldToScreen(fieldBounds);
+            UiRect caretBounds = screenBounds;
+            if (_commentComposition.IsActive)
+            {
+                caretBounds = new UiRect(screenBounds.X, screenBounds.Y, Math.Max(1, screenBounds.Width), screenBounds.Height);
+            }
+
+            request = new UiTextInputRequest(screenBounds, _editingCommentField == CommentEditField.Body, caretBounds, caretBounds);
+            return true;
         }
 
-        UiRect screenBounds = _canvas.WorldToScreen(valueBounds);
-        UiRect caretBounds = _canvas.WorldToScreen(GetValueEditCaretBounds(_editingValueNode, _editingValuePin, _valueEditFont));
-        UiRect candidateBounds = caretBounds;
-        if (_valueComposition.IsActive)
-        {
-            int compositionWidth = Math.Max(
-                caretBounds.Width,
-                (int)MathF.Round(_valueEditFont.MeasureTextWidth(_valueComposition.Text, _editingValueNode.TextScale) * Math.Max(_canvas.Zoom, 0.0001f)));
-            candidateBounds = new UiRect(caretBounds.X, caretBounds.Y, Math.Max(1, compositionWidth), caretBounds.Height);
-        }
-
-        request = new UiTextInputRequest(screenBounds, isMultiLine: false, caretBounds: caretBounds, candidateBounds: candidateBounds);
-        return true;
+        return false;
     }
 
     private void UpdateCanvasLayout()
@@ -715,6 +776,26 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
     }
 
+    private void ProcessCommentEditorState(UiUpdateContext context)
+    {
+        if (_pendingCommentEditAction == ValueEditAction.Commit)
+        {
+            CommitCommentEdit();
+            return;
+        }
+
+        if (_pendingCommentEditAction == ValueEditAction.Cancel)
+        {
+            CancelCommentEdit();
+            return;
+        }
+
+        if (IsEditingComment && !ReferenceEquals(context.Focus.Focused, this))
+        {
+            CommitCommentEdit();
+        }
+    }
+
     private bool TryBeginValueEdit(UiUpdateContext context, UiNodeControl node, UiNodePin pin, UiPoint worldMouse, UiInputState input)
     {
         if (ReferenceEquals(_editingValueNode, node) && ReferenceEquals(_editingValuePin, pin))
@@ -727,6 +808,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         if (IsEditingValue)
         {
             CommitValueEdit();
+        }
+
+        if (IsEditingComment)
+        {
+            CommitCommentEdit();
         }
 
         UiRect valueBounds = pin.Layout.ValueBounds;
@@ -749,6 +835,52 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         context.Focus.RequestFocus(this);
         SyncEditingPinState();
         ValueEditStarted?.Invoke(new UiNodeValueEditStartedEvent(this, node, pin, pin.ValueText, valueBounds));
+        return true;
+    }
+
+    private bool TryBeginCommentEdit(UiUpdateContext context, UiNodeCommentBox comment, CommentEditField field)
+    {
+        if (field == CommentEditField.None)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(_editingComment, comment) && _editingCommentField == field)
+        {
+            context.Focus.RequestFocus(this);
+            _commentEditingState.SelectAll();
+            SyncEditingCommentState();
+            return true;
+        }
+
+        if (IsEditingValue)
+        {
+            CommitValueEdit();
+        }
+
+        if (IsEditingComment)
+        {
+            CommitCommentEdit();
+        }
+
+        UiRect fieldBounds = ResolveCommentEditBounds(comment, field);
+        if (fieldBounds.Width <= 0 || fieldBounds.Height <= 0)
+        {
+            return false;
+        }
+
+        _editingComment = comment;
+        _editingCommentField = field;
+        _pendingCommentEditAction = ValueEditAction.None;
+        _commentComposition = UiTextCompositionState.Empty;
+        _commentCaretVisible = true;
+        _commentCaretTimer = 0f;
+        _commentEditingState.SetText(ResolveCommentEditText(comment, field));
+        _commentEditingState.BeginSession();
+        _commentEditingState.SelectAll();
+        context.Focus.RequestFocus(this);
+        SyncEditingCommentState();
+        CommentEditStarted?.Invoke(new UiNodeCommentEditStartedEvent(this, comment, CommentEditFieldKey(field), ResolveCommentEditText(comment, field), fieldBounds));
         return true;
     }
 
@@ -807,6 +939,65 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         node?.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
+    private void CommitCommentEdit()
+    {
+        if (_editingComment is not { } comment || _editingCommentField == CommentEditField.None)
+        {
+            _pendingCommentEditAction = ValueEditAction.None;
+            return;
+        }
+
+        CommentEditField field = _editingCommentField;
+        string text = _commentEditingState.Text;
+        if (field == CommentEditField.Title)
+        {
+            comment.Title = text;
+        }
+        else
+        {
+            comment.Text = text;
+        }
+
+        EndCommentEdit();
+        CommentEditCommitted?.Invoke(new UiNodeCommentEditCommittedEvent(this, comment, CommentEditFieldKey(field), text));
+    }
+
+    private void CancelCommentEdit()
+    {
+        if (_editingComment is not { } comment || _editingCommentField == CommentEditField.None)
+        {
+            _pendingCommentEditAction = ValueEditAction.None;
+            return;
+        }
+
+        CommentEditField field = _editingCommentField;
+        _commentEditingState.CancelSession();
+        EndCommentEdit();
+        CommentEditCancelled?.Invoke(new UiNodeCommentEditCancelledEvent(this, comment, CommentEditFieldKey(field)));
+    }
+
+    private void EndCommentEdit()
+    {
+        UiNodeCommentBox? comment = _editingComment;
+        _commentEditingState.EndSession();
+        _commentComposition = UiTextCompositionState.Empty;
+        _commentCaretVisible = true;
+        _commentCaretTimer = 0f;
+        _pendingCommentEditAction = ValueEditAction.None;
+        _editingComment = null;
+        _editingCommentField = CommentEditField.None;
+
+        if (comment is not null)
+        {
+            comment.IsTitleEditing = false;
+            comment.IsBodyEditing = false;
+            comment.EditingTitleText = string.Empty;
+            comment.EditingBodyText = string.Empty;
+            comment.EditingCaretVisible = true;
+            comment.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+        }
+    }
+
     private void HandleValueEditInput(UiUpdateContext context, UiInputState input, UiFont font)
     {
         if (_editingValueNode is null || _editingValuePin is null)
@@ -821,6 +1012,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         HandleValueEditTextInput(input.TextInput);
         UpdateValueEditCaretBlink(context.DeltaSeconds);
         SyncEditingPinState();
+    }
+
+    private void HandleCommentEditInput(UiUpdateContext context, UiInputState input)
+    {
+        if (_editingComment is null || _editingCommentField == CommentEditField.None)
+        {
+            return;
+        }
+
+        _commentComposition = input.Composition;
+        HandleCommentEditShortcutInput(context, input);
+        HandleCommentEditNavigation(input);
+        HandleCommentEditTextInput(input.TextInput);
+        UpdateCommentEditCaretBlink(context.DeltaSeconds);
+        SyncEditingCommentState();
     }
 
     private void HandleValueEditPointerInput(UiUpdateContext context, UiInputState input, UiFont font)
@@ -987,6 +1193,139 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         InsertValueEditText(pending);
     }
 
+    private void HandleCommentEditTextInput(IReadOnlyList<char> input)
+    {
+        if (input.Count == 0)
+        {
+            return;
+        }
+
+        string pending = string.Empty;
+        for (int i = 0; i < input.Count; i++)
+        {
+            char character = input[i];
+            if (!char.IsControl(character) || character == '\n')
+            {
+                pending += character;
+            }
+        }
+
+        InsertCommentEditText(pending);
+    }
+
+    private void HandleCommentEditShortcutInput(UiUpdateContext context, UiInputState input)
+    {
+        if (input.IsPrimaryShortcutPressed(UiKey.A))
+        {
+            _commentEditingState.SelectAll();
+            ResetCommentEditCaretBlink();
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.C))
+        {
+            CopyCommentEditSelection(context.Clipboard);
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.X))
+        {
+            CutCommentEditSelection(context.Clipboard);
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.V))
+        {
+            InsertCommentEditText(context.Clipboard.GetText());
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.Z, shift: true))
+        {
+            ApplyCommentEdit(_commentEditingState.Redo());
+        }
+        else if (input.IsPrimaryShortcutPressed(UiKey.Z))
+        {
+            ApplyCommentEdit(_commentEditingState.Undo());
+        }
+        else if (input.IsPrimaryShortcutPressed(UiKey.Y))
+        {
+            ApplyCommentEdit(_commentEditingState.Redo());
+        }
+    }
+
+    private void HandleCommentEditNavigation(UiInputState input)
+    {
+        UiNavigationInput navigation = input.Navigation;
+        bool extendSelection = input.ShiftDown;
+        bool byWord = input.CtrlDown || input.AltDown;
+
+        if (navigation.MoveLeft)
+        {
+            if (input.SuperDown && !byWord)
+            {
+                _commentEditingState.MoveHome(extendSelection);
+            }
+            else
+            {
+                _commentEditingState.MoveLeft(extendSelection, byWord);
+            }
+
+            ResetCommentEditCaretBlink();
+        }
+
+        if (navigation.MoveRight)
+        {
+            if (input.SuperDown && !byWord)
+            {
+                _commentEditingState.MoveEnd(extendSelection);
+            }
+            else
+            {
+                _commentEditingState.MoveRight(extendSelection, byWord);
+            }
+
+            ResetCommentEditCaretBlink();
+        }
+
+        if (navigation.Home)
+        {
+            _commentEditingState.MoveHome(extendSelection);
+            ResetCommentEditCaretBlink();
+        }
+
+        if (navigation.End)
+        {
+            _commentEditingState.MoveEnd(extendSelection);
+            ResetCommentEditCaretBlink();
+        }
+
+        if (navigation.Backspace)
+        {
+            ApplyCommentEdit(_commentEditingState.Backspace(byWord));
+        }
+
+        if (navigation.Delete)
+        {
+            ApplyCommentEdit(_commentEditingState.Delete(byWord));
+        }
+
+        if ((navigation.Enter || navigation.KeypadEnter)
+            && _editingCommentField == CommentEditField.Body
+            && input.ShiftDown)
+        {
+            InsertCommentEditText("\n");
+            return;
+        }
+
+        if (navigation.Enter || navigation.KeypadEnter)
+        {
+            _pendingCommentEditAction = ValueEditAction.Commit;
+            _commentEditingState.MarkSessionOrigin();
+        }
+
+        if (navigation.Escape)
+        {
+            _pendingCommentEditAction = ValueEditAction.Cancel;
+        }
+    }
+
     private void InsertValueEditText(string text)
     {
         if (string.IsNullOrEmpty(text))
@@ -1002,6 +1341,26 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
         string insertion = text.Length > available ? text.Substring(0, available) : text;
         ApplyValueEdit(_valueEditingState.InsertText(insertion));
+    }
+
+    private void InsertCommentEditText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        string normalized = _editingCommentField == CommentEditField.Title
+            ? text.Replace("\r", string.Empty, StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal)
+            : text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+        int available = Math.Max(0, CommentEditorMaxLength - (_commentEditingState.Text.Length - _commentEditingState.SelectionLength));
+        if (available <= 0)
+        {
+            return;
+        }
+
+        string insertion = normalized.Length > available ? normalized.Substring(0, available) : normalized;
+        ApplyCommentEdit(_commentEditingState.InsertText(insertion));
     }
 
     private void CopyValueEditSelection(IUiClipboard clipboard)
@@ -1023,11 +1382,38 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         ApplyValueEdit(_valueEditingState.DeleteSelection());
     }
 
+    private void CopyCommentEditSelection(IUiClipboard clipboard)
+    {
+        if (_commentEditingState.HasSelection)
+        {
+            clipboard.SetText(_commentEditingState.GetSelectedText());
+        }
+    }
+
+    private void CutCommentEditSelection(IUiClipboard clipboard)
+    {
+        if (!_commentEditingState.HasSelection)
+        {
+            return;
+        }
+
+        clipboard.SetText(_commentEditingState.GetSelectedText());
+        ApplyCommentEdit(_commentEditingState.DeleteSelection());
+    }
+
     private void ApplyValueEdit(bool changed)
     {
         if (changed)
         {
             ResetValueEditCaretBlink();
+        }
+    }
+
+    private void ApplyCommentEdit(bool changed)
+    {
+        if (changed)
+        {
+            ResetCommentEditCaretBlink();
         }
     }
 
@@ -1096,6 +1482,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _editingValueNode.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
+    private void SyncEditingCommentState()
+    {
+        if (_editingComment is null || _editingCommentField == CommentEditField.None)
+        {
+            return;
+        }
+
+        _editingComment.IsTitleEditing = _editingCommentField == CommentEditField.Title;
+        _editingComment.IsBodyEditing = _editingCommentField == CommentEditField.Body;
+        _editingComment.EditingTitleText = _editingCommentField == CommentEditField.Title ? _commentEditingState.Text : string.Empty;
+        _editingComment.EditingBodyText = _editingCommentField == CommentEditField.Body ? _commentEditingState.Text : string.Empty;
+        _editingComment.EditingCaretVisible = _commentCaretVisible;
+        _editingComment.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
     private void UpdateValueEditHorizontalScroll(UiNodeControl node, UiNodePin pin, UiFont font)
     {
         UiRect valueBounds = pin.Layout.ValueBounds;
@@ -1146,6 +1547,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _valueCaretTimer = 0f;
     }
 
+    private void ResetCommentEditCaretBlink()
+    {
+        _commentCaretVisible = true;
+        _commentCaretTimer = 0f;
+    }
+
     private void UpdateValueEditCaretBlink(float deltaSeconds)
     {
         _valueCaretTimer += Math.Max(0f, deltaSeconds);
@@ -1153,6 +1560,16 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         {
             _valueCaretTimer = 0f;
             _valueCaretVisible = !_valueCaretVisible;
+        }
+    }
+
+    private void UpdateCommentEditCaretBlink(float deltaSeconds)
+    {
+        _commentCaretTimer += Math.Max(0f, deltaSeconds);
+        if (_commentCaretTimer >= 0.5f)
+        {
+            _commentCaretTimer = 0f;
+            _commentCaretVisible = !_commentCaretVisible;
         }
     }
 
@@ -1203,7 +1620,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
     private bool IsGraphCommandScopeActive(UiUpdateContext context)
     {
-        if (IsEditingValue)
+        if (IsEditingText)
         {
             return false;
         }
@@ -1235,6 +1652,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         HoveredNode = null;
         HoveredPin = null;
         HoveredValuePin = null;
+        HoveredComment = null;
         HoveredWire = null;
         for (int i = 0; i < _wires.Count; i++)
         {
@@ -1251,6 +1669,15 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         if (input.LeftClicked && HoveredNode != null && HoveredValuePin != null)
         {
             TryBeginValueEdit(context, HoveredNode, HoveredValuePin, worldMouse, input);
+            return;
+        }
+
+        if (mouseInViewport
+            && input.LeftClicked
+            && HoveredNode == null
+            && TryGetCommentEditTarget(worldMouse, out var comment, out var commentField))
+        {
+            TryBeginCommentEdit(context, comment, commentField);
             return;
         }
 
@@ -1350,6 +1777,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return;
         }
 
+        for (int i = _comments.Count - 1; i >= 0; i--)
+        {
+            UiNodeCommentBox comment = _comments[i];
+            if (!comment.Visible || !comment.Enabled)
+            {
+                continue;
+            }
+
+            if (comment.DebugLayout.Bounds.Contains(worldMouse))
+            {
+                HoveredComment = comment;
+                break;
+            }
+        }
+
         for (int i = _wires.Count - 1; i >= 0; i--)
         {
             UiNodeWire wire = _wires[i];
@@ -1361,6 +1803,82 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
                 return;
             }
         }
+    }
+
+    private bool TryGetCommentEditTarget(UiPoint worldMouse, out UiNodeCommentBox comment, out CommentEditField field)
+    {
+        for (int i = _comments.Count - 1; i >= 0; i--)
+        {
+            UiNodeCommentBox candidate = _comments[i];
+            if (!candidate.Visible || !candidate.Enabled)
+            {
+                continue;
+            }
+
+            UiNodeCommentBoxDebugLayout layout = candidate.DebugLayout;
+            if (layout.TitleBounds.Width > 0
+                && layout.TitleBounds.Height > 0
+                && layout.TitleBounds.Contains(worldMouse))
+            {
+                comment = candidate;
+                field = CommentEditField.Title;
+                return true;
+            }
+
+            if (layout.BodyTextBounds.Width > 0
+                && layout.BodyTextBounds.Height > 0
+                && layout.BodyTextBounds.Contains(worldMouse))
+            {
+                comment = candidate;
+                field = CommentEditField.Body;
+                return true;
+            }
+
+            if ((string.IsNullOrEmpty(candidate.Text) || candidate.IsBodyEditing)
+                && layout.BodyBounds.Width > 0
+                && layout.BodyBounds.Height > 0
+                && layout.BodyBounds.Contains(worldMouse))
+            {
+                comment = candidate;
+                field = CommentEditField.Body;
+                return true;
+            }
+        }
+
+        comment = null!;
+        field = CommentEditField.None;
+        return false;
+    }
+
+    private static UiRect ResolveCommentEditBounds(UiNodeCommentBox comment, CommentEditField field)
+    {
+        UiNodeCommentBoxDebugLayout layout = comment.DebugLayout;
+        return field switch
+        {
+            CommentEditField.Title => layout.TitleBounds.Width > 0 && layout.TitleBounds.Height > 0 ? layout.TitleBounds : layout.HeaderBounds,
+            CommentEditField.Body => layout.BodyTextBounds.Width > 0 && layout.BodyTextBounds.Height > 0 ? layout.BodyTextBounds : layout.BodyBounds,
+            _ => default
+        };
+    }
+
+    private static string ResolveCommentEditText(UiNodeCommentBox comment, CommentEditField field)
+    {
+        return field switch
+        {
+            CommentEditField.Title => comment.Title,
+            CommentEditField.Body => comment.Text,
+            _ => string.Empty
+        };
+    }
+
+    private static string CommentEditFieldKey(CommentEditField field)
+    {
+        return field switch
+        {
+            CommentEditField.Title => "title",
+            CommentEditField.Body => "text",
+            _ => string.Empty
+        };
     }
 
     private void RefreshPreviewState(UiInputState input, bool mouseInViewport, UiPoint worldMouse)
@@ -1602,6 +2120,24 @@ public sealed record UiNodeValueEditCancelledEvent(
     UiNodeGraph Graph,
     UiNodeControl Node,
     UiNodePin Pin);
+
+public sealed record UiNodeCommentEditStartedEvent(
+    UiNodeGraph Graph,
+    UiNodeCommentBox Comment,
+    string Key,
+    string InitialText,
+    UiRect EditBounds);
+
+public sealed record UiNodeCommentEditCommittedEvent(
+    UiNodeGraph Graph,
+    UiNodeCommentBox Comment,
+    string Key,
+    string Text);
+
+public sealed record UiNodeCommentEditCancelledEvent(
+    UiNodeGraph Graph,
+    UiNodeCommentBox Comment,
+    string Key);
 
 public sealed record UiNodeGraphViewportChangedEvent(
     UiNodeGraph Graph,

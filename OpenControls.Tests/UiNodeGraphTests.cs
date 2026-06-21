@@ -696,6 +696,179 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_ClickingCommentBodyEditsInlineAndCommitsText()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-body-edit",
+            Bounds = new UiRect(80, 80, 420, 180),
+            Title = "Startup Flow",
+            Text = "Original body",
+            Padding = 16
+        };
+        graph.AddCommentBox(comment);
+        UiNodeCommentEditCommittedEvent? committed = null;
+        graph.CommentEditCommitted += ev => committed = ev;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiPoint bodyClick = graph.Canvas.WorldToScreen(Center(comment.DebugLayout.BodyTextBounds));
+
+        context.Update(new UiInputState
+        {
+            MousePosition = bodyClick,
+            ScreenMousePosition = bodyClick,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.True(graph.IsEditingComment);
+        Assert.True(graph.IsEditingText);
+        Assert.True(comment.IsBodyEditing);
+        Assert.False(comment.IsTitleEditing);
+        Assert.Same(graph, context.Focus.Focused);
+        Assert.True(context.WantTextInput);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = bodyClick,
+            ScreenMousePosition = bodyClick,
+            TextInput = "Edited body".ToCharArray()
+        }, 1f / 60f);
+
+        Assert.Equal("Edited body", comment.EditingBodyText);
+
+        context.Update(new UiInputState
+        {
+            KeysPressed = new[] { UiKey.Enter },
+            Navigation = new UiNavigationInput { Enter = true }
+        }, 1f / 60f);
+
+        Assert.False(graph.IsEditingComment);
+        Assert.Equal("Edited body", comment.Text);
+        Assert.NotNull(committed);
+        Assert.Equal("comment-body-edit", committed.Comment.Id);
+        Assert.Equal("text", committed.Key);
+        Assert.Equal("Edited body", committed.Text);
+    }
+
+    [Fact]
+    public void NodeGraph_ClickingCommentTitleEditsInlineAndCommitsText()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-title-edit",
+            Bounds = new UiRect(80, 80, 420, 180),
+            Title = "Startup Flow",
+            Text = "Original body",
+            Padding = 16
+        };
+        graph.AddCommentBox(comment);
+        UiNodeCommentEditCommittedEvent? committed = null;
+        graph.CommentEditCommitted += ev => committed = ev;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiPoint titleClick = graph.Canvas.WorldToScreen(Center(comment.DebugLayout.TitleBounds));
+
+        context.Update(new UiInputState
+        {
+            MousePosition = titleClick,
+            ScreenMousePosition = titleClick,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.True(graph.IsEditingComment);
+        Assert.True(comment.IsTitleEditing);
+        Assert.False(comment.IsBodyEditing);
+        Assert.Same(graph, context.Focus.Focused);
+        Assert.True(context.WantTextInput);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = titleClick,
+            ScreenMousePosition = titleClick,
+            TextInput = "Edited title".ToCharArray()
+        }, 1f / 60f);
+
+        Assert.Equal("Edited title", comment.EditingTitleText);
+
+        context.Update(new UiInputState
+        {
+            KeysPressed = new[] { UiKey.Enter },
+            Navigation = new UiNavigationInput { Enter = true }
+        }, 1f / 60f);
+
+        Assert.False(graph.IsEditingComment);
+        Assert.Equal("Edited title", comment.Title);
+        Assert.NotNull(committed);
+        Assert.Equal("comment-title-edit", committed.Comment.Id);
+        Assert.Equal("title", committed.Key);
+        Assert.Equal("Edited title", committed.Text);
+    }
+
+    [Fact]
+    public void NodeGraph_DoesNotRaiseKeyboardCommandsWhileCommentIsEditing()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-command-edit",
+            Bounds = new UiRect(80, 80, 420, 180),
+            Title = "Startup Flow",
+            Text = "Original body",
+            Padding = 16
+        };
+        graph.AddCommentBox(comment);
+        List<UiNodeGraphCommandRequestedEvent> commands = [];
+        graph.CommandRequested += commands.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiPoint bodyClick = graph.Canvas.WorldToScreen(Center(comment.DebugLayout.BodyTextBounds));
+        context.Update(new UiInputState
+        {
+            MousePosition = bodyClick,
+            ScreenMousePosition = bodyClick,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            KeysPressed = new[] { UiKey.Backspace },
+            Navigation = new UiNavigationInput { Backspace = true }
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            CtrlDown = true,
+            KeysPressed = new[] { UiKey.Z }
+        }, 1f / 60f);
+
+        Assert.Empty(commands);
+        Assert.True(graph.IsEditingComment);
+        Assert.True(comment.IsBodyEditing);
+    }
+
+    [Fact]
     public void NodeGraph_CommentBoxWrapsMultilineTextInsideBodyRegion()
     {
         UiNodeGraph graph = new()
