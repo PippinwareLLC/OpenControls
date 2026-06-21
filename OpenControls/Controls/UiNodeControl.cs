@@ -35,6 +35,9 @@ public sealed class UiNodeControl : UiElement
     private int _padding = 8;
     private int _textScale = 1;
     private int _cornerRadius = 6;
+    private int _minimumContentWidth = 140;
+    private int _maximumContentWidth = 460;
+    private int _minimumContentHeight = 72;
 
     public string Title
     {
@@ -117,6 +120,24 @@ public sealed class UiNodeControl : UiElement
         set => SetInvalidatingValue(ref _cornerRadius, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.Clip);
     }
 
+    public int MinimumContentWidth
+    {
+        get => _minimumContentWidth;
+        set => SetInvalidatingValue(ref _minimumContentWidth, Math.Max(1, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public int MaximumContentWidth
+    {
+        get => _maximumContentWidth;
+        set => SetInvalidatingValue(ref _maximumContentWidth, Math.Max(MinimumContentWidth, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public int MinimumContentHeight
+    {
+        get => _minimumContentHeight;
+        set => SetInvalidatingValue(ref _minimumContentHeight, Math.Max(1, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
     public bool Selected
     {
         get => _selected;
@@ -184,6 +205,68 @@ public sealed class UiNodeControl : UiElement
 
         pin = null;
         return false;
+    }
+
+    public UiSize MeasureDesiredSize(UiFont font)
+    {
+        ArgumentNullException.ThrowIfNull(font);
+
+        int scale = Math.Max(1, TextScale);
+        int padding = Math.Max(0, Padding);
+        int textHeight = font.MeasureTextHeight(scale);
+        int sidePadding = ResolvePinSidePadding(padding);
+        int laneGap = ResolveLaneGap(padding);
+        bool hasSubtitle = !string.IsNullOrWhiteSpace(Subtitle);
+        int titleWidth = font.MeasureTextWidth(Title, scale);
+        int subtitleWidth = hasSubtitle ? font.MeasureTextWidth(Subtitle, scale) : 0;
+        int headerWidth = Math.Max(titleWidth, subtitleWidth) + padding * 2;
+
+        int inputCount = 0;
+        int outputCount = 0;
+        for (int i = 0; i < _pins.Count; i++)
+        {
+            if (_pins[i].Direction == UiNodePinDirection.Input)
+            {
+                inputCount++;
+            }
+            else
+            {
+                outputCount++;
+            }
+        }
+
+        int rowCount = Math.Max(inputCount, outputCount);
+        int pinWidth = 0;
+        for (int row = 0; row < rowCount; row++)
+        {
+            UiNodePin? inputPin = FindPinAtRow(UiNodePinDirection.Input, row);
+            UiNodePin? outputPin = FindPinAtRow(UiNodePinDirection.Output, row);
+            int inputWidth = inputPin is null ? 0 : font.MeasureTextWidth(inputPin.Text, scale);
+            int outputWidth = outputPin is null ? 0 : font.MeasureTextWidth(outputPin.Text, scale);
+            int rowWidth = inputPin is not null && outputPin is not null
+                ? sidePadding * 2 + inputWidth + laneGap + outputWidth
+                : sidePadding * 2 + Math.Max(inputWidth, outputWidth);
+            pinWidth = Math.Max(pinWidth, rowWidth);
+        }
+
+        int bodyTextWidth = string.IsNullOrEmpty(BodyText)
+            ? 0
+            : font.MeasureTextWidth(BodyText, scale) + padding * 2;
+        int maximumWidth = Math.Max(MinimumContentWidth, MaximumContentWidth);
+        int desiredWidth = Math.Clamp(Math.Max(headerWidth, Math.Max(pinWidth, bodyTextWidth)), MinimumContentWidth, maximumWidth);
+
+        int measuredHeaderHeight = Math.Max(
+            Math.Max(30, HeaderHeight),
+            hasSubtitle
+                ? textHeight * 2 + Math.Max(7, padding)
+                : textHeight + Math.Max(8, padding));
+        int rowHeight = Math.Max(Math.Max(12, PinRowHeight), Math.Max(PinHitSize + 6, textHeight + 6));
+        int bodyRowsHeight = Math.Max(1, rowCount) * rowHeight;
+        int bodyTextHeight = string.IsNullOrEmpty(BodyText) ? 0 : padding + textHeight;
+        int desiredHeight = measuredHeaderHeight + padding + bodyRowsHeight + bodyTextHeight + padding;
+        desiredHeight = Math.Max(MinimumContentHeight, desiredHeight);
+
+        return new UiSize(desiredWidth, desiredHeight);
     }
 
     public override void Update(UiUpdateContext context)
@@ -427,7 +510,8 @@ public sealed class UiNodeControl : UiElement
         UiRect bodyTextBounds = default;
         if (!string.IsNullOrEmpty(BodyText) && bodyBounds.Width > 0 && bodyBounds.Height > 0)
         {
-            int bodyTextY = bodyBounds.Y + padding + rowCount * Math.Max(12, PinRowHeight) + padding;
+            int rowHeight = Math.Max(Math.Max(12, PinRowHeight), Math.Max(PinHitSize + 6, textHeight + 6));
+            int bodyTextY = bodyBounds.Y + padding + rowCount * rowHeight + padding;
             if (bodyTextY + textHeight <= bodyBounds.Bottom - padding)
             {
                 int bodyTextAvailableWidth = Math.Max(0, bodyBounds.Width - padding * 2);
@@ -472,7 +556,7 @@ public sealed class UiNodeControl : UiElement
 
     private UiNodePinLayout BuildPinLayout(UiNodePin pin, int rowIndex, UiRect bodyBounds, UiFont font, int textHeight, bool hasOppositePinInRow)
     {
-        int rowHeight = Math.Max(12, PinRowHeight);
+        int rowHeight = Math.Max(Math.Max(12, PinRowHeight), Math.Max(PinHitSize + 6, textHeight + 6));
         int padding = Math.Max(0, Padding);
         int centerY = bodyBounds.Y + padding + rowHeight / 2 + rowIndex * rowHeight;
         int centerX = pin.Direction == UiNodePinDirection.Input ? Bounds.X : Bounds.Right;
@@ -483,8 +567,8 @@ public sealed class UiNodeControl : UiElement
 
         int labelWidth = font.MeasureTextWidth(pin.Text, TextScale);
         int labelY = center.Y - textHeight / 2;
-        int sidePadding = Math.Max(PinVisualSize, PinHitSize) + Math.Max(4, padding / 2);
-        int laneGap = Math.Max(6, padding / 2);
+        int sidePadding = ResolvePinSidePadding(padding);
+        int laneGap = ResolveLaneGap(padding);
         int sharedLabelWidth = Math.Max(0, Bounds.Width - sidePadding * 2);
         int maxLabelWidth = hasOppositePinInRow
             ? Math.Max(0, (sharedLabelWidth - laneGap) / 2)
@@ -496,6 +580,38 @@ public sealed class UiNodeControl : UiElement
         UiRect labelBounds = new(labelX, labelY, clampedLabelWidth, textHeight);
 
         return new UiNodePinLayout(pin, rowBounds, labelBounds, hitBounds, center);
+    }
+
+    private UiNodePin? FindPinAtRow(UiNodePinDirection direction, int rowIndex)
+    {
+        int row = 0;
+        for (int i = 0; i < _pins.Count; i++)
+        {
+            UiNodePin pin = _pins[i];
+            if (pin.Direction != direction)
+            {
+                continue;
+            }
+
+            if (row == rowIndex)
+            {
+                return pin;
+            }
+
+            row++;
+        }
+
+        return null;
+    }
+
+    private int ResolvePinSidePadding(int padding)
+    {
+        return Math.Max(PinVisualSize, PinHitSize) + Math.Max(4, padding / 2);
+    }
+
+    private static int ResolveLaneGap(int padding)
+    {
+        return Math.Max(6, padding / 2);
     }
 
     private void DrawTitle(UiRenderContext context, UiFont font)

@@ -224,6 +224,53 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeControl_MeasureDesiredSizeExpandsForMeasuredContent()
+    {
+        UiNodeControl node = new()
+        {
+            Id = "measured-node",
+            Bounds = new UiRect(120, 96, 120, 74),
+            Title = "Very Long Blueprint Function Node Title",
+            Subtitle = "Target is My Deep Object",
+            BodyText = "Measured subtitle body",
+            HeaderHeight = 52,
+            Padding = 10,
+            PinRowHeight = 24,
+            PinHitSize = 18,
+            PinVisualSize = 10,
+            MinimumContentWidth = 140,
+            MaximumContentWidth = 460
+        };
+        node.AddInput("payload", "Extremely Long Input Payload Name", UiNodePinKind.Data);
+        node.AddOutput("result", "Very Long Output Result Name", UiNodePinKind.Data);
+
+        UiSize size = node.MeasureDesiredSize(UiFont.Default);
+        Assert.True(size.Width > node.Bounds.Width);
+        Assert.InRange(size.Width, node.MinimumContentWidth, node.MaximumContentWidth);
+        Assert.True(size.Height > node.Bounds.Height);
+
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        node.Bounds = new UiRect(node.Bounds.X, node.Bounds.Y, size.Width, size.Height);
+        graph.AddNode(node);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiNodePinLayout input = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "payload");
+        UiNodePinLayout output = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "result");
+        Assert.True(Contains(node.DebugLayout.HeaderBounds, node.DebugLayout.TitleBounds));
+        Assert.True(Contains(node.DebugLayout.HeaderBounds, node.DebugLayout.SubtitleBounds));
+        Assert.False(Intersects(input.LabelBounds, output.LabelBounds));
+        Assert.True(Contains(node.Bounds, input.LabelBounds));
+        Assert.True(Contains(node.Bounds, output.LabelBounds));
+    }
+
+    [Fact]
     public void NodeControl_DensePinsHideBodyTextInsteadOfOverlappingRows()
     {
         UiNodeGraph graph = new()
