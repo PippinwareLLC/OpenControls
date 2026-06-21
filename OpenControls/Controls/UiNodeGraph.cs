@@ -4,6 +4,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 {
     private const int ValueEditorMaxLength = 2048;
     private const int CommentEditorMaxLength = 4096;
+    private const int NodeSearchMaxLength = 128;
+    private const int NodeSearchMaxResults = 8;
+    private const int NodeSearchPopupWidth = 300;
+    private const int NodeSearchResultHeight = 24;
+    private const int NodeSearchInputHeight = 28;
+    private const int NodeSearchTextScale = 1;
 
     private enum ValueEditAction
     {
@@ -196,11 +202,13 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private readonly UiNodeOverlayLayer _overlayLayer = new();
     private readonly UiTextEditingState _valueEditingState = new();
     private readonly UiTextEditingState _commentEditingState = new();
+    private readonly UiTextEditingState _nodeSearchEditingState = new();
     private readonly List<UiNodeControl> _nodes = new();
     private readonly Dictionary<string, UiNodeControl> _nodesById = new(StringComparer.Ordinal);
     private readonly List<UiNodeCommentBox> _comments = new();
     private readonly Dictionary<string, UiNodeCommentBox> _commentsById = new(StringComparer.Ordinal);
     private readonly List<UiNodeWire> _wires = new();
+    private readonly List<UiNodeSearchItem> _nodeSearchItems = new();
     private readonly Dictionary<UiNodeControl, UiRect> _nodeDragStartBounds = new();
     private readonly UiSelectionMarquee _selectionMarquee = new()
     {
@@ -220,6 +228,15 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private CommentEditField _editingCommentField;
     private UiTextCompositionState _valueComposition;
     private UiTextCompositionState _commentComposition;
+    private UiTextCompositionState _nodeSearchComposition;
+    private bool _nodeSearchOpen;
+    private UiPoint _nodeSearchScreenPosition;
+    private UiPoint _nodeSearchWorldPosition;
+    private UiModifierKeys _nodeSearchModifiers;
+    private UiRect _nodeSearchBounds;
+    private UiRect _nodeSearchInputBounds;
+    private int _nodeSearchSelectedIndex;
+    private bool _nodeSearchHandledInputThisFrame;
     private bool _boxSelectionArmed;
     private UiPoint _boxSelectionStartScreen;
     private UiPoint _boxSelectionStartGraphLocal;
@@ -269,8 +286,14 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public bool IsEditingValue => _editingValueNode is not null && _editingValuePin is not null;
     public bool IsEditingComment => _editingComment is not null && _editingCommentField != CommentEditField.None;
     public bool IsEditingText => IsEditingValue || IsEditingComment;
+    public bool IsNodeSearchOpen => _nodeSearchOpen;
+    public string NodeSearchQuery => _nodeSearchEditingState.Text;
+    public IReadOnlyList<UiNodeSearchItem> NodeSearchItems => _nodeSearchItems;
+    public int NodeSearchSelectedIndex => _nodeSearchSelectedIndex;
+    public UiRect NodeSearchPopupBounds => _nodeSearchBounds;
+    public UiPoint NodeSearchWorldPosition => _nodeSearchWorldPosition;
     public override bool IsFocusable => true;
-    public override bool WantsTextInput => IsEditingText;
+    public override bool WantsTextInput => IsEditingText || IsNodeSearchOpen;
     public bool EnableBoxSelection { get; set; } = true;
     public bool IsBoxSelectionPointerActive => _boxSelectionArmed || IsBoxSelecting;
     public bool IsBoxSelecting { get; private set; }
@@ -279,6 +302,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public bool IsDraggingComment { get; private set; }
     public bool EnableWirePreview { get; set; } = true;
     public bool EnableWireSelection { get; set; } = true;
+    public bool EnableNodeSearch { get; set; } = true;
     public int WireHitSlop { get; set; } = 5;
     public int PreviewWireThickness { get; set; } = 3;
     public int DataWireThickness { get; set; } = 2;
@@ -305,6 +329,14 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public int WireGlowExtraThickness { get; set; } = 8;
     public int WireGlowSpreadStep { get; set; } = 3;
     public int WireGlowPasses { get; set; } = 3;
+    public UiColor NodeSearchBackground { get; set; } = new(18, 22, 30, 246);
+    public UiColor NodeSearchBorder { get; set; } = new(82, 112, 148, 230);
+    public UiColor NodeSearchInputBackground { get; set; } = new(11, 15, 22, 255);
+    public UiColor NodeSearchInputBorder { get; set; } = new(56, 78, 104, 255);
+    public UiColor NodeSearchTextColor { get; set; } = new(235, 245, 255, 255);
+    public UiColor NodeSearchPlaceholderColor { get; set; } = new(116, 138, 164, 255);
+    public UiColor NodeSearchSelectedBackground { get; set; } = new(36, 92, 142, 186);
+    public UiColor NodeSearchSelectedBorder { get; set; } = new(92, 166, 255, 200);
 
     public UiRect? SelectionMarqueeBounds
     {
@@ -367,10 +399,29 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeBoxSelectionEvent>? BoxSelectionCancelled;
     public event Action<UiNodeGraphViewportChangedEvent>? ViewportChanged;
     public event Action<UiNodeGraphCommandRequestedEvent>? CommandRequested;
+    public event Action<UiNodeSearchRequestedEvent>? NodeSearchRequested;
+    public event Action<UiNodeSearchQueryChangedEvent>? NodeSearchQueryChanged;
+    public event Action<UiNodeSearchItemInvokedEvent>? NodeSearchItemInvoked;
+    public event Action<UiNodeSearchClosedEvent>? NodeSearchClosed;
 
     public override bool IsRenderCacheVolatile(UiContext context)
     {
-        return IsEditingText && ReferenceEquals(context.Focus.Focused, this);
+        return (IsEditingText || IsNodeSearchOpen) && ReferenceEquals(context.Focus.Focused, this);
+    }
+
+    public void SetNodeSearchResults(IEnumerable<UiNodeSearchItem> items, int selectedIndex = 0)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        _nodeSearchItems.Clear();
+        _nodeSearchItems.AddRange(items.Where(static item => !string.IsNullOrWhiteSpace(item.Id)).Take(NodeSearchMaxResults));
+        _nodeSearchSelectedIndex = ClampNodeSearchIndex(selectedIndex);
+        UpdateNodeSearchBounds();
+        Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    public void CloseNodeSearch()
+    {
+        CloseNodeSearch(raiseEvent: true);
     }
 
     public void AddNode(UiNodeControl node)
@@ -635,6 +686,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
 
         UpdateCanvasLayout();
+        _nodeSearchHandledInputThisFrame = false;
         UiInputState graphInput = context.GetSelfInput(this);
         if (!IsEditingText
             && graphInput.LeftClicked
@@ -653,6 +705,10 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             _commentEditFont = ResolveFont(context.DefaultFont);
             HandleCommentEditInput(context, graphInput);
         }
+        else if (IsNodeSearchOpen && ReferenceEquals(context.Focus.Focused, this))
+        {
+            HandleNodeSearchInput(context, graphInput);
+        }
 
         base.Update(context);
         RefreshGraphState(context, graphInput);
@@ -665,6 +721,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     {
         CancelCommentDrag(_commentDragModifiers);
         CancelBoxSelection(_boxSelectionModifiers);
+        CloseNodeSearch(raiseEvent: true);
     }
 
     public override void Render(UiRenderContext context)
@@ -688,6 +745,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
         UpdateCanvasLayout();
         base.RenderOverlay(context);
+        DrawNodeSearchPopup(context);
     }
 
     bool IUiDebugBoundsResolver.TryResolveDebugBounds(UiElement element, out UiRect bounds, out UiRect clipBounds)
@@ -711,6 +769,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             && _editingComment is { } comment
             && ResolveCommentEditBounds(comment, _editingCommentField) is { Width: > 0, Height: > 0 } commentBounds
             && commentBounds.Contains(_canvas.ScreenToWorld(input.MousePosition)))
+        {
+            cursor = UiMouseCursor.TextInput;
+            return true;
+        }
+
+        if (IsNodeSearchOpen && _nodeSearchInputBounds.Contains(input.MousePosition))
         {
             cursor = UiMouseCursor.TextInput;
             return true;
@@ -762,6 +826,26 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             }
 
             request = new UiTextInputRequest(screenBounds, _editingCommentField == CommentEditField.Body, caretBounds, caretBounds);
+            return true;
+        }
+
+        if (IsNodeSearchOpen)
+        {
+            UpdateNodeSearchBounds();
+            if (_nodeSearchInputBounds.Width <= 0 || _nodeSearchInputBounds.Height <= 0)
+            {
+                return false;
+            }
+
+            int textX = _nodeSearchInputBounds.X + 8 + ResolveNodeSearchCaretX(ResolveFont(UiFont.Default));
+            var caretBounds = new UiRect(textX, _nodeSearchInputBounds.Y + 5, 1, Math.Max(1, _nodeSearchInputBounds.Height - 10));
+            var candidateBounds = caretBounds;
+            if (_nodeSearchComposition.IsActive)
+            {
+                candidateBounds = new UiRect(caretBounds.X, caretBounds.Y, Math.Max(1, caretBounds.Width + _nodeSearchComposition.Text.Length * 8), caretBounds.Height);
+            }
+
+            request = new UiTextInputRequest(_nodeSearchInputBounds, isMultiLine: false, caretBounds: caretBounds, candidateBounds: candidateBounds);
             return true;
         }
 
@@ -919,6 +1003,109 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         return true;
     }
 
+    private bool TryOpenNodeSearch(UiUpdateContext context, UiInputState input, bool mouseInViewport, UiPoint worldMouse)
+    {
+        if (!EnableNodeSearch
+            || IsEditingText
+            || IsNodeSearchOpen
+            || !mouseInViewport
+            || !input.RightClicked
+            || HoveredNode != null
+            || HoveredPin != null
+            || HoveredValuePin != null
+            || HoveredComment != null
+            || HoveredWire != null
+            || PreviewWire.Active
+            || IsBoxSelectionPointerActive
+            || IsDraggingComment)
+        {
+            return false;
+        }
+
+        OpenNodeSearch(context, input.MousePosition, worldMouse, input.Modifiers);
+        return true;
+    }
+
+    private void OpenNodeSearch(UiUpdateContext context, UiPoint screenPosition, UiPoint worldPosition, UiModifierKeys modifiers)
+    {
+        CancelCommentDrag(modifiers);
+        CancelBoxSelection(modifiers);
+        _nodeSearchOpen = true;
+        _nodeSearchScreenPosition = screenPosition;
+        _nodeSearchWorldPosition = worldPosition;
+        _nodeSearchModifiers = modifiers;
+        _nodeSearchComposition = UiTextCompositionState.Empty;
+        _nodeSearchEditingState.SetText(string.Empty);
+        _nodeSearchEditingState.BeginSession();
+        _nodeSearchEditingState.MoveEnd();
+        _nodeSearchSelectedIndex = 0;
+        _nodeSearchItems.Clear();
+        UpdateNodeSearchBounds();
+        context.Focus.RequestFocus(this);
+        Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+        NodeSearchRequested?.Invoke(new UiNodeSearchRequestedEvent(this, string.Empty, screenPosition, worldPosition, modifiers));
+    }
+
+    private void CloseNodeSearch(bool raiseEvent)
+    {
+        if (!IsNodeSearchOpen)
+        {
+            return;
+        }
+
+        string query = _nodeSearchEditingState.Text;
+        _nodeSearchOpen = false;
+        _nodeSearchItems.Clear();
+        _nodeSearchEditingState.EndSession();
+        _nodeSearchComposition = UiTextCompositionState.Empty;
+        _nodeSearchSelectedIndex = 0;
+        _nodeSearchBounds = default;
+        _nodeSearchInputBounds = default;
+        Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+        if (raiseEvent)
+        {
+            NodeSearchClosed?.Invoke(new UiNodeSearchClosedEvent(this, query, _nodeSearchWorldPosition, _nodeSearchModifiers));
+        }
+    }
+
+    private void InvokeNodeSearchItem(UiNodeSearchItem item)
+    {
+        if (!IsNodeSearchOpen || string.IsNullOrWhiteSpace(item.Id))
+        {
+            return;
+        }
+
+        string query = _nodeSearchEditingState.Text;
+        UiPoint screenPosition = _nodeSearchScreenPosition;
+        UiPoint worldPosition = _nodeSearchWorldPosition;
+        UiModifierKeys modifiers = _nodeSearchModifiers;
+        CloseNodeSearch(raiseEvent: false);
+        NodeSearchItemInvoked?.Invoke(new UiNodeSearchItemInvokedEvent(this, item, query, screenPosition, worldPosition, modifiers));
+    }
+
+    private void InvokeCurrentNodeSearchItem()
+    {
+        if (_nodeSearchItems.Count == 0)
+        {
+            return;
+        }
+
+        InvokeNodeSearchItem(_nodeSearchItems[ClampNodeSearchIndex(_nodeSearchSelectedIndex)]);
+    }
+
+    private void RaiseNodeSearchQueryChanged()
+    {
+        _nodeSearchSelectedIndex = 0;
+        NodeSearchQueryChanged?.Invoke(new UiNodeSearchQueryChangedEvent(
+            this,
+            _nodeSearchEditingState.Text,
+            _nodeSearchScreenPosition,
+            _nodeSearchWorldPosition,
+            _nodeSearchModifiers));
+        UpdateNodeSearchBounds();
+        Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
     private void CommitValueEdit()
     {
         if (_editingValueNode is not { } node || _editingValuePin is not { } pin)
@@ -1062,6 +1249,146 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         HandleCommentEditTextInput(input.TextInput);
         UpdateCommentEditCaretBlink(context.DeltaSeconds);
         SyncEditingCommentState();
+    }
+
+    private void HandleNodeSearchInput(UiUpdateContext context, UiInputState input)
+    {
+        if (!IsNodeSearchOpen)
+        {
+            return;
+        }
+
+        _nodeSearchHandledInputThisFrame = true;
+        _nodeSearchComposition = input.Composition;
+        HandleNodeSearchPointerInput(input);
+        HandleNodeSearchShortcutInput(context, input);
+        HandleNodeSearchNavigation(input);
+        HandleNodeSearchTextInput(input.TextInput);
+    }
+
+    private void HandleNodeSearchPointerInput(UiInputState input)
+    {
+        if (!IsNodeSearchOpen)
+        {
+            return;
+        }
+
+        if (!input.LeftClicked && !input.RightClicked)
+        {
+            return;
+        }
+
+        UpdateNodeSearchBounds();
+        if (!_nodeSearchBounds.Contains(input.MousePosition))
+        {
+            CloseNodeSearch(raiseEvent: true);
+            return;
+        }
+
+        var rowIndex = ResolveNodeSearchRowIndex(input.MousePosition);
+        if (rowIndex >= 0 && rowIndex < _nodeSearchItems.Count)
+        {
+            _nodeSearchSelectedIndex = rowIndex;
+            InvokeNodeSearchItem(_nodeSearchItems[rowIndex]);
+        }
+    }
+
+    private void HandleNodeSearchShortcutInput(UiUpdateContext context, UiInputState input)
+    {
+        if (input.IsPrimaryShortcutPressed(UiKey.A))
+        {
+            _nodeSearchEditingState.SelectAll();
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.V))
+        {
+            InsertNodeSearchText(context.Clipboard.GetText());
+        }
+    }
+
+    private void HandleNodeSearchNavigation(UiInputState input)
+    {
+        UiNavigationInput navigation = input.Navigation;
+        if (navigation.Escape)
+        {
+            CloseNodeSearch(raiseEvent: true);
+            return;
+        }
+
+        if (navigation.Enter || navigation.KeypadEnter)
+        {
+            InvokeCurrentNodeSearchItem();
+            return;
+        }
+
+        if (navigation.MoveUp)
+        {
+            _nodeSearchSelectedIndex = Math.Max(0, _nodeSearchSelectedIndex - 1);
+            return;
+        }
+
+        if (navigation.MoveDown)
+        {
+            _nodeSearchSelectedIndex = Math.Min(Math.Max(0, _nodeSearchItems.Count - 1), _nodeSearchSelectedIndex + 1);
+            return;
+        }
+
+        bool byWord = input.CtrlDown || input.AltDown;
+        if (navigation.MoveLeft)
+        {
+            _nodeSearchEditingState.MoveLeft(input.ShiftDown, byWord);
+        }
+
+        if (navigation.MoveRight)
+        {
+            _nodeSearchEditingState.MoveRight(input.ShiftDown, byWord);
+        }
+
+        if (navigation.Home)
+        {
+            _nodeSearchEditingState.MoveHome(input.ShiftDown);
+        }
+
+        if (navigation.End)
+        {
+            _nodeSearchEditingState.MoveEnd(input.ShiftDown);
+        }
+
+        bool changed = false;
+        if (navigation.Backspace)
+        {
+            changed |= _nodeSearchEditingState.Backspace(byWord);
+        }
+
+        if (navigation.Delete)
+        {
+            changed |= _nodeSearchEditingState.Delete(byWord);
+        }
+
+        if (changed)
+        {
+            RaiseNodeSearchQueryChanged();
+        }
+    }
+
+    private void HandleNodeSearchTextInput(IReadOnlyList<char> input)
+    {
+        if (input.Count == 0)
+        {
+            return;
+        }
+
+        string pending = string.Empty;
+        for (int i = 0; i < input.Count; i++)
+        {
+            char character = input[i];
+            if (!char.IsControl(character))
+            {
+                pending += character;
+            }
+        }
+
+        InsertNodeSearchText(pending);
     }
 
     private void HandleValueEditPointerInput(UiUpdateContext context, UiInputState input, UiFont font)
@@ -1398,6 +1725,27 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         ApplyCommentEdit(_commentEditingState.InsertText(insertion));
     }
 
+    private void InsertNodeSearchText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        int available = Math.Max(0, NodeSearchMaxLength - (_nodeSearchEditingState.Text.Length - _nodeSearchEditingState.SelectionLength));
+        if (available <= 0)
+        {
+            return;
+        }
+
+        string normalized = text.Replace("\r", string.Empty, StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal);
+        string insertion = normalized.Length > available ? normalized.Substring(0, available) : normalized;
+        if (_nodeSearchEditingState.InsertText(insertion))
+        {
+            RaiseNodeSearchQueryChanged();
+        }
+    }
+
     private void CopyValueEditSelection(IUiClipboard clipboard)
     {
         if (_valueEditingState.HasSelection)
@@ -1530,6 +1878,125 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _editingComment.EditingBodyText = _editingCommentField == CommentEditField.Body ? _commentEditingState.Text : string.Empty;
         _editingComment.EditingCaretVisible = _commentCaretVisible;
         _editingComment.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    private void UpdateNodeSearchBounds()
+    {
+        if (!IsNodeSearchOpen)
+        {
+            _nodeSearchBounds = default;
+            _nodeSearchInputBounds = default;
+            return;
+        }
+
+        int rowCount = Math.Max(1, _nodeSearchItems.Count);
+        int width = Math.Max(180, NodeSearchPopupWidth);
+        int height = 10 + NodeSearchInputHeight + 8 + rowCount * NodeSearchResultHeight + 10;
+        int minX = Bounds.X + 6;
+        int minY = Bounds.Y + 6;
+        int maxX = Math.Max(minX, Bounds.Right - width - 6);
+        int maxY = Math.Max(minY, Bounds.Bottom - height - 6);
+        int x = Math.Clamp(_nodeSearchScreenPosition.X, minX, maxX);
+        int y = Math.Clamp(_nodeSearchScreenPosition.Y, minY, maxY);
+        _nodeSearchBounds = new UiRect(x, y, width, height);
+        _nodeSearchInputBounds = new UiRect(x + 10, y + 10, width - 20, NodeSearchInputHeight);
+    }
+
+    private int ClampNodeSearchIndex(int index)
+    {
+        return _nodeSearchItems.Count == 0
+            ? 0
+            : Math.Clamp(index, 0, Math.Min(NodeSearchMaxResults, _nodeSearchItems.Count) - 1);
+    }
+
+    private int ResolveNodeSearchRowIndex(UiPoint point)
+    {
+        int rowTop = _nodeSearchInputBounds.Bottom + 8;
+        int rowIndex = (point.Y - rowTop) / Math.Max(1, NodeSearchResultHeight);
+        return rowIndex;
+    }
+
+    private int ResolveNodeSearchCaretX(UiFont font)
+    {
+        return MeasurePrefixWidth(_nodeSearchEditingState.Text, _nodeSearchEditingState.CaretIndex, NodeSearchTextScale, font);
+    }
+
+    private void DrawNodeSearchPopup(UiRenderContext context)
+    {
+        if (!IsNodeSearchOpen)
+        {
+            return;
+        }
+
+        UpdateNodeSearchBounds();
+        UiFont font = ResolveFont(context.DefaultFont);
+        IUiRenderer renderer = context.Renderer;
+        UiRenderHelpers.FillRectRounded(renderer, _nodeSearchBounds, 4, NodeSearchBackground);
+        UiRenderHelpers.DrawRectRounded(renderer, _nodeSearchBounds, 4, NodeSearchBorder, 1);
+        UiRenderHelpers.FillRectRounded(renderer, _nodeSearchInputBounds, 3, NodeSearchInputBackground);
+        UiRenderHelpers.DrawRectRounded(renderer, _nodeSearchInputBounds, 3, NodeSearchInputBorder, 1);
+
+        DrawNodeSearchInputText(renderer, font);
+        if (_nodeSearchItems.Count == 0)
+        {
+            DrawNodeSearchRowText(renderer, font, "No matching nodes", 0, selected: false, NodeSearchPlaceholderColor);
+            return;
+        }
+
+        int count = Math.Min(NodeSearchMaxResults, _nodeSearchItems.Count);
+        for (int i = 0; i < count; i++)
+        {
+            UiNodeSearchItem item = _nodeSearchItems[i];
+            bool selected = i == ClampNodeSearchIndex(_nodeSearchSelectedIndex);
+            if (selected)
+            {
+                UiRect rowBounds = ResolveNodeSearchRowBounds(i);
+                UiRenderHelpers.FillRectRounded(renderer, rowBounds, 3, NodeSearchSelectedBackground);
+                UiRenderHelpers.DrawRectRounded(renderer, rowBounds, 3, NodeSearchSelectedBorder, 1);
+            }
+
+            string category = string.IsNullOrWhiteSpace(item.Category) ? string.Empty : $"  {item.Category}";
+            DrawNodeSearchRowText(renderer, font, item.Title + category, i, selected, selected ? UiColor.White : new UiColor(184, 202, 224, 255));
+        }
+    }
+
+    private void DrawNodeSearchInputText(IUiRenderer renderer, UiFont font)
+    {
+        int padding = 8;
+        string query = _nodeSearchEditingState.Text;
+        string text = string.IsNullOrEmpty(query) ? "Search nodes..." : query;
+        UiColor color = string.IsNullOrEmpty(query) ? NodeSearchPlaceholderColor : NodeSearchTextColor;
+        UiRect textBounds = new(
+            _nodeSearchInputBounds.X + padding,
+            _nodeSearchInputBounds.Y + 5,
+            Math.Max(1, _nodeSearchInputBounds.Width - padding * 2),
+            Math.Max(1, _nodeSearchInputBounds.Height - 10));
+        renderer.PushClip(_nodeSearchInputBounds);
+        string drawText = UiRenderHelpers.BuildElidedText(text, textBounds.Width, NodeSearchTextScale, font);
+        renderer.DrawText(drawText, new UiPoint(textBounds.X, textBounds.Y), color, NodeSearchTextScale, font);
+        if (!string.IsNullOrEmpty(query))
+        {
+            int caretX = textBounds.X + ResolveNodeSearchCaretX(font);
+            renderer.FillRect(new UiRect(caretX, textBounds.Y, 1, textBounds.Height), NodeSearchTextColor);
+        }
+
+        renderer.PopClip();
+    }
+
+    private void DrawNodeSearchRowText(IUiRenderer renderer, UiFont font, string text, int rowIndex, bool selected, UiColor color)
+    {
+        UiRect rowBounds = ResolveNodeSearchRowBounds(rowIndex);
+        UiRect textBounds = new UiRect(rowBounds.X + 6, rowBounds.Y + 4, Math.Max(1, rowBounds.Width - 12), Math.Max(1, rowBounds.Height - 8));
+        renderer.PushClip(rowBounds);
+        string drawText = UiRenderHelpers.BuildElidedText(text, textBounds.Width, NodeSearchTextScale, font);
+        renderer.DrawText(drawText, new UiPoint(textBounds.X, textBounds.Y), color, NodeSearchTextScale, font);
+        renderer.PopClip();
+    }
+
+    private UiRect ResolveNodeSearchRowBounds(int rowIndex)
+    {
+        int rowTop = _nodeSearchInputBounds.Bottom + 8 + rowIndex * NodeSearchResultHeight;
+        return new UiRect(_nodeSearchBounds.X + 8, rowTop, _nodeSearchBounds.Width - 16, NodeSearchResultHeight);
     }
 
     private void UpdateValueEditHorizontalScroll(UiNodeControl node, UiNodePin pin, UiFont font)
@@ -1699,6 +2166,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         if (mouseInViewport)
         {
             RefreshHoverState(worldMouse);
+        }
+
+        if (_nodeSearchHandledInputThisFrame)
+        {
+            return;
+        }
+
+        if (IsNodeSearchOpen)
+        {
+            return;
+        }
+
+        if (TryOpenNodeSearch(context, input, mouseInViewport, worldMouse))
+        {
+            return;
         }
 
         if (input.LeftClicked && HoveredNode != null && HoveredValuePin != null)
@@ -2588,4 +3070,39 @@ public enum UiNodeGraphCommand
 public sealed record UiNodeGraphCommandRequestedEvent(
     UiNodeGraph Graph,
     UiNodeGraphCommand Command,
+    UiModifierKeys Modifiers);
+
+public sealed record UiNodeSearchItem(
+    string Id,
+    string Title,
+    string Category = "",
+    string Description = "",
+    string SearchText = "");
+
+public sealed record UiNodeSearchRequestedEvent(
+    UiNodeGraph Graph,
+    string Query,
+    UiPoint ScreenPosition,
+    UiPoint WorldPosition,
+    UiModifierKeys Modifiers);
+
+public sealed record UiNodeSearchQueryChangedEvent(
+    UiNodeGraph Graph,
+    string Query,
+    UiPoint ScreenPosition,
+    UiPoint WorldPosition,
+    UiModifierKeys Modifiers);
+
+public sealed record UiNodeSearchItemInvokedEvent(
+    UiNodeGraph Graph,
+    UiNodeSearchItem Item,
+    string Query,
+    UiPoint ScreenPosition,
+    UiPoint WorldPosition,
+    UiModifierKeys Modifiers);
+
+public sealed record UiNodeSearchClosedEvent(
+    UiNodeGraph Graph,
+    string Query,
+    UiPoint WorldPosition,
     UiModifierKeys Modifiers);

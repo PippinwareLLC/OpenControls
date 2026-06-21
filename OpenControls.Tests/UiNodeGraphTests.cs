@@ -254,6 +254,135 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_RightClickEmptyCanvasOpensNodeSearchAtWorldPosition()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
+        graph.PanX = 100;
+        graph.PanY = 50;
+        graph.Zoom = 1.5f;
+        UiNodeSearchRequestedEvent? requested = null;
+        graph.NodeSearchRequested += ev =>
+        {
+            requested = ev;
+            graph.SetNodeSearchResults(
+            [
+                new UiNodeSearchItem("nodesharp.console.print", "Print String", "Console"),
+                new UiNodeSearchItem("nodesharp.flow.branch", "Branch", "Flow")
+            ]);
+        };
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiPoint click = new(720, 420);
+        UiPoint expectedWorld = graph.Canvas.ScreenToWorld(click);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            RightClicked = true,
+            RightDown = true
+        }, 1f / 60f);
+
+        Assert.True(graph.IsNodeSearchOpen);
+        Assert.True(context.WantTextInput);
+        Assert.Same(graph, context.Focus.Focused);
+        Assert.NotNull(requested);
+        Assert.Equal(expectedWorld, requested.WorldPosition);
+        Assert.Equal(click, requested.ScreenPosition);
+        Assert.Equal("", graph.NodeSearchQuery);
+        Assert.Equal(2, graph.NodeSearchItems.Count);
+        Assert.True(graph.NodeSearchPopupBounds.Width > 0);
+        Assert.True(graph.NodeSearchPopupBounds.Height > 0);
+
+        RecordingRenderer renderer = new();
+        graph.RenderOverlay(new UiRenderContext(renderer, UiFont.Default));
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "Search nodes...");
+        Assert.Contains(renderer.DrawnTexts, text => text.Text.Contains("Print String", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void NodeGraph_NodeSearchTypingFiltersAndEnterInvokesSelection()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
+        UiNodeSearchItem[] allItems =
+        [
+            new("nodesharp.console.print", "Print String", "Console", SearchText: "print console"),
+            new("nodesharp.flow.branch", "Branch", "Flow", SearchText: "branch flow")
+        ];
+        graph.NodeSearchRequested += _ => graph.SetNodeSearchResults(allItems);
+        graph.NodeSearchQueryChanged += ev =>
+        {
+            var filtered = allItems
+                .Where(item => item.SearchText.Contains(ev.Query, StringComparison.OrdinalIgnoreCase)
+                    || item.Title.Contains(ev.Query, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            graph.SetNodeSearchResults(filtered);
+        };
+        UiNodeSearchItemInvokedEvent? invoked = null;
+        graph.NodeSearchItemInvoked += ev => invoked = ev;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiPoint click = new(720, 420);
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            RightClicked = true,
+            RightDown = true
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            TextInput = "pri".ToCharArray()
+        }, 1f / 60f);
+
+        Assert.True(graph.IsNodeSearchOpen);
+        Assert.Equal("pri", graph.NodeSearchQuery);
+        Assert.Single(graph.NodeSearchItems);
+        Assert.Equal("nodesharp.console.print", graph.NodeSearchItems[0].Id);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            KeysPressed = new[] { UiKey.Enter },
+            Navigation = new UiNavigationInput { Enter = true }
+        }, 1f / 60f);
+
+        Assert.False(graph.IsNodeSearchOpen);
+        Assert.NotNull(invoked);
+        Assert.Equal("nodesharp.console.print", invoked.Item.Id);
+        Assert.Equal("pri", invoked.Query);
+    }
+
+    [Fact]
+    public void NodeGraph_RightClickNodeDoesNotOpenNodeSearch()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        var opened = false;
+        graph.NodeSearchRequested += _ => opened = true;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiPoint click = graph.Canvas.WorldToScreen(Center(entry.Bounds));
+
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            RightClicked = true,
+            RightDown = true
+        }, 1f / 60f);
+
+        Assert.False(opened);
+        Assert.False(graph.IsNodeSearchOpen);
+    }
+
+    [Fact]
     public void NodeGraph_BoxSelectionBoundsAreCorrectUnderPanAndZoom()
     {
         UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
