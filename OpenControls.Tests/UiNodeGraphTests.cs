@@ -1032,6 +1032,12 @@ public sealed class UiNodeGraphTests
     public void NodeGraph_TracksPinHoverAndWirePreview()
     {
         UiNodeGraph graph = CreateGraph(out _, out _, out UiNodePin entryThen, out _);
+        List<UiNodeDragEvent> dragStartedEvents = [];
+        List<UiNodeDragEvent> draggedEvents = [];
+        List<UiNodeDragEvent> dragEndedEvents = [];
+        graph.NodeDragStarted += dragStartedEvents.Add;
+        graph.NodeDragged += draggedEvents.Add;
+        graph.NodeDragEnded += dragEndedEvents.Add;
         UiContext context = new(graph);
         context.Update(new UiInputState(), 1f / 60f);
 
@@ -1063,6 +1069,8 @@ public sealed class UiNodeGraphTests
         Assert.True(graph.PreviewWire.Active);
         Assert.Same(entryThen, graph.PreviewWire.StartPin);
         Assert.True(graph.PreviewWire.Route.Count >= 5);
+        Assert.Empty(dragStartedEvents);
+        Assert.Empty(draggedEvents);
 
         context.Update(new UiInputState
         {
@@ -1072,6 +1080,7 @@ public sealed class UiNodeGraphTests
         }, 1f / 60f);
 
         Assert.False(graph.PreviewWire.Active);
+        Assert.Empty(dragEndedEvents);
     }
 
     [Fact]
@@ -1115,6 +1124,79 @@ public sealed class UiNodeGraphTests
         }, 1f / 60f);
 
         Assert.False(entry.IsDragging);
+    }
+
+    [Fact]
+    public void NodeGraph_RaisesNodeSelectionAndDragEventsWithWorldBounds()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        graph.Zoom = 2f;
+        List<UiNodeSelectionRequestedEvent> selectionEvents = [];
+        List<UiNodeDragEvent> dragStartedEvents = [];
+        List<UiNodeDragEvent> draggedEvents = [];
+        List<UiNodeDragEvent> dragEndedEvents = [];
+        graph.NodeSelectionRequested += selectionEvents.Add;
+        graph.NodeDragStarted += dragStartedEvents.Add;
+        graph.NodeDragged += draggedEvents.Add;
+        graph.NodeDragEnded += dragEndedEvents.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiRect originalBounds = entry.Bounds;
+        UiPoint headerWorld = new(entry.DebugLayout.HeaderBounds.X + 12, entry.DebugLayout.HeaderBounds.Y + 8);
+        UiPoint headerScreen = graph.Canvas.WorldToScreen(headerWorld);
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            LeftClicked = true,
+            LeftDown = true,
+            CtrlDown = true
+        }, 1f / 60f);
+
+        Assert.Single(selectionEvents);
+        Assert.Same(graph, selectionEvents[0].Graph);
+        Assert.Same(entry, selectionEvents[0].Node);
+        Assert.Equal(UiModifierKeys.Ctrl, selectionEvents[0].Modifiers);
+
+        UiPoint dragScreen = new(headerScreen.X + 48, headerScreen.Y + 32);
+        context.Update(new UiInputState
+        {
+            MousePosition = dragScreen,
+            ScreenMousePosition = dragScreen,
+            LeftDown = true,
+            LeftDragOrigin = headerScreen
+        }, 1f / 60f);
+
+        UiNodeDragEvent started = Assert.Single(dragStartedEvents);
+        UiNodeDragEvent dragged = Assert.Single(draggedEvents);
+        UiRect expectedBounds = new(originalBounds.X + 24, originalBounds.Y + 16, originalBounds.Width, originalBounds.Height);
+        Assert.Same(graph, started.Graph);
+        Assert.Same(entry, started.Node);
+        Assert.Equal(originalBounds, started.StartBounds);
+        Assert.Equal(originalBounds, started.CurrentBounds);
+        Assert.Equal(new UiPoint(0, 0), started.Delta);
+        Assert.Equal(originalBounds, dragged.StartBounds);
+        Assert.Equal(expectedBounds, dragged.CurrentBounds);
+        Assert.Equal(new UiPoint(24, 16), dragged.Delta);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = dragScreen,
+            ScreenMousePosition = dragScreen,
+            LeftReleased = true
+        }, 1f / 60f);
+
+        UiNodeDragEvent ended = Assert.Single(dragEndedEvents);
+        Assert.Equal(originalBounds, ended.StartBounds);
+        Assert.Equal(expectedBounds, ended.CurrentBounds);
+        Assert.Equal(new UiPoint(24, 16), ended.Delta);
+
+        selectionEvents.Clear();
+        entry.Selected = false;
+        entry.Selected = true;
+        Assert.Empty(selectionEvents);
     }
 
     [Fact]

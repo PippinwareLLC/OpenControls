@@ -182,6 +182,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private readonly List<UiNodeCommentBox> _comments = new();
     private readonly Dictionary<string, UiNodeCommentBox> _commentsById = new(StringComparer.Ordinal);
     private readonly List<UiNodeWire> _wires = new();
+    private readonly Dictionary<UiNodeControl, UiRect> _nodeDragStartBounds = new();
     private readonly UiSelectionMarquee _selectionMarquee = new()
     {
         Id = "node-graph-selection-marquee",
@@ -282,6 +283,10 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeWirePreviewState>? WirePreviewStarted;
     public event Action<UiNodeWirePreviewState>? WirePreviewUpdated;
     public event Action<UiNodeWirePreviewState, UiNodePin?>? WirePreviewEnded;
+    public event Action<UiNodeSelectionRequestedEvent>? NodeSelectionRequested;
+    public event Action<UiNodeDragEvent>? NodeDragStarted;
+    public event Action<UiNodeDragEvent>? NodeDragged;
+    public event Action<UiNodeDragEvent>? NodeDragEnded;
 
     public void AddNode(UiNodeControl node)
     {
@@ -298,6 +303,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             _nodesById[node.Id] = node;
         }
 
+        SubscribeNodeEvents(node);
         _canvas.AddChild(node);
         MarkWireRoutesDirty();
         Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
@@ -362,6 +368,8 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             }
         }
 
+        UnsubscribeNodeEvents(node);
+        _nodeDragStartBounds.Remove(node);
         if (!string.IsNullOrEmpty(node.Id) && ReferenceEquals(_nodesById.GetValueOrDefault(node.Id), node))
         {
             _nodesById.Remove(node.Id);
@@ -371,6 +379,49 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         MarkWireRoutesDirty();
         Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
         return true;
+    }
+
+    private void SubscribeNodeEvents(UiNodeControl node)
+    {
+        node.DragStarted += HandleNodeDragStarted;
+        node.Dragged += HandleNodeDragged;
+        node.DragEnded += HandleNodeDragEnded;
+    }
+
+    private void UnsubscribeNodeEvents(UiNodeControl node)
+    {
+        node.DragStarted -= HandleNodeDragStarted;
+        node.Dragged -= HandleNodeDragged;
+        node.DragEnded -= HandleNodeDragEnded;
+    }
+
+    private void HandleNodeDragStarted(UiNodeControl node)
+    {
+        _nodeDragStartBounds[node] = node.Bounds;
+        NodeDragStarted?.Invoke(CreateNodeDragEvent(node));
+    }
+
+    private void HandleNodeDragged(UiNodeControl node)
+    {
+        MarkWireRoutesDirty();
+        NodeDragged?.Invoke(CreateNodeDragEvent(node));
+    }
+
+    private void HandleNodeDragEnded(UiNodeControl node)
+    {
+        MarkWireRoutesDirty();
+        NodeDragEnded?.Invoke(CreateNodeDragEvent(node));
+        _nodeDragStartBounds.Remove(node);
+    }
+
+    private UiNodeDragEvent CreateNodeDragEvent(UiNodeControl node)
+    {
+        UiRect startBounds = _nodeDragStartBounds.TryGetValue(node, out var storedStart)
+            ? storedStart
+            : node.Bounds;
+        UiRect currentBounds = node.Bounds;
+        UiPoint delta = new(currentBounds.X - startBounds.X, currentBounds.Y - startBounds.Y);
+        return new UiNodeDragEvent(this, node, startBounds, currentBounds, delta);
     }
 
     public bool RemoveCommentBox(UiNodeCommentBox comment)
@@ -562,6 +613,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
 
         RefreshPreviewState(input, mouseInViewport, worldMouse);
+        if (input.LeftClicked && HoveredNode != null && HoveredPin == null)
+        {
+            NodeSelectionRequested?.Invoke(new UiNodeSelectionRequestedEvent(this, HoveredNode, input.Modifiers));
+        }
+
         if (EnableWireSelection && input.LeftClicked && HoveredWire != null && HoveredPin == null)
         {
             for (int i = 0; i < _wires.Count; i++)
@@ -852,3 +908,15 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             rect.Height + safePadding * 2);
     }
 }
+
+public sealed record UiNodeSelectionRequestedEvent(
+    UiNodeGraph Graph,
+    UiNodeControl Node,
+    UiModifierKeys Modifiers);
+
+public sealed record UiNodeDragEvent(
+    UiNodeGraph Graph,
+    UiNodeControl Node,
+    UiRect StartBounds,
+    UiRect CurrentBounds,
+    UiPoint Delta);
