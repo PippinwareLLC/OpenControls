@@ -225,6 +225,49 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeControl_InputDataPinValueTextUsesDedicatedInlineBox()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeControl node = new()
+        {
+            Id = "value-node",
+            Bounds = new UiRect(120, 96, 260, 126),
+            Title = "Branch",
+            Padding = 10,
+            PinHitSize = 18,
+            PinVisualSize = 10
+        };
+        node.AddInput("in", "In", UiNodePinKind.Exec);
+        UiNodePin condition = node.AddInput("condition", "Condition", UiNodePinKind.Data);
+        condition.ValueText = "false";
+        node.AddOutput("true", "True", UiNodePinKind.Exec);
+        graph.AddNode(node);
+
+        UiSize size = node.MeasureDesiredSize(UiFont.Default);
+        node.Bounds = new UiRect(node.Bounds.X, node.Bounds.Y, size.Width, size.Height);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiNodePinLayout layout = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "condition");
+        Assert.True(layout.ValueBounds.Width >= node.ValueBoxMinWidth);
+        Assert.True(layout.ValueBounds.Height > 0);
+        Assert.True(Contains(layout.RowBounds, layout.ValueBounds));
+        Assert.False(Intersects(layout.HitBounds, layout.ValueBounds));
+        Assert.False(Intersects(layout.LabelBounds, layout.ValueBounds));
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "false");
+    }
+
+    [Fact]
     public void NodeControl_LongOpposingPinLabelsReserveSeparateTextLanes()
     {
         UiNodeGraph graph = new()

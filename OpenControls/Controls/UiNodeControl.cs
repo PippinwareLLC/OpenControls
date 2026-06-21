@@ -18,6 +18,9 @@ public sealed class UiNodeControl : UiElement
     private int _layoutPinVisualSize;
     private int _layoutPadding;
     private int _layoutIconColumnWidth;
+    private int _layoutValueBoxMinWidth;
+    private int _layoutValueBoxMaxWidth;
+    private int _layoutValueBoxPadding;
     private int _layoutTextScale;
     private int _layoutPinHash;
     private bool _layoutCompact;
@@ -39,6 +42,9 @@ public sealed class UiNodeControl : UiElement
     private int _pinVisualSize = 8;
     private int _padding = 8;
     private int _iconColumnWidth = 24;
+    private int _valueBoxMinWidth = 44;
+    private int _valueBoxMaxWidth = 120;
+    private int _valueBoxPadding = 6;
     private int _textScale = 1;
     private int _cornerRadius = 6;
     private int _minimumContentWidth = 140;
@@ -92,6 +98,9 @@ public sealed class UiNodeControl : UiElement
     public UiColor IconColor { get; set; } = new(232, 242, 255);
     public UiColor SubtitleColor { get; set; } = new(172, 186, 205);
     public UiColor BodyTextColor { get; set; } = new(190, 200, 216);
+    public UiColor ValueBoxBackground { get; set; } = new(19, 23, 30, 235);
+    public UiColor ValueBoxBorder { get; set; } = new(90, 100, 118);
+    public UiColor ValueBoxTextColor { get; set; } = new(226, 234, 246);
     public UiColor DataPinColor { get; set; } = new(95, 170, 230);
     public UiColor ExecPinColor { get; set; } = UiColor.White;
     public UiColor PinBorder { get; set; } = new(18, 22, 30);
@@ -131,6 +140,24 @@ public sealed class UiNodeControl : UiElement
     {
         get => _iconColumnWidth;
         set => SetInvalidatingValue(ref _iconColumnWidth, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public int ValueBoxMinWidth
+    {
+        get => _valueBoxMinWidth;
+        set => SetInvalidatingValue(ref _valueBoxMinWidth, Math.Max(1, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public int ValueBoxMaxWidth
+    {
+        get => _valueBoxMaxWidth;
+        set => SetInvalidatingValue(ref _valueBoxMaxWidth, Math.Max(ValueBoxMinWidth, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public int ValueBoxPadding
+    {
+        get => _valueBoxPadding;
+        set => SetInvalidatingValue(ref _valueBoxPadding, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public int TextScale
@@ -273,8 +300,8 @@ public sealed class UiNodeControl : UiElement
         {
             UiNodePin? inputPin = FindPinAtRow(UiNodePinDirection.Input, row);
             UiNodePin? outputPin = FindPinAtRow(UiNodePinDirection.Output, row);
-            int inputWidth = inputPin is null ? 0 : font.MeasureTextWidth(inputPin.Text, scale);
-            int outputWidth = outputPin is null ? 0 : font.MeasureTextWidth(outputPin.Text, scale);
+            int inputWidth = MeasurePinLaneWidth(inputPin, font, scale, padding);
+            int outputWidth = MeasurePinLaneWidth(outputPin, font, scale, padding);
             int rowWidth = inputPin is not null && outputPin is not null
                 ? sidePadding * 2 + inputWidth + laneGap + outputWidth
                 : sidePadding * 2 + Math.Max(inputWidth, outputWidth);
@@ -472,6 +499,9 @@ public sealed class UiNodeControl : UiElement
             && _layoutPinVisualSize == PinVisualSize
             && _layoutPadding == Padding
             && _layoutIconColumnWidth == IconColumnWidth
+            && _layoutValueBoxMinWidth == ValueBoxMinWidth
+            && _layoutValueBoxMaxWidth == ValueBoxMaxWidth
+            && _layoutValueBoxPadding == ValueBoxPadding
             && _layoutTextScale == TextScale
             && _layoutPinHash == pinHash
             && _layoutCompact == Compact
@@ -593,6 +623,9 @@ public sealed class UiNodeControl : UiElement
         _layoutPinVisualSize = PinVisualSize;
         _layoutPadding = Padding;
         _layoutIconColumnWidth = IconColumnWidth;
+        _layoutValueBoxMinWidth = ValueBoxMinWidth;
+        _layoutValueBoxMaxWidth = ValueBoxMaxWidth;
+        _layoutValueBoxPadding = ValueBoxPadding;
         _layoutTextScale = TextScale;
         _layoutPinHash = pinHash;
         _layoutCompact = Compact;
@@ -607,6 +640,7 @@ public sealed class UiNodeControl : UiElement
             UiNodePin pin = _pins[i];
             hash.Add(pin.Id, StringComparer.Ordinal);
             hash.Add(pin.Text, StringComparer.Ordinal);
+            hash.Add(pin.ValueText, StringComparer.Ordinal);
             hash.Add(pin.Direction);
             hash.Add(pin.Kind);
             hash.Add(pin.Enabled);
@@ -635,13 +669,32 @@ public sealed class UiNodeControl : UiElement
         int maxLabelWidth = hasOppositePinInRow
             ? Math.Max(0, (sharedLabelWidth - laneGap) / 2)
             : sharedLabelWidth;
+        UiRect valueBounds = default;
         int clampedLabelWidth = Math.Min(maxLabelWidth, labelWidth);
-        int labelX = pin.Direction == UiNodePinDirection.Input
-            ? Bounds.X + sidePadding
-            : Bounds.Right - sidePadding - clampedLabelWidth;
+        int labelX;
+        if (pin.Direction == UiNodePinDirection.Input)
+        {
+            labelX = Bounds.X + sidePadding;
+            if (ShouldShowValueBox(pin) && maxLabelWidth > 0)
+            {
+                int valueWidth = Math.Min(maxLabelWidth, ResolveValueBoxWidth(pin, font, TextScale));
+                int valueHeight = Math.Min(Math.Max(1, rowHeight - 2), ResolveValueBoxHeight(textHeight));
+                int valueX = Bounds.X + sidePadding + Math.Max(0, maxLabelWidth - valueWidth);
+                int valueY = centerY - valueHeight / 2;
+                valueBounds = new(valueX, valueY, valueWidth, valueHeight);
+
+                int labelMaxWidth = Math.Max(0, valueBounds.X - labelX - ResolveValueBoxGap(padding));
+                clampedLabelWidth = Math.Min(labelMaxWidth, labelWidth);
+            }
+        }
+        else
+        {
+            labelX = Bounds.Right - sidePadding - clampedLabelWidth;
+        }
+
         UiRect labelBounds = new(labelX, labelY, clampedLabelWidth, textHeight);
 
-        return new UiNodePinLayout(pin, rowBounds, labelBounds, hitBounds, center);
+        return new UiNodePinLayout(pin, rowBounds, labelBounds, valueBounds, hitBounds, center);
     }
 
     private UiNodePin? FindPinAtRow(UiNodePinDirection direction, int rowIndex)
@@ -674,6 +727,47 @@ public sealed class UiNodeControl : UiElement
     private static int ResolveLaneGap(int padding)
     {
         return Math.Max(6, padding / 2);
+    }
+
+    private int MeasurePinLaneWidth(UiNodePin? pin, UiFont font, int scale, int padding)
+    {
+        if (pin is null)
+        {
+            return 0;
+        }
+
+        int width = font.MeasureTextWidth(pin.Text, scale);
+        if (ShouldShowValueBox(pin))
+        {
+            width += ResolveValueBoxGap(padding) + ResolveValueBoxWidth(pin, font, scale);
+        }
+
+        return width;
+    }
+
+    private bool ShouldShowValueBox(UiNodePin pin)
+    {
+        return pin.Direction == UiNodePinDirection.Input
+            && pin.Kind == UiNodePinKind.Data
+            && !string.IsNullOrWhiteSpace(pin.ValueText);
+    }
+
+    private int ResolveValueBoxGap(int padding)
+    {
+        return Math.Max(6, padding / 2);
+    }
+
+    private int ResolveValueBoxWidth(UiNodePin pin, UiFont font, int scale)
+    {
+        int minimum = Math.Max(1, ValueBoxMinWidth);
+        int maximum = Math.Max(minimum, ValueBoxMaxWidth);
+        int desired = font.MeasureTextWidth(pin.ValueText, scale) + Math.Max(0, ValueBoxPadding) * 2;
+        return Math.Clamp(desired, minimum, maximum);
+    }
+
+    private static int ResolveValueBoxHeight(int textHeight)
+    {
+        return Math.Max(18, textHeight + 6);
     }
 
     private int ResolveIconColumnWidth(int textHeight, int padding, bool hasIcon)
@@ -767,12 +861,41 @@ public sealed class UiNodeControl : UiElement
                 UiRenderHelpers.DrawCircle(context.Renderer, layout.Center, radius, border, 1);
             }
 
+            DrawValueBox(context, font, pin, layout);
+
             if (layout.LabelBounds.Width > 0 && layout.LabelBounds.Height > 0)
             {
                 string drawText = UiRenderHelpers.BuildElidedText(pin.Text, layout.LabelBounds.Width, TextScale, font);
                 context.Renderer.DrawText(drawText, new UiPoint(layout.LabelBounds.X, layout.LabelBounds.Y), BodyTextColor, TextScale, font);
             }
         }
+    }
+
+    private void DrawValueBox(UiRenderContext context, UiFont font, UiNodePin pin, UiNodePinLayout layout)
+    {
+        if (!ShouldShowValueBox(pin) || layout.ValueBounds.Width <= 0 || layout.ValueBounds.Height <= 0)
+        {
+            return;
+        }
+
+        UiRenderHelpers.FillRectRounded(context.Renderer, layout.ValueBounds, 3, ValueBoxBackground);
+        UiRenderHelpers.DrawRectRounded(context.Renderer, layout.ValueBounds, 3, ValueBoxBorder, 1);
+
+        int padding = Math.Max(0, ValueBoxPadding);
+        int availableWidth = Math.Max(0, layout.ValueBounds.Width - padding * 2);
+        if (availableWidth <= 0)
+        {
+            return;
+        }
+
+        string drawText = UiRenderHelpers.BuildElidedText(pin.ValueText, availableWidth, TextScale, font);
+        int textWidth = font.MeasureTextWidth(drawText, TextScale);
+        int textHeight = font.MeasureTextHeight(TextScale);
+        int textX = layout.ValueBounds.Right - padding - Math.Min(availableWidth, textWidth);
+        int textY = layout.ValueBounds.Y + Math.Max(0, (layout.ValueBounds.Height - textHeight) / 2);
+        context.Renderer.PushClip(layout.ValueBounds);
+        context.Renderer.DrawText(drawText, new UiPoint(textX, textY), ValueBoxTextColor, TextScale, font);
+        context.Renderer.PopClip();
     }
 
     private UiColor ResolvePinColor(UiNodePin pin)

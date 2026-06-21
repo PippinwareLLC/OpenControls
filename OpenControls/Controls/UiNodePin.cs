@@ -17,6 +17,7 @@ public sealed class UiNodePin
     private string _id = string.Empty;
     private string _text = string.Empty;
     private string _dataType = string.Empty;
+    private string _valueText = string.Empty;
 
     public UiNodePin()
     {
@@ -52,6 +53,12 @@ public sealed class UiNodePin
         set => _dataType = value ?? string.Empty;
     }
 
+    public string ValueText
+    {
+        get => _valueText;
+        set => _valueText = value ?? string.Empty;
+    }
+
     public bool Enabled { get; set; } = true;
     public bool Selected { get; set; }
     public bool Hovered { get; internal set; }
@@ -61,10 +68,16 @@ public sealed class UiNodePin
 public readonly struct UiNodePinLayout
 {
     public UiNodePinLayout(UiNodePin? pin, UiRect rowBounds, UiRect labelBounds, UiRect hitBounds, UiPoint center)
+        : this(pin, rowBounds, labelBounds, default, hitBounds, center)
+    {
+    }
+
+    public UiNodePinLayout(UiNodePin? pin, UiRect rowBounds, UiRect labelBounds, UiRect valueBounds, UiRect hitBounds, UiPoint center)
     {
         Pin = pin;
         RowBounds = rowBounds;
         LabelBounds = labelBounds;
+        ValueBounds = valueBounds;
         HitBounds = hitBounds;
         Center = center;
     }
@@ -72,6 +85,7 @@ public readonly struct UiNodePinLayout
     public UiNodePin? Pin { get; }
     public UiRect RowBounds { get; }
     public UiRect LabelBounds { get; }
+    public UiRect ValueBounds { get; }
     public UiRect HitBounds { get; }
     public UiPoint Center { get; }
     public bool IsValid => Pin != null;
