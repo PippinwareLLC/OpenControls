@@ -673,6 +673,7 @@ public sealed class UiNodeControl : UiElement
             hash.Add(pin.Text, StringComparer.Ordinal);
             hash.Add(pin.ValueText, StringComparer.Ordinal);
             hash.Add(pin.IsValueEditing);
+            hash.Add(pin.ValueFieldVisible);
             hash.Add(pin.EditingValueText, StringComparer.Ordinal);
             hash.Add(pin.EditingCaretVisible);
             hash.Add(pin.Direction);
@@ -793,7 +794,7 @@ public sealed class UiNodeControl : UiElement
     private bool ShouldShowValueBox(UiNodePin pin)
     {
         return pin.Kind == UiNodePinKind.Data
-            && (pin.IsValueEditing || !string.IsNullOrWhiteSpace(pin.ValueText));
+            && (pin.ValueFieldVisible || pin.IsValueEditing || !string.IsNullOrEmpty(pin.ValueText));
     }
 
     private int ResolveValueBoxGap(int padding)

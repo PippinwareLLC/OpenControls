@@ -61,6 +61,7 @@ public sealed class UiNodePin
     }
 
     public bool IsValueEditing { get; set; }
+    public bool ValueFieldVisible { get; set; }
 
     public string EditingValueText
     {
