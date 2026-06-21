@@ -1388,6 +1388,160 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_RaisesKeyboardCommandRequestsWhenGraphFocusIsActive()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        List<UiNodeGraphCommandRequestedEvent> commands = [];
+        graph.CommandRequested += commands.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint headerWorld = new(entry.DebugLayout.HeaderBounds.X + 12, entry.DebugLayout.HeaderBounds.Y + 8);
+        UiPoint headerScreen = graph.Canvas.WorldToScreen(headerWorld);
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.Same(entry, context.Focus.Focused);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            KeysPressed = new[] { UiKey.Delete },
+            Navigation = new UiNavigationInput { Delete = true }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            CtrlDown = true,
+            KeysPressed = new[] { UiKey.Z }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            SuperDown = true,
+            ShiftDown = true,
+            KeysPressed = new[] { UiKey.Z }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            CtrlDown = true,
+            KeysPressed = new[] { UiKey.Y }
+        }, 1f / 60f);
+
+        Assert.Equal(
+            new[]
+            {
+                UiNodeGraphCommand.DeleteSelection,
+                UiNodeGraphCommand.Undo,
+                UiNodeGraphCommand.Redo,
+                UiNodeGraphCommand.Redo
+            },
+            commands.Select(command => command.Command).ToArray());
+        Assert.Equal(UiModifierKeys.Super | UiModifierKeys.Shift, commands[2].Modifiers);
+    }
+
+    [Fact]
+    public void NodeGraph_DoesNotRaiseKeyboardCommandRequestsWithoutGraphFocus()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
+        List<UiNodeGraphCommandRequestedEvent> commands = [];
+        graph.CommandRequested += commands.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        context.Update(new UiInputState
+        {
+            KeysPressed = new[] { UiKey.Delete },
+            Navigation = new UiNavigationInput { Delete = true }
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            CtrlDown = true,
+            KeysPressed = new[] { UiKey.Z }
+        }, 1f / 60f);
+
+        Assert.Empty(commands);
+    }
+
+    [Fact]
+    public void NodeGraph_DoesNotRaiseKeyboardCommandsWhileValueFieldIsEditing()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeControl node = new()
+        {
+            Id = "literal-node",
+            Bounds = new UiRect(120, 96, 220, 72),
+            Title = "Integer Literal",
+            Compact = true,
+            Padding = 8,
+            PinHitSize = 18,
+            PinVisualSize = 10,
+            MinimumContentHeight = 48
+        };
+        UiNodePin value = node.AddOutput("value", "Value", UiNodePinKind.Data);
+        value.ValueText = "41";
+        graph.AddNode(node);
+
+        UiSize size = node.MeasureDesiredSize(UiFont.Default);
+        node.Bounds = new UiRect(node.Bounds.X, node.Bounds.Y, size.Width, size.Height);
+
+        List<UiNodeGraphCommandRequestedEvent> commands = [];
+        graph.CommandRequested += commands.Add;
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiNodePinLayout layout = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "value");
+        UiPoint click = graph.Canvas.WorldToScreen(Center(layout.ValueBounds));
+
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.True(graph.IsEditingValue);
+        Assert.Same(graph, context.Focus.Focused);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            KeysPressed = new[] { UiKey.Backspace },
+            Navigation = new UiNavigationInput { Backspace = true }
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            CtrlDown = true,
+            KeysPressed = new[] { UiKey.Z }
+        }, 1f / 60f);
+
+        Assert.Empty(commands);
+    }
+
+    [Fact]
     public void NodeGraph_DebugBoundsTransformThroughCanvasPanAndZoom()
     {
         UiNodeGraph graph = CreateGraph(out _, out UiNodeControl print, out _, out _);

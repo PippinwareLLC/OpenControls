@@ -317,6 +317,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeValueEditCommittedEvent>? ValueEditCommitted;
     public event Action<UiNodeValueEditCancelledEvent>? ValueEditCancelled;
     public event Action<UiNodeGraphViewportChangedEvent>? ViewportChanged;
+    public event Action<UiNodeGraphCommandRequestedEvent>? CommandRequested;
 
     public override bool IsRenderCacheVolatile(UiContext context)
     {
@@ -579,6 +580,13 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
         UpdateCanvasLayout();
         UiInputState graphInput = context.GetSelfInput(this);
+        if (!IsEditingValue
+            && graphInput.LeftClicked
+            && _canvas.ViewportBounds.Contains(graphInput.MousePosition))
+        {
+            context.Focus.RequestFocus(this);
+        }
+
         if (IsEditingValue && ReferenceEquals(context.Focus.Focused, this))
         {
             _valueEditFont = ResolveFont(context.DefaultFont);
@@ -588,6 +596,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         base.Update(context);
         RefreshGraphState(context, graphInput);
         ProcessValueEditorState(context);
+        ProcessGraphCommandInput(context, graphInput);
     }
 
     public override void Render(UiRenderContext context)
@@ -1163,6 +1172,62 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         ViewportChanged?.Invoke(new UiNodeGraphViewportChangedEvent(this, ev.PanX, ev.PanY, ev.Zoom, ev.Reason));
     }
 
+    private void ProcessGraphCommandInput(UiUpdateContext context, UiInputState input)
+    {
+        if (!IsGraphCommandScopeActive(context))
+        {
+            return;
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.Z, shift: true)
+            || input.IsPrimaryShortcutPressed(UiKey.Y))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.Redo, input.Modifiers));
+            return;
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.Z))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.Undo, input.Modifiers));
+            return;
+        }
+
+        if (input.Navigation.Delete
+            || input.Navigation.Backspace
+            || input.IsKeyPressed(UiKey.Delete)
+            || input.IsKeyPressed(UiKey.Backspace))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.DeleteSelection, input.Modifiers));
+        }
+    }
+
+    private bool IsGraphCommandScopeActive(UiUpdateContext context)
+    {
+        if (IsEditingValue)
+        {
+            return false;
+        }
+
+        UiElement? focused = context.Focus.Focused;
+        if (focused is null || focused.WantsTextInput)
+        {
+            return false;
+        }
+
+        UiElement? current = focused;
+        while (current != null)
+        {
+            if (ReferenceEquals(current, this))
+            {
+                return true;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
+    }
+
     private void RefreshGraphState(UiUpdateContext context, UiInputState input)
     {
         EnsureWireRoutes();
@@ -1544,3 +1609,15 @@ public sealed record UiNodeGraphViewportChangedEvent(
     float PanY,
     float Zoom,
     UiCanvas.UiCanvasViewportChangeReason Reason);
+
+public enum UiNodeGraphCommand
+{
+    DeleteSelection,
+    Undo,
+    Redo
+}
+
+public sealed record UiNodeGraphCommandRequestedEvent(
+    UiNodeGraph Graph,
+    UiNodeGraphCommand Command,
+    UiModifierKeys Modifiers);
