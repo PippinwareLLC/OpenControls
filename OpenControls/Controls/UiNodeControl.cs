@@ -670,26 +670,37 @@ public sealed class UiNodeControl : UiElement
             ? Math.Max(0, (sharedLabelWidth - laneGap) / 2)
             : sharedLabelWidth;
         UiRect valueBounds = default;
-        int clampedLabelWidth = Math.Min(maxLabelWidth, labelWidth);
+        bool showValueBox = ShouldShowValueBox(pin);
+        int valueBoxGap = ResolveValueBoxGap(padding);
+        int valueWidth = showValueBox && maxLabelWidth > 0
+            ? Math.Min(maxLabelWidth, ResolveValueBoxWidth(pin, font, TextScale))
+            : 0;
+        int labelMaxWidth = showValueBox
+            ? Math.Max(0, maxLabelWidth - valueWidth - valueBoxGap)
+            : maxLabelWidth;
+        int clampedLabelWidth = Math.Min(labelMaxWidth, labelWidth);
         int labelX;
         if (pin.Direction == UiNodePinDirection.Input)
         {
             labelX = Bounds.X + sidePadding;
-            if (ShouldShowValueBox(pin) && maxLabelWidth > 0)
+            if (showValueBox && valueWidth > 0)
             {
-                int valueWidth = Math.Min(maxLabelWidth, ResolveValueBoxWidth(pin, font, TextScale));
                 int valueHeight = Math.Min(Math.Max(1, rowHeight - 2), ResolveValueBoxHeight(textHeight));
                 int valueX = Bounds.X + sidePadding + Math.Max(0, maxLabelWidth - valueWidth);
                 int valueY = centerY - valueHeight / 2;
                 valueBounds = new(valueX, valueY, valueWidth, valueHeight);
-
-                int labelMaxWidth = Math.Max(0, valueBounds.X - labelX - ResolveValueBoxGap(padding));
-                clampedLabelWidth = Math.Min(labelMaxWidth, labelWidth);
             }
         }
         else
         {
             labelX = Bounds.Right - sidePadding - clampedLabelWidth;
+            if (showValueBox && valueWidth > 0)
+            {
+                int valueHeight = Math.Min(Math.Max(1, rowHeight - 2), ResolveValueBoxHeight(textHeight));
+                int valueX = labelX - valueBoxGap - valueWidth;
+                int valueY = centerY - valueHeight / 2;
+                valueBounds = new(Math.Max(Bounds.X + sidePadding, valueX), valueY, valueWidth, valueHeight);
+            }
         }
 
         UiRect labelBounds = new(labelX, labelY, clampedLabelWidth, textHeight);
@@ -747,8 +758,7 @@ public sealed class UiNodeControl : UiElement
 
     private bool ShouldShowValueBox(UiNodePin pin)
     {
-        return pin.Direction == UiNodePinDirection.Input
-            && pin.Kind == UiNodePinKind.Data
+        return pin.Kind == UiNodePinKind.Data
             && !string.IsNullOrWhiteSpace(pin.ValueText);
     }
 
