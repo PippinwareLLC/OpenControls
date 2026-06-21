@@ -5,17 +5,29 @@ namespace OpenControls.Tests;
 
 public sealed class UiRenderCacheTests
 {
-    private sealed class CountingRenderer : IUiRenderer
+    private class CountingRenderer : IUiRenderer, IUiShapeRenderer
     {
         public UiFont DefaultFont { get; set; } = UiFont.Default;
         public int FillRectCalls { get; private set; }
         public int DrawRectCalls { get; private set; }
+        public int FillRoundedRectCalls { get; private set; }
+        public int DrawRoundedRectCalls { get; private set; }
+        public int FillCircleCalls { get; private set; }
+        public int DrawCircleCalls { get; private set; }
+        public int FillTriangleCalls { get; private set; }
         public int DrawTextCalls { get; private set; }
         public int PushClipCalls { get; private set; }
         public int PopClipCalls { get; private set; }
 
         public void FillRect(UiRect rect, UiColor color) => FillRectCalls++;
         public void DrawRect(UiRect rect, UiColor color, int thickness = 1) => DrawRectCalls++;
+        public void FillRoundedRect(UiRect rect, int radius, UiColor color) => FillRoundedRectCalls++;
+        public void FillTopRoundedRect(UiRect rect, int radius, UiColor color) => FillRoundedRectCalls++;
+        public void DrawRoundedRect(UiRect rect, int radius, UiColor color, int thickness = 1) => DrawRoundedRectCalls++;
+        public void DrawTopRoundedRect(UiRect rect, int radius, UiColor color, int thickness = 1) => DrawRoundedRectCalls++;
+        public void FillCircle(UiPoint center, int radius, UiColor color) => FillCircleCalls++;
+        public void DrawCircle(UiPoint center, int radius, UiColor color, int thickness = 1) => DrawCircleCalls++;
+        public void FillTriangleRight(UiRect rect, UiColor color) => FillTriangleCalls++;
         public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight) => FillRectCalls++;
         public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB) => FillRectCalls++;
         public void DrawText(string text, UiPoint position, UiColor color, int scale = 1) => DrawTextCalls++;
@@ -48,6 +60,17 @@ public sealed class UiRenderCacheTests
         }
     }
 
+    private sealed class ShapeElement : UiElement
+    {
+        public int RenderCount { get; private set; }
+
+        public override void Render(UiRenderContext context)
+        {
+            RenderCount++;
+            UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, 6, UiColor.White);
+        }
+    }
+
     private sealed class VolatileElement : CountingElement
     {
         public override bool IsRenderCacheVolatile(UiContext context) => true;
@@ -76,6 +99,25 @@ public sealed class UiRenderCacheTests
         Assert.Equal(1, root.OverlayRenderCount);
         Assert.Equal(2, renderer.FillRectCalls);
         Assert.Equal(2, renderer.DrawRectCalls);
+    }
+
+    [Fact]
+    public void RenderCaching_ReplaysShapeCommandsWithoutScanlineFallback()
+    {
+        ShapeElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 80, 40)
+        };
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Render(renderer);
+        context.Render(renderer);
+
+        Assert.Equal(1, root.RenderCount);
+        Assert.Equal(2, renderer.FillRoundedRectCalls);
+        Assert.Equal(0, renderer.FillRectCalls);
     }
 
     [Fact]

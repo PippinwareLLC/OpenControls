@@ -40,6 +40,17 @@ public static class UiRenderHelpers
 
     public static void FillRectRounded(IUiRenderer renderer, UiRect rect, int radius, UiColor color)
     {
+        if (renderer is IUiShapeRenderer shapeRenderer)
+        {
+            shapeRenderer.FillRoundedRect(rect, radius, color);
+            return;
+        }
+
+        FillRectRoundedFallback(renderer, rect, radius, color);
+    }
+
+    public static void FillRectRoundedFallback(IUiRenderer renderer, UiRect rect, int radius, UiColor color)
+    {
         if (rect.Width <= 0 || rect.Height <= 0)
         {
             return;
@@ -75,6 +86,17 @@ public static class UiRenderHelpers
     }
 
     public static void FillRectTopRounded(IUiRenderer renderer, UiRect rect, int radius, UiColor color)
+    {
+        if (renderer is IUiShapeRenderer shapeRenderer)
+        {
+            shapeRenderer.FillTopRoundedRect(rect, radius, color);
+            return;
+        }
+
+        FillRectTopRoundedFallback(renderer, rect, radius, color);
+    }
+
+    public static void FillRectTopRoundedFallback(IUiRenderer renderer, UiRect rect, int radius, UiColor color)
     {
         if (rect.Width <= 0 || rect.Height <= 0)
         {
@@ -142,6 +164,17 @@ public static class UiRenderHelpers
 
     public static void DrawRectRounded(IUiRenderer renderer, UiRect rect, int radius, UiColor color, int thickness = 1)
     {
+        if (renderer is IUiShapeRenderer shapeRenderer)
+        {
+            shapeRenderer.DrawRoundedRect(rect, radius, color, thickness);
+            return;
+        }
+
+        DrawRectRoundedFallback(renderer, rect, radius, color, thickness);
+    }
+
+    public static void DrawRectRoundedFallback(IUiRenderer renderer, UiRect rect, int radius, UiColor color, int thickness = 1)
+    {
         if (rect.Width <= 0 || rect.Height <= 0 || thickness <= 0)
         {
             return;
@@ -169,6 +202,17 @@ public static class UiRenderHelpers
     }
 
     public static void DrawRectTopRounded(IUiRenderer renderer, UiRect rect, int radius, UiColor color, int thickness = 1)
+    {
+        if (renderer is IUiShapeRenderer shapeRenderer)
+        {
+            shapeRenderer.DrawTopRoundedRect(rect, radius, color, thickness);
+            return;
+        }
+
+        DrawRectTopRoundedFallback(renderer, rect, radius, color, thickness);
+    }
+
+    public static void DrawRectTopRoundedFallback(IUiRenderer renderer, UiRect rect, int radius, UiColor color, int thickness = 1)
     {
         if (rect.Width <= 0 || rect.Height <= 0 || thickness <= 0)
         {
@@ -274,6 +318,17 @@ public static class UiRenderHelpers
 
     public static void FillCircle(IUiRenderer renderer, UiPoint center, int radius, UiColor color)
     {
+        if (renderer is IUiShapeRenderer shapeRenderer)
+        {
+            shapeRenderer.FillCircle(center, radius, color);
+            return;
+        }
+
+        FillCircleFallback(renderer, center, radius, color);
+    }
+
+    public static void FillCircleFallback(IUiRenderer renderer, UiPoint center, int radius, UiColor color)
+    {
         if (radius <= 0 || color.A == 0)
         {
             return;
@@ -295,7 +350,63 @@ public static class UiRenderHelpers
         }
     }
 
+    public static void DrawPolyline(IUiRenderer renderer, IReadOnlyList<UiPoint> points, int thickness, UiColor color)
+    {
+        if (renderer is IUiVectorRenderer vectorRenderer)
+        {
+            vectorRenderer.DrawPolyline(points, thickness, color);
+            return;
+        }
+
+        DrawPolylineFallback(renderer, points, thickness, color);
+    }
+
+    public static void DrawPolylineFallback(IUiRenderer renderer, IReadOnlyList<UiPoint> points, int thickness, UiColor color)
+    {
+        if (renderer == null || points == null || points.Count < 2 || thickness <= 0 || color.A == 0)
+        {
+            return;
+        }
+
+        for (int i = 1; i < points.Count; i++)
+        {
+            DrawThickLineFallback(renderer, points[i - 1], points[i], thickness, color);
+        }
+    }
+
+    private static void DrawThickLineFallback(IUiRenderer renderer, UiPoint a, UiPoint b, int thickness, UiColor color)
+    {
+        int dx = b.X - a.X;
+        int dy = b.Y - a.Y;
+        int steps = Math.Max(Math.Abs(dx), Math.Abs(dy));
+        int radius = Math.Max(1, thickness / 2);
+        if (steps == 0)
+        {
+            FillCircle(renderer, a, radius, color);
+            return;
+        }
+
+        for (int step = 0; step <= steps; step++)
+        {
+            float t = step / (float)steps;
+            int x = (int)Math.Round(a.X + dx * t);
+            int y = (int)Math.Round(a.Y + dy * t);
+            FillCircle(renderer, new UiPoint(x, y), radius, color);
+        }
+    }
+
     public static void DrawCircle(IUiRenderer renderer, UiPoint center, int radius, UiColor color, int thickness = 1)
+    {
+        if (renderer is IUiShapeRenderer shapeRenderer)
+        {
+            shapeRenderer.DrawCircle(center, radius, color, thickness);
+            return;
+        }
+
+        DrawCircleFallback(renderer, center, radius, color, thickness);
+    }
+
+    public static void DrawCircleFallback(IUiRenderer renderer, UiPoint center, int radius, UiColor color, int thickness = 1)
     {
         if (radius <= 0 || thickness <= 0 || color.A == 0)
         {
@@ -310,6 +421,17 @@ public static class UiRenderHelpers
     }
 
     public static void FillTriangleRight(IUiRenderer renderer, UiRect rect, UiColor color)
+    {
+        if (renderer is IUiShapeRenderer shapeRenderer)
+        {
+            shapeRenderer.FillTriangleRight(rect, color);
+            return;
+        }
+
+        FillTriangleRightFallback(renderer, rect, color);
+    }
+
+    public static void FillTriangleRightFallback(IUiRenderer renderer, UiRect rect, UiColor color)
     {
         if (rect.Width <= 0 || rect.Height <= 0 || color.A == 0)
         {

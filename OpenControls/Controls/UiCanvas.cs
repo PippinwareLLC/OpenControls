@@ -4,7 +4,7 @@ namespace OpenControls.Controls;
 
 public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
 {
-    private sealed class CanvasRenderer : IUiRenderer
+    private sealed class CanvasRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiShapeRenderer
     {
         private readonly IUiRenderer _inner;
         private readonly UiPoint _origin;
@@ -47,6 +47,144 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         {
             int scaled = ScaleThickness(cellSize);
             _inner.FillRectCheckerboard(Transform(rect), scaled, colorA, colorB);
+        }
+
+        public void DrawPolyline(IReadOnlyList<UiPoint> points, int thickness, UiColor color)
+        {
+            if (points == null || points.Count < 2)
+            {
+                return;
+            }
+
+            int scaledThickness = ScaleThickness(thickness);
+            if (_inner is IUiTransformedVectorRenderer transformedRenderer)
+            {
+                transformedRenderer.DrawPolylineTransformed(points, scaledThickness, color, _origin, _zoom, _panX, _panY);
+                return;
+            }
+
+            UiPoint[] transformed = new UiPoint[points.Count];
+            for (int i = 0; i < points.Count; i++)
+            {
+                transformed[i] = Transform(points[i]);
+            }
+
+            if (_inner is IUiVectorRenderer vectorRenderer)
+            {
+                vectorRenderer.DrawPolyline(transformed, scaledThickness, color);
+                return;
+            }
+
+            UiRenderHelpers.DrawPolylineFallback(_inner, transformed, scaledThickness, color);
+        }
+
+        public void BeginVectorPass()
+        {
+            if (_inner is IUiVectorPassRenderer vectorPassRenderer)
+            {
+                vectorPassRenderer.BeginVectorPass();
+            }
+        }
+
+        public void EndVectorPass()
+        {
+            if (_inner is IUiVectorPassRenderer vectorPassRenderer)
+            {
+                vectorPassRenderer.EndVectorPass();
+            }
+        }
+
+        public void FillRoundedRect(UiRect rect, int radius, UiColor color)
+        {
+            UiRect transformed = Transform(rect);
+            int scaledRadius = ScaleThickness(radius);
+            if (_inner is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.FillRoundedRect(transformed, scaledRadius, color);
+                return;
+            }
+
+            UiRenderHelpers.FillRectRoundedFallback(_inner, transformed, scaledRadius, color);
+        }
+
+        public void FillTopRoundedRect(UiRect rect, int radius, UiColor color)
+        {
+            UiRect transformed = Transform(rect);
+            int scaledRadius = ScaleThickness(radius);
+            if (_inner is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.FillTopRoundedRect(transformed, scaledRadius, color);
+                return;
+            }
+
+            UiRenderHelpers.FillRectTopRoundedFallback(_inner, transformed, scaledRadius, color);
+        }
+
+        public void DrawRoundedRect(UiRect rect, int radius, UiColor color, int thickness = 1)
+        {
+            UiRect transformed = Transform(rect);
+            int scaledRadius = ScaleThickness(radius);
+            int scaledThickness = ScaleThickness(thickness);
+            if (_inner is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.DrawRoundedRect(transformed, scaledRadius, color, scaledThickness);
+                return;
+            }
+
+            UiRenderHelpers.DrawRectRoundedFallback(_inner, transformed, scaledRadius, color, scaledThickness);
+        }
+
+        public void DrawTopRoundedRect(UiRect rect, int radius, UiColor color, int thickness = 1)
+        {
+            UiRect transformed = Transform(rect);
+            int scaledRadius = ScaleThickness(radius);
+            int scaledThickness = ScaleThickness(thickness);
+            if (_inner is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.DrawTopRoundedRect(transformed, scaledRadius, color, scaledThickness);
+                return;
+            }
+
+            UiRenderHelpers.DrawRectTopRoundedFallback(_inner, transformed, scaledRadius, color, scaledThickness);
+        }
+
+        public void FillCircle(UiPoint center, int radius, UiColor color)
+        {
+            UiPoint transformed = Transform(center);
+            int scaledRadius = ScaleThickness(radius);
+            if (_inner is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.FillCircle(transformed, scaledRadius, color);
+                return;
+            }
+
+            UiRenderHelpers.FillCircleFallback(_inner, transformed, scaledRadius, color);
+        }
+
+        public void DrawCircle(UiPoint center, int radius, UiColor color, int thickness = 1)
+        {
+            UiPoint transformed = Transform(center);
+            int scaledRadius = ScaleThickness(radius);
+            int scaledThickness = ScaleThickness(thickness);
+            if (_inner is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.DrawCircle(transformed, scaledRadius, color, scaledThickness);
+                return;
+            }
+
+            UiRenderHelpers.DrawCircleFallback(_inner, transformed, scaledRadius, color, scaledThickness);
+        }
+
+        public void FillTriangleRight(UiRect rect, UiColor color)
+        {
+            UiRect transformed = Transform(rect);
+            if (_inner is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.FillTriangleRight(transformed, color);
+                return;
+            }
+
+            UiRenderHelpers.FillTriangleRightFallback(_inner, transformed, color);
         }
 
         public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)

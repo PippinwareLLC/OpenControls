@@ -92,6 +92,298 @@ internal sealed class UiRenderCommandList
         public override void Replay(UiRenderContext context) => context.Renderer.FillRectCheckerboard(_rect, _cellSize, _colorA, _colorB);
     }
 
+    internal sealed class DrawPolylineCommand : UiRenderCommand
+    {
+        private readonly IReadOnlyList<UiPoint> _points;
+        private readonly int _thickness;
+        private readonly UiColor _color;
+
+        public DrawPolylineCommand(IReadOnlyList<UiPoint> points, int thickness, UiColor color)
+        {
+            _points = points ?? throw new ArgumentNullException(nameof(points));
+            _thickness = Math.Max(1, thickness);
+            _color = color;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiVectorRenderer vectorRenderer)
+            {
+                vectorRenderer.DrawPolyline(_points, _thickness, _color);
+                return;
+            }
+
+            UiRenderHelpers.DrawPolylineFallback(context.Renderer, _points, _thickness, _color);
+        }
+    }
+
+    internal sealed class BeginVectorPassCommand : UiRenderCommand
+    {
+        public static BeginVectorPassCommand Instance { get; } = new();
+
+        private BeginVectorPassCommand()
+        {
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiVectorPassRenderer vectorPassRenderer)
+            {
+                vectorPassRenderer.BeginVectorPass();
+            }
+        }
+    }
+
+    internal sealed class DrawPolylineTransformedCommand : UiRenderCommand
+    {
+        private readonly IReadOnlyList<UiPoint> _points;
+        private readonly int _thickness;
+        private readonly UiColor _color;
+        private readonly UiPoint _origin;
+        private readonly float _zoom;
+        private readonly float _panX;
+        private readonly float _panY;
+
+        public DrawPolylineTransformedCommand(
+            IReadOnlyList<UiPoint> points,
+            int thickness,
+            UiColor color,
+            UiPoint origin,
+            float zoom,
+            float panX,
+            float panY)
+        {
+            _points = points ?? throw new ArgumentNullException(nameof(points));
+            _thickness = Math.Max(1, thickness);
+            _color = color;
+            _origin = origin;
+            _zoom = zoom;
+            _panX = panX;
+            _panY = panY;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiTransformedVectorRenderer transformedRenderer)
+            {
+                transformedRenderer.DrawPolylineTransformed(_points, _thickness, _color, _origin, _zoom, _panX, _panY);
+                return;
+            }
+
+            UiPoint[] transformed = new UiPoint[_points.Count];
+            for (int i = 0; i < _points.Count; i++)
+            {
+                transformed[i] = new UiPoint(
+                    _origin.X + (int)MathF.Round((_points[i].X - _panX) * _zoom),
+                    _origin.Y + (int)MathF.Round((_points[i].Y - _panY) * _zoom));
+            }
+
+            if (context.Renderer is IUiVectorRenderer vectorRenderer)
+            {
+                vectorRenderer.DrawPolyline(transformed, _thickness, _color);
+                return;
+            }
+
+            UiRenderHelpers.DrawPolylineFallback(context.Renderer, transformed, _thickness, _color);
+        }
+    }
+
+    internal sealed class EndVectorPassCommand : UiRenderCommand
+    {
+        public static EndVectorPassCommand Instance { get; } = new();
+
+        private EndVectorPassCommand()
+        {
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiVectorPassRenderer vectorPassRenderer)
+            {
+                vectorPassRenderer.EndVectorPass();
+            }
+        }
+    }
+
+    internal sealed class FillRoundedRectCommand : UiRenderCommand
+    {
+        private readonly UiRect _rect;
+        private readonly int _radius;
+        private readonly UiColor _color;
+
+        public FillRoundedRectCommand(UiRect rect, int radius, UiColor color)
+        {
+            _rect = rect;
+            _radius = radius;
+            _color = color;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.FillRoundedRect(_rect, _radius, _color);
+                return;
+            }
+
+            UiRenderHelpers.FillRectRoundedFallback(context.Renderer, _rect, _radius, _color);
+        }
+    }
+
+    internal sealed class FillTopRoundedRectCommand : UiRenderCommand
+    {
+        private readonly UiRect _rect;
+        private readonly int _radius;
+        private readonly UiColor _color;
+
+        public FillTopRoundedRectCommand(UiRect rect, int radius, UiColor color)
+        {
+            _rect = rect;
+            _radius = radius;
+            _color = color;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.FillTopRoundedRect(_rect, _radius, _color);
+                return;
+            }
+
+            UiRenderHelpers.FillRectTopRoundedFallback(context.Renderer, _rect, _radius, _color);
+        }
+    }
+
+    internal sealed class DrawRoundedRectCommand : UiRenderCommand
+    {
+        private readonly UiRect _rect;
+        private readonly int _radius;
+        private readonly UiColor _color;
+        private readonly int _thickness;
+
+        public DrawRoundedRectCommand(UiRect rect, int radius, UiColor color, int thickness)
+        {
+            _rect = rect;
+            _radius = radius;
+            _color = color;
+            _thickness = thickness;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.DrawRoundedRect(_rect, _radius, _color, _thickness);
+                return;
+            }
+
+            UiRenderHelpers.DrawRectRoundedFallback(context.Renderer, _rect, _radius, _color, _thickness);
+        }
+    }
+
+    internal sealed class DrawTopRoundedRectCommand : UiRenderCommand
+    {
+        private readonly UiRect _rect;
+        private readonly int _radius;
+        private readonly UiColor _color;
+        private readonly int _thickness;
+
+        public DrawTopRoundedRectCommand(UiRect rect, int radius, UiColor color, int thickness)
+        {
+            _rect = rect;
+            _radius = radius;
+            _color = color;
+            _thickness = thickness;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.DrawTopRoundedRect(_rect, _radius, _color, _thickness);
+                return;
+            }
+
+            UiRenderHelpers.DrawRectTopRoundedFallback(context.Renderer, _rect, _radius, _color, _thickness);
+        }
+    }
+
+    internal sealed class FillCircleCommand : UiRenderCommand
+    {
+        private readonly UiPoint _center;
+        private readonly int _radius;
+        private readonly UiColor _color;
+
+        public FillCircleCommand(UiPoint center, int radius, UiColor color)
+        {
+            _center = center;
+            _radius = radius;
+            _color = color;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.FillCircle(_center, _radius, _color);
+                return;
+            }
+
+            UiRenderHelpers.FillCircleFallback(context.Renderer, _center, _radius, _color);
+        }
+    }
+
+    internal sealed class DrawCircleCommand : UiRenderCommand
+    {
+        private readonly UiPoint _center;
+        private readonly int _radius;
+        private readonly UiColor _color;
+        private readonly int _thickness;
+
+        public DrawCircleCommand(UiPoint center, int radius, UiColor color, int thickness)
+        {
+            _center = center;
+            _radius = radius;
+            _color = color;
+            _thickness = thickness;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.DrawCircle(_center, _radius, _color, _thickness);
+                return;
+            }
+
+            UiRenderHelpers.DrawCircleFallback(context.Renderer, _center, _radius, _color, _thickness);
+        }
+    }
+
+    internal sealed class FillTriangleRightCommand : UiRenderCommand
+    {
+        private readonly UiRect _rect;
+        private readonly UiColor _color;
+
+        public FillTriangleRightCommand(UiRect rect, UiColor color)
+        {
+            _rect = rect;
+            _color = color;
+        }
+
+        public override void Replay(UiRenderContext context)
+        {
+            if (context.Renderer is IUiShapeRenderer shapeRenderer)
+            {
+                shapeRenderer.FillTriangleRight(_rect, _color);
+                return;
+            }
+
+            UiRenderHelpers.FillTriangleRightFallback(context.Renderer, _rect, _color);
+        }
+    }
+
     internal sealed class DrawTextCommand : UiRenderCommand
     {
         private readonly string _text;

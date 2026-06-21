@@ -5,12 +5,18 @@ using Silk.NET.OpenGL;
 
 namespace OpenControls.SilkNet;
 
-public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
+public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer, IDisposable
 {
     private enum MetricKind
     {
         FillRect,
         DrawRect,
+        FillRoundedRect,
+        DrawRoundedRect,
+        FillCircle,
+        DrawCircle,
+        FillTriangle,
+        DrawPolyline,
         DrawText,
         DrawTexture,
         Flush,
@@ -87,6 +93,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     }
 
     private const int MaxQuadsPerFlush = 1024;
+    private const int MaxTriangleVerticesPerFlush = 4096;
     private static readonly ushort[] QuadIndices = BuildQuadIndices(MaxQuadsPerFlush);
 
     private readonly GL _gl;
@@ -94,6 +101,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     private readonly UiGlyphAtlas _glyphAtlas = new();
     private readonly Dictionary<int, AtlasPageTexture> _atlasTextures = new();
     private readonly UiVertex[] _vertices = new UiVertex[MaxQuadsPerFlush * 4];
+    private readonly UiVertex[] _triangleVertices = new UiVertex[MaxTriangleVerticesPerFlush];
     private readonly uint _program;
     private uint _vao;
     private readonly uint _vbo;
@@ -109,6 +117,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     private uint _batchedTextureId;
     private uint _boundTextureId;
     private int _batchedQuadCount;
+    private int _batchedTriangleVertexCount;
+    private int _vectorPassDepth;
     private int _viewportWidth = 1;
     private int _viewportHeight = 1;
 
@@ -245,6 +255,142 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         EndMetric(MetricKind.DrawRect, startTimestamp);
     }
 
+    public void FillRoundedRect(UiRect rect, int radius, UiColor color)
+    {
+        long startTimestamp = BeginMetric();
+        if (rect.Width <= 0 || rect.Height <= 0 || color.A == 0)
+        {
+            EndMetric(MetricKind.FillRoundedRect, startTimestamp);
+            return;
+        }
+
+        int clampedRadius = ClampRadius(rect, radius);
+        if (clampedRadius <= 0)
+        {
+            FillRect(rect, color);
+            EndMetric(MetricKind.FillRoundedRect, startTimestamp);
+            return;
+        }
+
+        QueueFilledRoundedRect(rect, clampedRadius, topOnly: false, color);
+        EndMetric(MetricKind.FillRoundedRect, startTimestamp);
+    }
+
+    public void FillTopRoundedRect(UiRect rect, int radius, UiColor color)
+    {
+        long startTimestamp = BeginMetric();
+        if (rect.Width <= 0 || rect.Height <= 0 || color.A == 0)
+        {
+            EndMetric(MetricKind.FillRoundedRect, startTimestamp);
+            return;
+        }
+
+        int clampedRadius = ClampRadius(rect, radius);
+        if (clampedRadius <= 0)
+        {
+            FillRect(rect, color);
+            EndMetric(MetricKind.FillRoundedRect, startTimestamp);
+            return;
+        }
+
+        QueueFilledRoundedRect(rect, clampedRadius, topOnly: true, color);
+        EndMetric(MetricKind.FillRoundedRect, startTimestamp);
+    }
+
+    public void DrawRoundedRect(UiRect rect, int radius, UiColor color, int thickness = 1)
+    {
+        long startTimestamp = BeginMetric();
+        if (rect.Width <= 0 || rect.Height <= 0 || thickness <= 0 || color.A == 0)
+        {
+            EndMetric(MetricKind.DrawRoundedRect, startTimestamp);
+            return;
+        }
+
+        int clampedRadius = ClampRadius(rect, radius);
+        if (clampedRadius <= 0)
+        {
+            DrawRect(rect, color, thickness);
+            EndMetric(MetricKind.DrawRoundedRect, startTimestamp);
+            return;
+        }
+
+        DrawPolyline(BuildRoundedRectOutline(rect, clampedRadius, topOnly: false), Math.Max(1, thickness), color);
+        EndMetric(MetricKind.DrawRoundedRect, startTimestamp);
+    }
+
+    public void DrawTopRoundedRect(UiRect rect, int radius, UiColor color, int thickness = 1)
+    {
+        long startTimestamp = BeginMetric();
+        if (rect.Width <= 0 || rect.Height <= 0 || thickness <= 0 || color.A == 0)
+        {
+            EndMetric(MetricKind.DrawRoundedRect, startTimestamp);
+            return;
+        }
+
+        int clampedRadius = ClampRadius(rect, radius);
+        if (clampedRadius <= 0)
+        {
+            DrawRect(rect, color, thickness);
+            EndMetric(MetricKind.DrawRoundedRect, startTimestamp);
+            return;
+        }
+
+        DrawPolyline(BuildRoundedRectOutline(rect, clampedRadius, topOnly: true), Math.Max(1, thickness), color);
+        EndMetric(MetricKind.DrawRoundedRect, startTimestamp);
+    }
+
+    public void FillCircle(UiPoint center, int radius, UiColor color)
+    {
+        long startTimestamp = BeginMetric();
+        if (radius <= 0 || color.A == 0)
+        {
+            EndMetric(MetricKind.FillCircle, startTimestamp);
+            return;
+        }
+
+        QueueFilledCircle(center.X, center.Y, radius, color);
+        EndMetric(MetricKind.FillCircle, startTimestamp);
+    }
+
+    public void DrawCircle(UiPoint center, int radius, UiColor color, int thickness = 1)
+    {
+        long startTimestamp = BeginMetric();
+        if (radius <= 0 || thickness <= 0 || color.A == 0)
+        {
+            EndMetric(MetricKind.DrawCircle, startTimestamp);
+            return;
+        }
+
+        DrawPolyline(BuildCircleOutline(center, radius), Math.Max(1, thickness), color);
+        EndMetric(MetricKind.DrawCircle, startTimestamp);
+    }
+
+    public void FillTriangleRight(UiRect rect, UiColor color)
+    {
+        long startTimestamp = BeginMetric();
+        if (rect.Width <= 0 || rect.Height <= 0 || color.A == 0)
+        {
+            EndMetric(MetricKind.FillTriangle, startTimestamp);
+            return;
+        }
+
+        UiRect clip = GetActiveClipBounds();
+        if (!Intersects(clip, rect))
+        {
+            EndMetric(MetricKind.FillTriangle, startTimestamp);
+            return;
+        }
+
+        FlushPendingQuads(FlushReason.Default);
+        float left = rect.X;
+        float top = rect.Y;
+        float bottom = rect.Bottom;
+        float right = rect.Right;
+        float centerY = rect.Y + rect.Height * 0.5f;
+        QueueTriangle(left, top, right, centerY, left, bottom, color, clip);
+        EndMetric(MetricKind.FillTriangle, startTimestamp);
+    }
+
     public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
     {
         UiRenderHelpers.FillRectGradient(this, rect, topLeft, topRight, bottomLeft, bottomRight);
@@ -253,6 +399,89 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
     {
         UiRenderHelpers.FillRectCheckerboard(this, rect, cellSize, colorA, colorB);
+    }
+
+    public void DrawPolyline(IReadOnlyList<UiPoint> points, int thickness, UiColor color)
+    {
+        long startTimestamp = BeginMetric();
+        if (points == null || points.Count < 2 || thickness <= 0 || color.A == 0)
+        {
+            EndMetric(MetricKind.DrawPolyline, startTimestamp);
+            return;
+        }
+
+        if (_vectorPassDepth == 0)
+        {
+            FlushPendingQuads(FlushReason.Default);
+        }
+
+        UiRect clip = GetActiveClipBounds();
+        float halfThickness = Math.Max(1, thickness) * 0.5f;
+
+        for (int i = 1; i < points.Count; i++)
+        {
+            QueueLineSegment(points[i - 1], points[i], halfThickness, color, clip);
+        }
+
+        EndMetric(MetricKind.DrawPolyline, startTimestamp);
+    }
+
+    public void DrawPolylineTransformed(
+        IReadOnlyList<UiPoint> points,
+        int thickness,
+        UiColor color,
+        UiPoint origin,
+        float zoom,
+        float panX,
+        float panY)
+    {
+        long startTimestamp = BeginMetric();
+        if (points == null || points.Count < 2 || thickness <= 0 || color.A == 0)
+        {
+            EndMetric(MetricKind.DrawPolyline, startTimestamp);
+            return;
+        }
+
+        if (_vectorPassDepth == 0)
+        {
+            FlushPendingQuads(FlushReason.Default);
+        }
+
+        UiRect clip = GetActiveClipBounds();
+        float halfThickness = Math.Max(1, thickness) * 0.5f;
+        UiPoint previous = TransformPolylinePoint(points[0], origin, zoom, panX, panY);
+        for (int i = 1; i < points.Count; i++)
+        {
+            UiPoint current = TransformPolylinePoint(points[i], origin, zoom, panX, panY);
+            QueueLineSegment(previous, current, halfThickness, color, clip);
+            previous = current;
+        }
+
+        EndMetric(MetricKind.DrawPolyline, startTimestamp);
+    }
+
+    public void BeginVectorPass()
+    {
+        if (_vectorPassDepth == 0)
+        {
+            FlushPendingQuads(FlushReason.Default);
+        }
+
+        _vectorPassDepth++;
+    }
+
+    public void EndVectorPass()
+    {
+        if (_vectorPassDepth <= 0)
+        {
+            return;
+        }
+
+        _vectorPassDepth--;
+        if (_vectorPassDepth == 0)
+        {
+            FlushPendingTriangles(FlushReason.Default);
+        }
     }
 
     public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
@@ -462,6 +691,12 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     public void FlushPending(FlushReason reason)
     {
+        FlushPendingQuads(reason);
+        FlushPendingTriangles(reason);
+    }
+
+    private void FlushPendingQuads(FlushReason reason)
+    {
         if (_batchedTextureId == 0 || _batchedQuadCount <= 0)
         {
             _batchedTextureId = 0;
@@ -472,6 +707,17 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         Flush(_batchedTextureId, _batchedQuadCount, reason);
         _batchedTextureId = 0;
         _batchedQuadCount = 0;
+    }
+
+    private void FlushPendingTriangles(FlushReason reason)
+    {
+        if (_batchedTriangleVertexCount <= 0)
+        {
+            return;
+        }
+
+        FlushTriangles(_batchedTriangleVertexCount, reason);
+        _batchedTriangleVertexCount = 0;
     }
 
     public void CompleteRenderPass()
@@ -497,6 +743,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             return;
         }
 
+        FlushPendingTriangles(FlushReason.Default);
+
         UiRect clip = GetActiveClipBounds();
         UiRect quadBounds = new(x, y, width, height);
         if (!Intersects(clip, quadBounds))
@@ -521,6 +769,221 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         }
 
         AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, clip, ref _batchedQuadCount);
+    }
+
+    private void QueueFilledRoundedRect(UiRect rect, int radius, bool topOnly, UiColor color)
+    {
+        UiRect clip = GetActiveClipBounds();
+        if (!Intersects(clip, rect))
+        {
+            return;
+        }
+
+        FlushPendingQuads(FlushReason.Default);
+        if (topOnly)
+        {
+            QueueTriangleRect(rect.X, rect.Y + radius, rect.Width, rect.Height - radius, color, clip);
+            QueueTriangleRect(rect.X + radius, rect.Y, rect.Width - radius * 2, radius, color, clip);
+            QueueQuarterCircleFan(rect.X + radius, rect.Y + radius, radius, MathF.PI, MathF.PI * 1.5f, color, clip);
+            QueueQuarterCircleFan(rect.Right - radius, rect.Y + radius, radius, MathF.PI * 1.5f, MathF.PI * 2f, color, clip);
+            return;
+        }
+
+        QueueTriangleRect(rect.X + radius, rect.Y, rect.Width - radius * 2, rect.Height, color, clip);
+        QueueTriangleRect(rect.X, rect.Y + radius, radius, rect.Height - radius * 2, color, clip);
+        QueueTriangleRect(rect.Right - radius, rect.Y + radius, radius, rect.Height - radius * 2, color, clip);
+
+        QueueQuarterCircleFan(rect.X + radius, rect.Y + radius, radius, MathF.PI, MathF.PI * 1.5f, color, clip);
+        QueueQuarterCircleFan(rect.Right - radius, rect.Y + radius, radius, MathF.PI * 1.5f, MathF.PI * 2f, color, clip);
+        QueueQuarterCircleFan(rect.Right - radius, rect.Bottom - radius, radius, 0f, MathF.PI * 0.5f, color, clip);
+        QueueQuarterCircleFan(rect.X + radius, rect.Bottom - radius, radius, MathF.PI * 0.5f, MathF.PI, color, clip);
+    }
+
+    private static UiPoint TransformPolylinePoint(UiPoint point, UiPoint origin, float zoom, float panX, float panY)
+    {
+        int x = origin.X + (int)MathF.Round((point.X - panX) * zoom);
+        int y = origin.Y + (int)MathF.Round((point.Y - panY) * zoom);
+        return new UiPoint(x, y);
+    }
+
+    private void QueueTriangleRect(float x, float y, float width, float height, UiColor color, UiRect clip)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        float right = x + width;
+        float bottom = y + height;
+        QueueTriangle(x, y, right, y, right, bottom, color, clip);
+        QueueTriangle(x, y, right, bottom, x, bottom, color, clip);
+    }
+
+    private void QueueFilledCircle(float centerX, float centerY, float radius, UiColor color)
+    {
+        UiRect clip = GetActiveClipBounds();
+        var bounds = new UiRect(
+            (int)MathF.Floor(centerX - radius),
+            (int)MathF.Floor(centerY - radius),
+            Math.Max(1, (int)MathF.Ceiling(radius * 2f)),
+            Math.Max(1, (int)MathF.Ceiling(radius * 2f)));
+        if (!Intersects(clip, bounds))
+        {
+            return;
+        }
+
+        FlushPendingQuads(FlushReason.Default);
+        int segments = GetCircleSegments(radius);
+        float previousX = centerX + radius;
+        float previousY = centerY;
+        for (int i = 1; i <= segments; i++)
+        {
+            float angle = MathF.PI * 2f * i / segments;
+            float nextX = centerX + MathF.Cos(angle) * radius;
+            float nextY = centerY + MathF.Sin(angle) * radius;
+            QueueTriangle(centerX, centerY, previousX, previousY, nextX, nextY, color, clip);
+            previousX = nextX;
+            previousY = nextY;
+        }
+    }
+
+    private void QueueQuarterCircleFan(float centerX, float centerY, float radius, float startAngle, float endAngle, UiColor color, UiRect clip)
+    {
+        int segments = GetArcSegments(radius);
+        float previousX = centerX + MathF.Cos(startAngle) * radius;
+        float previousY = centerY + MathF.Sin(startAngle) * radius;
+        for (int i = 1; i <= segments; i++)
+        {
+            float angle = startAngle + (endAngle - startAngle) * i / segments;
+            float nextX = centerX + MathF.Cos(angle) * radius;
+            float nextY = centerY + MathF.Sin(angle) * radius;
+            QueueTriangle(centerX, centerY, previousX, previousY, nextX, nextY, color, clip);
+            previousX = nextX;
+            previousY = nextY;
+        }
+    }
+
+    private static IReadOnlyList<UiPoint> BuildRoundedRectOutline(UiRect rect, int radius, bool topOnly)
+    {
+        List<UiPoint> points = new(GetArcSegments(radius) * (topOnly ? 2 : 4) + 6);
+        if (topOnly)
+        {
+            points.Add(new UiPoint(rect.X, rect.Bottom - 1));
+            points.Add(new UiPoint(rect.X, rect.Y + radius));
+            AppendArc(points, rect.X + radius, rect.Y + radius, radius, MathF.PI, MathF.PI * 1.5f);
+            AppendArc(points, rect.Right - radius - 1, rect.Y + radius, radius, MathF.PI * 1.5f, MathF.PI * 2f);
+            points.Add(new UiPoint(rect.Right - 1, rect.Bottom - 1));
+            points.Add(points[0]);
+            return points;
+        }
+
+        AppendArc(points, rect.X + radius, rect.Y + radius, radius, MathF.PI, MathF.PI * 1.5f);
+        AppendArc(points, rect.Right - radius - 1, rect.Y + radius, radius, MathF.PI * 1.5f, MathF.PI * 2f);
+        AppendArc(points, rect.Right - radius - 1, rect.Bottom - radius - 1, radius, 0f, MathF.PI * 0.5f);
+        AppendArc(points, rect.X + radius, rect.Bottom - radius - 1, radius, MathF.PI * 0.5f, MathF.PI);
+        points.Add(points[0]);
+        return points;
+    }
+
+    private static IReadOnlyList<UiPoint> BuildCircleOutline(UiPoint center, int radius)
+    {
+        int segments = GetCircleSegments(radius);
+        UiPoint[] points = new UiPoint[segments + 1];
+        for (int i = 0; i <= segments; i++)
+        {
+            float angle = MathF.PI * 2f * i / segments;
+            points[i] = new UiPoint(
+                (int)MathF.Round(center.X + MathF.Cos(angle) * radius),
+                (int)MathF.Round(center.Y + MathF.Sin(angle) * radius));
+        }
+
+        return points;
+    }
+
+    private static void AppendArc(List<UiPoint> points, float centerX, float centerY, float radius, float startAngle, float endAngle)
+    {
+        int segments = GetArcSegments(radius);
+        for (int i = 0; i <= segments; i++)
+        {
+            float angle = startAngle + (endAngle - startAngle) * i / segments;
+            UiPoint point = new(
+                (int)MathF.Round(centerX + MathF.Cos(angle) * radius),
+                (int)MathF.Round(centerY + MathF.Sin(angle) * radius));
+            if (points.Count == 0 || !points[^1].Equals(point))
+            {
+                points.Add(point);
+            }
+        }
+    }
+
+    private static int GetArcSegments(float radius)
+    {
+        return Math.Clamp((int)MathF.Ceiling(radius / 2.5f), 4, 12);
+    }
+
+    private static int GetCircleSegments(float radius)
+    {
+        return Math.Clamp((int)MathF.Ceiling(radius * 1.5f), 12, 40);
+    }
+
+    private static int ClampRadius(UiRect rect, int radius)
+    {
+        if (radius <= 0)
+        {
+            return 0;
+        }
+
+        int maxRadius = Math.Min(rect.Width, rect.Height) / 2;
+        if (maxRadius <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Clamp(radius, 0, maxRadius);
+    }
+
+    private void QueueLineSegment(UiPoint a, UiPoint b, float halfThickness, UiColor color, UiRect clip)
+    {
+        float dx = b.X - a.X;
+        float dy = b.Y - a.Y;
+        float length = MathF.Sqrt(dx * dx + dy * dy);
+        if (length <= 0.001f)
+        {
+            return;
+        }
+
+        float nx = -dy / length * halfThickness;
+        float ny = dx / length * halfThickness;
+        float minX = MathF.Min(a.X, b.X) - halfThickness - 1;
+        float minY = MathF.Min(a.Y, b.Y) - halfThickness - 1;
+        float maxX = MathF.Max(a.X, b.X) + halfThickness + 1;
+        float maxY = MathF.Max(a.Y, b.Y) + halfThickness + 1;
+        var bounds = new UiRect(
+            (int)MathF.Floor(minX),
+            (int)MathF.Floor(minY),
+            Math.Max(1, (int)MathF.Ceiling(maxX - minX)),
+            Math.Max(1, (int)MathF.Ceiling(maxY - minY)));
+        if (!Intersects(clip, bounds))
+        {
+            return;
+        }
+
+        QueueTriangle(a.X + nx, a.Y + ny, b.X + nx, b.Y + ny, b.X - nx, b.Y - ny, color, clip);
+        QueueTriangle(a.X + nx, a.Y + ny, b.X - nx, b.Y - ny, a.X - nx, a.Y - ny, color, clip);
+    }
+
+    private void QueueTriangle(float x1, float y1, float x2, float y2, float x3, float y3, UiColor color, UiRect clip)
+    {
+        if (_batchedTriangleVertexCount + 3 > _triangleVertices.Length)
+        {
+            FlushPendingTriangles(FlushReason.Capacity);
+        }
+
+        int baseIndex = _batchedTriangleVertexCount;
+        _triangleVertices[baseIndex + 0] = new UiVertex(x1, y1, 0f, 0f, color, clip);
+        _triangleVertices[baseIndex + 1] = new UiVertex(x2, y2, 0f, 0f, color, clip);
+        _triangleVertices[baseIndex + 2] = new UiVertex(x3, y3, 0f, 0f, color, clip);
+        _batchedTriangleVertexCount += 3;
     }
 
     private void AppendQuad(
@@ -576,6 +1039,12 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         {
             MetricKind.FillRect => "FillRect",
             MetricKind.DrawRect => "DrawRect",
+            MetricKind.FillRoundedRect => "FillRoundedRect",
+            MetricKind.DrawRoundedRect => "DrawRoundedRect",
+            MetricKind.FillCircle => "FillCircle",
+            MetricKind.DrawCircle => "DrawCircle",
+            MetricKind.FillTriangle => "FillTriangle",
+            MetricKind.DrawPolyline => "DrawPolyline",
             MetricKind.DrawText => "DrawText",
             MetricKind.DrawTexture => "DrawTexture",
             MetricKind.Flush => "Flush",
@@ -626,6 +1095,31 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         }
 
         _gl.DrawElements(PrimitiveType.Triangles, (uint)(quadCount * 6), DrawElementsType.UnsignedShort, null);
+        EndMetric(MetricKind.Flush, startTimestamp);
+        EndMetric(GetFlushMetricKind(reason), startTimestamp);
+    }
+
+    private void FlushTriangles(int vertexCount, FlushReason reason)
+    {
+        long startTimestamp = BeginMetric();
+        if (vertexCount <= 0)
+        {
+            EndMetric(MetricKind.Flush, startTimestamp);
+            return;
+        }
+
+        EnsureRenderState(_whiteTexture);
+
+        fixed (UiVertex* vertexPtr = _triangleVertices)
+        {
+            _gl.BufferData(
+                BufferTargetARB.ArrayBuffer,
+                (nuint)(vertexCount * sizeof(UiVertex)),
+                vertexPtr,
+                BufferUsageARB.StreamDraw);
+        }
+
+        _gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)vertexCount);
         EndMetric(MetricKind.Flush, startTimestamp);
         EndMetric(GetFlushMetricKind(reason), startTimestamp);
     }

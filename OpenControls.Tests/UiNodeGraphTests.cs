@@ -5,12 +5,16 @@ namespace OpenControls.Tests;
 
 public sealed class UiNodeGraphTests
 {
-    private sealed class RecordingRenderer : IUiRenderer
+    private sealed class RecordingRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer
     {
         public UiFont DefaultFont { get; set; } = UiFont.Default;
         public List<UiRect> FilledRects { get; } = new();
         public List<(UiRect Rect, UiColor Color)> FillCalls { get; } = new();
         public List<(string Text, int Scale, int PixelSize)> DrawnTexts { get; } = new();
+        public List<(UiPoint[] Points, int Thickness, UiColor Color)> Polylines { get; } = new();
+        public List<IReadOnlyList<UiPoint>> PolylineSources { get; } = new();
+        public int BeginVectorPassCount { get; private set; }
+        public int EndVectorPassCount { get; private set; }
 
         public void FillRect(UiRect rect, UiColor color)
         {
@@ -30,6 +34,43 @@ public sealed class UiNodeGraphTests
         public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
         {
             FillRect(rect, colorA);
+        }
+
+        public void DrawPolyline(IReadOnlyList<UiPoint> points, int thickness, UiColor color)
+        {
+            PolylineSources.Add(points);
+            Polylines.Add((points.ToArray(), thickness, color));
+        }
+
+        public void DrawPolylineTransformed(
+            IReadOnlyList<UiPoint> points,
+            int thickness,
+            UiColor color,
+            UiPoint origin,
+            float zoom,
+            float panX,
+            float panY)
+        {
+            PolylineSources.Add(points);
+            UiPoint[] transformed = new UiPoint[points.Count];
+            for (int i = 0; i < points.Count; i++)
+            {
+                transformed[i] = new UiPoint(
+                    origin.X + (int)MathF.Round((points[i].X - panX) * zoom),
+                    origin.Y + (int)MathF.Round((points[i].Y - panY) * zoom));
+            }
+
+            Polylines.Add((transformed, thickness, color));
+        }
+
+        public void BeginVectorPass()
+        {
+            BeginVectorPassCount++;
+        }
+
+        public void EndVectorPass()
+        {
+            EndVectorPassCount++;
         }
 
         public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
@@ -248,6 +289,53 @@ public sealed class UiNodeGraphTests
         graph.Render(new UiRenderContext(renderer, UiFont.Default));
 
         Assert.NotEmpty(renderer.FilledRects);
+        Assert.NotEmpty(renderer.Polylines);
+        Assert.Contains(renderer.Polylines, polyline => polyline.Thickness == graph.ExecWireThickness && polyline.Points.Length >= debug.Route.Count);
+    }
+
+    [Fact]
+    public void NodeGraph_ReusesStaticWireRouteAndTessellation()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);
+        UiNodeWire wire = graph.Connect(entry, entryThen, print, printIn);
+        UiContext context = new(graph);
+
+        context.Update(new UiInputState(), 1f / 60f);
+        IReadOnlyList<UiPoint> firstRoute = wire.Route;
+
+        context.Update(new UiInputState(), 1f / 60f);
+        Assert.Same(firstRoute, wire.Route);
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        Assert.True(renderer.Polylines.Count >= 2);
+        Assert.Same(renderer.PolylineSources[0], renderer.PolylineSources[1]);
+
+        entry.Bounds = new UiRect(entry.Bounds.X + 24, entry.Bounds.Y, entry.Bounds.Width, entry.Bounds.Height);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        Assert.NotSame(firstRoute, wire.Route);
+    }
+
+    [Fact]
+    public void NodeGraph_RendersWiresInsideOneVectorPass()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);
+        UiNodePin dataOut = entry.AddOutput("value", "Value", UiNodePinKind.Data);
+        UiNodePin dataIn = print.Pins.Single(pin => pin.Id == "message");
+        graph.Connect(entry, entryThen, print, printIn);
+        graph.Connect(entry, dataOut, print, dataIn);
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        Assert.Equal(1, renderer.BeginVectorPassCount);
+        Assert.Equal(1, renderer.EndVectorPassCount);
+        Assert.Equal(2, renderer.Polylines.Count);
     }
 
     [Fact]

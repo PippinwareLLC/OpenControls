@@ -4,6 +4,20 @@ public sealed class UiNodeControl : UiElement
 {
     private readonly List<UiNodePin> _pins = new();
     private UiNodeDebugLayout _debugLayout = UiNodeDebugLayout.Empty;
+    private bool _layoutValid;
+    private UiRect _layoutBounds;
+    private string _layoutTitle = string.Empty;
+    private string _layoutSubtitle = string.Empty;
+    private string _layoutBodyText = string.Empty;
+    private string _layoutFontName = string.Empty;
+    private int _layoutFontPixelSize;
+    private int _layoutHeaderHeight;
+    private int _layoutPinRowHeight;
+    private int _layoutPinHitSize;
+    private int _layoutPinVisualSize;
+    private int _layoutPadding;
+    private int _layoutTextScale;
+    private int _layoutPinHash;
     private string _title = string.Empty;
     private string _subtitle = string.Empty;
     private string _bodyText = string.Empty;
@@ -336,6 +350,25 @@ public sealed class UiNodeControl : UiElement
 
     private void UpdateLayout(UiFont font)
     {
+        int pinHash = ComputePinLayoutHash();
+        if (_layoutValid
+            && _layoutBounds.Equals(Bounds)
+            && _layoutHeaderHeight == HeaderHeight
+            && _layoutPinRowHeight == PinRowHeight
+            && _layoutPinHitSize == PinHitSize
+            && _layoutPinVisualSize == PinVisualSize
+            && _layoutPadding == Padding
+            && _layoutTextScale == TextScale
+            && _layoutPinHash == pinHash
+            && _layoutFontPixelSize == font.PixelSize
+            && string.Equals(_layoutFontName, font.Name, StringComparison.Ordinal)
+            && string.Equals(_layoutTitle, Title, StringComparison.Ordinal)
+            && string.Equals(_layoutSubtitle, Subtitle, StringComparison.Ordinal)
+            && string.Equals(_layoutBodyText, BodyText, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         int headerHeight = Math.Min(Math.Max(0, Bounds.Height), Math.Max(30, HeaderHeight));
         UiRect headerBounds = new(Bounds.X, Bounds.Y, Bounds.Width, headerHeight);
         UiRect bodyBounds = new(Bounds.X, Bounds.Y + headerHeight, Bounds.Width, Math.Max(0, Bounds.Height - headerHeight));
@@ -404,6 +437,37 @@ public sealed class UiNodeControl : UiElement
         }
 
         _debugLayout = new UiNodeDebugLayout(Bounds, headerBounds, bodyBounds, titleBounds, subtitleBounds, bodyTextBounds, layouts.ToArray());
+        _layoutValid = true;
+        _layoutBounds = Bounds;
+        _layoutTitle = Title;
+        _layoutSubtitle = Subtitle;
+        _layoutBodyText = BodyText;
+        _layoutFontName = font.Name;
+        _layoutFontPixelSize = font.PixelSize;
+        _layoutHeaderHeight = HeaderHeight;
+        _layoutPinRowHeight = PinRowHeight;
+        _layoutPinHitSize = PinHitSize;
+        _layoutPinVisualSize = PinVisualSize;
+        _layoutPadding = Padding;
+        _layoutTextScale = TextScale;
+        _layoutPinHash = pinHash;
+    }
+
+    private int ComputePinLayoutHash()
+    {
+        HashCode hash = new();
+        hash.Add(_pins.Count);
+        for (int i = 0; i < _pins.Count; i++)
+        {
+            UiNodePin pin = _pins[i];
+            hash.Add(pin.Id, StringComparer.Ordinal);
+            hash.Add(pin.Text, StringComparer.Ordinal);
+            hash.Add(pin.Direction);
+            hash.Add(pin.Kind);
+            hash.Add(pin.Enabled);
+        }
+
+        return hash.ToHashCode();
     }
 
     private UiNodePinLayout BuildPinLayout(UiNodePin pin, int rowIndex, UiRect bodyBounds, UiFont font, int textHeight, bool hasOppositePinInRow)

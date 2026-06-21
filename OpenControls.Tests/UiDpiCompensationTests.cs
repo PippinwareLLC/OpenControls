@@ -4,7 +4,7 @@ namespace OpenControls.Tests;
 
 public sealed class UiDpiCompensationTests
 {
-    private sealed class RecordingRenderer : IUiRenderer
+    private sealed class RecordingRenderer : IUiRenderer, IUiVectorRenderer
     {
         public UiFont DefaultFont { get; set; } = UiFont.Default;
         public UiRect LastFillRect { get; private set; }
@@ -12,6 +12,8 @@ public sealed class UiDpiCompensationTests
         public int LastThickness { get; private set; }
         public UiRect LastClipRect { get; private set; }
         public UiPoint LastTextPosition { get; private set; }
+        public UiPoint[] LastPolyline { get; private set; } = [];
+        public int LastPolylineThickness { get; private set; }
         public int LastTextScale { get; private set; }
         public UiFont? LastTextFont { get; private set; }
         public UiFont? LastMeasureFont { get; private set; }
@@ -35,6 +37,12 @@ public sealed class UiDpiCompensationTests
         public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
         {
             LastFillRect = rect;
+        }
+
+        public void DrawPolyline(IReadOnlyList<UiPoint> points, int thickness, UiColor color)
+        {
+            LastPolyline = points.ToArray();
+            LastPolylineThickness = thickness;
         }
 
         public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
@@ -193,6 +201,7 @@ public sealed class UiDpiCompensationTests
         int logicalHeight = renderer.MeasureTextHeight(scale: 2, font: baseFont);
         int logicalWidth = renderer.MeasureTextWidth("OpenControls", scale: 2, font: baseFont);
         renderer.DrawRect(new UiRect(10, 8, 30, 12), UiColor.White, thickness: 1);
+        renderer.DrawPolyline([new UiPoint(3, 4), new UiPoint(7, 9)], 3, UiColor.White);
         renderer.DrawText("Scaled", new UiPoint(12, 18), UiColor.White, scale: 2, font: baseFont);
         renderer.PushClip(new UiRect(4, 6, 20, 10));
 
@@ -200,6 +209,8 @@ public sealed class UiDpiCompensationTests
         Assert.Equal(baseFont.MeasureTextWidth("OpenControls", 2), logicalWidth);
         Assert.Equal(new UiRect(20, 16, 60, 24), inner.LastDrawRect);
         Assert.Equal(2, inner.LastThickness);
+        Assert.Equal([new UiPoint(6, 8), new UiPoint(14, 18)], inner.LastPolyline);
+        Assert.Equal(6, inner.LastPolylineThickness);
         Assert.Equal(new UiPoint(24, 36), inner.LastTextPosition);
         Assert.Equal(2, inner.LastTextScale);
         Assert.NotNull(inner.LastTextFont);

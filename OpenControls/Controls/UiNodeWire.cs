@@ -2,7 +2,26 @@ namespace OpenControls.Controls;
 
 public sealed class UiNodeWire
 {
+    private readonly record struct RouteKey(
+        UiPoint Start,
+        UiNodePinDirection StartDirection,
+        UiPoint End,
+        UiNodePinDirection EndDirection,
+        int Thickness);
+
+    private readonly record struct TessellationKey(
+        UiPoint Start,
+        UiPoint StartControl,
+        UiPoint EndControl,
+        UiPoint End,
+        int Thickness);
+
     private UiPoint[] _route = Array.Empty<UiPoint>();
+    private UiPoint[] _tessellatedRoute = Array.Empty<UiPoint>();
+    private RouteKey _routeKey;
+    private TessellationKey _tessellationKey;
+    private bool _routeValid;
+    private bool _tessellationValid;
 
     public UiNodeWire(UiNodeControl fromNode, UiNodePin fromPin, UiNodeControl toNode, UiNodePin toPin)
     {
@@ -25,10 +44,61 @@ public sealed class UiNodeWire
         ? UiNodePinKind.Exec
         : UiNodePinKind.Data;
 
-    internal void RefreshRoute(int thickness)
+    internal bool NeedsRouteRefresh(int thickness)
     {
-        _route = BuildRoute(FromPin.Layout.Center, FromPin.Direction, ToPin.Layout.Center, ToPin.Direction);
-        Bounds = CalculateBounds(_route, Math.Max(1, thickness));
+        RouteKey key = BuildRouteKey(thickness);
+        return !_routeValid || !_routeKey.Equals(key);
+    }
+
+    internal bool RefreshRoute(int thickness)
+    {
+        RouteKey key = BuildRouteKey(thickness);
+        if (_routeValid && _routeKey.Equals(key))
+        {
+            return false;
+        }
+
+        _route = BuildRoute(key.Start, key.StartDirection, key.End, key.EndDirection);
+        Bounds = CalculateBounds(_route, key.Thickness);
+        _routeKey = key;
+        _routeValid = true;
+        _tessellationValid = false;
+        return true;
+    }
+
+    internal IReadOnlyList<UiPoint> GetRenderRoute(int thickness)
+    {
+        int safeThickness = Math.Max(1, thickness);
+        if (_route.Length < 5)
+        {
+            return _route;
+        }
+
+        TessellationKey key = new(
+            _route[0],
+            _route.Length > 1 ? _route[1] : _route[0],
+            _route.Length > 2 ? _route[^2] : _route[^1],
+            _route[^1],
+            safeThickness);
+        if (_tessellationValid && _tessellationKey.Equals(key))
+        {
+            return _tessellatedRoute;
+        }
+
+        _tessellatedRoute = TessellateCubic(key.Start, key.StartControl, key.EndControl, key.End);
+        _tessellationKey = key;
+        _tessellationValid = true;
+        return _tessellatedRoute;
+    }
+
+    private RouteKey BuildRouteKey(int thickness)
+    {
+        return new RouteKey(
+            FromPin.Layout.Center,
+            FromPin.Direction,
+            ToPin.Layout.Center,
+            ToPin.Direction,
+            Math.Max(1, thickness));
     }
 
     internal static UiPoint[] BuildRoute(
@@ -74,6 +144,34 @@ public sealed class UiNodeWire
             new UiPoint(midX, end.Y),
             end
         };
+    }
+
+    internal static UiPoint[] TessellateCubic(UiPoint start, UiPoint startControl, UiPoint endControl, UiPoint end)
+    {
+        int steps = Math.Max(16, Math.Abs(end.X - start.X) / 12 + Math.Abs(end.Y - start.Y) / 16);
+        UiPoint[] points = new UiPoint[steps + 1];
+        points[0] = start;
+        for (int step = 1; step <= steps; step++)
+        {
+            float t = step / (float)steps;
+            points[step] = Cubic(start, startControl, endControl, end, t);
+        }
+
+        return points;
+    }
+
+    private static UiPoint Cubic(UiPoint a, UiPoint b, UiPoint c, UiPoint d, float t)
+    {
+        float inv = 1f - t;
+        float x = inv * inv * inv * a.X
+            + 3f * inv * inv * t * b.X
+            + 3f * inv * t * t * c.X
+            + t * t * t * d.X;
+        float y = inv * inv * inv * a.Y
+            + 3f * inv * inv * t * b.Y
+            + 3f * inv * t * t * c.Y
+            + t * t * t * d.Y;
+        return new UiPoint((int)Math.Round(x), (int)Math.Round(y));
     }
 
     internal static UiRect CalculateBounds(IReadOnlyList<UiPoint> route, int thickness)
