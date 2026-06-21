@@ -679,6 +679,24 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_UsesExplicitDataWireColorBeforePinFallback()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out _, out _);
+        UiNodePin dataOut = entry.AddOutput("value", "Value", UiNodePinKind.Data);
+        dataOut.Color = new UiColor(22, 130, 196);
+        UiNodePin dataIn = print.Pins.Single(pin => pin.Id == "message");
+        dataIn.Color = new UiColor(218, 45, 157);
+        var wire = graph.Connect(entry, dataOut, print, dataIn);
+        wire.Color = new UiColor(126, 219, 57);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiNodeWireDebugLayout data = Assert.Single(graph.GetWireDebugLayouts());
+
+        Assert.Equal(new UiColor(126, 219, 57), data.Color);
+    }
+
+    [Fact]
     public void NodeControl_RendersWhiteExecWedgesAndTypedCircularDataPins()
     {
         UiNodeGraph graph = CreateGraph(out _, out UiNodeControl print, out _, out _);

@@ -35,6 +35,8 @@ public sealed class UiNodeWire
     public UiNodePin ToPin { get; }
     public bool Selected { get; set; }
     public bool Hovered { get; internal set; }
+    public UiColor? Color { get; set; }
+    public string DataType { get; set; } = string.Empty;
     public int Thickness { get; set; } = 2;
     public IReadOnlyList<UiPoint> Route => _route;
     public UiRect Bounds { get; private set; }

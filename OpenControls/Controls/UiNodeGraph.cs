@@ -622,7 +622,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return ExecWireColor;
         }
 
-        return wire.FromPin.Color ?? wire.ToPin.Color ?? DataWireColor;
+        return wire.Color ?? wire.FromPin.Color ?? wire.ToPin.Color ?? DataWireColor;
     }
 
     private int ResolveWireThickness(UiNodeWire wire)
