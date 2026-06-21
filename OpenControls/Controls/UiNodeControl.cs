@@ -105,6 +105,8 @@ public sealed class UiNodeControl : UiElement
     public UiColor BodyTextColor { get; set; } = new(190, 200, 216);
     public UiColor ValueBoxBackground { get; set; } = new(19, 23, 30, 235);
     public UiColor ValueBoxBorder { get; set; } = new(90, 100, 118);
+    public UiColor ValueBoxEditingBackground { get; set; } = new(8, 13, 20, 250);
+    public UiColor ValueBoxEditingBorder { get; set; } = new(92, 184, 255, 245);
     public UiColor ValueBoxTextColor { get; set; } = new(226, 234, 246);
     public UiColor DataPinColor { get; set; } = new(95, 170, 230);
     public UiColor ExecPinColor { get; set; } = UiColor.White;
@@ -670,6 +672,9 @@ public sealed class UiNodeControl : UiElement
             hash.Add(pin.Id, StringComparer.Ordinal);
             hash.Add(pin.Text, StringComparer.Ordinal);
             hash.Add(pin.ValueText, StringComparer.Ordinal);
+            hash.Add(pin.IsValueEditing);
+            hash.Add(pin.EditingValueText, StringComparer.Ordinal);
+            hash.Add(pin.EditingCaretVisible);
             hash.Add(pin.Direction);
             hash.Add(pin.Kind);
             hash.Add(pin.Enabled);
@@ -788,7 +793,7 @@ public sealed class UiNodeControl : UiElement
     private bool ShouldShowValueBox(UiNodePin pin)
     {
         return pin.Kind == UiNodePinKind.Data
-            && !string.IsNullOrWhiteSpace(pin.ValueText);
+            && (pin.IsValueEditing || !string.IsNullOrWhiteSpace(pin.ValueText));
     }
 
     private int ResolveValueBoxGap(int padding)
@@ -800,7 +805,7 @@ public sealed class UiNodeControl : UiElement
     {
         int minimum = Math.Max(1, ValueBoxMinWidth);
         int maximum = Math.Max(minimum, ValueBoxMaxWidth);
-        int desired = font.MeasureTextWidth(pin.ValueText, scale) + Math.Max(0, ValueBoxPadding) * 2;
+        int desired = font.MeasureTextWidth(ResolveValueBoxRenderText(pin), scale) + Math.Max(0, ValueBoxPadding) * 2;
         return Math.Clamp(desired, minimum, maximum);
     }
 
@@ -954,8 +959,10 @@ public sealed class UiNodeControl : UiElement
             return;
         }
 
-        UiRenderHelpers.FillRectRounded(context.Renderer, layout.ValueBounds, 3, ValueBoxBackground);
-        UiRenderHelpers.DrawRectRounded(context.Renderer, layout.ValueBounds, 3, ValueBoxBorder, 1);
+        UiColor background = pin.IsValueEditing ? ValueBoxEditingBackground : ValueBoxBackground;
+        UiColor border = pin.IsValueEditing ? ValueBoxEditingBorder : ValueBoxBorder;
+        UiRenderHelpers.FillRectRounded(context.Renderer, layout.ValueBounds, 3, background);
+        UiRenderHelpers.DrawRectRounded(context.Renderer, layout.ValueBounds, 3, border, pin.IsValueEditing ? 2 : 1);
     }
 
     private void DrawValueBoxText(UiRenderContext context, UiFont font, UiNodePin pin, UiNodePinLayout layout)
@@ -972,14 +979,27 @@ public sealed class UiNodeControl : UiElement
             return;
         }
 
-        string drawText = UiRenderHelpers.BuildElidedText(pin.ValueText, availableWidth, TextScale, font);
+        string drawText = UiRenderHelpers.BuildElidedText(ResolveValueBoxRenderText(pin), availableWidth, TextScale, font);
         int textWidth = font.MeasureTextWidth(drawText, TextScale);
         int textHeight = font.MeasureTextHeight(TextScale);
-        int textX = layout.ValueBounds.Right - padding - Math.Min(availableWidth, textWidth);
+        int textX = pin.IsValueEditing
+            ? layout.ValueBounds.X + padding
+            : layout.ValueBounds.Right - padding - Math.Min(availableWidth, textWidth);
         int textY = layout.ValueBounds.Y + Math.Max(0, (layout.ValueBounds.Height - textHeight) / 2);
         context.Renderer.PushClip(layout.ValueBounds);
         context.Renderer.DrawText(drawText, new UiPoint(textX, textY), ValueBoxTextColor, TextScale, font);
         context.Renderer.PopClip();
+    }
+
+    private static string ResolveValueBoxDisplayText(UiNodePin pin)
+    {
+        return pin.IsValueEditing ? pin.EditingValueText : pin.ValueText;
+    }
+
+    private static string ResolveValueBoxRenderText(UiNodePin pin)
+    {
+        string text = ResolveValueBoxDisplayText(pin);
+        return pin.IsValueEditing && pin.EditingCaretVisible ? text + "|" : text;
     }
 
     private UiColor ResolvePinColor(UiNodePin pin)

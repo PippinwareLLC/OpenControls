@@ -18,6 +18,7 @@ public sealed class UiNodePin
     private string _text = string.Empty;
     private string _dataType = string.Empty;
     private string _valueText = string.Empty;
+    private string _editingValueText = string.Empty;
 
     public UiNodePin()
     {
@@ -58,6 +59,16 @@ public sealed class UiNodePin
         get => _valueText;
         set => _valueText = value ?? string.Empty;
     }
+
+    public bool IsValueEditing { get; set; }
+
+    public string EditingValueText
+    {
+        get => _editingValueText;
+        set => _editingValueText = value ?? string.Empty;
+    }
+
+    public bool EditingCaretVisible { get; set; } = true;
 
     public bool Enabled { get; set; } = true;
     public bool Selected { get; set; }

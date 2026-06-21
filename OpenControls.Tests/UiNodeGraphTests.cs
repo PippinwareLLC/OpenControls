@@ -389,6 +389,48 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeControl_ValueBoxEditingRendersInsideInlineBox()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeControl node = new()
+        {
+            Id = "literal-node",
+            Bounds = new UiRect(120, 96, 220, 72),
+            Title = "Integer Literal",
+            Compact = true,
+            Padding = 8,
+            PinHitSize = 18,
+            PinVisualSize = 10,
+            MinimumContentHeight = 48
+        };
+        UiNodePin value = node.AddOutput("value", "Value", UiNodePinKind.Data);
+        value.ValueText = "41";
+        value.IsValueEditing = true;
+        value.EditingValueText = "128";
+        graph.AddNode(node);
+
+        UiSize size = node.MeasureDesiredSize(UiFont.Default);
+        node.Bounds = new UiRect(node.Bounds.X, node.Bounds.Y, size.Width, size.Height);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiNodePinLayout layout = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "value");
+        Assert.True(layout.ValueBounds.Width > 0);
+        Assert.True(Contains(layout.RowBounds, layout.ValueBounds));
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "128|");
+    }
+
+    [Fact]
     public void NodeGraph_CommentBoxesRenderBehindNodesWithDedicatedTextRegions()
     {
         UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
@@ -425,6 +467,43 @@ public sealed class UiNodeGraphTests
         Assert.True(nodeFillIndex >= 0);
         Assert.True(commentFillIndex < nodeFillIndex);
         Assert.Contains(renderer.DrawnTexts, text => text.Text == "Startup Flow");
+    }
+
+    [Fact]
+    public void NodeGraph_CommentBoxEditingRendersInsideCommentRegions()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-edit",
+            Bounds = new UiRect(80, 80, 420, 180),
+            Title = "Startup Flow",
+            Text = "Original body",
+            Padding = 16,
+            IsTitleEditing = true,
+            EditingTitleText = "Startup Setup",
+            IsBodyEditing = true,
+            EditingBodyText = "Edited body"
+        };
+        graph.AddCommentBox(comment);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        Assert.True(Contains(comment.DebugLayout.HeaderBounds, comment.DebugLayout.TitleBounds));
+        Assert.True(Contains(comment.DebugLayout.BodyBounds, comment.DebugLayout.BodyTextBounds));
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "Startup Setup|");
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "Edited body|");
     }
 
     [Fact]
