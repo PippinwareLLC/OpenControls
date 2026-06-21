@@ -108,6 +108,8 @@ public sealed class UiNodeControl : UiElement
     public UiColor ValueBoxEditingBackground { get; set; } = new(8, 13, 20, 250);
     public UiColor ValueBoxEditingBorder { get; set; } = new(92, 184, 255, 245);
     public UiColor ValueBoxTextColor { get; set; } = new(226, 234, 246);
+    public UiColor ValueBoxCaretColor { get; set; } = new(226, 234, 246);
+    public UiColor ValueBoxSelectionBackground { get; set; } = new(72, 114, 196, 180);
     public UiColor DataPinColor { get; set; } = new(95, 170, 230);
     public UiColor ExecPinColor { get; set; } = UiColor.White;
     public UiColor PinBorder { get; set; } = new(18, 22, 30);
@@ -697,6 +699,10 @@ public sealed class UiNodeControl : UiElement
             hash.Add(pin.ValueFieldVisible);
             hash.Add(pin.EditingValueText, StringComparer.Ordinal);
             hash.Add(pin.EditingCaretVisible);
+            hash.Add(pin.EditingCaretIndex);
+            hash.Add(pin.EditingSelectionStart);
+            hash.Add(pin.EditingSelectionEnd);
+            hash.Add(pin.EditingHorizontalScrollOffset);
             hash.Add(pin.Direction);
             hash.Add(pin.Kind);
             hash.Add(pin.Enabled);
@@ -827,7 +833,9 @@ public sealed class UiNodeControl : UiElement
     {
         int minimum = Math.Max(1, ValueBoxMinWidth);
         int maximum = Math.Max(minimum, ValueBoxMaxWidth);
-        int desired = font.MeasureTextWidth(ResolveValueBoxRenderText(pin), scale) + Math.Max(0, ValueBoxPadding) * 2;
+        string text = pin.IsValueEditing ? pin.EditingValueText : pin.ValueText;
+        int caretWidth = pin.IsValueEditing ? Math.Max(1, Math.Min(2, TextScale)) : 0;
+        int desired = font.MeasureTextWidth(text, scale) + caretWidth + Math.Max(0, ValueBoxPadding) * 2;
         return Math.Clamp(desired, minimum, maximum);
     }
 
@@ -1001,27 +1009,66 @@ public sealed class UiNodeControl : UiElement
             return;
         }
 
-        string drawText = UiRenderHelpers.BuildElidedText(ResolveValueBoxRenderText(pin), availableWidth, TextScale, font);
-        int textWidth = font.MeasureTextWidth(drawText, TextScale);
         int textHeight = font.MeasureTextHeight(TextScale);
-        int textX = pin.IsValueEditing
-            ? layout.ValueBounds.X + padding
-            : layout.ValueBounds.Right - padding - Math.Min(availableWidth, textWidth);
         int textY = layout.ValueBounds.Y + Math.Max(0, (layout.ValueBounds.Height - textHeight) / 2);
         context.Renderer.PushClip(layout.ValueBounds);
-        context.Renderer.DrawText(drawText, new UiPoint(textX, textY), ValueBoxTextColor, TextScale, font);
+        if (pin.IsValueEditing)
+        {
+            DrawEditingValueBoxText(context, font, pin, layout, padding, textHeight, textY);
+        }
+        else
+        {
+            string drawText = UiRenderHelpers.BuildElidedText(pin.ValueText, availableWidth, TextScale, font);
+            int textWidth = font.MeasureTextWidth(drawText, TextScale);
+            int textX = layout.ValueBounds.Right - padding - Math.Min(availableWidth, textWidth);
+            context.Renderer.DrawText(drawText, new UiPoint(textX, textY), ValueBoxTextColor, TextScale, font);
+        }
+
         context.Renderer.PopClip();
     }
 
-    private static string ResolveValueBoxDisplayText(UiNodePin pin)
+    private void DrawEditingValueBoxText(
+        UiRenderContext context,
+        UiFont font,
+        UiNodePin pin,
+        UiNodePinLayout layout,
+        int padding,
+        int textHeight,
+        int textY)
     {
-        return pin.IsValueEditing ? pin.EditingValueText : pin.ValueText;
+        string text = pin.EditingValueText;
+        int textX = layout.ValueBounds.X + padding - Math.Max(0, pin.EditingHorizontalScrollOffset);
+        int selectionStart = Math.Clamp(Math.Min(pin.EditingSelectionStart, pin.EditingSelectionEnd), 0, text.Length);
+        int selectionEnd = Math.Clamp(Math.Max(pin.EditingSelectionStart, pin.EditingSelectionEnd), 0, text.Length);
+        if (selectionEnd > selectionStart)
+        {
+            int selectionX = textX + MeasurePrefixWidth(text, selectionStart, TextScale, font);
+            int selectionEndX = textX + MeasurePrefixWidth(text, selectionEnd, TextScale, font);
+            context.Renderer.FillRect(
+                new UiRect(selectionX, textY, Math.Max(1, selectionEndX - selectionX), textHeight),
+                ValueBoxSelectionBackground);
+        }
+
+        context.Renderer.DrawText(text, new UiPoint(textX, textY), ValueBoxTextColor, TextScale, font);
+
+        if (pin.EditingCaretVisible)
+        {
+            int caretIndex = Math.Clamp(pin.EditingCaretIndex, 0, text.Length);
+            int caretX = textX + MeasurePrefixWidth(text, caretIndex, TextScale, font);
+            int caretWidth = Math.Max(1, Math.Min(2, TextScale));
+            context.Renderer.FillRect(new UiRect(caretX, textY, caretWidth, textHeight), ValueBoxCaretColor);
+        }
     }
 
-    private static string ResolveValueBoxRenderText(UiNodePin pin)
+    private static int MeasurePrefixWidth(string text, int index, int textScale, UiFont font)
     {
-        string text = ResolveValueBoxDisplayText(pin);
-        return pin.IsValueEditing && pin.EditingCaretVisible ? text + "|" : text;
+        int clampedIndex = Math.Clamp(index, 0, text.Length);
+        if (clampedIndex <= 0)
+        {
+            return 0;
+        }
+
+        return font.MeasureTextWidth(text.Substring(0, clampedIndex), textScale);
     }
 
     private UiColor ResolvePinColor(UiNodePin pin)

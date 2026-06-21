@@ -471,7 +471,10 @@ public sealed class UiNodeGraphTests
 
         RecordingRenderer renderer = new();
         graph.Render(new UiRenderContext(renderer, UiFont.Default));
-        Assert.Contains(renderer.DrawnTexts, text => text.Text == "128|");
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "128");
+        Assert.Contains(renderer.FillCalls, call =>
+            call.Color.Equals(node.ValueBoxCaretColor)
+            && Contains(layout.ValueBounds, call.Rect));
     }
 
     [Fact]
@@ -527,6 +530,9 @@ public sealed class UiNodeGraphTests
         }, 1f / 60f);
 
         Assert.True(graph.IsEditingValue);
+        Assert.Same(graph, context.Focus.Focused);
+        Assert.True(context.WantTextInput);
+        Assert.DoesNotContain(graph.Canvas.Children, child => child.AutomationId == "node-inline-value-editor");
         Assert.Same(value, graph.HoveredValuePin);
         Assert.NotNull(started);
         Assert.Equal("41", started.InitialText);
@@ -542,6 +548,10 @@ public sealed class UiNodeGraphTests
             TextInput = new[] { '9' }
         }, 1f / 60f);
 
+        Assert.Equal("9", value.EditingValueText);
+        Assert.Equal(1, value.EditingCaretIndex);
+        Assert.Equal(value.EditingSelectionStart, value.EditingSelectionEnd);
+
         context.Update(new UiInputState
         {
             MousePosition = click,
@@ -553,6 +563,7 @@ public sealed class UiNodeGraphTests
         Assert.NotNull(committed);
         Assert.Same(value, committed.Pin);
         Assert.Equal("9", committed.Text);
+        Assert.Equal("9", value.ValueText);
         Assert.False(graph.IsEditingValue);
     }
 

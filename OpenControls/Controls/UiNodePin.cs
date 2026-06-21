@@ -70,6 +70,10 @@ public sealed class UiNodePin
     }
 
     public bool EditingCaretVisible { get; set; } = true;
+    public int EditingCaretIndex { get; set; }
+    public int EditingSelectionStart { get; set; }
+    public int EditingSelectionEnd { get; set; }
+    public int EditingHorizontalScrollOffset { get; set; }
 
     public bool Enabled { get; set; } = true;
     public bool Selected { get; set; }

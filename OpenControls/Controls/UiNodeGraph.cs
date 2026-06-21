@@ -2,6 +2,8 @@ namespace OpenControls.Controls;
 
 public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 {
+    private const int ValueEditorMaxLength = 2048;
+
     private enum ValueEditAction
     {
         None,
@@ -184,15 +186,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private readonly UiNodeWireLayer _wireLayer;
     private readonly UiNodeCommentLayer _commentLayer = new();
     private readonly UiNodeOverlayLayer _overlayLayer = new();
-    private readonly UiTextField _valueEditor = new()
-    {
-        Id = "node-inline-value-editor",
-        AutomationId = "node-inline-value-editor",
-        AutomationName = "Inline Node Value Editor",
-        AutomationRole = "textbox",
-        MaxLength = 2048,
-        CornerRadius = 3
-    };
+    private readonly UiTextEditingState _valueEditingState = new();
     private readonly List<UiNodeControl> _nodes = new();
     private readonly Dictionary<string, UiNodeControl> _nodesById = new(StringComparer.Ordinal);
     private readonly List<UiNodeCommentBox> _comments = new();
@@ -213,14 +207,17 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private UiNodePin? _previewStartPin;
     private UiNodeControl? _editingValueNode;
     private UiNodePin? _editingValuePin;
+    private UiTextCompositionState _valueComposition;
+    private UiFont _valueEditFont = UiFont.Default;
+    private bool _valueCaretVisible = true;
+    private bool _valueDragSelecting;
+    private float _valueCaretTimer;
+    private int _valueDragSelectionAnchor;
+    private int _valueHorizontalScrollOffset;
     private ValueEditAction _pendingValueEditAction;
 
     public UiNodeGraph()
     {
-        _valueEditor.Visible = false;
-        _valueEditor.TextChanged += HandleValueEditorTextChanged;
-        _valueEditor.Submitted += HandleValueEditorSubmitted;
-        _valueEditor.Cancelled += HandleValueEditorCancelled;
         _wireLayer = new UiNodeWireLayer(this);
         _canvas.ViewportChanged += HandleCanvasViewportChanged;
         _canvas.AddChild(_wireLayer);
@@ -240,6 +237,8 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public UiNodeWire? HoveredWire { get; private set; }
     public UiNodeWirePreviewState PreviewWire { get; private set; } = UiNodeWirePreviewState.Inactive;
     public bool IsEditingValue => _editingValueNode is not null && _editingValuePin is not null;
+    public override bool IsFocusable => true;
+    public override bool WantsTextInput => IsEditingValue;
     public bool EnableWirePreview { get; set; } = true;
     public bool EnableWireSelection { get; set; } = true;
     public int WireHitSlop { get; set; } = 5;
@@ -318,6 +317,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeValueEditCommittedEvent>? ValueEditCommitted;
     public event Action<UiNodeValueEditCancelledEvent>? ValueEditCancelled;
     public event Action<UiNodeGraphViewportChangedEvent>? ViewportChanged;
+
+    public override bool IsRenderCacheVolatile(UiContext context)
+    {
+        return IsEditingValue && ReferenceEquals(context.Focus.Focused, this);
+    }
 
     public void AddNode(UiNodeControl node)
     {
@@ -574,9 +578,16 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
 
         UpdateCanvasLayout();
+        UiInputState graphInput = context.GetSelfInput(this);
+        if (IsEditingValue && ReferenceEquals(context.Focus.Focused, this))
+        {
+            _valueEditFont = ResolveFont(context.DefaultFont);
+            HandleValueEditInput(context, graphInput, _valueEditFont);
+        }
+
         base.Update(context);
+        RefreshGraphState(context, graphInput);
         ProcessValueEditorState(context);
-        RefreshGraphState(context, context.GetSelfInput(this));
     }
 
     public override void Render(UiRenderContext context)
@@ -607,6 +618,51 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         return ((IUiDebugBoundsResolver)_canvas).TryResolveDebugBounds(element, out bounds, out clipBounds);
     }
 
+    protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
+    {
+        if (IsEditingValue
+            && _editingValuePin is { } pin
+            && pin.Layout.ValueBounds.Width > 0
+            && pin.Layout.ValueBounds.Height > 0
+            && pin.Layout.ValueBounds.Contains(_canvas.ScreenToWorld(input.MousePosition)))
+        {
+            cursor = UiMouseCursor.TextInput;
+            return true;
+        }
+
+        cursor = UiMouseCursor.Arrow;
+        return false;
+    }
+
+    protected internal override bool TryGetTextInputRequest(out UiTextInputRequest request)
+    {
+        request = default;
+        if (!IsEditingValue || _editingValueNode is null || _editingValuePin is null)
+        {
+            return false;
+        }
+
+        UiRect valueBounds = _editingValuePin.Layout.ValueBounds;
+        if (valueBounds.Width <= 0 || valueBounds.Height <= 0)
+        {
+            return false;
+        }
+
+        UiRect screenBounds = _canvas.WorldToScreen(valueBounds);
+        UiRect caretBounds = _canvas.WorldToScreen(GetValueEditCaretBounds(_editingValueNode, _editingValuePin, _valueEditFont));
+        UiRect candidateBounds = caretBounds;
+        if (_valueComposition.IsActive)
+        {
+            int compositionWidth = Math.Max(
+                caretBounds.Width,
+                (int)MathF.Round(_valueEditFont.MeasureTextWidth(_valueComposition.Text, _editingValueNode.TextScale) * Math.Max(_canvas.Zoom, 0.0001f)));
+            candidateBounds = new UiRect(caretBounds.X, caretBounds.Y, Math.Max(1, compositionWidth), caretBounds.Height);
+        }
+
+        request = new UiTextInputRequest(screenBounds, isMultiLine: false, caretBounds: caretBounds, candidateBounds: candidateBounds);
+        return true;
+    }
+
     private void UpdateCanvasLayout()
     {
         _canvas.Bounds = Bounds;
@@ -634,32 +690,34 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     {
         if (_pendingValueEditAction == ValueEditAction.Commit)
         {
-            CommitValueEdit(context.Focus);
+            CommitValueEdit();
             return;
         }
 
         if (_pendingValueEditAction == ValueEditAction.Cancel)
         {
-            CancelValueEdit(context.Focus);
+            CancelValueEdit();
             return;
         }
 
-        if (IsEditingValue && context.Focus.Focused != _valueEditor)
+        if (IsEditingValue && !ReferenceEquals(context.Focus.Focused, this))
         {
-            CommitValueEdit(context.Focus);
+            CommitValueEdit();
         }
     }
 
-    private bool TryBeginValueEdit(UiUpdateContext context, UiNodeControl node, UiNodePin pin)
+    private bool TryBeginValueEdit(UiUpdateContext context, UiNodeControl node, UiNodePin pin, UiPoint worldMouse, UiInputState input)
     {
         if (ReferenceEquals(_editingValueNode, node) && ReferenceEquals(_editingValuePin, pin))
         {
+            context.Focus.RequestFocus(this);
+            MoveValueEditCaretFromPoint(node, pin, worldMouse, input.LeftDoubleClicked, input.ShiftDown);
             return true;
         }
 
         if (IsEditingValue)
         {
-            CommitValueEdit(context.Focus);
+            CommitValueEdit();
         }
 
         UiRect valueBounds = pin.Layout.ValueBounds;
@@ -671,43 +729,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _editingValueNode = node;
         _editingValuePin = pin;
         _pendingValueEditAction = ValueEditAction.None;
-
-        pin.IsValueEditing = true;
-        pin.EditingValueText = pin.ValueText;
-        pin.EditingCaretVisible = true;
-        ConfigureValueEditor(node, pin, valueBounds);
-
-        if (ReferenceEquals(_valueEditor.Parent, _canvas))
-        {
-            _canvas.RemoveChild(_valueEditor);
-        }
-
-        _canvas.AddChild(_valueEditor);
-        _valueEditor.Visible = true;
-        context.Focus.RequestFocus(_valueEditor);
-        _valueEditor.SelectAllText();
-        node.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+        _valueComposition = UiTextCompositionState.Empty;
+        _valueHorizontalScrollOffset = 0;
+        _valueDragSelecting = false;
+        _valueCaretVisible = true;
+        _valueCaretTimer = 0f;
+        _valueEditingState.SetText(pin.ValueText);
+        _valueEditingState.BeginSession();
+        _valueEditingState.SelectAll();
+        context.Focus.RequestFocus(this);
+        SyncEditingPinState();
         ValueEditStarted?.Invoke(new UiNodeValueEditStartedEvent(this, node, pin, pin.ValueText, valueBounds));
         return true;
     }
 
-    private void ConfigureValueEditor(UiNodeControl node, UiNodePin pin, UiRect valueBounds)
-    {
-        _valueEditor.Bounds = valueBounds;
-        _valueEditor.Text = pin.ValueText;
-        _valueEditor.TextScale = node.TextScale;
-        _valueEditor.Padding = Math.Max(1, node.ValueBoxPadding);
-        _valueEditor.Background = node.ValueBoxEditingBackground;
-        _valueEditor.Border = node.ValueBoxEditingBorder;
-        _valueEditor.FocusBorder = node.ValueBoxEditingBorder;
-        _valueEditor.TextColor = node.ValueBoxTextColor;
-        _valueEditor.CaretColor = node.ValueBoxTextColor;
-        _valueEditor.SelectionBackground = new UiColor(72, 114, 196, 180);
-        _valueEditor.Placeholder = string.Empty;
-        _valueEditor.AutomationName = string.IsNullOrWhiteSpace(pin.Text) ? pin.Id : pin.Text;
-    }
-
-    private void CommitValueEdit(UiFocusManager? focus)
+    private void CommitValueEdit()
     {
         if (_editingValueNode is not { } node || _editingValuePin is not { } pin)
         {
@@ -715,12 +751,13 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return;
         }
 
-        string text = _valueEditor.Text;
-        EndValueEdit(focus);
+        string text = _valueEditingState.Text;
+        pin.ValueText = text;
+        EndValueEdit();
         ValueEditCommitted?.Invoke(new UiNodeValueEditCommittedEvent(this, node, pin, text));
     }
 
-    private void CancelValueEdit(UiFocusManager? focus = null)
+    private void CancelValueEdit()
     {
         if (_editingValueNode is not { } node || _editingValuePin is not { } pin)
         {
@@ -728,26 +765,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return;
         }
 
-        EndValueEdit(focus);
+        _valueEditingState.CancelSession();
+        EndValueEdit();
         ValueEditCancelled?.Invoke(new UiNodeValueEditCancelledEvent(this, node, pin));
     }
 
-    private void EndValueEdit(UiFocusManager? focus)
+    private void EndValueEdit()
     {
         UiNodeControl? node = _editingValueNode;
         UiNodePin? pin = _editingValuePin;
-        if (ReferenceEquals(focus?.Focused, _valueEditor))
-        {
-            focus.ClearFocus();
-        }
-
-        if (ReferenceEquals(_valueEditor.Parent, _canvas))
-        {
-            _canvas.RemoveChild(_valueEditor);
-        }
-
-        _valueEditor.Visible = false;
-        _valueEditor.Text = string.Empty;
+        _valueEditingState.EndSession();
+        _valueComposition = UiTextCompositionState.Empty;
+        _valueHorizontalScrollOffset = 0;
+        _valueDragSelecting = false;
+        _valueCaretVisible = true;
+        _valueCaretTimer = 0f;
         _pendingValueEditAction = ValueEditAction.None;
         _editingValueNode = null;
         _editingValuePin = null;
@@ -757,30 +789,373 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             pin.IsValueEditing = false;
             pin.EditingValueText = string.Empty;
             pin.EditingCaretVisible = true;
+            pin.EditingCaretIndex = 0;
+            pin.EditingSelectionStart = 0;
+            pin.EditingSelectionEnd = 0;
+            pin.EditingHorizontalScrollOffset = 0;
         }
 
         node?.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
-    private void HandleValueEditorTextChanged(string text)
+    private void HandleValueEditInput(UiUpdateContext context, UiInputState input, UiFont font)
     {
-        if (_editingValuePin is null || _editingValueNode is null)
+        if (_editingValueNode is null || _editingValuePin is null)
         {
             return;
         }
 
-        _editingValuePin.EditingValueText = text;
+        _valueComposition = input.Composition;
+        HandleValueEditPointerInput(context, input, font);
+        HandleValueEditShortcutInput(context, input);
+        HandleValueEditNavigation(input);
+        HandleValueEditTextInput(input.TextInput);
+        UpdateValueEditCaretBlink(context.DeltaSeconds);
+        SyncEditingPinState();
+    }
+
+    private void HandleValueEditPointerInput(UiUpdateContext context, UiInputState input, UiFont font)
+    {
+        if (_editingValueNode is null || _editingValuePin is null)
+        {
+            return;
+        }
+
+        if (input.LeftClicked)
+        {
+            UiPoint worldMouse = _canvas.ScreenToWorld(input.MousePosition);
+            if (_editingValuePin.Layout.ValueBounds.Contains(worldMouse))
+            {
+                context.Focus.RequestFocus(this);
+                MoveValueEditCaretFromPoint(_editingValueNode, _editingValuePin, worldMouse, input.LeftDoubleClicked, input.ShiftDown);
+                _valueDragSelectionAnchor = _valueEditingState.SelectionAnchor;
+                _valueDragSelecting = !input.LeftDoubleClicked;
+            }
+            else
+            {
+                _valueDragSelecting = false;
+            }
+        }
+
+        if (_valueDragSelecting)
+        {
+            if (input.LeftDown)
+            {
+                UiPoint worldMouse = _canvas.ScreenToWorld(input.MousePosition);
+                int caret = ResolveValueEditCaretIndex(_editingValueNode, _editingValuePin, worldMouse, font);
+                _valueEditingState.SelectRange(_valueDragSelectionAnchor, caret);
+                ResetValueEditCaretBlink();
+            }
+            else
+            {
+                _valueDragSelecting = false;
+            }
+        }
+    }
+
+    private void HandleValueEditShortcutInput(UiUpdateContext context, UiInputState input)
+    {
+        if (input.IsPrimaryShortcutPressed(UiKey.A))
+        {
+            _valueEditingState.SelectAll();
+            ResetValueEditCaretBlink();
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.C))
+        {
+            CopyValueEditSelection(context.Clipboard);
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.X))
+        {
+            CutValueEditSelection(context.Clipboard);
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.V))
+        {
+            InsertValueEditText(context.Clipboard.GetText());
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.Z, shift: true))
+        {
+            ApplyValueEdit(_valueEditingState.Redo());
+        }
+        else if (input.IsPrimaryShortcutPressed(UiKey.Z))
+        {
+            ApplyValueEdit(_valueEditingState.Undo());
+        }
+        else if (input.IsPrimaryShortcutPressed(UiKey.Y))
+        {
+            ApplyValueEdit(_valueEditingState.Redo());
+        }
+    }
+
+    private void HandleValueEditNavigation(UiInputState input)
+    {
+        UiNavigationInput navigation = input.Navigation;
+        bool extendSelection = input.ShiftDown;
+        bool byWord = input.CtrlDown || input.AltDown;
+
+        if (navigation.MoveLeft)
+        {
+            if (input.SuperDown && !byWord)
+            {
+                _valueEditingState.MoveHome(extendSelection);
+            }
+            else
+            {
+                _valueEditingState.MoveLeft(extendSelection, byWord);
+            }
+
+            ResetValueEditCaretBlink();
+        }
+
+        if (navigation.MoveRight)
+        {
+            if (input.SuperDown && !byWord)
+            {
+                _valueEditingState.MoveEnd(extendSelection);
+            }
+            else
+            {
+                _valueEditingState.MoveRight(extendSelection, byWord);
+            }
+
+            ResetValueEditCaretBlink();
+        }
+
+        if (navigation.Home)
+        {
+            _valueEditingState.MoveHome(extendSelection);
+            ResetValueEditCaretBlink();
+        }
+
+        if (navigation.End)
+        {
+            _valueEditingState.MoveEnd(extendSelection);
+            ResetValueEditCaretBlink();
+        }
+
+        if (navigation.Backspace)
+        {
+            ApplyValueEdit(_valueEditingState.Backspace(byWord));
+        }
+
+        if (navigation.Delete)
+        {
+            ApplyValueEdit(_valueEditingState.Delete(byWord));
+        }
+
+        if (navigation.Enter || navigation.KeypadEnter)
+        {
+            _pendingValueEditAction = ValueEditAction.Commit;
+            _valueEditingState.MarkSessionOrigin();
+        }
+
+        if (navigation.Escape)
+        {
+            _pendingValueEditAction = ValueEditAction.Cancel;
+        }
+    }
+
+    private void HandleValueEditTextInput(IReadOnlyList<char> input)
+    {
+        if (input.Count == 0)
+        {
+            return;
+        }
+
+        string pending = string.Empty;
+        for (int i = 0; i < input.Count; i++)
+        {
+            char character = input[i];
+            if (!char.IsControl(character))
+            {
+                pending += character;
+            }
+        }
+
+        InsertValueEditText(pending);
+    }
+
+    private void InsertValueEditText(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        int available = Math.Max(0, ValueEditorMaxLength - (_valueEditingState.Text.Length - _valueEditingState.SelectionLength));
+        if (available <= 0)
+        {
+            return;
+        }
+
+        string insertion = text.Length > available ? text.Substring(0, available) : text;
+        ApplyValueEdit(_valueEditingState.InsertText(insertion));
+    }
+
+    private void CopyValueEditSelection(IUiClipboard clipboard)
+    {
+        if (_valueEditingState.HasSelection)
+        {
+            clipboard.SetText(_valueEditingState.GetSelectedText());
+        }
+    }
+
+    private void CutValueEditSelection(IUiClipboard clipboard)
+    {
+        if (!_valueEditingState.HasSelection)
+        {
+            return;
+        }
+
+        clipboard.SetText(_valueEditingState.GetSelectedText());
+        ApplyValueEdit(_valueEditingState.DeleteSelection());
+    }
+
+    private void ApplyValueEdit(bool changed)
+    {
+        if (changed)
+        {
+            ResetValueEditCaretBlink();
+        }
+    }
+
+    private void MoveValueEditCaretFromPoint(UiNodeControl node, UiNodePin pin, UiPoint worldPoint, bool selectWord, bool extendSelection)
+    {
+        int caret = ResolveValueEditCaretIndex(node, pin, worldPoint, _valueEditFont);
+        if (selectWord)
+        {
+            _valueEditingState.SelectWordAt(caret);
+        }
+        else
+        {
+            _valueEditingState.SetCaret(caret, extendSelection);
+        }
+
+        ResetValueEditCaretBlink();
+        SyncEditingPinState();
+    }
+
+    private int ResolveValueEditCaretIndex(UiNodeControl node, UiNodePin pin, UiPoint worldPoint, UiFont font)
+    {
+        string text = _valueEditingState.Text;
+        if (text.Length == 0)
+        {
+            return 0;
+        }
+
+        int padding = Math.Max(0, node.ValueBoxPadding);
+        int localX = worldPoint.X - (pin.Layout.ValueBounds.X + padding) + _valueHorizontalScrollOffset;
+        if (localX <= 0)
+        {
+            return 0;
+        }
+
+        int previousWidth = 0;
+        for (int i = 0; i < text.Length; i++)
+        {
+            int nextWidth = MeasurePrefixWidth(text, i + 1, node.TextScale, font);
+            int midpoint = previousWidth + (nextWidth - previousWidth) / 2;
+            if (localX < midpoint)
+            {
+                return i;
+            }
+
+            previousWidth = nextWidth;
+        }
+
+        return text.Length;
+    }
+
+    private void SyncEditingPinState()
+    {
+        if (_editingValueNode is null || _editingValuePin is null)
+        {
+            return;
+        }
+
+        UpdateValueEditHorizontalScroll(_editingValueNode, _editingValuePin, _valueEditFont);
+        _editingValuePin.IsValueEditing = true;
+        _editingValuePin.EditingValueText = _valueEditingState.Text;
+        _editingValuePin.EditingCaretVisible = _valueCaretVisible;
+        _editingValuePin.EditingCaretIndex = _valueEditingState.CaretIndex;
+        _editingValuePin.EditingSelectionStart = _valueEditingState.SelectionStart;
+        _editingValuePin.EditingSelectionEnd = _valueEditingState.SelectionEnd;
+        _editingValuePin.EditingHorizontalScrollOffset = _valueHorizontalScrollOffset;
         _editingValueNode.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
     }
 
-    private void HandleValueEditorSubmitted()
+    private void UpdateValueEditHorizontalScroll(UiNodeControl node, UiNodePin pin, UiFont font)
     {
-        _pendingValueEditAction = ValueEditAction.Commit;
+        UiRect valueBounds = pin.Layout.ValueBounds;
+        int padding = Math.Max(0, node.ValueBoxPadding);
+        int clipWidth = Math.Max(0, valueBounds.Width - padding * 2);
+        if (clipWidth <= 0)
+        {
+            _valueHorizontalScrollOffset = 0;
+            return;
+        }
+
+        string text = _valueEditingState.Text;
+        int fullWidth = font.MeasureTextWidth(text, node.TextScale);
+        if (fullWidth <= clipWidth)
+        {
+            _valueHorizontalScrollOffset = 0;
+            return;
+        }
+
+        int caretX = MeasurePrefixWidth(text, _valueEditingState.CaretIndex, node.TextScale, font);
+        if (caretX < _valueHorizontalScrollOffset)
+        {
+            _valueHorizontalScrollOffset = caretX;
+        }
+        else if (caretX > _valueHorizontalScrollOffset + clipWidth - 2)
+        {
+            _valueHorizontalScrollOffset = caretX - clipWidth + 2;
+        }
+
+        _valueHorizontalScrollOffset = Math.Clamp(_valueHorizontalScrollOffset, 0, Math.Max(0, fullWidth - clipWidth + 2));
     }
 
-    private void HandleValueEditorCancelled()
+    private UiRect GetValueEditCaretBounds(UiNodeControl node, UiNodePin pin, UiFont font)
     {
-        _pendingValueEditAction = ValueEditAction.Cancel;
+        UiRect valueBounds = pin.Layout.ValueBounds;
+        int padding = Math.Max(0, node.ValueBoxPadding);
+        int textHeight = font.MeasureTextHeight(node.TextScale);
+        int textY = valueBounds.Y + Math.Max(0, (valueBounds.Height - textHeight) / 2);
+        int caretX = valueBounds.X + padding - _valueHorizontalScrollOffset
+            + MeasurePrefixWidth(_valueEditingState.Text, _valueEditingState.CaretIndex, node.TextScale, font);
+        int caretWidth = Math.Max(1, Math.Min(2, node.TextScale));
+        return new UiRect(caretX, textY, caretWidth, textHeight);
+    }
+
+    private void ResetValueEditCaretBlink()
+    {
+        _valueCaretVisible = true;
+        _valueCaretTimer = 0f;
+    }
+
+    private void UpdateValueEditCaretBlink(float deltaSeconds)
+    {
+        _valueCaretTimer += Math.Max(0f, deltaSeconds);
+        if (_valueCaretTimer >= 0.5f)
+        {
+            _valueCaretTimer = 0f;
+            _valueCaretVisible = !_valueCaretVisible;
+        }
+    }
+
+    private static int MeasurePrefixWidth(string text, int index, int textScale, UiFont font)
+    {
+        int clampedIndex = Math.Clamp(index, 0, text.Length);
+        if (clampedIndex <= 0)
+        {
+            return 0;
+        }
+
+        return font.MeasureTextWidth(text.Substring(0, clampedIndex), textScale);
     }
 
     private void HandleCanvasViewportChanged(UiCanvasViewportChangedEvent ev)
@@ -810,7 +1185,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
         if (input.LeftClicked && HoveredNode != null && HoveredValuePin != null)
         {
-            TryBeginValueEdit(context, HoveredNode, HoveredValuePin);
+            TryBeginValueEdit(context, HoveredNode, HoveredValuePin, worldMouse, input);
             return;
         }
 
