@@ -266,6 +266,27 @@ public sealed class UiNodeControl : UiElement
         return false;
     }
 
+    public bool TryGetValuePinAt(UiPoint point, out UiNodePin? pin)
+    {
+        for (int i = _pins.Count - 1; i >= 0; i--)
+        {
+            UiNodePin candidate = _pins[i];
+            UiRect valueBounds = candidate.Layout.ValueBounds;
+            if (candidate.Enabled
+                && candidate.Layout.IsValid
+                && valueBounds.Width > 0
+                && valueBounds.Height > 0
+                && valueBounds.Contains(point))
+            {
+                pin = candidate;
+                return true;
+            }
+        }
+
+        pin = null;
+        return false;
+    }
+
     public UiSize MeasureDesiredSize(UiFont font)
     {
         ArgumentNullException.ThrowIfNull(font);

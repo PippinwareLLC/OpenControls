@@ -475,6 +475,85 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_ClickingValueFieldEditsInlineAndCommitsText()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeControl node = new()
+        {
+            Id = "literal-node",
+            Bounds = new UiRect(120, 96, 220, 72),
+            Title = "Integer Literal",
+            Compact = true,
+            Padding = 8,
+            PinHitSize = 18,
+            PinVisualSize = 10,
+            MinimumContentHeight = 48
+        };
+        UiNodePin value = node.AddOutput("value", "Value", UiNodePinKind.Data);
+        value.ValueText = "41";
+        graph.AddNode(node);
+
+        UiSize size = node.MeasureDesiredSize(UiFont.Default);
+        node.Bounds = new UiRect(node.Bounds.X, node.Bounds.Y, size.Width, size.Height);
+
+        UiNodeValueEditStartedEvent? started = null;
+        UiNodeValueEditCommittedEvent? committed = null;
+        var selectionRequests = 0;
+        var previewStarts = 0;
+        graph.ValueEditStarted += ev => started = ev;
+        graph.ValueEditCommitted += ev => committed = ev;
+        graph.NodeSelectionRequested += _ => selectionRequests++;
+        graph.WirePreviewStarted += _ => previewStarts++;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiNodePinLayout layout = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "value");
+        UiPoint click = graph.Canvas.WorldToScreen(Center(layout.ValueBounds));
+
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.True(graph.IsEditingValue);
+        Assert.Same(value, graph.HoveredValuePin);
+        Assert.NotNull(started);
+        Assert.Equal("41", started.InitialText);
+        Assert.Equal(0, selectionRequests);
+        Assert.Equal(0, previewStarts);
+        Assert.False(graph.PreviewWire.Active);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            TextInput = new[] { '9' }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            KeysPressed = new[] { UiKey.Enter },
+            Navigation = new UiNavigationInput { Enter = true }
+        }, 1f / 60f);
+
+        Assert.NotNull(committed);
+        Assert.Same(value, committed.Pin);
+        Assert.Equal("9", committed.Text);
+        Assert.False(graph.IsEditingValue);
+    }
+
+    [Fact]
     public void NodeGraph_CommentBoxesRenderBehindNodesWithDedicatedTextRegions()
     {
         UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
@@ -1307,6 +1386,11 @@ public sealed class UiNodeGraphTests
             && a.Right > b.Left
             && a.Top < b.Bottom
             && a.Bottom > b.Top;
+    }
+
+    private static UiPoint Center(UiRect rect)
+    {
+        return new UiPoint(rect.X + rect.Width / 2, rect.Y + rect.Height / 2);
     }
 
     private static bool Contains(UiRect outer, UiRect inner)

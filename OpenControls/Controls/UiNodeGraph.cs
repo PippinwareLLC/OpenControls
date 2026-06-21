@@ -2,6 +2,13 @@ namespace OpenControls.Controls;
 
 public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 {
+    private enum ValueEditAction
+    {
+        None,
+        Commit,
+        Cancel
+    }
+
     private sealed class UiNodeWireLayer : UiElement
     {
         private readonly UiNodeGraph _graph;
@@ -177,6 +184,15 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private readonly UiNodeWireLayer _wireLayer;
     private readonly UiNodeCommentLayer _commentLayer = new();
     private readonly UiNodeOverlayLayer _overlayLayer = new();
+    private readonly UiTextField _valueEditor = new()
+    {
+        Id = "node-inline-value-editor",
+        AutomationId = "node-inline-value-editor",
+        AutomationName = "Inline Node Value Editor",
+        AutomationRole = "textbox",
+        MaxLength = 2048,
+        CornerRadius = 3
+    };
     private readonly List<UiNodeControl> _nodes = new();
     private readonly Dictionary<string, UiNodeControl> _nodesById = new(StringComparer.Ordinal);
     private readonly List<UiNodeCommentBox> _comments = new();
@@ -195,9 +211,16 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private bool _wireRoutesDirty = true;
     private UiNodeControl? _previewStartNode;
     private UiNodePin? _previewStartPin;
+    private UiNodeControl? _editingValueNode;
+    private UiNodePin? _editingValuePin;
+    private ValueEditAction _pendingValueEditAction;
 
     public UiNodeGraph()
     {
+        _valueEditor.Visible = false;
+        _valueEditor.TextChanged += HandleValueEditorTextChanged;
+        _valueEditor.Submitted += HandleValueEditorSubmitted;
+        _valueEditor.Cancelled += HandleValueEditorCancelled;
         _wireLayer = new UiNodeWireLayer(this);
         _canvas.AddChild(_wireLayer);
         _canvas.AddChild(_commentLayer);
@@ -212,8 +235,10 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public IReadOnlyList<UiNodeWire> Wires => _wires;
     public UiNodeControl? HoveredNode { get; private set; }
     public UiNodePin? HoveredPin { get; private set; }
+    public UiNodePin? HoveredValuePin { get; private set; }
     public UiNodeWire? HoveredWire { get; private set; }
     public UiNodeWirePreviewState PreviewWire { get; private set; } = UiNodeWirePreviewState.Inactive;
+    public bool IsEditingValue => _editingValueNode is not null && _editingValuePin is not null;
     public bool EnableWirePreview { get; set; } = true;
     public bool EnableWireSelection { get; set; } = true;
     public int WireHitSlop { get; set; } = 5;
@@ -287,6 +312,9 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeDragEvent>? NodeDragStarted;
     public event Action<UiNodeDragEvent>? NodeDragged;
     public event Action<UiNodeDragEvent>? NodeDragEnded;
+    public event Action<UiNodeValueEditStartedEvent>? ValueEditStarted;
+    public event Action<UiNodeValueEditCommittedEvent>? ValueEditCommitted;
+    public event Action<UiNodeValueEditCancelledEvent>? ValueEditCancelled;
 
     public void AddNode(UiNodeControl node)
     {
@@ -357,6 +385,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         if (!_nodes.Remove(node))
         {
             return false;
+        }
+
+        if (ReferenceEquals(_editingValueNode, node))
+        {
+            CancelValueEdit();
         }
 
         for (int i = _wires.Count - 1; i >= 0; i--)
@@ -539,7 +572,8 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
         UpdateCanvasLayout();
         base.Update(context);
-        RefreshGraphState(context.GetSelfInput(this));
+        ProcessValueEditorState(context);
+        RefreshGraphState(context, context.GetSelfInput(this));
     }
 
     public override void Render(UiRenderContext context)
@@ -593,12 +627,166 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             bounds.Height);
     }
 
-    private void RefreshGraphState(UiInputState input)
+    private void ProcessValueEditorState(UiUpdateContext context)
+    {
+        if (_pendingValueEditAction == ValueEditAction.Commit)
+        {
+            CommitValueEdit(context.Focus);
+            return;
+        }
+
+        if (_pendingValueEditAction == ValueEditAction.Cancel)
+        {
+            CancelValueEdit(context.Focus);
+            return;
+        }
+
+        if (IsEditingValue && context.Focus.Focused != _valueEditor)
+        {
+            CommitValueEdit(context.Focus);
+        }
+    }
+
+    private bool TryBeginValueEdit(UiUpdateContext context, UiNodeControl node, UiNodePin pin)
+    {
+        if (ReferenceEquals(_editingValueNode, node) && ReferenceEquals(_editingValuePin, pin))
+        {
+            return true;
+        }
+
+        if (IsEditingValue)
+        {
+            CommitValueEdit(context.Focus);
+        }
+
+        UiRect valueBounds = pin.Layout.ValueBounds;
+        if (valueBounds.Width <= 0 || valueBounds.Height <= 0)
+        {
+            return false;
+        }
+
+        _editingValueNode = node;
+        _editingValuePin = pin;
+        _pendingValueEditAction = ValueEditAction.None;
+
+        pin.IsValueEditing = true;
+        pin.EditingValueText = pin.ValueText;
+        pin.EditingCaretVisible = true;
+        ConfigureValueEditor(node, pin, valueBounds);
+
+        if (ReferenceEquals(_valueEditor.Parent, _canvas))
+        {
+            _canvas.RemoveChild(_valueEditor);
+        }
+
+        _canvas.AddChild(_valueEditor);
+        _valueEditor.Visible = true;
+        context.Focus.RequestFocus(_valueEditor);
+        _valueEditor.SelectAllText();
+        node.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+        ValueEditStarted?.Invoke(new UiNodeValueEditStartedEvent(this, node, pin, pin.ValueText, valueBounds));
+        return true;
+    }
+
+    private void ConfigureValueEditor(UiNodeControl node, UiNodePin pin, UiRect valueBounds)
+    {
+        _valueEditor.Bounds = valueBounds;
+        _valueEditor.Text = pin.ValueText;
+        _valueEditor.TextScale = node.TextScale;
+        _valueEditor.Padding = Math.Max(1, node.ValueBoxPadding);
+        _valueEditor.Background = node.ValueBoxEditingBackground;
+        _valueEditor.Border = node.ValueBoxEditingBorder;
+        _valueEditor.FocusBorder = node.ValueBoxEditingBorder;
+        _valueEditor.TextColor = node.ValueBoxTextColor;
+        _valueEditor.CaretColor = node.ValueBoxTextColor;
+        _valueEditor.SelectionBackground = new UiColor(72, 114, 196, 180);
+        _valueEditor.Placeholder = string.Empty;
+        _valueEditor.AutomationName = string.IsNullOrWhiteSpace(pin.Text) ? pin.Id : pin.Text;
+    }
+
+    private void CommitValueEdit(UiFocusManager? focus)
+    {
+        if (_editingValueNode is not { } node || _editingValuePin is not { } pin)
+        {
+            _pendingValueEditAction = ValueEditAction.None;
+            return;
+        }
+
+        string text = _valueEditor.Text;
+        EndValueEdit(focus);
+        ValueEditCommitted?.Invoke(new UiNodeValueEditCommittedEvent(this, node, pin, text));
+    }
+
+    private void CancelValueEdit(UiFocusManager? focus = null)
+    {
+        if (_editingValueNode is not { } node || _editingValuePin is not { } pin)
+        {
+            _pendingValueEditAction = ValueEditAction.None;
+            return;
+        }
+
+        EndValueEdit(focus);
+        ValueEditCancelled?.Invoke(new UiNodeValueEditCancelledEvent(this, node, pin));
+    }
+
+    private void EndValueEdit(UiFocusManager? focus)
+    {
+        UiNodeControl? node = _editingValueNode;
+        UiNodePin? pin = _editingValuePin;
+        if (ReferenceEquals(focus?.Focused, _valueEditor))
+        {
+            focus.ClearFocus();
+        }
+
+        if (ReferenceEquals(_valueEditor.Parent, _canvas))
+        {
+            _canvas.RemoveChild(_valueEditor);
+        }
+
+        _valueEditor.Visible = false;
+        _valueEditor.Text = string.Empty;
+        _pendingValueEditAction = ValueEditAction.None;
+        _editingValueNode = null;
+        _editingValuePin = null;
+
+        if (pin is not null)
+        {
+            pin.IsValueEditing = false;
+            pin.EditingValueText = string.Empty;
+            pin.EditingCaretVisible = true;
+        }
+
+        node?.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    private void HandleValueEditorTextChanged(string text)
+    {
+        if (_editingValuePin is null || _editingValueNode is null)
+        {
+            return;
+        }
+
+        _editingValuePin.EditingValueText = text;
+        _editingValueNode.Invalidate(UiInvalidationReason.Text | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    private void HandleValueEditorSubmitted()
+    {
+        _pendingValueEditAction = ValueEditAction.Commit;
+    }
+
+    private void HandleValueEditorCancelled()
+    {
+        _pendingValueEditAction = ValueEditAction.Cancel;
+    }
+
+    private void RefreshGraphState(UiUpdateContext context, UiInputState input)
     {
         EnsureWireRoutes();
 
         HoveredNode = null;
         HoveredPin = null;
+        HoveredValuePin = null;
         HoveredWire = null;
         for (int i = 0; i < _wires.Count; i++)
         {
@@ -610,6 +798,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         if (mouseInViewport)
         {
             RefreshHoverState(worldMouse);
+        }
+
+        if (input.LeftClicked && HoveredNode != null && HoveredValuePin != null)
+        {
+            TryBeginValueEdit(context, HoveredNode, HoveredValuePin);
+            return;
         }
 
         RefreshPreviewState(input, mouseInViewport, worldMouse);
@@ -683,6 +877,13 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
                 continue;
             }
 
+            if (HoveredValuePin == null && node.TryGetValuePinAt(worldMouse, out UiNodePin? valuePin))
+            {
+                HoveredValuePin = valuePin;
+                HoveredNode = node;
+                break;
+            }
+
             if (HoveredPin == null && node.TryGetPinAt(worldMouse, out UiNodePin? pin))
             {
                 HoveredPin = pin;
@@ -696,7 +897,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             }
         }
 
-        if (HoveredPin != null)
+        if (HoveredPin != null || HoveredValuePin != null)
         {
             return;
         }
@@ -920,3 +1121,21 @@ public sealed record UiNodeDragEvent(
     UiRect StartBounds,
     UiRect CurrentBounds,
     UiPoint Delta);
+
+public sealed record UiNodeValueEditStartedEvent(
+    UiNodeGraph Graph,
+    UiNodeControl Node,
+    UiNodePin Pin,
+    string InitialText,
+    UiRect ValueBounds);
+
+public sealed record UiNodeValueEditCommittedEvent(
+    UiNodeGraph Graph,
+    UiNodeControl Node,
+    UiNodePin Pin,
+    string Text);
+
+public sealed record UiNodeValueEditCancelledEvent(
+    UiNodeGraph Graph,
+    UiNodeControl Node,
+    UiNodePin Pin);
