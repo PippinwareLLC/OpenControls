@@ -222,6 +222,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _valueEditor.Submitted += HandleValueEditorSubmitted;
         _valueEditor.Cancelled += HandleValueEditorCancelled;
         _wireLayer = new UiNodeWireLayer(this);
+        _canvas.ViewportChanged += HandleCanvasViewportChanged;
         _canvas.AddChild(_wireLayer);
         _canvas.AddChild(_commentLayer);
         AddChild(_canvas);
@@ -315,6 +316,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeValueEditStartedEvent>? ValueEditStarted;
     public event Action<UiNodeValueEditCommittedEvent>? ValueEditCommitted;
     public event Action<UiNodeValueEditCancelledEvent>? ValueEditCancelled;
+    public event Action<UiNodeGraphViewportChangedEvent>? ViewportChanged;
 
     public void AddNode(UiNodeControl node)
     {
@@ -780,6 +782,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _pendingValueEditAction = ValueEditAction.Cancel;
     }
 
+    private void HandleCanvasViewportChanged(UiCanvasViewportChangedEvent ev)
+    {
+        ViewportChanged?.Invoke(new UiNodeGraphViewportChangedEvent(this, ev.PanX, ev.PanY, ev.Zoom, ev.Reason));
+    }
+
     private void RefreshGraphState(UiUpdateContext context, UiInputState input)
     {
         EnsureWireRoutes();
@@ -1139,3 +1146,10 @@ public sealed record UiNodeValueEditCancelledEvent(
     UiNodeGraph Graph,
     UiNodeControl Node,
     UiNodePin Pin);
+
+public sealed record UiNodeGraphViewportChangedEvent(
+    UiNodeGraph Graph,
+    float PanX,
+    float PanY,
+    float Zoom,
+    UiCanvas.UiCanvasViewportChangeReason Reason);

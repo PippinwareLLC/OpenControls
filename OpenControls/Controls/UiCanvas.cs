@@ -4,6 +4,19 @@ namespace OpenControls.Controls;
 
 public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
 {
+    public enum UiCanvasPanButton
+    {
+        Left,
+        Middle,
+        Right
+    }
+
+    public enum UiCanvasViewportChangeReason
+    {
+        Pan,
+        Zoom
+    }
+
     private sealed class CanvasRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiShapeRenderer
     {
         private readonly IUiRenderer _inner;
@@ -288,6 +301,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
 
     private UiRect _viewportBounds;
     private bool _panning;
+    private UiCanvasPanButton _activePanButton;
     private UiPoint _panStartMouse;
     private float _panStartX;
     private float _panStartY;
@@ -318,6 +332,8 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
 
     public bool EnablePan { get; set; } = true;
     public bool EnableZoom { get; set; } = true;
+    public UiCanvasPanButton PanButton { get; set; } = UiCanvasPanButton.Left;
+    public bool PanWithSpaceLeftButton { get; set; }
     public float ZoomStep { get; set; } = 0.1f;
     public bool ZoomToCursor { get; set; } = true;
 
@@ -344,6 +360,8 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
 
     public UiRect ViewportBounds => _viewportBounds;
     public override bool IsFocusable => true;
+
+    public event Action<UiCanvasViewportChangedEvent>? ViewportChanged;
 
     public UiPoint WorldToScreen(UiPoint world)
     {
@@ -380,24 +398,31 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         UiPoint worldMouse = mouseInViewport ? ScreenToWorldCore(mouse) : new UiPoint(int.MinValue / 4, int.MinValue / 4);
         bool overFocusableChild = mouseInViewport && IsOverFocusableChild(worldMouse);
 
-        if (EnablePan && input.LeftClicked && mouseInViewport && !overFocusableChild)
+        if (EnablePan && CanStartPan(input, mouseInViewport, overFocusableChild, out var panButton))
         {
             _panning = true;
+            _activePanButton = panButton;
             _panStartMouse = mouse;
             _panStartX = PanX;
             _panStartY = PanY;
             context.Focus.RequestFocus(this);
         }
 
-        if (_panning && input.LeftDown)
+        if (_panning && IsPanButtonDown(input, _activePanButton))
         {
             float deltaX = mouse.X - _panStartMouse.X;
             float deltaY = mouse.Y - _panStartMouse.Y;
+            float beforeX = PanX;
+            float beforeY = PanY;
             PanX = _panStartX - deltaX / Math.Max(Zoom, 0.0001f);
             PanY = _panStartY - deltaY / Math.Max(Zoom, 0.0001f);
+            if (Math.Abs(PanX - beforeX) > 0.0001f || Math.Abs(PanY - beforeY) > 0.0001f)
+            {
+                RaiseViewportChanged(UiCanvasViewportChangeReason.Pan);
+            }
         }
 
-        if (_panning && input.LeftReleased)
+        if (_panning && IsPanButtonReleased(input, _activePanButton))
         {
             _panning = false;
         }
@@ -585,6 +610,57 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         }
 
         Zoom = newZoom;
+        RaiseViewportChanged(UiCanvasViewportChangeReason.Zoom);
+    }
+
+    private bool CanStartPan(UiInputState input, bool mouseInViewport, bool overFocusableChild, out UiCanvasPanButton panButton)
+    {
+        panButton = PanButton;
+        if (!mouseInViewport)
+        {
+            return false;
+        }
+
+        if (PanWithSpaceLeftButton && input.LeftClicked && input.IsKeyDown(UiKey.Space))
+        {
+            panButton = UiCanvasPanButton.Left;
+            return true;
+        }
+
+        return PanButton switch
+        {
+            UiCanvasPanButton.Left => input.LeftClicked && !overFocusableChild,
+            UiCanvasPanButton.Middle => input.MiddleClicked,
+            UiCanvasPanButton.Right => input.RightClicked,
+            _ => false
+        };
+    }
+
+    private static bool IsPanButtonDown(UiInputState input, UiCanvasPanButton panButton)
+    {
+        return panButton switch
+        {
+            UiCanvasPanButton.Left => input.LeftDown,
+            UiCanvasPanButton.Middle => input.MiddleDown,
+            UiCanvasPanButton.Right => input.RightDown,
+            _ => false
+        };
+    }
+
+    private static bool IsPanButtonReleased(UiInputState input, UiCanvasPanButton panButton)
+    {
+        return panButton switch
+        {
+            UiCanvasPanButton.Left => input.LeftReleased,
+            UiCanvasPanButton.Middle => input.MiddleReleased,
+            UiCanvasPanButton.Right => input.RightReleased,
+            _ => false
+        };
+    }
+
+    private void RaiseViewportChanged(UiCanvasViewportChangeReason reason)
+    {
+        ViewportChanged?.Invoke(new UiCanvasViewportChangedEvent(this, PanX, PanY, Zoom, reason));
     }
 
     private void ClampZoom()
@@ -771,3 +847,10 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         return false;
     }
 }
+
+public sealed record UiCanvasViewportChangedEvent(
+    UiCanvas Canvas,
+    float PanX,
+    float PanY,
+    float Zoom,
+    UiCanvas.UiCanvasViewportChangeReason Reason);

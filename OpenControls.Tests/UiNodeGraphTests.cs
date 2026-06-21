@@ -554,6 +554,58 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_MiddlePanAndWheelZoomRaiseViewportChangedEvents()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        graph.Canvas.PanButton = UiCanvas.UiCanvasPanButton.Middle;
+        graph.AddNode(new UiNodeControl
+        {
+            Id = "node-under-pointer",
+            Bounds = new UiRect(20, 20, 140, 90),
+            Title = "Focusable Node"
+        });
+
+        List<UiNodeGraphViewportChangedEvent> changes = [];
+        graph.ViewportChanged += changes.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(40, 40),
+            ScreenMousePosition = new UiPoint(40, 40),
+            MiddleClicked = true,
+            MiddleDown = true
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(90, 65),
+            ScreenMousePosition = new UiPoint(90, 65),
+            MiddleDown = true
+        }, 1f / 60f);
+
+        Assert.Contains(changes, change => change.Reason == UiCanvas.UiCanvasViewportChangeReason.Pan);
+        Assert.Equal(-50, graph.PanX);
+        Assert.Equal(-25, graph.PanY);
+
+        var zoomBefore = graph.Zoom;
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(100, 100),
+            ScreenMousePosition = new UiPoint(100, 100),
+            ScrollDelta = 120
+        }, 1f / 60f);
+
+        Assert.Contains(changes, change => change.Reason == UiCanvas.UiCanvasViewportChangeReason.Zoom);
+        Assert.True(graph.Zoom > zoomBefore);
+    }
+
+    [Fact]
     public void NodeGraph_CommentBoxesRenderBehindNodesWithDedicatedTextRegions()
     {
         UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
