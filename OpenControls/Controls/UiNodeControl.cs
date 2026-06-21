@@ -464,6 +464,12 @@ public sealed class UiNodeControl : UiElement
         base.Render(context);
     }
 
+    internal void RefreshLayout(UiFont defaultFont)
+    {
+        UiFont font = ResolveFont(defaultFont);
+        UpdateLayout(font);
+    }
+
     public bool TryGetGlow(out UiRect bounds, out UiColor color, out int passes)
     {
         bounds = default;

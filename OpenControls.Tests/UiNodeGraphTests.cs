@@ -1916,6 +1916,28 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_RenderRefreshesWireRoutesAfterNodeBoundsChangeBeforeRender()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);
+        graph.EnableWireShadows = false;
+        UiNodeWire wire = graph.Connect(entry, entryThen, print, printIn);
+        UiContext context = new(graph);
+
+        context.Update(new UiInputState(), 1f / 60f);
+        graph.Render(new UiRenderContext(new RecordingRenderer(), UiFont.Default));
+
+        print.Bounds = new UiRect(print.Bounds.X + 96, print.Bounds.Y + 48, print.Bounds.Width, print.Bounds.Height);
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        var route = Assert.Single(renderer.Polylines).Points;
+        Assert.Equal(wire.FromPin.Layout.Center, route[0]);
+        Assert.Equal(wire.ToPin.Layout.Center, route[^1]);
+        Assert.True(print.Bounds.Contains(route[^1]));
+    }
+
+    [Fact]
     public void NodeGraph_RendersWiresInsideOneVectorPass()
     {
         UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);

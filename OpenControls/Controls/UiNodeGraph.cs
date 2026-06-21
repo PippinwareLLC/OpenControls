@@ -712,6 +712,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
 
         base.Update(context);
+        RefreshNodeLayouts(context.DefaultFont);
         RefreshGraphState(context, graphInput);
         ProcessValueEditorState(context);
         ProcessCommentEditorState(context);
@@ -733,6 +734,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
 
         UpdateCanvasLayout();
+        RefreshNodeLayouts(context.DefaultFont);
         EnsureWireRoutes();
         base.Render(context);
     }
@@ -2293,6 +2295,14 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private void MarkWireRoutesDirty()
     {
         _wireRoutesDirty = true;
+    }
+
+    private void RefreshNodeLayouts(UiFont defaultFont)
+    {
+        for (int i = 0; i < _nodes.Count; i++)
+        {
+            _nodes[i].RefreshLayout(defaultFont);
+        }
     }
 
     private void EnsureWireRoutes()
