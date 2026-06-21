@@ -97,6 +97,14 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private readonly List<UiNodeCommentBox> _comments = new();
     private readonly Dictionary<string, UiNodeCommentBox> _commentsById = new(StringComparer.Ordinal);
     private readonly List<UiNodeWire> _wires = new();
+    private readonly UiSelectionMarquee _selectionMarquee = new()
+    {
+        Id = "node-graph-selection-marquee",
+        AutomationId = "node-graph-selection-marquee",
+        AutomationName = "Selection Marquee",
+        AutomationRole = "selection",
+        Visible = false
+    };
     private bool _wireRoutesDirty = true;
     private UiNodeControl? _previewStartNode;
     private UiNodePin? _previewStartPin;
@@ -107,6 +115,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _canvas.AddChild(_wireLayer);
         _canvas.AddChild(_commentLayer);
         AddChild(_canvas);
+        AddChild(_selectionMarquee);
     }
 
     public UiCanvas Canvas => _canvas;
@@ -128,6 +137,23 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public UiColor HoverWireColor { get; set; } = new(230, 235, 245);
     public UiColor SelectedWireColor { get; set; } = new(245, 205, 110);
     public UiColor PreviewWireColor { get; set; } = new(220, 225, 235, 180);
+
+    public UiRect? SelectionMarqueeBounds
+    {
+        get => _selectionMarquee.Visible ? _selectionMarquee.Bounds : null;
+        set
+        {
+            if (value is { } bounds && bounds.Width > 0 && bounds.Height > 0)
+            {
+                _selectionMarquee.Bounds = bounds;
+                _selectionMarquee.Visible = true;
+            }
+            else
+            {
+                _selectionMarquee.Visible = false;
+            }
+        }
+    }
 
     public float PanX
     {

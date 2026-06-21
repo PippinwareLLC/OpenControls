@@ -113,6 +113,25 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_SelectionMarqueeStoresBoundsAndDoesNotHitTest()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 240)
+        };
+        UiRect marquee = new(24, 36, 120, 80);
+
+        graph.SelectionMarqueeBounds = marquee;
+
+        Assert.Equal(marquee, graph.SelectionMarqueeBounds);
+        Assert.Null(new UiSelectionMarquee { Bounds = marquee }.HitTest(new UiPoint(40, 50)));
+
+        graph.SelectionMarqueeBounds = null;
+
+        Assert.Null(graph.SelectionMarqueeBounds);
+    }
+
+    [Fact]
     public void NodeControl_LayoutKeepsPinsAndTextInSeparateBounds()
     {
         UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out _, out _);
