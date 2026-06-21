@@ -89,9 +89,23 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
     }
 
+    private sealed class UiNodeOverlayLayer : UiElement
+    {
+        public UiNodeOverlayLayer()
+        {
+            ClipChildren = true;
+        }
+
+        public override UiElement? HitTest(UiPoint point)
+        {
+            return null;
+        }
+    }
+
     private readonly UiCanvas _canvas = new();
     private readonly UiNodeWireLayer _wireLayer;
     private readonly UiNodeCommentLayer _commentLayer = new();
+    private readonly UiNodeOverlayLayer _overlayLayer = new();
     private readonly List<UiNodeControl> _nodes = new();
     private readonly Dictionary<string, UiNodeControl> _nodesById = new(StringComparer.Ordinal);
     private readonly List<UiNodeCommentBox> _comments = new();
@@ -105,6 +119,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         AutomationRole = "selection",
         Visible = false
     };
+    private UiRect? _selectionMarqueeBounds;
     private bool _wireRoutesDirty = true;
     private UiNodeControl? _previewStartNode;
     private UiNodePin? _previewStartPin;
@@ -115,7 +130,8 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _canvas.AddChild(_wireLayer);
         _canvas.AddChild(_commentLayer);
         AddChild(_canvas);
-        AddChild(_selectionMarquee);
+        _overlayLayer.AddChild(_selectionMarquee);
+        AddChild(_overlayLayer);
     }
 
     public UiCanvas Canvas => _canvas;
@@ -140,16 +156,18 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
     public UiRect? SelectionMarqueeBounds
     {
-        get => _selectionMarquee.Visible ? _selectionMarquee.Bounds : null;
+        get => _selectionMarqueeBounds;
         set
         {
             if (value is { } bounds && bounds.Width > 0 && bounds.Height > 0)
             {
-                _selectionMarquee.Bounds = bounds;
+                _selectionMarqueeBounds = bounds;
                 _selectionMarquee.Visible = true;
+                UpdateSelectionMarqueeLayout();
             }
             else
             {
+                _selectionMarqueeBounds = null;
                 _selectionMarquee.Visible = false;
             }
         }
@@ -400,6 +418,22 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _canvas.Bounds = Bounds;
         _wireLayer.Bounds = default;
         _commentLayer.Bounds = default;
+        _overlayLayer.Bounds = Bounds;
+        UpdateSelectionMarqueeLayout();
+    }
+
+    private void UpdateSelectionMarqueeLayout()
+    {
+        if (_selectionMarqueeBounds is not { } bounds)
+        {
+            return;
+        }
+
+        _selectionMarquee.Bounds = new UiRect(
+            Bounds.X + bounds.X,
+            Bounds.Y + bounds.Y,
+            bounds.Width,
+            bounds.Height);
     }
 
     private void RefreshGraphState(UiInputState input)

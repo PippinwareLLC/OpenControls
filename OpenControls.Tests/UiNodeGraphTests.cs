@@ -117,7 +117,7 @@ public sealed class UiNodeGraphTests
     {
         UiNodeGraph graph = new()
         {
-            Bounds = new UiRect(0, 0, 320, 240)
+            Bounds = new UiRect(50, 70, 320, 240)
         };
         UiRect marquee = new(24, 36, 120, 80);
 
@@ -125,6 +125,15 @@ public sealed class UiNodeGraphTests
 
         Assert.Equal(marquee, graph.SelectionMarqueeBounds);
         Assert.Null(new UiSelectionMarquee { Bounds = marquee }.HitTest(new UiPoint(40, 50)));
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        RecordingRenderer renderer = new();
+        context.Render(renderer);
+
+        Assert.Contains(renderer.FillCalls, call =>
+            call.Rect.Equals(new UiRect(74, 106, 120, 80))
+            && call.Color.Equals(new UiColor(76, 151, 255, 44)));
 
         graph.SelectionMarqueeBounds = null;
 
