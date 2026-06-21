@@ -328,7 +328,10 @@ public readonly struct UiNodeWireDebugLayout
         UiColor shadowColor = default,
         int shadowThickness = 0,
         IReadOnlyList<UiPoint>? rerouteHandleCenters = null,
-        IReadOnlyList<UiRect>? rerouteHandleBounds = null)
+        IReadOnlyList<UiRect>? rerouteHandleBounds = null,
+        UiRect glowBounds = default,
+        UiColor glowColor = default,
+        int glowThickness = 0)
     {
         Wire = wire;
         Route = route ?? Array.Empty<UiPoint>();
@@ -344,6 +347,9 @@ public readonly struct UiNodeWireDebugLayout
         ShadowThickness = shadowThickness;
         RerouteHandleCenters = rerouteHandleCenters ?? Array.Empty<UiPoint>();
         RerouteHandleBounds = rerouteHandleBounds ?? Array.Empty<UiRect>();
+        GlowBounds = glowBounds;
+        GlowColor = glowColor;
+        GlowThickness = glowThickness;
     }
 
     public UiNodeWire? Wire { get; }
@@ -360,7 +366,11 @@ public readonly struct UiNodeWireDebugLayout
     public int ShadowThickness { get; }
     public IReadOnlyList<UiPoint> RerouteHandleCenters { get; }
     public IReadOnlyList<UiRect> RerouteHandleBounds { get; }
+    public UiRect GlowBounds { get; }
+    public UiColor GlowColor { get; }
+    public int GlowThickness { get; }
     public bool HasShadow => ShadowThickness > 0 && ShadowColor.A > 0 && ShadowBounds.Width > 0 && ShadowBounds.Height > 0;
     public bool HasRerouteHandles => RerouteHandleCenters.Count > 0;
+    public bool HasGlow => GlowThickness > 0 && GlowColor.A > 0 && GlowBounds.Width > 0 && GlowBounds.Height > 0;
     public bool IsValid => Wire != null;
 }

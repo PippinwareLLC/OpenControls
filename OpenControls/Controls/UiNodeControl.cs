@@ -94,6 +94,11 @@ public sealed class UiNodeControl : UiElement
     public UiColor HoverBorder { get; set; } = new(120, 150, 210);
     public UiColor SelectedBorder { get; set; } = new(225, 175, 80);
     public UiColor Border { get; set; } = new(82, 92, 112);
+    public bool EnableGlow { get; set; } = true;
+    public UiColor SelectedGlowColor { get; set; } = new(255, 206, 92, 94);
+    public UiColor HoverGlowColor { get; set; } = new(92, 184, 255, 64);
+    public int GlowRadius { get; set; } = 8;
+    public int GlowPasses { get; set; } = 3;
     public UiColor TitleColor { get; set; } = UiColor.White;
     public UiColor IconColor { get; set; } = new(232, 242, 255);
     public UiColor SubtitleColor { get; set; } = new(172, 186, 205);
@@ -408,6 +413,8 @@ public sealed class UiNodeControl : UiElement
         UiFont font = ResolveFont(context.DefaultFont);
         UpdateLayout(font);
 
+        DrawGlow(context.Renderer);
+
         if (ShadowColor.A > 0)
         {
             UiRenderHelpers.FillRectRounded(
@@ -422,13 +429,35 @@ public sealed class UiNodeControl : UiElement
         UiColor border = Selected ? SelectedBorder : (_hovered ? HoverBorder : Border);
         UiRenderHelpers.DrawRectRounded(context.Renderer, Bounds, CornerRadius, border, Selected ? 2 : 1);
 
+        DrawPinChrome(context);
         DrawIcon(context, font);
         DrawTitle(context, font);
         DrawSubtitle(context, font);
         DrawBodyText(context, font);
-        DrawPins(context, font);
+        DrawPinText(context, font);
 
         base.Render(context);
+    }
+
+    public bool TryGetGlow(out UiRect bounds, out UiColor color, out int passes)
+    {
+        bounds = default;
+        color = default;
+        passes = 0;
+        if (!EnableGlow || GlowRadius <= 0 || GlowPasses <= 0)
+        {
+            return false;
+        }
+
+        color = Selected ? SelectedGlowColor : (_hovered ? HoverGlowColor : default);
+        if (color.A == 0)
+        {
+            return false;
+        }
+
+        bounds = ExpandRect(Bounds, GlowRadius);
+        passes = Math.Max(1, GlowPasses);
+        return bounds.Width > 0 && bounds.Height > 0;
     }
 
     public override UiElement? HitTest(UiPoint point)
@@ -844,7 +873,7 @@ public sealed class UiNodeControl : UiElement
         context.Renderer.PopClip();
     }
 
-    private void DrawPins(UiRenderContext context, UiFont font)
+    private void DrawPinChrome(UiRenderContext context)
     {
         for (int i = 0; i < _pins.Count; i++)
         {
@@ -871,8 +900,22 @@ public sealed class UiNodeControl : UiElement
                 UiRenderHelpers.DrawCircle(context.Renderer, layout.Center, radius, border, 1);
             }
 
-            DrawValueBox(context, font, pin, layout);
+            DrawValueBoxChrome(context, pin, layout);
+        }
+    }
 
+    private void DrawPinText(UiRenderContext context, UiFont font)
+    {
+        for (int i = 0; i < _pins.Count; i++)
+        {
+            UiNodePin pin = _pins[i];
+            UiNodePinLayout layout = pin.Layout;
+            if (!layout.IsValid)
+            {
+                continue;
+            }
+
+            DrawValueBoxText(context, font, pin, layout);
             if (layout.LabelBounds.Width > 0 && layout.LabelBounds.Height > 0)
             {
                 string drawText = UiRenderHelpers.BuildElidedText(pin.Text, layout.LabelBounds.Width, TextScale, font);
@@ -881,7 +924,30 @@ public sealed class UiNodeControl : UiElement
         }
     }
 
-    private void DrawValueBox(UiRenderContext context, UiFont font, UiNodePin pin, UiNodePinLayout layout)
+    private void DrawGlow(IUiRenderer renderer)
+    {
+        if (!TryGetGlow(out _, out var color, out var passes))
+        {
+            return;
+        }
+
+        int safePasses = Math.Max(1, passes);
+        int maxRadius = Math.Max(1, GlowRadius);
+        for (int pass = safePasses; pass >= 1; pass--)
+        {
+            int spread = Math.Max(1, (int)MathF.Round(maxRadius * pass / (float)safePasses));
+            int intensity = safePasses - pass + 1;
+            UiColor passColor = WithAlpha(color, color.A * intensity / (safePasses + 1));
+            UiRenderHelpers.DrawRectRounded(
+                renderer,
+                ExpandRect(Bounds, spread),
+                CornerRadius + spread,
+                passColor,
+                Math.Max(1, spread / 2));
+        }
+    }
+
+    private void DrawValueBoxChrome(UiRenderContext context, UiNodePin pin, UiNodePinLayout layout)
     {
         if (!ShouldShowValueBox(pin) || layout.ValueBounds.Width <= 0 || layout.ValueBounds.Height <= 0)
         {
@@ -890,6 +956,14 @@ public sealed class UiNodeControl : UiElement
 
         UiRenderHelpers.FillRectRounded(context.Renderer, layout.ValueBounds, 3, ValueBoxBackground);
         UiRenderHelpers.DrawRectRounded(context.Renderer, layout.ValueBounds, 3, ValueBoxBorder, 1);
+    }
+
+    private void DrawValueBoxText(UiRenderContext context, UiFont font, UiNodePin pin, UiNodePinLayout layout)
+    {
+        if (!ShouldShowValueBox(pin) || layout.ValueBounds.Width <= 0 || layout.ValueBounds.Height <= 0)
+        {
+            return;
+        }
 
         int padding = Math.Max(0, ValueBoxPadding);
         int availableWidth = Math.Max(0, layout.ValueBounds.Width - padding * 2);
@@ -943,5 +1017,20 @@ public sealed class UiNodeControl : UiElement
     {
         int safeThreshold = Math.Max(0, threshold);
         return dx * dx + dy * dy >= safeThreshold * safeThreshold;
+    }
+
+    private static UiRect ExpandRect(UiRect rect, int padding)
+    {
+        int safePadding = Math.Max(0, padding);
+        return new UiRect(
+            rect.X - safePadding,
+            rect.Y - safePadding,
+            rect.Width + safePadding * 2,
+            rect.Height + safePadding * 2);
+    }
+
+    private static UiColor WithAlpha(UiColor color, int alpha)
+    {
+        return new UiColor(color.R, color.G, color.B, (byte)Math.Clamp(alpha, 0, 255));
     }
 }

@@ -46,6 +46,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
                     }
                 }
 
+                if (_graph.EnableWireGlow)
+                {
+                    for (int i = 0; i < _graph._wires.Count; i++)
+                    {
+                        UiNodeWire wire = _graph._wires[i];
+                        if (!_graph.ShouldShowWireGlow(wire))
+                        {
+                            continue;
+                        }
+
+                        int thickness = _graph.ResolveWireThickness(wire);
+                        DrawGlowRoute(context.Renderer, wire.GetRenderRoute(thickness), thickness, _graph.ResolveWireGlowColor(wire), _graph);
+                    }
+                }
+
                 for (int i = 0; i < _graph._wires.Count; i++)
                 {
                     UiNodeWire wire = _graph._wires[i];
@@ -110,6 +125,29 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             }
 
             UiRenderHelpers.DrawPolyline(renderer, route, Math.Max(1, thickness), color);
+        }
+
+        private static void DrawGlowRoute(IUiRenderer renderer, IReadOnlyList<UiPoint> route, int thickness, UiColor color, UiNodeGraph graph)
+        {
+            if (route == null || route.Count < 2 || color.A == 0)
+            {
+                return;
+            }
+
+            int safePasses = Math.Max(1, graph.WireGlowPasses);
+            int extraThickness = Math.Max(1, graph.WireGlowExtraThickness);
+            for (int pass = safePasses; pass >= 1; pass--)
+            {
+                int glowThickness = Math.Max(1, thickness + extraThickness + (pass - 1) * graph.WireGlowSpreadStep);
+                int intensity = safePasses - pass + 1;
+                UiColor passColor = WithAlpha(color, color.A * intensity / (safePasses + 1));
+                UiRenderHelpers.DrawPolyline(renderer, route, glowThickness, passColor);
+            }
+        }
+
+        private static UiColor WithAlpha(UiColor color, int alpha)
+        {
+            return new UiColor(color.R, color.G, color.B, (byte)Math.Clamp(alpha, 0, 255));
         }
 
     }
@@ -197,6 +235,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public UiColor RerouteHandleFillColor { get; set; } = new(16, 20, 27, 238);
     public UiColor RerouteHandleBorderColor { get; set; } = new(210, 220, 235, 235);
     public UiColor SelectedRerouteHandleBorderColor { get; set; } = new(255, 226, 126, 255);
+    public bool EnableWireGlow { get; set; } = true;
+    public UiColor SelectedWireGlowColor { get; set; } = new(255, 206, 92, 96);
+    public UiColor HoverWireGlowColor { get; set; } = new(92, 184, 255, 72);
+    public int WireGlowExtraThickness { get; set; } = 8;
+    public int WireGlowSpreadStep { get; set; } = 3;
+    public int WireGlowPasses { get; set; } = 3;
 
     public UiRect? SelectionMarqueeBounds
     {
@@ -409,6 +453,8 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
                 ? wire.GetRerouteHandleCenters(thickness)
                 : Array.Empty<UiPoint>();
             IReadOnlyList<UiRect> handleBounds = BuildRerouteHandleBounds(handleCenters, RerouteHandleRadius);
+            UiColor glowColor = ShouldShowWireGlow(wire) ? ResolveWireGlowColor(wire) : default;
+            int glowThickness = ShouldShowWireGlow(wire) ? ResolveWireGlowThickness(thickness) : 0;
             UiRect hitBounds = ExpandRect(wire.Bounds, Math.Max(WireHitSlop, thickness));
             layouts[i] = new UiNodeWireDebugLayout(
                 wire,
@@ -424,7 +470,10 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
                 EnableWireShadows ? WireShadowColor : default,
                 EnableWireShadows ? shadowThickness : 0,
                 handleCenters,
-                handleBounds);
+                handleBounds,
+                ShouldShowWireGlow(wire) ? UiNodeWire.CalculateBounds(wire.GetRenderRoute(thickness), glowThickness) : default,
+                glowColor,
+                glowThickness);
         }
 
         return layouts;
@@ -695,6 +744,26 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
 
         return Math.Max(1, thickness + Math.Max(0, WireShadowExtraThickness));
+    }
+
+    private bool ShouldShowWireGlow(UiNodeWire wire)
+    {
+        return EnableWireGlow
+            && WireGlowPasses > 0
+            && WireGlowExtraThickness > 0
+            && (wire.Selected || wire.Hovered)
+            && ResolveWireGlowColor(wire).A > 0;
+    }
+
+    private UiColor ResolveWireGlowColor(UiNodeWire wire)
+    {
+        return wire.Selected ? SelectedWireGlowColor : (wire.Hovered ? HoverWireGlowColor : default);
+    }
+
+    private int ResolveWireGlowThickness(int thickness)
+    {
+        int passes = Math.Max(1, WireGlowPasses);
+        return Math.Max(1, thickness + Math.Max(1, WireGlowExtraThickness) + (passes - 1) * Math.Max(0, WireGlowSpreadStep));
     }
 
     private bool ShouldShowRerouteHandles(UiNodeWire wire)

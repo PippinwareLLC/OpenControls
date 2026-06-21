@@ -13,19 +13,23 @@ public sealed class UiNodeGraphTests
         public List<(string Text, int Scale, int PixelSize)> DrawnTexts { get; } = new();
         public List<(UiPoint[] Points, int Thickness, UiColor Color)> Polylines { get; } = new();
         public List<IReadOnlyList<UiPoint>> PolylineSources { get; } = new();
+        public List<(UiRect Rect, int Radius, UiColor Color, int Thickness)> RoundedRects { get; } = new();
         public List<(UiPoint Center, int Radius, UiColor Color)> FilledCircles { get; } = new();
         public List<(UiPoint Center, int Radius, UiColor Color, int Thickness)> DrawnCircles { get; } = new();
+        public List<string> Operations { get; } = new();
         public int BeginVectorPassCount { get; private set; }
         public int EndVectorPassCount { get; private set; }
 
         public void FillRect(UiRect rect, UiColor color)
         {
+            Operations.Add("fill-rect");
             FilledRects.Add(rect);
             FillCalls.Add((rect, color));
         }
 
         public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
         {
+            Operations.Add("draw-rect");
         }
 
         public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
@@ -50,29 +54,37 @@ public sealed class UiNodeGraphTests
 
         public void DrawRoundedRect(UiRect rect, int radius, UiColor color, int thickness = 1)
         {
+            Operations.Add("draw-rounded-rect");
+            RoundedRects.Add((rect, radius, color, thickness));
         }
 
         public void DrawTopRoundedRect(UiRect rect, int radius, UiColor color, int thickness = 1)
         {
+            Operations.Add("draw-top-rounded-rect");
+            RoundedRects.Add((rect, radius, color, thickness));
         }
 
         public void FillCircle(UiPoint center, int radius, UiColor color)
         {
+            Operations.Add("fill-circle");
             FilledCircles.Add((center, radius, color));
         }
 
         public void DrawCircle(UiPoint center, int radius, UiColor color, int thickness = 1)
         {
+            Operations.Add("draw-circle");
             DrawnCircles.Add((center, radius, color, thickness));
         }
 
         public void FillTriangleRight(UiRect rect, UiColor color)
         {
+            Operations.Add("fill-triangle-right");
             FillRect(rect, color);
         }
 
         public void DrawPolyline(IReadOnlyList<UiPoint> points, int thickness, UiColor color)
         {
+            Operations.Add("draw-polyline");
             PolylineSources.Add(points);
             Polylines.Add((points.ToArray(), thickness, color));
         }
@@ -95,6 +107,7 @@ public sealed class UiNodeGraphTests
                     origin.Y + (int)MathF.Round((points[i].Y - panY) * zoom));
             }
 
+            Operations.Add("draw-polyline-transformed");
             Polylines.Add((transformed, thickness, color));
         }
 
@@ -115,6 +128,7 @@ public sealed class UiNodeGraphTests
 
         public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
         {
+            Operations.Add("draw-text");
             DrawnTexts.Add((text, scale, (font ?? DefaultFont).PixelSize));
         }
 
@@ -753,6 +767,69 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeControl_RendersSelectionGlowOutsideNodeBounds()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out UiNodeControl print, out _, out _);
+        print.Selected = true;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        Assert.True(print.TryGetGlow(out var glowBounds, out var glowColor, out var glowPasses));
+        Assert.True(glowBounds.Left < print.Bounds.Left);
+        Assert.True(glowBounds.Top < print.Bounds.Top);
+        Assert.True(glowBounds.Right > print.Bounds.Right);
+        Assert.True(glowBounds.Bottom > print.Bounds.Bottom);
+        Assert.Equal(print.SelectedGlowColor, glowColor);
+        Assert.Equal(print.GlowPasses, glowPasses);
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        Assert.Contains(renderer.RoundedRects, rounded =>
+            rounded.Rect.Left < print.Bounds.Left
+            && rounded.Rect.Top < print.Bounds.Top
+            && rounded.Rect.Right > print.Bounds.Right
+            && rounded.Rect.Bottom > print.Bounds.Bottom
+            && rounded.Color.R == print.SelectedGlowColor.R
+            && rounded.Color.G == print.SelectedGlowColor.G
+            && rounded.Color.B == print.SelectedGlowColor.B
+            && rounded.Color.A > 0);
+    }
+
+    [Fact]
+    public void NodeGraph_RendersSelectionGlowBehindSelectedWireRoute()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);
+        UiNodeWire wire = graph.Connect(entry, entryThen, print, printIn);
+        wire.Selected = true;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiNodeWireDebugLayout debug = Assert.Single(graph.GetWireDebugLayouts());
+        Assert.True(debug.HasGlow);
+        Assert.Equal(graph.SelectedWireGlowColor, debug.GlowColor);
+        Assert.True(debug.GlowThickness > debug.Thickness);
+        Assert.True(debug.GlowBounds.Width >= debug.Bounds.Width);
+        Assert.True(debug.GlowBounds.Height >= debug.Bounds.Height);
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        Assert.Equal(graph.WireShadowColor, renderer.Polylines[0].Color);
+        Assert.Contains(renderer.Polylines.Skip(1).Take(graph.WireGlowPasses), polyline =>
+            polyline.Thickness > debug.Thickness
+            && polyline.Color.R == graph.SelectedWireGlowColor.R
+            && polyline.Color.G == graph.SelectedWireGlowColor.G
+            && polyline.Color.B == graph.SelectedWireGlowColor.B
+            && polyline.Color.A > 0);
+        Assert.Contains(renderer.Polylines.Skip(1 + graph.WireGlowPasses), polyline =>
+            polyline.Thickness == debug.Thickness
+            && polyline.Color.Equals(graph.SelectedWireColor));
+    }
+
+    [Fact]
     public void NodeGraph_UsesCanonExecAndDataWireStyles()
     {
         UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);
@@ -808,6 +885,24 @@ public sealed class UiNodeGraphTests
 
         Assert.Contains(renderer.FillCalls, fill => fill.Color.Equals(UiColor.White));
         Assert.Contains(renderer.FilledCircles, fill => fill.Color.Equals(new UiColor(218, 45, 157)));
+    }
+
+    [Fact]
+    public void NodeControl_RendersPinChromeBeforeText()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out UiNodeControl print, out _, out _);
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        RecordingRenderer renderer = new();
+        print.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        int firstPinChrome = renderer.Operations.FindIndex(static operation =>
+            operation is "fill-triangle-right" or "fill-circle" or "draw-circle");
+        int firstText = renderer.Operations.FindIndex(static operation => operation == "draw-text");
+        Assert.True(firstPinChrome >= 0);
+        Assert.True(firstText >= 0);
+        Assert.True(firstPinChrome < firstText);
     }
 
     [Fact]
