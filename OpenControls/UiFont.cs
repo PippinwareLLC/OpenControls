@@ -29,6 +29,7 @@ public sealed class UiFont
     private readonly UiFontLayer[] _layers;
     private readonly ConcurrentDictionary<GlyphCacheKey, UiRasterizedGlyph> _glyphCache = new();
     private readonly ConcurrentDictionary<LayoutCacheKey, UiTextLayout> _layoutCache = new();
+    private readonly ConcurrentDictionary<int, UiFont> _pixelSizeVariants = new();
     private readonly object _boundedLayoutCacheLock = new();
     private readonly Dictionary<LayoutCacheKey, LinkedListNode<BoundedLayoutCacheEntry>> _boundedLayoutCache = new();
     private readonly LinkedList<BoundedLayoutCacheEntry> _boundedLayoutCacheLru = new();
@@ -129,6 +130,12 @@ public sealed class UiFont
         if (resolvedPixelSize == PixelSize && string.IsNullOrWhiteSpace(name))
         {
             return this;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return _pixelSizeVariants.GetOrAdd(resolvedPixelSize, static (size, font) =>
+                new UiFont($"{font.Name}@{size}", size, font._layers.Select(static layer => layer.ToDefinition())), this);
         }
 
         string fontName = string.IsNullOrWhiteSpace(name)

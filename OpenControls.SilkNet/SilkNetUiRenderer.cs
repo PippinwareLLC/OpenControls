@@ -18,8 +18,17 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
         FillTriangle,
         DrawPolyline,
         DrawText,
+        DrawTextLayout,
+        DrawTextCacheLookup,
+        DrawTextCacheBuild,
+        DrawTextQueue,
+        DrawTextUncached,
+        GlyphDrawLookup,
+        GlyphAtlas,
+        GlyphTexture,
         DrawTexture,
         Flush,
+        FlushDefault,
         FlushTextureSwitch,
         FlushCapacity,
         FlushMetricsBoundary,
@@ -92,14 +101,32 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
         public int Version { get; set; } = -1;
     }
 
+    private readonly record struct CachedGlyphDraw(
+        uint TextureId,
+        int Width,
+        int Height,
+        float U1,
+        float V1,
+        float U2,
+        float V2);
+
+    private readonly record struct CachedTextGlyphDraw(
+        int X,
+        int Y,
+        CachedGlyphDraw Glyph);
+
     private const int MaxQuadsPerFlush = 1024;
     private const int MaxTriangleVerticesPerFlush = 4096;
+    private const int TextDrawCacheCapacity = 512;
     private static readonly ushort[] QuadIndices = BuildQuadIndices(MaxQuadsPerFlush);
 
     private readonly GL _gl;
     private readonly Stack<UiRect> _clipStack = new();
     private readonly UiGlyphAtlas _glyphAtlas = new();
     private readonly Dictionary<int, AtlasPageTexture> _atlasTextures = new();
+    private readonly Dictionary<UiRasterizedGlyph, CachedGlyphDraw> _glyphDrawCache = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<UiTextLayout, CachedTextGlyphDraw[]> _textDrawCache = new(ReferenceEqualityComparer.Instance);
+    private readonly Queue<UiTextLayout> _textDrawCacheOrder = new();
     private readonly UiVertex[] _vertices = new UiVertex[MaxQuadsPerFlush * 4];
     private readonly UiVertex[] _triangleVertices = new UiVertex[MaxTriangleVerticesPerFlush];
     private readonly uint _program;
@@ -163,6 +190,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
     }
 
     public bool MetricsEnabled { get; set; }
+
+    public bool TextDrawCacheEnabled { get; set; } = true;
 
     public UiRenderMetricsSnapshot LastMetricsSnapshot { get; private set; } = UiRenderMetricsSnapshot.Empty;
 
@@ -499,13 +528,52 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
         }
 
         UiFont activeFont = font ?? DefaultFont;
+        long layoutTimestamp = BeginMetric();
         UiTextLayout layout = activeFont.LayoutText(text, scale);
+        EndMetric(MetricKind.DrawTextLayout, layoutTimestamp);
         if (layout.Glyphs.Count == 0)
         {
             EndMetric(MetricKind.DrawText, startTimestamp);
             return;
         }
 
+        if (TextDrawCacheEnabled)
+        {
+            long cacheTimestamp = BeginMetric();
+            CachedTextGlyphDraw[] draws = GetOrAddTextDraws(layout);
+            EndMetric(MetricKind.DrawTextCacheLookup, cacheTimestamp);
+            long queueTimestamp = BeginMetric();
+            for (int i = 0; i < draws.Length; i++)
+            {
+                CachedTextGlyphDraw draw = draws[i];
+                CachedGlyphDraw glyph = draw.Glyph;
+
+                QueueQuad(
+                    glyph.TextureId,
+                    position.X + draw.X,
+                    position.Y + draw.Y,
+                    glyph.Width,
+                    glyph.Height,
+                    glyph.U1,
+                    glyph.V1,
+                    glyph.U2,
+                    glyph.V2,
+                    color);
+            }
+            EndMetric(MetricKind.DrawTextQueue, queueTimestamp);
+        }
+        else
+        {
+            long uncachedTimestamp = BeginMetric();
+            DrawTextUncached(layout, position, color);
+            EndMetric(MetricKind.DrawTextUncached, uncachedTimestamp);
+        }
+
+        EndMetric(MetricKind.DrawText, startTimestamp);
+    }
+
+    private void DrawTextUncached(UiTextLayout layout, UiPoint position, UiColor color)
+    {
         for (int i = 0; i < layout.Glyphs.Count; i++)
         {
             UiPositionedGlyph glyph = layout.Glyphs[i];
@@ -517,25 +585,87 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
 
             uint textureId = EnsureAtlasTexture(entry.PageIndex).TextureId;
             UiGlyphAtlasPage page = _glyphAtlas.GetPage(entry.PageIndex);
-            float u1 = entry.SourceRect.X / (float)page.Width;
-            float v1 = entry.SourceRect.Y / (float)page.Height;
-            float u2 = entry.SourceRect.Right / (float)page.Width;
-            float v2 = entry.SourceRect.Bottom / (float)page.Height;
-
             QueueQuad(
                 textureId,
                 position.X + glyph.X,
                 position.Y + glyph.Y,
                 glyph.Glyph.Width,
                 glyph.Glyph.Height,
-                u1,
-                v1,
-                u2,
-                v2,
+                entry.SourceRect.X / (float)page.Width,
+                entry.SourceRect.Y / (float)page.Height,
+                entry.SourceRect.Right / (float)page.Width,
+                entry.SourceRect.Bottom / (float)page.Height,
                 color);
         }
+    }
 
-        EndMetric(MetricKind.DrawText, startTimestamp);
+    private CachedTextGlyphDraw[] GetOrAddTextDraws(UiTextLayout layout)
+    {
+        if (_textDrawCache.TryGetValue(layout, out CachedTextGlyphDraw[]? cached))
+        {
+            return cached;
+        }
+
+        long startTimestamp = BeginMetric();
+        List<CachedTextGlyphDraw> draws = new(layout.Glyphs.Count);
+        for (int i = 0; i < layout.Glyphs.Count; i++)
+        {
+            UiPositionedGlyph glyph = layout.Glyphs[i];
+            CachedGlyphDraw draw = GetOrAddGlyphDraw(glyph.Glyph);
+            if (draw.TextureId == 0)
+            {
+                continue;
+            }
+
+            draws.Add(new CachedTextGlyphDraw(glyph.X, glyph.Y, draw));
+        }
+
+        CachedTextGlyphDraw[] result = draws.ToArray();
+        _textDrawCache[layout] = result;
+        _textDrawCacheOrder.Enqueue(layout);
+        while (_textDrawCache.Count > TextDrawCacheCapacity && _textDrawCacheOrder.TryDequeue(out UiTextLayout? expired))
+        {
+            _textDrawCache.Remove(expired);
+        }
+
+        EndMetric(MetricKind.DrawTextCacheBuild, startTimestamp);
+        return result;
+    }
+
+    private CachedGlyphDraw GetOrAddGlyphDraw(UiRasterizedGlyph glyph)
+    {
+        long startTimestamp = BeginMetric();
+        if (_glyphDrawCache.TryGetValue(glyph, out CachedGlyphDraw cached))
+        {
+            EndMetric(MetricKind.GlyphDrawLookup, startTimestamp);
+            return cached;
+        }
+
+        long atlasTimestamp = BeginMetric();
+        UiGlyphAtlasEntry entry = _glyphAtlas.GetOrAdd(glyph);
+        EndMetric(MetricKind.GlyphAtlas, atlasTimestamp);
+        if (!entry.IsValid)
+        {
+            _glyphDrawCache[glyph] = default;
+            EndMetric(MetricKind.GlyphDrawLookup, startTimestamp);
+            return default;
+        }
+
+        long textureTimestamp = BeginMetric();
+        AtlasPageTexture texture = EnsureAtlasTexture(entry.PageIndex);
+        UiGlyphAtlasPage page = _glyphAtlas.GetPage(entry.PageIndex);
+        EndMetric(MetricKind.GlyphTexture, textureTimestamp);
+        CachedGlyphDraw draw = new(
+            texture.TextureId,
+            glyph.Width,
+            glyph.Height,
+            entry.SourceRect.X / (float)page.Width,
+            entry.SourceRect.Y / (float)page.Height,
+            entry.SourceRect.Right / (float)page.Width,
+            entry.SourceRect.Bottom / (float)page.Height);
+        _glyphDrawCache[glyph] = draw;
+        EndMetric(MetricKind.GlyphDrawLookup, startTimestamp);
+        return draw;
     }
 
     public void DrawTexture(uint textureId, UiRect rect, bool flipVertical = false, UiColor? tint = null)
@@ -1051,8 +1181,17 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
             MetricKind.FillTriangle => "FillTriangle",
             MetricKind.DrawPolyline => "DrawPolyline",
             MetricKind.DrawText => "DrawText",
+            MetricKind.DrawTextLayout => "DrawText.Layout",
+            MetricKind.DrawTextCacheLookup => "DrawText.CacheLookup",
+            MetricKind.DrawTextCacheBuild => "DrawText.CacheBuild",
+            MetricKind.DrawTextQueue => "DrawText.Queue",
+            MetricKind.DrawTextUncached => "DrawText.Uncached",
+            MetricKind.GlyphDrawLookup => "GlyphDraw.Lookup",
+            MetricKind.GlyphAtlas => "Glyph.Atlas",
+            MetricKind.GlyphTexture => "Glyph.Texture",
             MetricKind.DrawTexture => "DrawTexture",
             MetricKind.Flush => "Flush",
+            MetricKind.FlushDefault => "Flush.Default",
             MetricKind.FlushTextureSwitch => "Flush.TextureSwitch",
             MetricKind.FlushCapacity => "Flush.Capacity",
             MetricKind.FlushMetricsBoundary => "Flush.MetricsBoundary",
@@ -1070,6 +1209,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
     {
         return reason switch
         {
+            FlushReason.Default => MetricKind.FlushDefault,
             FlushReason.TextureSwitch => MetricKind.FlushTextureSwitch,
             FlushReason.Capacity => MetricKind.FlushCapacity,
             FlushReason.MetricsBoundary => MetricKind.FlushMetricsBoundary,

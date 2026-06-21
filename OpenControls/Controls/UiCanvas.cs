@@ -11,14 +11,16 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         private readonly float _zoom;
         private readonly float _panX;
         private readonly float _panY;
+        private readonly float _textZoomStep;
 
-        public CanvasRenderer(IUiRenderer inner, UiPoint origin, float zoom, float panX, float panY)
+        public CanvasRenderer(IUiRenderer inner, UiPoint origin, float zoom, float panX, float panY, float textZoomStep)
         {
             _inner = inner;
             _origin = origin;
             _zoom = zoom;
             _panX = panX;
             _panY = panY;
+            _textZoomStep = textZoomStep;
         }
 
         public UiFont DefaultFont
@@ -248,10 +250,17 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         private UiFont ResolveZoomedFont(UiFont? font)
         {
             UiFont resolved = font ?? _inner.DefaultFont;
-            int pixelSize = Math.Max(1, (int)Math.Round(resolved.PixelSize * Math.Max(_zoom, 0.0001f)));
+            int pixelSize = Math.Max(1, (int)Math.Round(resolved.PixelSize * ResolveTextZoom()));
             return pixelSize == resolved.PixelSize
                 ? resolved
                 : resolved.WithPixelSize(pixelSize);
+        }
+
+        private float ResolveTextZoom()
+        {
+            float safeZoom = Math.Max(_zoom, 0.0001f);
+            float step = Math.Max(0.01f, _textZoomStep);
+            return Math.Max(step, MathF.Round(safeZoom / step) * step);
         }
 
         private int ScaleThickness(int value)
@@ -318,6 +327,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
     public UiColor GridColor { get; set; } = new UiColor(45, 55, 70);
     public UiColor MajorGridColor { get; set; } = new UiColor(70, 80, 100);
     public int GridThickness { get; set; } = 1;
+    public float TextZoomStep { get; set; } = 0.25f;
 
     public bool ShowOrigin { get; set; } = true;
     public float OriginX { get; set; }
@@ -437,7 +447,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         DrawGrid(context);
         DrawOrigin(context);
 
-        CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY);
+        CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY, TextZoomStep);
         UiRenderContext childContext = context.WithRenderer(renderer);
         foreach (UiElement child in Children)
         {
@@ -467,7 +477,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
             context.Renderer.PushClip(_viewportBounds);
         }
 
-        CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY);
+        CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY, TextZoomStep);
         UiRenderContext childContext = context.WithRenderer(renderer);
         foreach (UiElement child in Children)
         {

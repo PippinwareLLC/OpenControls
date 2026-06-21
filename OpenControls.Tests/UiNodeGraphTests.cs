@@ -498,6 +498,27 @@ public sealed class UiNodeGraphTests
         Assert.True(entryTitle.PixelSize <= graph.Canvas.WorldToScreen(entry.DebugLayout.HeaderBounds).Height);
     }
 
+    [Fact]
+    public void NodeGraph_CanvasTextZoomUsesReusableBuckets()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        UiContext context = new(graph);
+
+        graph.Zoom = 0.55f;
+        context.Update(new UiInputState(), 1f / 60f);
+        RecordingRenderer firstRenderer = new();
+        graph.Render(new UiRenderContext(firstRenderer, UiFont.Default));
+        var firstTitle = Assert.Single(firstRenderer.DrawnTexts, text => text.Text == entry.Title);
+
+        graph.Zoom = 0.61f;
+        context.Update(new UiInputState(), 1f / 60f);
+        RecordingRenderer secondRenderer = new();
+        graph.Render(new UiRenderContext(secondRenderer, UiFont.Default));
+        var secondTitle = Assert.Single(secondRenderer.DrawnTexts, text => text.Text == entry.Title);
+
+        Assert.Equal(firstTitle.PixelSize, secondTitle.PixelSize);
+    }
+
     private static UiNodeGraph CreateGraph(
         out UiNodeControl entry,
         out UiNodeControl print,
