@@ -271,6 +271,50 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeControl_CompactModeUsesThinHeaderAndSuppressesExecPinsAndBodyText()
+    {
+        UiNodeControl node = new()
+        {
+            Id = "compact-pure",
+            Bounds = new UiRect(120, 96, 180, 86),
+            Title = "Add",
+            Subtitle = "Math",
+            BodyText = "Should not render",
+            Compact = true,
+            HeaderHeight = 24,
+            Padding = 8,
+            PinRowHeight = 22,
+            PinHitSize = 18,
+            MinimumContentHeight = 48
+        };
+        node.AddInput("exec", "In", UiNodePinKind.Exec);
+        node.AddInput("left", "Left", UiNodePinKind.Data);
+        node.AddInput("right", "Right", UiNodePinKind.Data);
+        node.AddOutput("value", "Value", UiNodePinKind.Data);
+
+        UiSize size = node.MeasureDesiredSize(UiFont.Default);
+        Assert.True(size.Height < 112);
+
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        node.Bounds = new UiRect(node.Bounds.X, node.Bounds.Y, size.Width, size.Height);
+        graph.AddNode(node);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        Assert.True(node.DebugLayout.HeaderBounds.Height < 30);
+        Assert.Equal(default, node.DebugLayout.SubtitleBounds);
+        Assert.Equal(default, node.DebugLayout.BodyTextBounds);
+        Assert.DoesNotContain(node.DebugLayout.Pins, pin => pin.Pin?.Id == "exec");
+        Assert.All(node.DebugLayout.Pins, pin => Assert.Equal(UiNodePinKind.Data, pin.Pin?.Kind));
+    }
+
+    [Fact]
     public void NodeControl_DensePinsHideBodyTextInsteadOfOverlappingRows()
     {
         UiNodeGraph graph = new()

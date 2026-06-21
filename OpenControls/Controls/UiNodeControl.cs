@@ -18,11 +18,13 @@ public sealed class UiNodeControl : UiElement
     private int _layoutPadding;
     private int _layoutTextScale;
     private int _layoutPinHash;
+    private bool _layoutCompact;
     private string _title = string.Empty;
     private string _subtitle = string.Empty;
     private string _bodyText = string.Empty;
     private bool _hovered;
     private bool _selected;
+    private bool _compact;
     private bool _pressed;
     private bool _dragging;
     private bool _clickedThisFrame;
@@ -64,6 +66,12 @@ public sealed class UiNodeControl : UiElement
     public bool IsDragging => _dragging;
     public bool Draggable { get; set; } = true;
     public bool DragFromHeaderOnly { get; set; } = true;
+    public bool Compact
+    {
+        get => _compact;
+        set => SetInvalidatingValue(ref _compact, value, UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
     public UiColor Background { get; set; } = new(34, 38, 48);
     public UiColor HeaderBackground { get; set; } = new(48, 56, 72);
     public UiColor ShadowColor { get; set; } = new(0, 0, 0, 130);
@@ -81,7 +89,7 @@ public sealed class UiNodeControl : UiElement
     public int HeaderHeight
     {
         get => _headerHeight;
-        set => SetInvalidatingValue(ref _headerHeight, Math.Max(30, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+        set => SetInvalidatingValue(ref _headerHeight, Math.Max(20, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public int PinRowHeight
@@ -196,7 +204,7 @@ public sealed class UiNodeControl : UiElement
         for (int i = _pins.Count - 1; i >= 0; i--)
         {
             UiNodePin candidate = _pins[i];
-            if (candidate.Enabled && candidate.Layout.HitBounds.Contains(point))
+            if (candidate.Enabled && candidate.Layout.IsValid && candidate.Layout.HitBounds.Contains(point))
             {
                 pin = candidate;
                 return true;
@@ -216,7 +224,7 @@ public sealed class UiNodeControl : UiElement
         int textHeight = font.MeasureTextHeight(scale);
         int sidePadding = ResolvePinSidePadding(padding);
         int laneGap = ResolveLaneGap(padding);
-        bool hasSubtitle = !string.IsNullOrWhiteSpace(Subtitle);
+        bool hasSubtitle = !Compact && !string.IsNullOrWhiteSpace(Subtitle);
         int titleWidth = font.MeasureTextWidth(Title, scale);
         int subtitleWidth = hasSubtitle ? font.MeasureTextWidth(Subtitle, scale) : 0;
         int headerWidth = Math.Max(titleWidth, subtitleWidth) + padding * 2;
@@ -225,6 +233,11 @@ public sealed class UiNodeControl : UiElement
         int outputCount = 0;
         for (int i = 0; i < _pins.Count; i++)
         {
+            if (!ShouldLayoutPin(_pins[i]))
+            {
+                continue;
+            }
+
             if (_pins[i].Direction == UiNodePinDirection.Input)
             {
                 inputCount++;
@@ -249,21 +262,18 @@ public sealed class UiNodeControl : UiElement
             pinWidth = Math.Max(pinWidth, rowWidth);
         }
 
-        int bodyTextWidth = string.IsNullOrEmpty(BodyText)
+        int bodyTextWidth = Compact || string.IsNullOrEmpty(BodyText)
             ? 0
             : font.MeasureTextWidth(BodyText, scale) + padding * 2;
         int maximumWidth = Math.Max(MinimumContentWidth, MaximumContentWidth);
         int desiredWidth = Math.Clamp(Math.Max(headerWidth, Math.Max(pinWidth, bodyTextWidth)), MinimumContentWidth, maximumWidth);
 
-        int measuredHeaderHeight = Math.Max(
-            Math.Max(30, HeaderHeight),
-            hasSubtitle
-                ? textHeight * 2 + Math.Max(7, padding)
-                : textHeight + Math.Max(8, padding));
+        int measuredHeaderHeight = ResolveHeaderHeight(textHeight, padding, hasSubtitle);
         int rowHeight = Math.Max(Math.Max(12, PinRowHeight), Math.Max(PinHitSize + 6, textHeight + 6));
-        int bodyRowsHeight = Math.Max(1, rowCount) * rowHeight;
-        int bodyTextHeight = string.IsNullOrEmpty(BodyText) ? 0 : padding + textHeight;
-        int desiredHeight = measuredHeaderHeight + padding + bodyRowsHeight + bodyTextHeight + padding;
+        int bodyRowsHeight = rowCount == 0 ? 0 : rowCount * rowHeight;
+        int bodyTextHeight = Compact || string.IsNullOrEmpty(BodyText) ? 0 : padding + textHeight;
+        int bodyPadding = rowCount == 0 && bodyTextHeight == 0 ? Math.Max(4, padding / 2) : padding;
+        int desiredHeight = measuredHeaderHeight + bodyPadding + bodyRowsHeight + bodyTextHeight + bodyPadding;
         desiredHeight = Math.Max(MinimumContentHeight, desiredHeight);
 
         return new UiSize(desiredWidth, desiredHeight);
@@ -286,7 +296,7 @@ public sealed class UiNodeControl : UiElement
         for (int i = 0; i < _pins.Count; i++)
         {
             UiNodePin pin = _pins[i];
-            bool pinHovered = pin.Enabled && pin.Layout.HitBounds.Contains(mouse);
+            bool pinHovered = pin.Enabled && pin.Layout.IsValid && pin.Layout.HitBounds.Contains(mouse);
             pin.Hovered = pinHovered;
             if (pinHovered)
             {
@@ -443,6 +453,7 @@ public sealed class UiNodeControl : UiElement
             && _layoutPadding == Padding
             && _layoutTextScale == TextScale
             && _layoutPinHash == pinHash
+            && _layoutCompact == Compact
             && _layoutFontPixelSize == font.PixelSize
             && string.Equals(_layoutFontName, font.Name, StringComparison.Ordinal)
             && string.Equals(_layoutTitle, Title, StringComparison.Ordinal)
@@ -452,15 +463,15 @@ public sealed class UiNodeControl : UiElement
             return;
         }
 
-        int headerHeight = Math.Min(Math.Max(0, Bounds.Height), Math.Max(30, HeaderHeight));
-        UiRect headerBounds = new(Bounds.X, Bounds.Y, Bounds.Width, headerHeight);
-        UiRect bodyBounds = new(Bounds.X, Bounds.Y + headerHeight, Bounds.Width, Math.Max(0, Bounds.Height - headerHeight));
         int padding = Math.Max(0, Padding);
         int scale = Math.Max(1, TextScale);
         int textHeight = font.MeasureTextHeight(scale);
+        bool hasSubtitle = !Compact && !string.IsNullOrWhiteSpace(Subtitle);
+        int headerHeight = Math.Min(Math.Max(0, Bounds.Height), ResolveHeaderHeight(textHeight, padding, hasSubtitle));
+        UiRect headerBounds = new(Bounds.X, Bounds.Y, Bounds.Width, headerHeight);
+        UiRect bodyBounds = new(Bounds.X, Bounds.Y + headerHeight, Bounds.Width, Math.Max(0, Bounds.Height - headerHeight));
         int titleAvailableWidth = Math.Max(0, headerBounds.Width - padding * 2);
         int titleWidth = Math.Min(titleAvailableWidth, font.MeasureTextWidth(Title, scale));
-        bool hasSubtitle = !string.IsNullOrWhiteSpace(Subtitle);
         int titleY = hasSubtitle
             ? headerBounds.Y + Math.Max(4, padding / 2)
             : headerBounds.Y + Math.Max(0, (headerBounds.Height - textHeight) / 2);
@@ -484,6 +495,11 @@ public sealed class UiNodeControl : UiElement
         int outputCount = 0;
         for (int i = 0; i < _pins.Count; i++)
         {
+            if (!ShouldLayoutPin(_pins[i]))
+            {
+                continue;
+            }
+
             if (_pins[i].Direction == UiNodePinDirection.Input)
             {
                 inputCount++;
@@ -497,6 +513,12 @@ public sealed class UiNodeControl : UiElement
         for (int i = 0; i < _pins.Count; i++)
         {
             UiNodePin pin = _pins[i];
+            if (!ShouldLayoutPin(pin))
+            {
+                pin.Layout = UiNodePinLayout.Empty;
+                continue;
+            }
+
             int rowIndex = pin.Direction == UiNodePinDirection.Input ? inputRow++ : outputRow++;
             bool hasOppositePinInRow = pin.Direction == UiNodePinDirection.Input
                 ? outputCount > rowIndex
@@ -508,7 +530,7 @@ public sealed class UiNodeControl : UiElement
 
         int rowCount = Math.Max(inputCount, outputCount);
         UiRect bodyTextBounds = default;
-        if (!string.IsNullOrEmpty(BodyText) && bodyBounds.Width > 0 && bodyBounds.Height > 0)
+        if (!Compact && !string.IsNullOrEmpty(BodyText) && bodyBounds.Width > 0 && bodyBounds.Height > 0)
         {
             int rowHeight = Math.Max(Math.Max(12, PinRowHeight), Math.Max(PinHitSize + 6, textHeight + 6));
             int bodyTextY = bodyBounds.Y + padding + rowCount * rowHeight + padding;
@@ -535,6 +557,7 @@ public sealed class UiNodeControl : UiElement
         _layoutPadding = Padding;
         _layoutTextScale = TextScale;
         _layoutPinHash = pinHash;
+        _layoutCompact = Compact;
     }
 
     private int ComputePinLayoutHash()
@@ -551,6 +574,7 @@ public sealed class UiNodeControl : UiElement
             hash.Add(pin.Enabled);
         }
 
+        hash.Add(Compact);
         return hash.ToHashCode();
     }
 
@@ -588,7 +612,7 @@ public sealed class UiNodeControl : UiElement
         for (int i = 0; i < _pins.Count; i++)
         {
             UiNodePin pin = _pins[i];
-            if (pin.Direction != direction)
+            if (pin.Direction != direction || !ShouldLayoutPin(pin))
             {
                 continue;
             }
@@ -630,7 +654,7 @@ public sealed class UiNodeControl : UiElement
 
     private void DrawBodyText(UiRenderContext context, UiFont font)
     {
-        if (string.IsNullOrEmpty(BodyText) || _debugLayout.BodyTextBounds.Width <= 0 || _debugLayout.BodyTextBounds.Height <= 0)
+        if (Compact || string.IsNullOrEmpty(BodyText) || _debugLayout.BodyTextBounds.Width <= 0 || _debugLayout.BodyTextBounds.Height <= 0)
         {
             return;
         }
@@ -644,7 +668,7 @@ public sealed class UiNodeControl : UiElement
 
     private void DrawSubtitle(UiRenderContext context, UiFont font)
     {
-        if (string.IsNullOrEmpty(Subtitle) || _debugLayout.SubtitleBounds.Width <= 0 || _debugLayout.SubtitleBounds.Height <= 0)
+        if (Compact || string.IsNullOrEmpty(Subtitle) || _debugLayout.SubtitleBounds.Width <= 0 || _debugLayout.SubtitleBounds.Height <= 0)
         {
             return;
         }
@@ -662,6 +686,11 @@ public sealed class UiNodeControl : UiElement
         {
             UiNodePin pin = _pins[i];
             UiNodePinLayout layout = pin.Layout;
+            if (!layout.IsValid)
+            {
+                continue;
+            }
+
             UiColor pinColor = ResolvePinColor(pin);
             UiColor border = pin.Hovered || pin.Selected ? PinHoverBorder : PinBorder;
             int visualSize = Math.Max(2, PinVisualSize + (pin.Kind == UiNodePinKind.Exec ? 2 : 0));
@@ -691,6 +720,25 @@ public sealed class UiNodeControl : UiElement
         return pin.Kind == UiNodePinKind.Exec
             ? ExecPinColor
             : pin.Color ?? DataPinColor;
+    }
+
+    private bool ShouldLayoutPin(UiNodePin pin)
+    {
+        return !Compact || pin.Kind != UiNodePinKind.Exec;
+    }
+
+    private int ResolveHeaderHeight(int textHeight, int padding, bool hasSubtitle)
+    {
+        if (Compact)
+        {
+            return Math.Max(22, textHeight + Math.Max(5, padding / 2));
+        }
+
+        return Math.Max(
+            Math.Max(30, HeaderHeight),
+            hasSubtitle
+                ? textHeight * 2 + Math.Max(7, padding)
+                : textHeight + Math.Max(8, padding));
     }
 
     private bool CanStartDrag(UiPoint mouse)
