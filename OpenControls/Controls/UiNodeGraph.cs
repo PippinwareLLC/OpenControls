@@ -220,6 +220,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private CommentEditField _editingCommentField;
     private UiTextCompositionState _valueComposition;
     private UiTextCompositionState _commentComposition;
+    private bool _boxSelectionArmed;
+    private UiPoint _boxSelectionStartScreen;
+    private UiPoint _boxSelectionStartGraphLocal;
+    private UiPoint _boxSelectionStartWorld;
+    private UiModifierKeys _boxSelectionModifiers;
     private UiFont _valueEditFont = UiFont.Default;
     private UiFont _commentEditFont = UiFont.Default;
     private bool _valueCaretVisible = true;
@@ -235,6 +240,8 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public UiNodeGraph()
     {
         _wireLayer = new UiNodeWireLayer(this);
+        _canvas.PanButton = UiCanvas.UiCanvasPanButton.Middle;
+        _canvas.PanWithSpaceLeftButton = true;
         _canvas.ViewportChanged += HandleCanvasViewportChanged;
         _canvas.AddChild(_wireLayer);
         _canvas.AddChild(_commentLayer);
@@ -258,6 +265,10 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public bool IsEditingText => IsEditingValue || IsEditingComment;
     public override bool IsFocusable => true;
     public override bool WantsTextInput => IsEditingText;
+    public bool EnableBoxSelection { get; set; } = true;
+    public bool IsBoxSelectionPointerActive => _boxSelectionArmed || IsBoxSelecting;
+    public bool IsBoxSelecting { get; private set; }
+    public UiRect? SelectionMarqueeWorldBounds { get; private set; }
     public bool EnableWirePreview { get; set; } = true;
     public bool EnableWireSelection { get; set; } = true;
     public int WireHitSlop { get; set; } = 5;
@@ -338,6 +349,10 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeCommentEditStartedEvent>? CommentEditStarted;
     public event Action<UiNodeCommentEditCommittedEvent>? CommentEditCommitted;
     public event Action<UiNodeCommentEditCancelledEvent>? CommentEditCancelled;
+    public event Action<UiNodeBoxSelectionEvent>? BoxSelectionStarted;
+    public event Action<UiNodeBoxSelectionEvent>? BoxSelectionUpdated;
+    public event Action<UiNodeBoxSelectionEvent>? BoxSelectionEnded;
+    public event Action<UiNodeBoxSelectionEvent>? BoxSelectionCancelled;
     public event Action<UiNodeGraphViewportChangedEvent>? ViewportChanged;
     public event Action<UiNodeGraphCommandRequestedEvent>? CommandRequested;
 
@@ -602,6 +617,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     {
         if (!Visible || !Enabled)
         {
+            CancelBoxSelection(_boxSelectionModifiers);
             return;
         }
 
@@ -630,6 +646,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         ProcessValueEditorState(context);
         ProcessCommentEditorState(context);
         ProcessGraphCommandInput(context, graphInput);
+    }
+
+    protected internal override void OnFocusLost()
+    {
+        CancelBoxSelection(_boxSelectionModifiers);
     }
 
     public override void Render(UiRenderContext context)
@@ -1682,6 +1703,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
 
         RefreshPreviewState(input, mouseInViewport, worldMouse);
+        if (ProcessBoxSelectionInput(context, input, mouseInViewport, worldMouse))
+        {
+            return;
+        }
+
         if (input.LeftClicked && HoveredNode != null && HoveredPin == null)
         {
             NodeSelectionRequested?.Invoke(new UiNodeSelectionRequestedEvent(this, HoveredNode, input.Modifiers));
@@ -1941,6 +1967,186 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         PreviewWire = UiNodeWirePreviewState.Inactive;
     }
 
+    private bool ProcessBoxSelectionInput(UiUpdateContext context, UiInputState input, bool mouseInViewport, UiPoint worldMouse)
+    {
+        if (!EnableBoxSelection)
+        {
+            CancelBoxSelection(input.Modifiers);
+            _boxSelectionArmed = false;
+            return false;
+        }
+
+        if (IsBoxSelecting)
+        {
+            if (input.IsKeyPressed(UiKey.Escape) || input.Navigation.Escape)
+            {
+                CancelBoxSelection(input.Modifiers);
+                return true;
+            }
+
+            if (input.LeftDown || input.LeftReleased)
+            {
+                UiNodeBoxSelectionEvent ev = UpdateBoxSelectionState(input, isCompleting: input.LeftReleased);
+                if (input.LeftReleased)
+                {
+                    EndBoxSelection(ev);
+                }
+                else
+                {
+                    BoxSelectionUpdated?.Invoke(ev);
+                }
+
+                return true;
+            }
+
+            CancelBoxSelection(input.Modifiers);
+            return true;
+        }
+
+        if (_boxSelectionArmed)
+        {
+            if (input.IsKeyPressed(UiKey.Escape) || input.Navigation.Escape || input.IsKeyDown(UiKey.Space))
+            {
+                _boxSelectionArmed = false;
+                return true;
+            }
+
+            if (input.LeftReleased || !input.LeftDown)
+            {
+                _boxSelectionArmed = false;
+                return false;
+            }
+
+            if (HasExceededDragThreshold(_boxSelectionStartScreen, input.MousePosition, input.DragThreshold))
+            {
+                BeginBoxSelection(input);
+            }
+
+            return true;
+        }
+
+        if (CanArmBoxSelection(input, mouseInViewport, worldMouse))
+        {
+            _boxSelectionArmed = true;
+            _boxSelectionStartScreen = input.MousePosition;
+            _boxSelectionStartGraphLocal = ToGraphLocal(input.MousePosition);
+            _boxSelectionStartWorld = _canvas.ScreenToWorld(input.MousePosition);
+            _boxSelectionModifiers = input.Modifiers;
+            context.Focus.RequestFocus(this);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool CanArmBoxSelection(UiInputState input, bool mouseInViewport, UiPoint worldMouse)
+    {
+        return EnableBoxSelection
+            && mouseInViewport
+            && input.LeftClicked
+            && input.LeftDown
+            && !input.RightDown
+            && !input.MiddleDown
+            && !IsEditingText
+            && !input.IsKeyDown(UiKey.Space)
+            && !IsLeftButtonPanGesture()
+            && !PreviewWire.Active
+            && _previewStartPin == null
+            && HoveredNode == null
+            && HoveredPin == null
+            && HoveredValuePin == null
+            && HoveredComment == null
+            && HoveredWire == null
+            && !TryGetCommentEditTarget(worldMouse, out _, out _);
+    }
+
+    private bool IsLeftButtonPanGesture()
+    {
+        return _canvas.EnablePan && _canvas.PanButton == UiCanvas.UiCanvasPanButton.Left;
+    }
+
+    private void BeginBoxSelection(UiInputState input)
+    {
+        _boxSelectionArmed = false;
+        IsBoxSelecting = true;
+        UiNodeBoxSelectionEvent ev = UpdateBoxSelectionState(input, isCompleting: false);
+        BoxSelectionStarted?.Invoke(ev);
+        BoxSelectionUpdated?.Invoke(ev);
+    }
+
+    private UiNodeBoxSelectionEvent UpdateBoxSelectionState(UiInputState input, bool isCompleting)
+    {
+        UiRect graphLocalBounds = RectFromPoints(_boxSelectionStartGraphLocal, ToGraphLocal(input.MousePosition));
+        UiRect worldBounds = RectFromPoints(_boxSelectionStartWorld, _canvas.ScreenToWorld(input.MousePosition));
+        IReadOnlyList<UiNodeControl> hitNodes = GetBoxSelectionHitNodes(worldBounds);
+        _boxSelectionModifiers = input.Modifiers;
+        SelectionMarqueeWorldBounds = worldBounds;
+        SelectionMarqueeBounds = graphLocalBounds;
+        return new UiNodeBoxSelectionEvent(this, graphLocalBounds, worldBounds, hitNodes, input.Modifiers, isCompleting);
+    }
+
+    private void EndBoxSelection(UiNodeBoxSelectionEvent ev)
+    {
+        BoxSelectionEnded?.Invoke(ev);
+        ClearBoxSelectionState();
+    }
+
+    private void CancelBoxSelection(UiModifierKeys modifiers)
+    {
+        if (!IsBoxSelecting && !_boxSelectionArmed)
+        {
+            return;
+        }
+
+        UiRect graphLocalBounds = SelectionMarqueeBounds ?? RectFromPoints(_boxSelectionStartGraphLocal, ToGraphLocal(_boxSelectionStartScreen));
+        UiRect worldBounds = SelectionMarqueeWorldBounds ?? RectFromPoints(_boxSelectionStartWorld, _boxSelectionStartWorld);
+        IReadOnlyList<UiNodeControl> hitNodes = worldBounds.Width > 0 && worldBounds.Height > 0
+            ? GetBoxSelectionHitNodes(worldBounds)
+            : Array.Empty<UiNodeControl>();
+        bool wasSelecting = IsBoxSelecting;
+        ClearBoxSelectionState();
+        if (wasSelecting)
+        {
+            BoxSelectionCancelled?.Invoke(new UiNodeBoxSelectionEvent(this, graphLocalBounds, worldBounds, hitNodes, modifiers, IsCompleting: false));
+        }
+    }
+
+    private void ClearBoxSelectionState()
+    {
+        _boxSelectionArmed = false;
+        IsBoxSelecting = false;
+        SelectionMarqueeWorldBounds = null;
+        SelectionMarqueeBounds = null;
+    }
+
+    private IReadOnlyList<UiNodeControl> GetBoxSelectionHitNodes(UiRect worldBounds)
+    {
+        if (worldBounds.Width <= 0 || worldBounds.Height <= 0)
+        {
+            return Array.Empty<UiNodeControl>();
+        }
+
+        List<UiNodeControl>? hitNodes = null;
+        for (int i = 0; i < _nodes.Count; i++)
+        {
+            UiNodeControl node = _nodes[i];
+            if (!node.Visible || !node.Enabled || !Intersects(worldBounds, node.Bounds))
+            {
+                continue;
+            }
+
+            hitNodes ??= new List<UiNodeControl>();
+            hitNodes.Add(node);
+        }
+
+        return hitNodes?.ToArray() ?? Array.Empty<UiNodeControl>();
+    }
+
+    private UiPoint ToGraphLocal(UiPoint screenPoint)
+    {
+        return new UiPoint(screenPoint.X - Bounds.X, screenPoint.Y - Bounds.Y);
+    }
+
     private UiColor ResolveWireColor(UiNodeWire wire)
     {
         if (wire.Selected)
@@ -2081,6 +2287,35 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             rect.Width + safePadding * 2,
             rect.Height + safePadding * 2);
     }
+
+    private static UiRect RectFromPoints(UiPoint first, UiPoint second)
+    {
+        int left = Math.Min(first.X, second.X);
+        int top = Math.Min(first.Y, second.Y);
+        int right = Math.Max(first.X, second.X);
+        int bottom = Math.Max(first.Y, second.Y);
+        return new UiRect(left, top, right - left, bottom - top);
+    }
+
+    private static bool Intersects(UiRect a, UiRect b)
+    {
+        return a.Width > 0
+            && a.Height > 0
+            && b.Width > 0
+            && b.Height > 0
+            && a.Left < b.Right
+            && a.Right > b.Left
+            && a.Top < b.Bottom
+            && a.Bottom > b.Top;
+    }
+
+    private static bool HasExceededDragThreshold(UiPoint start, UiPoint current, int threshold)
+    {
+        int dx = current.X - start.X;
+        int dy = current.Y - start.Y;
+        int safeThreshold = Math.Max(0, threshold);
+        return dx * dx + dy * dy >= safeThreshold * safeThreshold;
+    }
 }
 
 public sealed record UiNodeSelectionRequestedEvent(
@@ -2138,6 +2373,14 @@ public sealed record UiNodeCommentEditCancelledEvent(
     UiNodeGraph Graph,
     UiNodeCommentBox Comment,
     string Key);
+
+public sealed record UiNodeBoxSelectionEvent(
+    UiNodeGraph Graph,
+    UiRect GraphLocalBounds,
+    UiRect WorldBounds,
+    IReadOnlyList<UiNodeControl> HitNodes,
+    UiModifierKeys Modifiers,
+    bool IsCompleting);
 
 public sealed record UiNodeGraphViewportChangedEvent(
     UiNodeGraph Graph,

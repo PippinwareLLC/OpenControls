@@ -190,6 +190,180 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_BoxSelectionDragRaisesEventsAndClearsMarqueeOnRelease()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        List<UiNodeBoxSelectionEvent> started = [];
+        List<UiNodeBoxSelectionEvent> updated = [];
+        List<UiNodeBoxSelectionEvent> ended = [];
+        List<UiNodeBoxSelectionEvent> cancelled = [];
+        graph.BoxSelectionStarted += started.Add;
+        graph.BoxSelectionUpdated += updated.Add;
+        graph.BoxSelectionEnded += ended.Add;
+        graph.BoxSelectionCancelled += cancelled.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint start = new(20, 20);
+        UiPoint end = new(220, 220);
+        context.Update(new UiInputState
+        {
+            MousePosition = start,
+            ScreenMousePosition = start,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftDown = true,
+            LeftDragOrigin = start
+        }, 1f / 60f);
+
+        Assert.True(graph.IsBoxSelecting);
+        Assert.Equal(new UiRect(20, 20, 200, 200), graph.SelectionMarqueeBounds);
+        Assert.Equal(new UiRect(20, 20, 200, 200), graph.SelectionMarqueeWorldBounds);
+        Assert.Single(started);
+        Assert.Single(updated);
+        Assert.Same(graph, started[0].Graph);
+        Assert.Equal(new UiRect(20, 20, 200, 200), started[0].GraphLocalBounds);
+        Assert.Equal(new UiRect(20, 20, 200, 200), started[0].WorldBounds);
+        Assert.Contains(entry, started[0].HitNodes);
+        Assert.False(started[0].IsCompleting);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftReleased = true
+        }, 1f / 60f);
+
+        UiNodeBoxSelectionEvent completed = Assert.Single(ended);
+        Assert.Same(entry, Assert.Single(completed.HitNodes));
+        Assert.True(completed.IsCompleting);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+        Assert.Null(graph.SelectionMarqueeWorldBounds);
+        Assert.Empty(cancelled);
+    }
+
+    [Fact]
+    public void NodeGraph_BoxSelectionBoundsAreCorrectUnderPanAndZoom()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        graph.PanX = 100;
+        graph.PanY = 40;
+        graph.Zoom = 2f;
+        List<UiNodeBoxSelectionEvent> ended = [];
+        graph.BoxSelectionEnded += ended.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint start = graph.Canvas.WorldToScreen(new UiPoint(120, 50));
+        UiPoint end = graph.Canvas.WorldToScreen(new UiPoint(220, 150));
+        context.Update(new UiInputState
+        {
+            MousePosition = start,
+            ScreenMousePosition = start,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftDown = true,
+            LeftDragOrigin = start
+        }, 1f / 60f);
+
+        Assert.Equal(new UiRect(40, 20, 200, 200), graph.SelectionMarqueeBounds);
+        Assert.Equal(new UiRect(120, 50, 100, 100), graph.SelectionMarqueeWorldBounds);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftReleased = true
+        }, 1f / 60f);
+
+        UiNodeBoxSelectionEvent ev = Assert.Single(ended);
+        Assert.Equal(new UiRect(40, 20, 200, 200), ev.GraphLocalBounds);
+        Assert.Equal(new UiRect(120, 50, 100, 100), ev.WorldBounds);
+        Assert.Contains(entry, ev.HitNodes);
+    }
+
+    [Fact]
+    public void NodeGraph_BoxSelectionHitsVisibleEnabledNodesButNotComments()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out _, out _);
+        UiNodeControl hidden = new()
+        {
+            Id = "hidden",
+            Bounds = new UiRect(120, 160, 140, 80),
+            Title = "Hidden",
+            Visible = false
+        };
+        UiNodeControl disabled = new()
+        {
+            Id = "disabled",
+            Bounds = new UiRect(160, 180, 140, 80),
+            Title = "Disabled",
+            Enabled = false
+        };
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment",
+            Bounds = new UiRect(30, 60, 520, 240),
+            Title = "Comment",
+            Text = "This should not appear in node hits."
+        };
+        graph.AddNode(hidden);
+        graph.AddNode(disabled);
+        graph.AddCommentBox(comment);
+        List<UiNodeBoxSelectionEvent> ended = [];
+        graph.BoxSelectionEnded += ended.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint start = new(20, 350);
+        UiPoint end = new(540, 60);
+        context.Update(new UiInputState
+        {
+            MousePosition = start,
+            ScreenMousePosition = start,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftDown = true,
+            LeftDragOrigin = start
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftReleased = true
+        }, 1f / 60f);
+
+        UiNodeBoxSelectionEvent ev = Assert.Single(ended);
+        Assert.Equal(new[] { entry, print }, ev.HitNodes);
+        Assert.DoesNotContain(hidden, ev.HitNodes);
+        Assert.DoesNotContain(disabled, ev.HitNodes);
+        Assert.Single(graph.Comments);
+    }
+
+    [Fact]
     public void NodeControl_LayoutKeepsPinsAndTextInSeparateBounds()
     {
         UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out _, out _);
@@ -617,6 +791,342 @@ public sealed class UiNodeGraphTests
 
         Assert.Contains(changes, change => change.Reason == UiCanvas.UiCanvasViewportChangeReason.Zoom);
         Assert.True(graph.Zoom > zoomBefore);
+    }
+
+    [Fact]
+    public void NodeGraph_BoxSelectionDoesNotStartFromInteractiveTargetsOrWhileEditingText()
+    {
+        AssertNoBoxSelectionFromNodeTarget(useHeader: true);
+        AssertNoBoxSelectionFromNodeTarget(useHeader: false);
+        AssertNoBoxSelectionFromPinWirePreview();
+        AssertNoBoxSelectionFromCommentEditTarget();
+        AssertNoBoxSelectionFromCommentInterior();
+        AssertNoBoxSelectionFromValueFieldDrag();
+        AssertNoBoxSelectionFromHoveredWire();
+        AssertNoBoxSelectionWhileTextEditing();
+    }
+
+    [Fact]
+    public void NodeGraph_BoxSelectionEscapeCancelsAndClearsMarquee()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
+        List<UiNodeBoxSelectionEvent> started = [];
+        List<UiNodeBoxSelectionEvent> updated = [];
+        List<UiNodeBoxSelectionEvent> ended = [];
+        List<UiNodeBoxSelectionEvent> cancelled = [];
+        graph.BoxSelectionStarted += started.Add;
+        graph.BoxSelectionUpdated += updated.Add;
+        graph.BoxSelectionEnded += ended.Add;
+        graph.BoxSelectionCancelled += cancelled.Add;
+
+        UiContext context = new(graph);
+        UiPoint start = new(20, 20);
+        UiPoint end = new(220, 220);
+        context.Update(new UiInputState
+        {
+            MousePosition = start,
+            ScreenMousePosition = start,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftDown = true,
+            LeftDragOrigin = start
+        }, 1f / 60f);
+
+        Assert.True(graph.IsBoxSelecting);
+        Assert.NotNull(graph.SelectionMarqueeBounds);
+        Assert.NotNull(graph.SelectionMarqueeWorldBounds);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftDown = true,
+            KeysPressed = new[] { UiKey.Escape },
+            Navigation = new UiNavigationInput { Escape = true }
+        }, 1f / 60f);
+
+        Assert.Single(started);
+        Assert.Single(updated);
+        Assert.Empty(ended);
+        UiNodeBoxSelectionEvent ev = Assert.Single(cancelled);
+        Assert.False(ev.IsCompleting);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+        Assert.Null(graph.SelectionMarqueeWorldBounds);
+    }
+
+    [Fact]
+    public void NodeGraph_MiddleAndSpaceLeftPanDoNotStartBoxSelection()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        graph.Canvas.PanButton = UiCanvas.UiCanvasPanButton.Middle;
+        graph.Canvas.PanWithSpaceLeftButton = true;
+        List<UiNodeBoxSelectionEvent> boxEvents = RecordBoxSelectionEvents(graph);
+        List<UiNodeGraphViewportChangedEvent> viewportEvents = [];
+        graph.ViewportChanged += viewportEvents.Add;
+
+        UiContext context = new(graph);
+        UiPoint middleStart = new(50, 50);
+        UiPoint middleEnd = new(100, 75);
+        context.Update(new UiInputState
+        {
+            MousePosition = middleStart,
+            ScreenMousePosition = middleStart,
+            MiddleClicked = true,
+            MiddleDown = true
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = middleEnd,
+            ScreenMousePosition = middleEnd,
+            MiddleDown = true,
+            MiddleDragOrigin = middleStart
+        }, 1f / 60f);
+
+        Assert.Contains(viewportEvents, change => change.Reason == UiCanvas.UiCanvasViewportChangeReason.Pan);
+        Assert.Equal(-50, graph.PanX);
+        Assert.Equal(-25, graph.PanY);
+        Assert.Empty(boxEvents);
+        Assert.False(graph.IsBoxSelecting);
+
+        graph.PanX = 0;
+        graph.PanY = 0;
+        viewportEvents.Clear();
+        UiPoint spaceStart = new(60, 60);
+        UiPoint spaceEnd = new(90, 90);
+        context.Update(new UiInputState
+        {
+            MousePosition = spaceStart,
+            ScreenMousePosition = spaceStart,
+            LeftClicked = true,
+            LeftDown = true,
+            KeysDown = new[] { UiKey.Space }
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = spaceEnd,
+            ScreenMousePosition = spaceEnd,
+            LeftDown = true,
+            LeftDragOrigin = spaceStart,
+            KeysDown = new[] { UiKey.Space }
+        }, 1f / 60f);
+
+        Assert.Contains(viewportEvents, change => change.Reason == UiCanvas.UiCanvasViewportChangeReason.Pan);
+        Assert.Equal(-30, graph.PanX);
+        Assert.Equal(-30, graph.PanY);
+        Assert.Empty(boxEvents);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+    }
+
+    private static void AssertNoBoxSelectionFromNodeTarget(bool useHeader)
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        List<UiNodeBoxSelectionEvent> events = RecordBoxSelectionEvents(graph);
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint world = useHeader
+            ? Center(entry.DebugLayout.HeaderBounds)
+            : new UiPoint(entry.Bounds.X + entry.Bounds.Width / 2, entry.DebugLayout.HeaderBounds.Bottom + 12);
+        DragFrom(context, graph.Canvas.WorldToScreen(world));
+
+        Assert.Empty(events);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+    }
+
+    private static void AssertNoBoxSelectionFromPinWirePreview()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out _, out UiNodePin entryThen, out _);
+        List<UiNodeBoxSelectionEvent> events = RecordBoxSelectionEvents(graph);
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        DragFrom(context, graph.Canvas.WorldToScreen(entryThen.Layout.Center));
+
+        Assert.Empty(events);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+    }
+
+    private static void AssertNoBoxSelectionFromCommentEditTarget()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-edit-target",
+            Bounds = new UiRect(80, 80, 420, 180),
+            Title = "Editable Comment",
+            Text = "Body text",
+            Padding = 16
+        };
+        graph.AddCommentBox(comment);
+        List<UiNodeBoxSelectionEvent> events = RecordBoxSelectionEvents(graph);
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        DragFrom(context, graph.Canvas.WorldToScreen(Center(comment.DebugLayout.TitleBounds)));
+
+        Assert.True(graph.IsEditingComment);
+        Assert.Empty(events);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+    }
+
+    private static void AssertNoBoxSelectionFromCommentInterior()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-interior-target",
+            Bounds = new UiRect(80, 80, 420, 180),
+            Title = "Non Selection Comment",
+            Text = "Dragging from anywhere inside a comment should not begin a node selection box.",
+            Padding = 16
+        };
+        graph.AddCommentBox(comment);
+        List<UiNodeBoxSelectionEvent> events = RecordBoxSelectionEvents(graph);
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        DragFrom(context, graph.Canvas.WorldToScreen(new UiPoint(comment.Bounds.X + 8, comment.Bounds.Bottom - 8)));
+
+        Assert.Empty(events);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+    }
+
+    private static void AssertNoBoxSelectionFromValueFieldDrag()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        UiNodeControl node = new()
+        {
+            Id = "literal-value-drag-node",
+            Bounds = new UiRect(120, 96, 220, 72),
+            Title = "Integer Literal",
+            Compact = true,
+            Padding = 8,
+            PinHitSize = 18,
+            PinVisualSize = 10,
+            MinimumContentHeight = 48
+        };
+        UiNodePin value = node.AddOutput("value", "Value", UiNodePinKind.Data);
+        value.ValueText = "41";
+        graph.AddNode(node);
+
+        UiSize size = node.MeasureDesiredSize(UiFont.Default);
+        node.Bounds = new UiRect(node.Bounds.X, node.Bounds.Y, size.Width, size.Height);
+        List<UiNodeBoxSelectionEvent> events = RecordBoxSelectionEvents(graph);
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiNodePinLayout layout = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "value");
+
+        DragFrom(context, graph.Canvas.WorldToScreen(Center(layout.ValueBounds)));
+
+        Assert.True(graph.IsEditingValue);
+        Assert.Empty(events);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+    }
+
+    private static void AssertNoBoxSelectionFromHoveredWire()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);
+        graph.Connect(entry, entryThen, print, printIn);
+        List<UiNodeBoxSelectionEvent> events = RecordBoxSelectionEvents(graph);
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint wireWorld = new(
+            (entryThen.Layout.Center.X + printIn.Layout.Center.X) / 2,
+            (entryThen.Layout.Center.Y + printIn.Layout.Center.Y) / 2);
+        UiPoint wireScreen = graph.Canvas.WorldToScreen(wireWorld);
+        context.Update(new UiInputState
+        {
+            MousePosition = wireScreen,
+            ScreenMousePosition = wireScreen
+        }, 1f / 60f);
+
+        Assert.NotNull(graph.HoveredWire);
+
+        DragFrom(context, wireScreen);
+
+        Assert.Empty(events);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+    }
+
+    private static void AssertNoBoxSelectionWhileTextEditing()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        UiNodeControl node = new()
+        {
+            Id = "literal-node",
+            Bounds = new UiRect(120, 96, 220, 72),
+            Title = "Integer Literal",
+            Compact = true,
+            Padding = 8,
+            PinHitSize = 18,
+            PinVisualSize = 10,
+            MinimumContentHeight = 48
+        };
+        UiNodePin value = node.AddOutput("value", "Value", UiNodePinKind.Data);
+        value.ValueText = "41";
+        graph.AddNode(node);
+
+        UiSize size = node.MeasureDesiredSize(UiFont.Default);
+        node.Bounds = new UiRect(node.Bounds.X, node.Bounds.Y, size.Width, size.Height);
+        List<UiNodeBoxSelectionEvent> events = RecordBoxSelectionEvents(graph);
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiNodePinLayout layout = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "value");
+        UiPoint valueClick = graph.Canvas.WorldToScreen(Center(layout.ValueBounds));
+        context.Update(new UiInputState
+        {
+            MousePosition = valueClick,
+            ScreenMousePosition = valueClick,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.True(graph.IsEditingText);
+
+        DragFrom(context, new UiPoint(20, 20));
+
+        Assert.Empty(events);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
     }
 
     [Fact]
@@ -1764,6 +2274,41 @@ public sealed class UiNodeGraphTests
         var secondTitle = Assert.Single(secondRenderer.DrawnTexts, text => text.Text == entry.Title);
 
         Assert.Equal(firstTitle.PixelSize, secondTitle.PixelSize);
+    }
+
+    private static List<UiNodeBoxSelectionEvent> RecordBoxSelectionEvents(UiNodeGraph graph)
+    {
+        List<UiNodeBoxSelectionEvent> events = [];
+        graph.BoxSelectionStarted += events.Add;
+        graph.BoxSelectionUpdated += events.Add;
+        graph.BoxSelectionEnded += events.Add;
+        graph.BoxSelectionCancelled += events.Add;
+        return events;
+    }
+
+    private static void DragFrom(UiContext context, UiPoint start)
+    {
+        UiPoint end = new(start.X + 80, start.Y + 60);
+        context.Update(new UiInputState
+        {
+            MousePosition = start,
+            ScreenMousePosition = start,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftDown = true,
+            LeftDragOrigin = start
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftReleased = true
+        }, 1f / 60f);
     }
 
     private static UiNodeGraph CreateGraph(
