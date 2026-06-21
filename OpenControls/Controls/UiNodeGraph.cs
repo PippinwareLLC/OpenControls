@@ -379,6 +379,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeWirePreviewState>? WirePreviewUpdated;
     public event Action<UiNodeWirePreviewState, UiNodePin?>? WirePreviewEnded;
     public event Action<UiNodeWireConnectionRequestedEvent>? WireConnectionRequested;
+    public event Action<UiNodeWireRerouteRequestedEvent>? WireRerouteRequested;
     public event Action<UiNodeSelectionRequestedEvent>? NodeSelectionRequested;
     public event Action<UiNodeDragEvent>? NodeDragStarted;
     public event Action<UiNodeDragEvent>? NodeDragged;
@@ -2111,12 +2112,66 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return;
         }
 
+        if (input.IsPrimaryShortcutPressed(UiKey.A))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.SelectAll, input.Modifiers));
+            return;
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.C))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.CopySelection, input.Modifiers));
+            return;
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.V))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.PasteClipboard, input.Modifiers));
+            return;
+        }
+
+        if (input.IsPrimaryShortcutPressed(UiKey.D))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.DuplicateSelection, input.Modifiers));
+            return;
+        }
+
         if (input.Navigation.Delete
             || input.Navigation.Backspace
             || input.IsKeyPressed(UiKey.Delete)
             || input.IsKeyPressed(UiKey.Backspace))
         {
             CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.DeleteSelection, input.Modifiers));
+            return;
+        }
+
+        if (input.Navigation.Escape || input.IsKeyPressed(UiKey.Escape))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.ClearSelection, input.Modifiers));
+            return;
+        }
+
+        if (input.Modifiers == UiModifierKeys.None && input.IsKeyPressed(UiKey.C))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.CreateCommentAroundSelection, input.Modifiers));
+            return;
+        }
+
+        if (input.Modifiers == UiModifierKeys.None && input.IsKeyPressed(UiKey.F))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.FrameSelection, input.Modifiers));
+            return;
+        }
+
+        if (input.Modifiers == UiModifierKeys.None && input.IsKeyPressed(UiKey.D0))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.ResetZoom, input.Modifiers));
+            return;
+        }
+
+        if (input.Modifiers == UiModifierKeys.None && input.IsKeyPressed(UiKey.G))
+        {
+            CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(this, UiNodeGraphCommand.ToggleGrid, input.Modifiers));
         }
     }
 
@@ -2180,6 +2235,16 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
         if (TryOpenNodeSearch(context, input, mouseInViewport, worldMouse))
         {
+            return;
+        }
+
+        if (EnableWireRerouteHandles
+            && mouseInViewport
+            && input.LeftDoubleClicked
+            && HoveredWire != null
+            && HoveredPin == null)
+        {
+            WireRerouteRequested?.Invoke(new UiNodeWireRerouteRequestedEvent(this, HoveredWire, worldMouse, input.Modifiers));
             return;
         }
 
@@ -3064,12 +3129,27 @@ public enum UiNodeGraphCommand
 {
     DeleteSelection,
     Undo,
-    Redo
+    Redo,
+    ClearSelection,
+    SelectAll,
+    CopySelection,
+    PasteClipboard,
+    DuplicateSelection,
+    CreateCommentAroundSelection,
+    FrameSelection,
+    ResetZoom,
+    ToggleGrid
 }
 
 public sealed record UiNodeGraphCommandRequestedEvent(
     UiNodeGraph Graph,
     UiNodeGraphCommand Command,
+    UiModifierKeys Modifiers);
+
+public sealed record UiNodeWireRerouteRequestedEvent(
+    UiNodeGraph Graph,
+    UiNodeWire Wire,
+    UiPoint WorldPosition,
     UiModifierKeys Modifiers);
 
 public sealed record UiNodeSearchItem(

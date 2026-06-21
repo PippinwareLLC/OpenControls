@@ -2226,6 +2226,44 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_RaisesWireRerouteRequestedWhenWireIsDoubleClicked()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out UiNodeControl print, out UiNodePin entryThen, out UiNodePin printIn);
+        UiNodeWire wire = graph.Connect(entry, entryThen, print, printIn);
+        wire.Selected = true;
+        List<UiNodeWireRerouteRequestedEvent> reroutes = [];
+        graph.WireRerouteRequested += reroutes.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiNodeWireDebugLayout debug = Assert.Single(graph.GetWireDebugLayouts());
+        UiPoint worldPoint = Assert.Single(debug.RerouteHandleCenters);
+        UiPoint screenPoint = graph.Canvas.WorldToScreen(worldPoint);
+        context.Update(new UiInputState
+        {
+            MousePosition = screenPoint,
+            ScreenMousePosition = screenPoint
+        }, 1f / 60f);
+
+        Assert.Same(wire, graph.HoveredWire);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = screenPoint,
+            ScreenMousePosition = screenPoint,
+            LeftClicked = true,
+            LeftDoubleClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        var request = Assert.Single(reroutes);
+        Assert.Same(graph, request.Graph);
+        Assert.Same(wire, request.Wire);
+        Assert.Equal(worldPoint, request.WorldPosition);
+    }
+
+    [Fact]
     public void NodeControl_SelectsAndDragsFromHeader()
     {
         UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
@@ -2396,13 +2434,90 @@ public sealed class UiNodeGraphTests
             KeysPressed = new[] { UiKey.Y }
         }, 1f / 60f);
 
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            KeysPressed = new[] { UiKey.Escape },
+            Navigation = new UiNavigationInput { Escape = true }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            CtrlDown = true,
+            KeysPressed = new[] { UiKey.A }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            CtrlDown = true,
+            KeysPressed = new[] { UiKey.C }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            CtrlDown = true,
+            KeysPressed = new[] { UiKey.V }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            CtrlDown = true,
+            KeysPressed = new[] { UiKey.D }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            KeysPressed = new[] { UiKey.C }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            KeysPressed = new[] { UiKey.F }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            KeysPressed = new[] { UiKey.D0 }
+        }, 1f / 60f);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            KeysPressed = new[] { UiKey.G }
+        }, 1f / 60f);
+
         Assert.Equal(
             new[]
             {
                 UiNodeGraphCommand.DeleteSelection,
                 UiNodeGraphCommand.Undo,
                 UiNodeGraphCommand.Redo,
-                UiNodeGraphCommand.Redo
+                UiNodeGraphCommand.Redo,
+                UiNodeGraphCommand.ClearSelection,
+                UiNodeGraphCommand.SelectAll,
+                UiNodeGraphCommand.CopySelection,
+                UiNodeGraphCommand.PasteClipboard,
+                UiNodeGraphCommand.DuplicateSelection,
+                UiNodeGraphCommand.CreateCommentAroundSelection,
+                UiNodeGraphCommand.FrameSelection,
+                UiNodeGraphCommand.ResetZoom,
+                UiNodeGraphCommand.ToggleGrid
             },
             commands.Select(command => command.Command).ToArray());
         Assert.Equal(UiModifierKeys.Super | UiModifierKeys.Shift, commands[2].Modifiers);
