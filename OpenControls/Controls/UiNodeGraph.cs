@@ -31,6 +31,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
             try
             {
+                if (_graph.EnableWireShadows && _graph.WireShadowColor.A > 0)
+                {
+                    for (int i = 0; i < _graph._wires.Count; i++)
+                    {
+                        UiNodeWire wire = _graph._wires[i];
+                        int thickness = _graph.ResolveWireThickness(wire);
+                        int shadowThickness = _graph.ResolveWireShadowThickness(thickness);
+                        DrawRoute(
+                            context.Renderer,
+                            wire.GetOffsetRenderRoute(thickness, _graph.WireShadowOffsetX, _graph.WireShadowOffsetY),
+                            shadowThickness,
+                            _graph.WireShadowColor);
+                    }
+                }
+
                 for (int i = 0; i < _graph._wires.Count; i++)
                 {
                     UiNodeWire wire = _graph._wires[i];
@@ -42,6 +57,24 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
                 if (_graph.PreviewWire.Active)
                 {
                     DrawPreviewRoute(context.Renderer, _graph.PreviewWire.Route, Math.Max(1, _graph.PreviewWireThickness), _graph.PreviewWireColor);
+                }
+
+                for (int i = 0; i < _graph._wires.Count; i++)
+                {
+                    UiNodeWire wire = _graph._wires[i];
+                    if (!_graph.ShouldShowRerouteHandles(wire))
+                    {
+                        continue;
+                    }
+
+                    int thickness = _graph.ResolveWireThickness(wire);
+                    IReadOnlyList<UiPoint> centers = wire.GetRerouteHandleCenters(thickness);
+                    for (int handleIndex = 0; handleIndex < centers.Count; handleIndex++)
+                    {
+                        UiPoint center = centers[handleIndex];
+                        UiRenderHelpers.FillCircle(context.Renderer, center, _graph.RerouteHandleRadius, _graph.RerouteHandleFillColor);
+                        UiRenderHelpers.DrawCircle(context.Renderer, center, _graph.RerouteHandleRadius, _graph.ResolveRerouteHandleBorderColor(wire), _graph.RerouteHandleBorderThickness);
+                    }
                 }
             }
             finally
@@ -153,6 +186,17 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public UiColor HoverWireColor { get; set; } = new(230, 235, 245);
     public UiColor SelectedWireColor { get; set; } = new(245, 205, 110);
     public UiColor PreviewWireColor { get; set; } = new(220, 225, 235, 180);
+    public bool EnableWireShadows { get; set; } = true;
+    public UiColor WireShadowColor { get; set; } = new(0, 0, 0, 118);
+    public int WireShadowOffsetX { get; set; } = 2;
+    public int WireShadowOffsetY { get; set; } = 2;
+    public int WireShadowExtraThickness { get; set; } = 2;
+    public bool EnableWireRerouteHandles { get; set; } = true;
+    public int RerouteHandleRadius { get; set; } = 5;
+    public int RerouteHandleBorderThickness { get; set; } = 1;
+    public UiColor RerouteHandleFillColor { get; set; } = new(16, 20, 27, 238);
+    public UiColor RerouteHandleBorderColor { get; set; } = new(210, 220, 235, 235);
+    public UiColor SelectedRerouteHandleBorderColor { get; set; } = new(255, 226, 126, 255);
 
     public UiRect? SelectionMarqueeBounds
     {
@@ -357,6 +401,14 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         {
             UiNodeWire wire = _wires[i];
             int thickness = ResolveWireThickness(wire);
+            int shadowThickness = ResolveWireShadowThickness(thickness);
+            IReadOnlyList<UiPoint> shadowRoute = EnableWireShadows
+                ? wire.GetOffsetRenderRoute(thickness, WireShadowOffsetX, WireShadowOffsetY)
+                : Array.Empty<UiPoint>();
+            IReadOnlyList<UiPoint> handleCenters = ShouldShowRerouteHandles(wire)
+                ? wire.GetRerouteHandleCenters(thickness)
+                : Array.Empty<UiPoint>();
+            IReadOnlyList<UiRect> handleBounds = BuildRerouteHandleBounds(handleCenters, RerouteHandleRadius);
             UiRect hitBounds = ExpandRect(wire.Bounds, Math.Max(WireHitSlop, thickness));
             layouts[i] = new UiNodeWireDebugLayout(
                 wire,
@@ -367,7 +419,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
                 thickness,
                 ResolveWireColor(wire),
                 wire.Selected,
-                wire.Hovered);
+                wire.Hovered,
+                EnableWireShadows ? UiNodeWire.CalculateBounds(shadowRoute, shadowThickness) : default,
+                EnableWireShadows ? WireShadowColor : default,
+                EnableWireShadows ? shadowThickness : 0,
+                handleCenters,
+                handleBounds);
         }
 
         return layouts;
@@ -628,6 +685,45 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private int ResolveWireThickness(UiNodeWire wire)
     {
         return Math.Max(1, wire.Kind == UiNodePinKind.Exec ? ExecWireThickness : DataWireThickness);
+    }
+
+    private int ResolveWireShadowThickness(int thickness)
+    {
+        if (!EnableWireShadows || WireShadowColor.A == 0)
+        {
+            return 0;
+        }
+
+        return Math.Max(1, thickness + Math.Max(0, WireShadowExtraThickness));
+    }
+
+    private bool ShouldShowRerouteHandles(UiNodeWire wire)
+    {
+        return EnableWireRerouteHandles
+            && RerouteHandleRadius > 0
+            && (wire.Selected || wire.Hovered);
+    }
+
+    private UiColor ResolveRerouteHandleBorderColor(UiNodeWire wire)
+    {
+        return wire.Selected ? SelectedRerouteHandleBorderColor : RerouteHandleBorderColor;
+    }
+
+    private static IReadOnlyList<UiRect> BuildRerouteHandleBounds(IReadOnlyList<UiPoint> centers, int radius)
+    {
+        if (centers.Count == 0 || radius <= 0)
+        {
+            return Array.Empty<UiRect>();
+        }
+
+        UiRect[] bounds = new UiRect[centers.Count];
+        for (int i = 0; i < centers.Count; i++)
+        {
+            UiPoint center = centers[i];
+            bounds[i] = new UiRect(center.X - radius, center.Y - radius, radius * 2, radius * 2);
+        }
+
+        return bounds;
     }
 
     private static bool IsPointNearRoute(UiPoint point, IReadOnlyList<UiPoint> route, int slop)

@@ -14,12 +14,30 @@ public sealed class UiNodeWire
         UiPoint End,
         int Thickness);
 
+    private readonly record struct OffsetRouteKey(
+        UiPoint Start,
+        UiPoint End,
+        int Thickness,
+        int OffsetX,
+        int OffsetY);
+
+    private readonly record struct HandleKey(
+        UiPoint Start,
+        UiPoint End,
+        int Thickness);
+
     private UiPoint[] _route = Array.Empty<UiPoint>();
     private UiPoint[] _tessellatedRoute = Array.Empty<UiPoint>();
+    private UiPoint[] _offsetRoute = Array.Empty<UiPoint>();
+    private UiPoint[] _rerouteHandleCenters = Array.Empty<UiPoint>();
     private RouteKey _routeKey;
     private TessellationKey _tessellationKey;
+    private OffsetRouteKey _offsetRouteKey;
+    private HandleKey _handleKey;
     private bool _routeValid;
     private bool _tessellationValid;
+    private bool _offsetRouteValid;
+    private bool _handleCentersValid;
 
     public UiNodeWire(UiNodeControl fromNode, UiNodePin fromPin, UiNodeControl toNode, UiNodePin toPin)
     {
@@ -63,6 +81,8 @@ public sealed class UiNodeWire
         _routeKey = key;
         _routeValid = true;
         _tessellationValid = false;
+        _offsetRouteValid = false;
+        _handleCentersValid = false;
         return true;
     }
 
@@ -87,6 +107,52 @@ public sealed class UiNodeWire
         _tessellationKey = key;
         _tessellationValid = true;
         return _tessellatedRoute;
+    }
+
+    internal IReadOnlyList<UiPoint> GetOffsetRenderRoute(int thickness, int offsetX, int offsetY)
+    {
+        IReadOnlyList<UiPoint> route = GetRenderRoute(thickness);
+        if (route.Count == 0)
+        {
+            return Array.Empty<UiPoint>();
+        }
+
+        OffsetRouteKey key = new(route[0], route[^1], Math.Max(1, thickness), offsetX, offsetY);
+        if (_offsetRouteValid && _offsetRouteKey.Equals(key) && _offsetRoute.Length == route.Count)
+        {
+            return _offsetRoute;
+        }
+
+        _offsetRoute = new UiPoint[route.Count];
+        for (int i = 0; i < route.Count; i++)
+        {
+            UiPoint point = route[i];
+            _offsetRoute[i] = new UiPoint(point.X + offsetX, point.Y + offsetY);
+        }
+
+        _offsetRouteKey = key;
+        _offsetRouteValid = true;
+        return _offsetRoute;
+    }
+
+    internal IReadOnlyList<UiPoint> GetRerouteHandleCenters(int thickness)
+    {
+        IReadOnlyList<UiPoint> route = GetRenderRoute(thickness);
+        if (route.Count < 2)
+        {
+            return Array.Empty<UiPoint>();
+        }
+
+        HandleKey key = new(route[0], route[^1], Math.Max(1, thickness));
+        if (_handleCentersValid && _handleKey.Equals(key))
+        {
+            return _rerouteHandleCenters;
+        }
+
+        _rerouteHandleCenters = new[] { CalculateRouteMidpoint(route) };
+        _handleKey = key;
+        _handleCentersValid = true;
+        return _rerouteHandleCenters;
     }
 
     private RouteKey BuildRouteKey(int thickness)
@@ -198,6 +264,52 @@ public sealed class UiNodeWire
         int pad = Math.Max(1, thickness);
         return new UiRect(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
     }
+
+    private static UiPoint CalculateRouteMidpoint(IReadOnlyList<UiPoint> route)
+    {
+        double length = 0;
+        for (int i = 1; i < route.Count; i++)
+        {
+            length += Distance(route[i - 1], route[i]);
+        }
+
+        if (length <= 0)
+        {
+            return route[route.Count / 2];
+        }
+
+        double target = length * 0.5;
+        double traversed = 0;
+        for (int i = 1; i < route.Count; i++)
+        {
+            UiPoint a = route[i - 1];
+            UiPoint b = route[i];
+            double segment = Distance(a, b);
+            if (segment <= 0)
+            {
+                continue;
+            }
+
+            if (traversed + segment >= target)
+            {
+                double t = (target - traversed) / segment;
+                return new UiPoint(
+                    (int)MathF.Round((float)(a.X + (b.X - a.X) * t)),
+                    (int)MathF.Round((float)(a.Y + (b.Y - a.Y) * t)));
+            }
+
+            traversed += segment;
+        }
+
+        return route[^1];
+    }
+
+    private static double Distance(UiPoint a, UiPoint b)
+    {
+        int dx = b.X - a.X;
+        int dy = b.Y - a.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
 }
 
 public readonly struct UiNodeWireDebugLayout
@@ -211,7 +323,12 @@ public readonly struct UiNodeWireDebugLayout
         int thickness,
         UiColor color,
         bool selected,
-        bool hovered)
+        bool hovered,
+        UiRect shadowBounds = default,
+        UiColor shadowColor = default,
+        int shadowThickness = 0,
+        IReadOnlyList<UiPoint>? rerouteHandleCenters = null,
+        IReadOnlyList<UiRect>? rerouteHandleBounds = null)
     {
         Wire = wire;
         Route = route ?? Array.Empty<UiPoint>();
@@ -222,6 +339,11 @@ public readonly struct UiNodeWireDebugLayout
         Color = color;
         Selected = selected;
         Hovered = hovered;
+        ShadowBounds = shadowBounds;
+        ShadowColor = shadowColor;
+        ShadowThickness = shadowThickness;
+        RerouteHandleCenters = rerouteHandleCenters ?? Array.Empty<UiPoint>();
+        RerouteHandleBounds = rerouteHandleBounds ?? Array.Empty<UiRect>();
     }
 
     public UiNodeWire? Wire { get; }
@@ -233,5 +355,12 @@ public readonly struct UiNodeWireDebugLayout
     public UiColor Color { get; }
     public bool Selected { get; }
     public bool Hovered { get; }
+    public UiRect ShadowBounds { get; }
+    public UiColor ShadowColor { get; }
+    public int ShadowThickness { get; }
+    public IReadOnlyList<UiPoint> RerouteHandleCenters { get; }
+    public IReadOnlyList<UiRect> RerouteHandleBounds { get; }
+    public bool HasShadow => ShadowThickness > 0 && ShadowColor.A > 0 && ShadowBounds.Width > 0 && ShadowBounds.Height > 0;
+    public bool HasRerouteHandles => RerouteHandleCenters.Count > 0;
     public bool IsValid => Wire != null;
 }
