@@ -81,10 +81,21 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
     }
 
+    private sealed class UiNodeCommentLayer : UiElement
+    {
+        public override UiElement? HitTest(UiPoint point)
+        {
+            return null;
+        }
+    }
+
     private readonly UiCanvas _canvas = new();
     private readonly UiNodeWireLayer _wireLayer;
+    private readonly UiNodeCommentLayer _commentLayer = new();
     private readonly List<UiNodeControl> _nodes = new();
     private readonly Dictionary<string, UiNodeControl> _nodesById = new(StringComparer.Ordinal);
+    private readonly List<UiNodeCommentBox> _comments = new();
+    private readonly Dictionary<string, UiNodeCommentBox> _commentsById = new(StringComparer.Ordinal);
     private readonly List<UiNodeWire> _wires = new();
     private bool _wireRoutesDirty = true;
     private UiNodeControl? _previewStartNode;
@@ -94,11 +105,13 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     {
         _wireLayer = new UiNodeWireLayer(this);
         _canvas.AddChild(_wireLayer);
+        _canvas.AddChild(_commentLayer);
         AddChild(_canvas);
     }
 
     public UiCanvas Canvas => _canvas;
     public IReadOnlyList<UiNodeControl> Nodes => _nodes;
+    public IReadOnlyList<UiNodeCommentBox> Comments => _comments;
     public IReadOnlyList<UiNodeWire> Wires => _wires;
     public UiNodeControl? HoveredNode { get; private set; }
     public UiNodePin? HoveredPin { get; private set; }
@@ -158,6 +171,25 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
+    public void AddCommentBox(UiNodeCommentBox comment)
+    {
+        ArgumentNullException.ThrowIfNull(comment);
+
+        if (_comments.Contains(comment))
+        {
+            return;
+        }
+
+        _comments.Add(comment);
+        if (!string.IsNullOrEmpty(comment.Id))
+        {
+            _commentsById[comment.Id] = comment;
+        }
+
+        _commentLayer.AddChild(comment);
+        Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
     public bool TryGetNode(string id, out UiNodeControl? node)
     {
         if (string.IsNullOrEmpty(id))
@@ -167,6 +199,17 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         }
 
         return _nodesById.TryGetValue(id, out node);
+    }
+
+    public bool TryGetCommentBox(string id, out UiNodeCommentBox? comment)
+    {
+        if (string.IsNullOrEmpty(id))
+        {
+            comment = null;
+            return false;
+        }
+
+        return _commentsById.TryGetValue(id, out comment);
     }
 
     public bool RemoveNode(UiNodeControl node)
@@ -194,6 +237,25 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
         _canvas.RemoveChild(node);
         MarkWireRoutesDirty();
+        Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+        return true;
+    }
+
+    public bool RemoveCommentBox(UiNodeCommentBox comment)
+    {
+        ArgumentNullException.ThrowIfNull(comment);
+
+        if (!_comments.Remove(comment))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(comment.Id) && ReferenceEquals(_commentsById.GetValueOrDefault(comment.Id), comment))
+        {
+            _commentsById.Remove(comment.Id);
+        }
+
+        _commentLayer.RemoveChild(comment);
         Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
         return true;
     }
@@ -311,6 +373,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     {
         _canvas.Bounds = Bounds;
         _wireLayer.Bounds = default;
+        _commentLayer.Bounds = default;
     }
 
     private void RefreshGraphState(UiInputState input)

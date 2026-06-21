@@ -268,6 +268,74 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_CommentBoxesRenderBehindNodesWithDedicatedTextRegions()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
+        graph.Connect(graph.Nodes[0], graph.Nodes[0].Pins.Single(pin => pin.Id == "then"), graph.Nodes[1], graph.Nodes[1].Pins.Single(pin => pin.Id == "in"));
+
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-startup",
+            Bounds = new UiRect(50, 70, 500, 220),
+            Title = "Startup Flow",
+            Text = "Groups the BeginPlay path and explains the first print.",
+            Background = new UiColor(61, 44, 92, 120),
+            HeaderBackground = new UiColor(96, 72, 136, 170),
+            Border = new UiColor(180, 148, 235, 200)
+        };
+        graph.AddCommentBox(comment);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        Assert.Same(comment, Assert.Single(graph.Comments));
+        Assert.True(Contains(comment.DebugLayout.Bounds, comment.DebugLayout.HeaderBounds));
+        Assert.True(Contains(comment.DebugLayout.HeaderBounds, comment.DebugLayout.TitleBounds));
+        Assert.True(Contains(comment.DebugLayout.Bounds, comment.DebugLayout.BodyBounds));
+        Assert.True(Contains(comment.DebugLayout.BodyBounds, comment.DebugLayout.BodyTextBounds));
+        Assert.False(Intersects(comment.DebugLayout.TitleBounds, comment.DebugLayout.BodyTextBounds));
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+
+        int commentFillIndex = renderer.FillCalls.FindIndex(fill => fill.Color.Equals(comment.Background));
+        int nodeFillIndex = renderer.FillCalls.FindIndex(fill => fill.Color.Equals(graph.Nodes[0].Background));
+        Assert.True(commentFillIndex >= 0);
+        Assert.True(nodeFillIndex >= 0);
+        Assert.True(commentFillIndex < nodeFillIndex);
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "Startup Flow");
+    }
+
+    [Fact]
+    public void NodeGraph_CommentBoxWrapsMultilineTextInsideBodyRegion()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-wrap",
+            Bounds = new UiRect(80, 80, 220, 150),
+            Title = "Movement System",
+            Text = "Use comments to group related Blueprint nodes and explain logic without overlapping nearby pins.",
+            Padding = 16
+        };
+        graph.AddCommentBox(comment);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        Assert.True(comment.DebugLayout.BodyLineBounds.Count > 1);
+        Assert.All(comment.DebugLayout.BodyLineBounds, line => Assert.True(Contains(comment.DebugLayout.BodyBounds, line)));
+        Assert.True(Contains(comment.DebugLayout.Bounds, comment.DebugLayout.BodyTextBounds));
+        Assert.False(Intersects(comment.DebugLayout.HeaderBounds, comment.DebugLayout.BodyTextBounds));
+    }
+
+    [Fact]
     public void NodeControl_LongOpposingPinLabelsReserveSeparateTextLanes()
     {
         UiNodeGraph graph = new()
