@@ -11,8 +11,6 @@ public sealed class UiNodeWire
 
     private readonly record struct TessellationKey(
         UiPoint Start,
-        UiPoint StartControl,
-        UiPoint EndControl,
         UiPoint End,
         int Thickness);
 
@@ -76,8 +74,6 @@ public sealed class UiNodeWire
 
         TessellationKey key = new(
             _route[0],
-            _route.Length > 1 ? _route[1] : _route[0],
-            _route.Length > 2 ? _route[^2] : _route[^1],
             _route[^1],
             safeThickness);
         if (_tessellationValid && _tessellationKey.Equals(key))
@@ -85,7 +81,7 @@ public sealed class UiNodeWire
             return _tessellatedRoute;
         }
 
-        _tessellatedRoute = TessellateCubic(key.Start, key.StartControl, key.EndControl, key.End);
+        _tessellatedRoute = TessellateOpenGlBezierWire(key.Start, key.End);
         _tessellationKey = key;
         _tessellationValid = true;
         return _tessellatedRoute;
@@ -146,32 +142,35 @@ public sealed class UiNodeWire
         };
     }
 
-    internal static UiPoint[] TessellateCubic(UiPoint start, UiPoint startControl, UiPoint endControl, UiPoint end)
+    internal static UiPoint[] TessellateOpenGlBezierWire(UiPoint start, UiPoint end)
     {
-        int steps = Math.Max(16, Math.Abs(end.X - start.X) / 12 + Math.Abs(end.Y - start.Y) / 16);
+        float distance = MathF.Abs(end.X - start.X);
+        float controlOffset = Math.Clamp(distance * 0.5f, 48f, 180f);
+        float c1x = start.X + controlOffset;
+        float c1y = start.Y;
+        float c2x = end.X - controlOffset;
+        float c2y = end.Y;
+        int steps = Math.Max(18, (int)MathF.Ceiling((distance + MathF.Abs(end.Y - start.Y)) / 28f));
         UiPoint[] points = new UiPoint[steps + 1];
         points[0] = start;
         for (int step = 1; step <= steps; step++)
         {
             float t = step / (float)steps;
-            points[step] = Cubic(start, startControl, endControl, end, t);
+            points[step] = new UiPoint(
+                (int)MathF.Round(Cubic(start.X, c1x, c2x, end.X, t)),
+                (int)MathF.Round(Cubic(start.Y, c1y, c2y, end.Y, t)));
         }
 
         return points;
     }
 
-    private static UiPoint Cubic(UiPoint a, UiPoint b, UiPoint c, UiPoint d, float t)
+    private static float Cubic(float a, float b, float c, float d, float t)
     {
         float inv = 1f - t;
-        float x = inv * inv * inv * a.X
-            + 3f * inv * inv * t * b.X
-            + 3f * inv * t * t * c.X
-            + t * t * t * d.X;
-        float y = inv * inv * inv * a.Y
-            + 3f * inv * inv * t * b.Y
-            + 3f * inv * t * t * c.Y
-            + t * t * t * d.Y;
-        return new UiPoint((int)Math.Round(x), (int)Math.Round(y));
+        return inv * inv * inv * a
+            + 3f * inv * inv * t * b
+            + 3f * inv * t * t * c
+            + t * t * t * d;
     }
 
     internal static UiRect CalculateBounds(IReadOnlyList<UiPoint> route, int thickness)

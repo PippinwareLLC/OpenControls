@@ -72,11 +72,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
             if (route.Count >= 5)
             {
-                UiPoint start = route[0];
-                UiPoint startControl = route.Count > 1 ? route[1] : start;
-                UiPoint endControl = route.Count > 2 ? route[^2] : route[^1];
-                UiPoint end = route[^1];
-                UiRenderHelpers.DrawPolyline(renderer, UiNodeWire.TessellateCubic(start, startControl, endControl, end), Math.Max(1, thickness), color);
+                UiRenderHelpers.DrawPolyline(renderer, UiNodeWire.TessellateOpenGlBezierWire(route[0], route[^1]), Math.Max(1, thickness), color);
                 return;
             }
 
@@ -423,7 +419,8 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         for (int i = _wires.Count - 1; i >= 0; i--)
         {
             UiNodeWire wire = _wires[i];
-            if (IsPointNearRoute(worldMouse, wire.Route, Math.Max(WireHitSlop, ResolveWireThickness(wire))))
+            int thickness = ResolveWireThickness(wire);
+            if (IsPointNearRoute(worldMouse, wire.GetRenderRoute(thickness), Math.Max(WireHitSlop, thickness)))
             {
                 HoveredWire = wire;
                 wire.Hovered = true;

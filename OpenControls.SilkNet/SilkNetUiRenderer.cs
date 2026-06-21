@@ -449,11 +449,11 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
 
         UiRect clip = GetActiveClipBounds();
         float halfThickness = Math.Max(1, thickness) * 0.5f;
-        UiPoint previous = TransformPolylinePoint(points[0], origin, zoom, panX, panY);
+        (float X, float Y) previous = TransformPolylinePoint(points[0], origin, zoom, panX, panY);
         for (int i = 1; i < points.Count; i++)
         {
-            UiPoint current = TransformPolylinePoint(points[i], origin, zoom, panX, panY);
-            QueueLineSegment(previous, current, halfThickness, color, clip);
+            (float X, float Y) current = TransformPolylinePoint(points[i], origin, zoom, panX, panY);
+            QueueLineSegment(previous.X, previous.Y, current.X, current.Y, halfThickness, color, clip);
             previous = current;
         }
 
@@ -799,11 +799,11 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
         QueueQuarterCircleFan(rect.X + radius, rect.Bottom - radius, radius, MathF.PI * 0.5f, MathF.PI, color, clip);
     }
 
-    private static UiPoint TransformPolylinePoint(UiPoint point, UiPoint origin, float zoom, float panX, float panY)
+    private static (float X, float Y) TransformPolylinePoint(UiPoint point, UiPoint origin, float zoom, float panX, float panY)
     {
-        int x = origin.X + (int)MathF.Round((point.X - panX) * zoom);
-        int y = origin.Y + (int)MathF.Round((point.Y - panY) * zoom);
-        return new UiPoint(x, y);
+        float x = origin.X + (point.X - panX) * zoom;
+        float y = origin.Y + (point.Y - panY) * zoom;
+        return (x, y);
     }
 
     private void QueueTriangleRect(float x, float y, float width, float height, UiColor color, UiRect clip)
@@ -944,8 +944,13 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
 
     private void QueueLineSegment(UiPoint a, UiPoint b, float halfThickness, UiColor color, UiRect clip)
     {
-        float dx = b.X - a.X;
-        float dy = b.Y - a.Y;
+        QueueLineSegment(a.X, a.Y, b.X, b.Y, halfThickness, color, clip);
+    }
+
+    private void QueueLineSegment(float x1, float y1, float x2, float y2, float halfThickness, UiColor color, UiRect clip)
+    {
+        float dx = x2 - x1;
+        float dy = y2 - y1;
         float length = MathF.Sqrt(dx * dx + dy * dy);
         if (length <= 0.001f)
         {
@@ -954,10 +959,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
 
         float nx = -dy / length * halfThickness;
         float ny = dx / length * halfThickness;
-        float minX = MathF.Min(a.X, b.X) - halfThickness - 1;
-        float minY = MathF.Min(a.Y, b.Y) - halfThickness - 1;
-        float maxX = MathF.Max(a.X, b.X) + halfThickness + 1;
-        float maxY = MathF.Max(a.Y, b.Y) + halfThickness + 1;
+        float minX = MathF.Min(x1, x2) - halfThickness - 1;
+        float minY = MathF.Min(y1, y2) - halfThickness - 1;
+        float maxX = MathF.Max(x1, x2) + halfThickness + 1;
+        float maxY = MathF.Max(y1, y2) + halfThickness + 1;
         var bounds = new UiRect(
             (int)MathF.Floor(minX),
             (int)MathF.Floor(minY),
@@ -968,8 +973,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
             return;
         }
 
-        QueueTriangle(a.X + nx, a.Y + ny, b.X + nx, b.Y + ny, b.X - nx, b.Y - ny, color, clip);
-        QueueTriangle(a.X + nx, a.Y + ny, b.X - nx, b.Y - ny, a.X - nx, a.Y - ny, color, clip);
+        QueueTriangle(x1 + nx, y1 + ny, x2 + nx, y2 + ny, x2 - nx, y2 - ny, color, clip);
+        QueueTriangle(x1 + nx, y1 + ny, x2 - nx, y2 - ny, x1 - nx, y1 - ny, color, clip);
     }
 
     private void QueueTriangle(float x1, float y1, float x2, float y2, float x3, float y3, UiColor color, UiRect clip)
