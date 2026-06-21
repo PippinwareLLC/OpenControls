@@ -381,6 +381,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeWireConnectionRequestedEvent>? WireConnectionRequested;
     public event Action<UiNodeWireRerouteRequestedEvent>? WireRerouteRequested;
     public event Action<UiNodeSelectionRequestedEvent>? NodeSelectionRequested;
+    public event Action<UiNodeClickCompletedEvent>? NodeClickCompleted;
     public event Action<UiNodeDragEvent>? NodeDragStarted;
     public event Action<UiNodeDragEvent>? NodeDragged;
     public event Action<UiNodeDragEvent>? NodeDragEnded;
@@ -525,6 +526,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
     private void SubscribeNodeEvents(UiNodeControl node)
     {
+        node.ClickCompleted += HandleNodeClickCompleted;
         node.DragStarted += HandleNodeDragStarted;
         node.Dragged += HandleNodeDragged;
         node.DragEnded += HandleNodeDragEnded;
@@ -532,9 +534,15 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
     private void UnsubscribeNodeEvents(UiNodeControl node)
     {
+        node.ClickCompleted -= HandleNodeClickCompleted;
         node.DragStarted -= HandleNodeDragStarted;
         node.Dragged -= HandleNodeDragged;
         node.DragEnded -= HandleNodeDragEnded;
+    }
+
+    private void HandleNodeClickCompleted(UiNodeControl node, UiModifierKeys modifiers)
+    {
+        NodeClickCompleted?.Invoke(new UiNodeClickCompletedEvent(this, node, modifiers));
     }
 
     private void HandleNodeDragStarted(UiNodeControl node)
@@ -2750,6 +2758,14 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
             if (input.LeftReleased || !input.LeftDown)
             {
+                if (input.LeftReleased)
+                {
+                    CommandRequested?.Invoke(new UiNodeGraphCommandRequestedEvent(
+                        this,
+                        UiNodeGraphCommand.ClearSelection,
+                        _boxSelectionModifiers));
+                }
+
                 _boxSelectionArmed = false;
                 return false;
             }
@@ -3056,6 +3072,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 }
 
 public sealed record UiNodeSelectionRequestedEvent(
+    UiNodeGraph Graph,
+    UiNodeControl Node,
+    UiModifierKeys Modifiers);
+
+public sealed record UiNodeClickCompletedEvent(
     UiNodeGraph Graph,
     UiNodeControl Node,
     UiModifierKeys Modifiers);

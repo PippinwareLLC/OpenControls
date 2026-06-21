@@ -254,6 +254,46 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_EmptyCanvasClickRequestsClearSelectionWithoutStartingBoxSelection()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
+        List<UiNodeGraphCommandRequestedEvent> commands = [];
+        List<UiNodeBoxSelectionEvent> boxEvents = RecordBoxSelectionEvents(graph);
+        graph.CommandRequested += commands.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint point = new(20, 20);
+        context.Update(new UiInputState
+        {
+            MousePosition = point,
+            ScreenMousePosition = point,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Empty(commands);
+        Assert.Empty(boxEvents);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = point,
+            ScreenMousePosition = point,
+            LeftReleased = true
+        }, 1f / 60f);
+
+        UiNodeGraphCommandRequestedEvent command = Assert.Single(commands);
+        Assert.Same(graph, command.Graph);
+        Assert.Equal(UiNodeGraphCommand.ClearSelection, command.Command);
+        Assert.Equal(UiModifierKeys.None, command.Modifiers);
+        Assert.False(graph.IsBoxSelecting);
+        Assert.Null(graph.SelectionMarqueeBounds);
+        Assert.Empty(boxEvents);
+    }
+
+    [Fact]
     public void NodeGraph_RightClickEmptyCanvasOpensNodeSearchAtWorldPosition()
     {
         UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
@@ -2399,6 +2439,77 @@ public sealed class UiNodeGraphTests
         entry.Selected = false;
         entry.Selected = true;
         Assert.Empty(selectionEvents);
+    }
+
+    [Fact]
+    public void NodeGraph_RaisesNodeClickCompletedOnlyForPressReleaseWithoutDrag()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        List<UiNodeSelectionRequestedEvent> selectionEvents = [];
+        List<UiNodeClickCompletedEvent> clickEvents = [];
+        List<UiNodeDragEvent> dragStartedEvents = [];
+        graph.NodeSelectionRequested += selectionEvents.Add;
+        graph.NodeClickCompleted += clickEvents.Add;
+        graph.NodeDragStarted += dragStartedEvents.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint headerWorld = new(entry.DebugLayout.HeaderBounds.X + 12, entry.DebugLayout.HeaderBounds.Y + 8);
+        UiPoint headerScreen = graph.Canvas.WorldToScreen(headerWorld);
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.Single(selectionEvents);
+        Assert.Empty(clickEvents);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            LeftReleased = true
+        }, 1f / 60f);
+
+        UiNodeClickCompletedEvent click = Assert.Single(clickEvents);
+        Assert.Same(graph, click.Graph);
+        Assert.Same(entry, click.Node);
+        Assert.Equal(UiModifierKeys.None, click.Modifiers);
+        Assert.Empty(dragStartedEvents);
+
+        selectionEvents.Clear();
+        clickEvents.Clear();
+
+        context.Update(new UiInputState
+        {
+            MousePosition = headerScreen,
+            ScreenMousePosition = headerScreen,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        UiPoint dragScreen = new(headerScreen.X + 48, headerScreen.Y + 32);
+        context.Update(new UiInputState
+        {
+            MousePosition = dragScreen,
+            ScreenMousePosition = dragScreen,
+            LeftDown = true,
+            LeftDragOrigin = headerScreen
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = dragScreen,
+            ScreenMousePosition = dragScreen,
+            LeftReleased = true
+        }, 1f / 60f);
+
+        Assert.Single(selectionEvents);
+        Assert.Empty(clickEvents);
+        Assert.Single(dragStartedEvents);
     }
 
     [Fact]

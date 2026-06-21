@@ -212,6 +212,7 @@ public sealed class UiNodeControl : UiElement
     }
 
     public event Action<UiNodeControl>? SelectionChanged;
+    public event Action<UiNodeControl, UiModifierKeys>? ClickCompleted;
     public event Action<UiNodeControl>? DragStarted;
     public event Action<UiNodeControl>? Dragged;
     public event Action<UiNodeControl>? DragEnded;
@@ -416,9 +417,14 @@ public sealed class UiNodeControl : UiElement
 
         if (input.LeftReleased)
         {
+            bool wasPressed = _pressed;
             if (_dragging)
             {
                 DragEnded?.Invoke(this);
+            }
+            else if (wasPressed && _hovered)
+            {
+                ClickCompleted?.Invoke(this, input.Modifiers);
             }
 
             _pressed = false;
