@@ -183,6 +183,48 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeControl_HeaderIconUsesDedicatedRegionAndReservesTitleSpace()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeControl node = new()
+        {
+            Id = "icon-node",
+            AutomationId = "icon-node",
+            AutomationName = "Icon Node",
+            AutomationRole = "node",
+            Bounds = new UiRect(120, 96, 260, 132),
+            Icon = "\uF121",
+            Title = "Call Function",
+            Subtitle = "Target is Object",
+            HeaderHeight = 52,
+            Padding = 10
+        };
+        node.AddInput("in", "In", UiNodePinKind.Exec);
+        node.AddOutput("then", "Then", UiNodePinKind.Exec);
+        graph.AddNode(node);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        Assert.True(node.DebugLayout.IconBounds.Width > 0);
+        Assert.True(node.DebugLayout.IconBounds.Height > 0);
+        Assert.True(Contains(node.DebugLayout.HeaderBounds, node.DebugLayout.IconBounds));
+        Assert.True(Contains(node.DebugLayout.HeaderBounds, node.DebugLayout.TitleBounds));
+        Assert.False(Intersects(node.DebugLayout.IconBounds, node.DebugLayout.TitleBounds));
+        Assert.True(node.DebugLayout.TitleBounds.X >= node.DebugLayout.IconBounds.Right);
+
+        RecordingRenderer renderer = new();
+        graph.Render(new UiRenderContext(renderer, UiFont.Default));
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "\uF121");
+    }
+
+    [Fact]
     public void NodeControl_LongOpposingPinLabelsReserveSeparateTextLanes()
     {
         UiNodeGraph graph = new()

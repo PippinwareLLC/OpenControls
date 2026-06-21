@@ -7,6 +7,7 @@ public sealed class UiNodeControl : UiElement
     private bool _layoutValid;
     private UiRect _layoutBounds;
     private string _layoutTitle = string.Empty;
+    private string _layoutIcon = string.Empty;
     private string _layoutSubtitle = string.Empty;
     private string _layoutBodyText = string.Empty;
     private string _layoutFontName = string.Empty;
@@ -16,10 +17,12 @@ public sealed class UiNodeControl : UiElement
     private int _layoutPinHitSize;
     private int _layoutPinVisualSize;
     private int _layoutPadding;
+    private int _layoutIconColumnWidth;
     private int _layoutTextScale;
     private int _layoutPinHash;
     private bool _layoutCompact;
     private string _title = string.Empty;
+    private string _icon = string.Empty;
     private string _subtitle = string.Empty;
     private string _bodyText = string.Empty;
     private bool _hovered;
@@ -35,6 +38,7 @@ public sealed class UiNodeControl : UiElement
     private int _pinHitSize = 14;
     private int _pinVisualSize = 8;
     private int _padding = 8;
+    private int _iconColumnWidth = 24;
     private int _textScale = 1;
     private int _cornerRadius = 6;
     private int _minimumContentWidth = 140;
@@ -45,6 +49,12 @@ public sealed class UiNodeControl : UiElement
     {
         get => _title;
         set => SetInvalidatingValue(ref _title, value ?? string.Empty, UiInvalidationReason.Text | UiInvalidationReason.Paint | UiInvalidationReason.Layout);
+    }
+
+    public string Icon
+    {
+        get => _icon;
+        set => SetInvalidatingValue(ref _icon, value ?? string.Empty, UiInvalidationReason.Text | UiInvalidationReason.Paint | UiInvalidationReason.Layout);
     }
 
     public string BodyText
@@ -79,6 +89,7 @@ public sealed class UiNodeControl : UiElement
     public UiColor SelectedBorder { get; set; } = new(225, 175, 80);
     public UiColor Border { get; set; } = new(82, 92, 112);
     public UiColor TitleColor { get; set; } = UiColor.White;
+    public UiColor IconColor { get; set; } = new(232, 242, 255);
     public UiColor SubtitleColor { get; set; } = new(172, 186, 205);
     public UiColor BodyTextColor { get; set; } = new(190, 200, 216);
     public UiColor DataPinColor { get; set; } = new(95, 170, 230);
@@ -114,6 +125,12 @@ public sealed class UiNodeControl : UiElement
     {
         get => _padding;
         set => SetInvalidatingValue(ref _padding, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
+    }
+
+    public int IconColumnWidth
+    {
+        get => _iconColumnWidth;
+        set => SetInvalidatingValue(ref _iconColumnWidth, Math.Max(0, value), UiInvalidationReason.Layout | UiInvalidationReason.Paint);
     }
 
     public int TextScale
@@ -225,9 +242,11 @@ public sealed class UiNodeControl : UiElement
         int sidePadding = ResolvePinSidePadding(padding);
         int laneGap = ResolveLaneGap(padding);
         bool hasSubtitle = !Compact && !string.IsNullOrWhiteSpace(Subtitle);
+        bool hasIcon = !string.IsNullOrWhiteSpace(Icon);
+        int iconColumnWidth = ResolveIconColumnWidth(textHeight, padding, hasIcon);
         int titleWidth = font.MeasureTextWidth(Title, scale);
         int subtitleWidth = hasSubtitle ? font.MeasureTextWidth(Subtitle, scale) : 0;
-        int headerWidth = Math.Max(titleWidth, subtitleWidth) + padding * 2;
+        int headerWidth = Math.Max(titleWidth, subtitleWidth) + padding * 2 + iconColumnWidth;
 
         int inputCount = 0;
         int outputCount = 0;
@@ -376,6 +395,7 @@ public sealed class UiNodeControl : UiElement
         UiColor border = Selected ? SelectedBorder : (_hovered ? HoverBorder : Border);
         UiRenderHelpers.DrawRectRounded(context.Renderer, Bounds, CornerRadius, border, Selected ? 2 : 1);
 
+        DrawIcon(context, font);
         DrawTitle(context, font);
         DrawSubtitle(context, font);
         DrawBodyText(context, font);
@@ -451,11 +471,13 @@ public sealed class UiNodeControl : UiElement
             && _layoutPinHitSize == PinHitSize
             && _layoutPinVisualSize == PinVisualSize
             && _layoutPadding == Padding
+            && _layoutIconColumnWidth == IconColumnWidth
             && _layoutTextScale == TextScale
             && _layoutPinHash == pinHash
             && _layoutCompact == Compact
             && _layoutFontPixelSize == font.PixelSize
             && string.Equals(_layoutFontName, font.Name, StringComparison.Ordinal)
+            && string.Equals(_layoutIcon, Icon, StringComparison.Ordinal)
             && string.Equals(_layoutTitle, Title, StringComparison.Ordinal)
             && string.Equals(_layoutSubtitle, Subtitle, StringComparison.Ordinal)
             && string.Equals(_layoutBodyText, BodyText, StringComparison.Ordinal))
@@ -467,24 +489,38 @@ public sealed class UiNodeControl : UiElement
         int scale = Math.Max(1, TextScale);
         int textHeight = font.MeasureTextHeight(scale);
         bool hasSubtitle = !Compact && !string.IsNullOrWhiteSpace(Subtitle);
+        bool hasIcon = !string.IsNullOrWhiteSpace(Icon);
+        int iconColumnWidth = ResolveIconColumnWidth(textHeight, padding, hasIcon);
         int headerHeight = Math.Min(Math.Max(0, Bounds.Height), ResolveHeaderHeight(textHeight, padding, hasSubtitle));
         UiRect headerBounds = new(Bounds.X, Bounds.Y, Bounds.Width, headerHeight);
         UiRect bodyBounds = new(Bounds.X, Bounds.Y + headerHeight, Bounds.Width, Math.Max(0, Bounds.Height - headerHeight));
-        int titleAvailableWidth = Math.Max(0, headerBounds.Width - padding * 2);
+        int textX = headerBounds.X + padding + iconColumnWidth;
+        int textRight = headerBounds.Right - padding;
+        int titleAvailableWidth = Math.Max(0, textRight - textX);
         int titleWidth = Math.Min(titleAvailableWidth, font.MeasureTextWidth(Title, scale));
         int titleY = hasSubtitle
             ? headerBounds.Y + Math.Max(4, padding / 2)
             : headerBounds.Y + Math.Max(0, (headerBounds.Height - textHeight) / 2);
-        UiRect titleBounds = new(headerBounds.X + padding, titleY, titleWidth, textHeight);
+        UiRect iconBounds = default;
+        if (hasIcon && iconColumnWidth > 0 && headerBounds.Width > padding * 2)
+        {
+            int iconWidth = Math.Min(Math.Max(1, textHeight), iconColumnWidth);
+            int iconY = hasSubtitle
+                ? titleY
+                : headerBounds.Y + Math.Max(0, (headerBounds.Height - textHeight) / 2);
+            iconBounds = new(headerBounds.X + padding, iconY, iconWidth, textHeight);
+        }
+
+        UiRect titleBounds = new(textX, titleY, titleWidth, textHeight);
         UiRect subtitleBounds = default;
         if (hasSubtitle)
         {
             int subtitleY = titleBounds.Bottom + 3;
-            int subtitleAvailableWidth = Math.Max(0, headerBounds.Width - padding * 2);
+            int subtitleAvailableWidth = Math.Max(0, textRight - textX);
             if (subtitleY + textHeight <= headerBounds.Bottom - Math.Max(2, padding / 3))
             {
                 int subtitleWidth = Math.Min(subtitleAvailableWidth, font.MeasureTextWidth(Subtitle, scale));
-                subtitleBounds = new(headerBounds.X + padding, subtitleY, subtitleWidth, textHeight);
+                subtitleBounds = new(textX, subtitleY, subtitleWidth, textHeight);
             }
         }
 
@@ -542,9 +578,10 @@ public sealed class UiNodeControl : UiElement
             }
         }
 
-        _debugLayout = new UiNodeDebugLayout(Bounds, headerBounds, bodyBounds, titleBounds, subtitleBounds, bodyTextBounds, layouts.ToArray());
+        _debugLayout = new UiNodeDebugLayout(Bounds, headerBounds, bodyBounds, iconBounds, titleBounds, subtitleBounds, bodyTextBounds, layouts.ToArray());
         _layoutValid = true;
         _layoutBounds = Bounds;
+        _layoutIcon = Icon;
         _layoutTitle = Title;
         _layoutSubtitle = Subtitle;
         _layoutBodyText = BodyText;
@@ -555,6 +592,7 @@ public sealed class UiNodeControl : UiElement
         _layoutPinHitSize = PinHitSize;
         _layoutPinVisualSize = PinVisualSize;
         _layoutPadding = Padding;
+        _layoutIconColumnWidth = IconColumnWidth;
         _layoutTextScale = TextScale;
         _layoutPinHash = pinHash;
         _layoutCompact = Compact;
@@ -638,6 +676,28 @@ public sealed class UiNodeControl : UiElement
         return Math.Max(6, padding / 2);
     }
 
+    private int ResolveIconColumnWidth(int textHeight, int padding, bool hasIcon)
+    {
+        if (!hasIcon)
+        {
+            return 0;
+        }
+
+        return Math.Max(IconColumnWidth, textHeight + Math.Max(4, padding / 2));
+    }
+
+    private void DrawIcon(UiRenderContext context, UiFont font)
+    {
+        if (string.IsNullOrEmpty(Icon) || _debugLayout.IconBounds.Width <= 0 || _debugLayout.IconBounds.Height <= 0)
+        {
+            return;
+        }
+
+        context.Renderer.PushClip(_debugLayout.IconBounds);
+        context.Renderer.DrawText(Icon, new UiPoint(_debugLayout.IconBounds.X, _debugLayout.IconBounds.Y), IconColor, TextScale, font);
+        context.Renderer.PopClip();
+    }
+
     private void DrawTitle(UiRenderContext context, UiFont font)
     {
         if (_debugLayout.TitleBounds.Width <= 0 || _debugLayout.TitleBounds.Height <= 0)
@@ -645,7 +705,7 @@ public sealed class UiNodeControl : UiElement
             return;
         }
 
-        int availableWidth = Math.Max(0, _debugLayout.HeaderBounds.Width - Padding * 2);
+        int availableWidth = Math.Max(0, _debugLayout.TitleBounds.Width);
         string drawText = UiRenderHelpers.BuildElidedText(Title, availableWidth, TextScale, font);
         context.Renderer.PushClip(_debugLayout.HeaderBounds);
         context.Renderer.DrawText(drawText, new UiPoint(_debugLayout.TitleBounds.X, _debugLayout.TitleBounds.Y), TitleColor, TextScale, font);
@@ -659,7 +719,7 @@ public sealed class UiNodeControl : UiElement
             return;
         }
 
-        int availableWidth = Math.Max(0, _debugLayout.BodyBounds.Width - Padding * 2);
+        int availableWidth = Math.Max(0, _debugLayout.BodyTextBounds.Width);
         string drawText = UiRenderHelpers.BuildElidedText(BodyText, availableWidth, TextScale, font);
         context.Renderer.PushClip(_debugLayout.BodyBounds);
         context.Renderer.DrawText(drawText, new UiPoint(_debugLayout.BodyTextBounds.X, _debugLayout.BodyTextBounds.Y), BodyTextColor, TextScale, font);
@@ -673,7 +733,7 @@ public sealed class UiNodeControl : UiElement
             return;
         }
 
-        int availableWidth = Math.Max(0, _debugLayout.HeaderBounds.Width - Padding * 2);
+        int availableWidth = Math.Max(0, _debugLayout.SubtitleBounds.Width);
         string drawText = UiRenderHelpers.BuildElidedText(Subtitle, availableWidth, TextScale, font);
         context.Renderer.PushClip(_debugLayout.HeaderBounds);
         context.Renderer.DrawText(drawText, new UiPoint(_debugLayout.SubtitleBounds.X, _debugLayout.SubtitleBounds.Y), SubtitleColor, TextScale, font);

@@ -88,7 +88,7 @@ public readonly struct UiNodeDebugLayout
         UiRect titleBounds,
         UiRect bodyTextBounds,
         IReadOnlyList<UiNodePinLayout> pins)
-        : this(bounds, headerBounds, bodyBounds, titleBounds, default, bodyTextBounds, pins)
+        : this(bounds, headerBounds, bodyBounds, default, titleBounds, default, bodyTextBounds, pins)
     {
     }
 
@@ -100,10 +100,24 @@ public readonly struct UiNodeDebugLayout
         UiRect subtitleBounds,
         UiRect bodyTextBounds,
         IReadOnlyList<UiNodePinLayout> pins)
+        : this(bounds, headerBounds, bodyBounds, default, titleBounds, subtitleBounds, bodyTextBounds, pins)
+    {
+    }
+
+    public UiNodeDebugLayout(
+        UiRect bounds,
+        UiRect headerBounds,
+        UiRect bodyBounds,
+        UiRect iconBounds,
+        UiRect titleBounds,
+        UiRect subtitleBounds,
+        UiRect bodyTextBounds,
+        IReadOnlyList<UiNodePinLayout> pins)
     {
         Bounds = bounds;
         HeaderBounds = headerBounds;
         BodyBounds = bodyBounds;
+        IconBounds = iconBounds;
         TitleBounds = titleBounds;
         SubtitleBounds = subtitleBounds;
         BodyTextBounds = bodyTextBounds;
@@ -113,12 +127,13 @@ public readonly struct UiNodeDebugLayout
     public UiRect Bounds { get; }
     public UiRect HeaderBounds { get; }
     public UiRect BodyBounds { get; }
+    public UiRect IconBounds { get; }
     public UiRect TitleBounds { get; }
     public UiRect SubtitleBounds { get; }
     public UiRect BodyTextBounds { get; }
     public IReadOnlyList<UiNodePinLayout> Pins { get; }
 
-    public static UiNodeDebugLayout Empty => new(default, default, default, default, default, default, Array.Empty<UiNodePinLayout>());
+    public static UiNodeDebugLayout Empty => new(default, default, default, default, default, default, default, Array.Empty<UiNodePinLayout>());
 }
 
 public readonly struct UiNodeWirePreviewState
