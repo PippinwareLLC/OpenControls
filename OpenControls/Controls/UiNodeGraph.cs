@@ -225,6 +225,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private UiPoint _boxSelectionStartGraphLocal;
     private UiPoint _boxSelectionStartWorld;
     private UiModifierKeys _boxSelectionModifiers;
+    private bool _commentDragArmed;
+    private UiNodeCommentBox? _commentDragComment;
+    private UiPoint _commentDragStartScreen;
+    private UiPoint _commentDragStartWorld;
+    private UiRect _commentDragStartBounds;
+    private UiModifierKeys _commentDragModifiers;
     private UiFont _valueEditFont = UiFont.Default;
     private UiFont _commentEditFont = UiFont.Default;
     private bool _valueCaretVisible = true;
@@ -269,6 +275,8 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public bool IsBoxSelectionPointerActive => _boxSelectionArmed || IsBoxSelecting;
     public bool IsBoxSelecting { get; private set; }
     public UiRect? SelectionMarqueeWorldBounds { get; private set; }
+    public bool EnableCommentDragging { get; set; } = true;
+    public bool IsDraggingComment { get; private set; }
     public bool EnableWirePreview { get; set; } = true;
     public bool EnableWireSelection { get; set; } = true;
     public int WireHitSlop { get; set; } = 5;
@@ -349,6 +357,10 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeCommentEditStartedEvent>? CommentEditStarted;
     public event Action<UiNodeCommentEditCommittedEvent>? CommentEditCommitted;
     public event Action<UiNodeCommentEditCancelledEvent>? CommentEditCancelled;
+    public event Action<UiNodeCommentDragEvent>? CommentDragStarted;
+    public event Action<UiNodeCommentDragEvent>? CommentDragged;
+    public event Action<UiNodeCommentDragEvent>? CommentDragEnded;
+    public event Action<UiNodeCommentDragEvent>? CommentDragCancelled;
     public event Action<UiNodeBoxSelectionEvent>? BoxSelectionStarted;
     public event Action<UiNodeBoxSelectionEvent>? BoxSelectionUpdated;
     public event Action<UiNodeBoxSelectionEvent>? BoxSelectionEnded;
@@ -617,6 +629,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     {
         if (!Visible || !Enabled)
         {
+            CancelCommentDrag(_commentDragModifiers);
             CancelBoxSelection(_boxSelectionModifiers);
             return;
         }
@@ -650,6 +663,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
     protected internal override void OnFocusLost()
     {
+        CancelCommentDrag(_commentDragModifiers);
         CancelBoxSelection(_boxSelectionModifiers);
     }
 
@@ -1702,6 +1716,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return;
         }
 
+        if (ProcessCommentDragInput(context, input, mouseInViewport, worldMouse))
+        {
+            return;
+        }
+
         RefreshPreviewState(input, mouseInViewport, worldMouse);
         if (ProcessBoxSelectionInput(context, input, mouseInViewport, worldMouse))
         {
@@ -1965,6 +1984,167 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         _previewStartNode = null;
         _previewStartPin = null;
         PreviewWire = UiNodeWirePreviewState.Inactive;
+    }
+
+    private bool ProcessCommentDragInput(UiUpdateContext context, UiInputState input, bool mouseInViewport, UiPoint worldMouse)
+    {
+        if (!EnableCommentDragging)
+        {
+            CancelCommentDrag(input.Modifiers);
+            return false;
+        }
+
+        if (IsDraggingComment)
+        {
+            if (input.IsKeyPressed(UiKey.Escape) || input.Navigation.Escape)
+            {
+                CancelCommentDrag(input.Modifiers);
+                return true;
+            }
+
+            if (input.LeftDown || input.LeftReleased)
+            {
+                UiNodeCommentDragEvent ev = UpdateCommentDragState(input, isCompleting: input.LeftReleased);
+                if (input.LeftReleased)
+                {
+                    EndCommentDrag(ev);
+                }
+                else
+                {
+                    CommentDragged?.Invoke(ev);
+                }
+
+                return true;
+            }
+
+            CancelCommentDrag(input.Modifiers);
+            return true;
+        }
+
+        if (_commentDragArmed)
+        {
+            if (input.IsKeyPressed(UiKey.Escape) || input.Navigation.Escape || input.IsKeyDown(UiKey.Space))
+            {
+                _commentDragArmed = false;
+                _commentDragComment = null;
+                return true;
+            }
+
+            if (input.LeftReleased || !input.LeftDown)
+            {
+                _commentDragArmed = false;
+                _commentDragComment = null;
+                return false;
+            }
+
+            if (HasExceededDragThreshold(_commentDragStartScreen, input.MousePosition, input.DragThreshold))
+            {
+                BeginCommentDrag(input);
+            }
+
+            return true;
+        }
+
+        if (CanArmCommentDrag(input, mouseInViewport, worldMouse))
+        {
+            _commentDragArmed = true;
+            _commentDragComment = HoveredComment;
+            _commentDragStartScreen = input.MousePosition;
+            _commentDragStartWorld = worldMouse;
+            _commentDragStartBounds = HoveredComment!.Bounds;
+            _commentDragModifiers = input.Modifiers;
+            context.Focus.RequestFocus(this);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool CanArmCommentDrag(UiInputState input, bool mouseInViewport, UiPoint worldMouse)
+    {
+        return EnableCommentDragging
+            && mouseInViewport
+            && input.LeftClicked
+            && input.LeftDown
+            && !input.RightDown
+            && !input.MiddleDown
+            && !IsEditingText
+            && !input.IsKeyDown(UiKey.Space)
+            && !IsLeftButtonPanGesture()
+            && !PreviewWire.Active
+            && _previewStartPin == null
+            && HoveredComment != null
+            && HoveredNode == null
+            && HoveredPin == null
+            && HoveredValuePin == null
+            && HoveredWire == null
+            && !TryGetCommentEditTarget(worldMouse, out _, out _);
+    }
+
+    private void BeginCommentDrag(UiInputState input)
+    {
+        if (_commentDragComment is null)
+        {
+            _commentDragArmed = false;
+            return;
+        }
+
+        _commentDragArmed = false;
+        IsDraggingComment = true;
+        UiNodeCommentDragEvent ev = UpdateCommentDragState(input, isCompleting: false);
+        CommentDragStarted?.Invoke(ev);
+        CommentDragged?.Invoke(ev);
+    }
+
+    private UiNodeCommentDragEvent UpdateCommentDragState(UiInputState input, bool isCompleting)
+    {
+        UiNodeCommentBox comment = _commentDragComment!;
+        UiPoint currentWorld = _canvas.ScreenToWorld(input.MousePosition);
+        UiPoint delta = new(currentWorld.X - _commentDragStartWorld.X, currentWorld.Y - _commentDragStartWorld.Y);
+        UiRect currentBounds = new(
+            _commentDragStartBounds.X + delta.X,
+            _commentDragStartBounds.Y + delta.Y,
+            _commentDragStartBounds.Width,
+            _commentDragStartBounds.Height);
+        comment.Bounds = currentBounds;
+        _commentDragModifiers = input.Modifiers;
+        return new UiNodeCommentDragEvent(this, comment, _commentDragStartBounds, currentBounds, delta, input.Modifiers, isCompleting);
+    }
+
+    private void EndCommentDrag(UiNodeCommentDragEvent ev)
+    {
+        CommentDragEnded?.Invoke(ev);
+        ClearCommentDragState();
+    }
+
+    private void CancelCommentDrag(UiModifierKeys modifiers)
+    {
+        if (!IsDraggingComment && !_commentDragArmed)
+        {
+            return;
+        }
+
+        UiNodeCommentBox? comment = _commentDragComment;
+        bool wasDragging = IsDraggingComment;
+        UiRect currentBounds = comment?.Bounds ?? _commentDragStartBounds;
+        if (comment is not null)
+        {
+            comment.Bounds = _commentDragStartBounds;
+        }
+
+        ClearCommentDragState();
+        if (wasDragging && comment is not null)
+        {
+            UiPoint delta = new(currentBounds.X - _commentDragStartBounds.X, currentBounds.Y - _commentDragStartBounds.Y);
+            CommentDragCancelled?.Invoke(new UiNodeCommentDragEvent(this, comment, _commentDragStartBounds, currentBounds, delta, modifiers, IsCompleting: false));
+        }
+    }
+
+    private void ClearCommentDragState()
+    {
+        _commentDragArmed = false;
+        _commentDragComment = null;
+        IsDraggingComment = false;
     }
 
     private bool ProcessBoxSelectionInput(UiUpdateContext context, UiInputState input, bool mouseInViewport, UiPoint worldMouse)
@@ -2373,6 +2553,15 @@ public sealed record UiNodeCommentEditCancelledEvent(
     UiNodeGraph Graph,
     UiNodeCommentBox Comment,
     string Key);
+
+public sealed record UiNodeCommentDragEvent(
+    UiNodeGraph Graph,
+    UiNodeCommentBox Comment,
+    UiRect StartBounds,
+    UiRect CurrentBounds,
+    UiPoint Delta,
+    UiModifierKeys Modifiers,
+    bool IsCompleting);
 
 public sealed record UiNodeBoxSelectionEvent(
     UiNodeGraph Graph,

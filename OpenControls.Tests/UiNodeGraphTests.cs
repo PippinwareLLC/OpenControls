@@ -1408,6 +1408,148 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_DragsCommentBoxFromInteriorAndRaisesEvents()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-drag",
+            Bounds = new UiRect(80, 80, 420, 180),
+            Title = "Startup Flow",
+            Text = "Drag from padding, not text.",
+            Padding = 16
+        };
+        graph.AddCommentBox(comment);
+        List<UiNodeCommentDragEvent> started = [];
+        List<UiNodeCommentDragEvent> dragged = [];
+        List<UiNodeCommentDragEvent> ended = [];
+        List<UiNodeCommentDragEvent> cancelled = [];
+        graph.CommentDragStarted += started.Add;
+        graph.CommentDragged += dragged.Add;
+        graph.CommentDragEnded += ended.Add;
+        graph.CommentDragCancelled += cancelled.Add;
+        List<UiNodeBoxSelectionEvent> boxEvents = RecordBoxSelectionEvents(graph);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiPoint startWorld = new(comment.Bounds.X + 8, comment.Bounds.Bottom - 8);
+        UiPoint start = graph.Canvas.WorldToScreen(startWorld);
+        UiPoint end = graph.Canvas.WorldToScreen(new UiPoint(startWorld.X + 80, startWorld.Y + 40));
+
+        context.Update(new UiInputState
+        {
+            MousePosition = start,
+            ScreenMousePosition = start,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.False(graph.IsDraggingComment);
+        Assert.False(graph.IsEditingComment);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftDown = true,
+            LeftDragOrigin = start
+        }, 1f / 60f);
+
+        Assert.True(graph.IsDraggingComment);
+        Assert.Equal(new UiRect(160, 120, 420, 180), comment.Bounds);
+        UiNodeCommentDragEvent startedEvent = Assert.Single(started);
+        Assert.Same(graph, startedEvent.Graph);
+        Assert.Same(comment, startedEvent.Comment);
+        Assert.Equal(new UiRect(80, 80, 420, 180), startedEvent.StartBounds);
+        Assert.Equal(new UiRect(160, 120, 420, 180), startedEvent.CurrentBounds);
+        Assert.Equal(new UiPoint(80, 40), startedEvent.Delta);
+        Assert.False(startedEvent.IsCompleting);
+        Assert.Single(dragged);
+        Assert.Empty(boxEvents);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftReleased = true
+        }, 1f / 60f);
+
+        UiNodeCommentDragEvent endedEvent = Assert.Single(ended);
+        Assert.Equal(new UiRect(160, 120, 420, 180), endedEvent.CurrentBounds);
+        Assert.Equal(new UiPoint(80, 40), endedEvent.Delta);
+        Assert.True(endedEvent.IsCompleting);
+        Assert.False(graph.IsDraggingComment);
+        Assert.Empty(cancelled);
+    }
+
+    [Fact]
+    public void NodeGraph_CommentDragEscapeCancelsAndRestoresBounds()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+        UiNodeCommentBox comment = new()
+        {
+            Id = "comment-drag-cancel",
+            Bounds = new UiRect(80, 80, 420, 180),
+            Title = "Startup Flow",
+            Text = "Drag from padding, then cancel.",
+            Padding = 16
+        };
+        graph.AddCommentBox(comment);
+        List<UiNodeCommentDragEvent> cancelled = [];
+        graph.CommentDragCancelled += cancelled.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiPoint startWorld = new(comment.Bounds.X + 8, comment.Bounds.Bottom - 8);
+        UiPoint start = graph.Canvas.WorldToScreen(startWorld);
+        UiPoint end = graph.Canvas.WorldToScreen(new UiPoint(startWorld.X + 80, startWorld.Y + 40));
+        context.Update(new UiInputState
+        {
+            MousePosition = start,
+            ScreenMousePosition = start,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftDown = true,
+            LeftDragOrigin = start
+        }, 1f / 60f);
+
+        Assert.True(graph.IsDraggingComment);
+        Assert.Equal(new UiRect(160, 120, 420, 180), comment.Bounds);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = end,
+            ScreenMousePosition = end,
+            LeftDown = true,
+            KeysPressed = new[] { UiKey.Escape },
+            Navigation = new UiNavigationInput { Escape = true }
+        }, 1f / 60f);
+
+        UiNodeCommentDragEvent ev = Assert.Single(cancelled);
+        Assert.Equal(new UiRect(80, 80, 420, 180), ev.StartBounds);
+        Assert.Equal(new UiRect(160, 120, 420, 180), ev.CurrentBounds);
+        Assert.Equal(new UiPoint(80, 40), ev.Delta);
+        Assert.False(ev.IsCompleting);
+        Assert.False(graph.IsDraggingComment);
+        Assert.Equal(new UiRect(80, 80, 420, 180), comment.Bounds);
+    }
+
+    [Fact]
     public void NodeControl_LongOpposingPinLabelsReserveSeparateTextLanes()
     {
         UiNodeGraph graph = new()
