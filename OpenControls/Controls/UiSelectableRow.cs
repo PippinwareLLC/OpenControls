@@ -146,8 +146,9 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
 
         UiInputState input = context.Input;
         _hovered = Bounds.Contains(input.MousePosition);
+        bool childHovered = _hovered && IsChildHit(input.MousePosition);
 
-        if (input.LeftClicked && _hovered)
+        if (input.LeftClicked && _hovered && !childHovered)
         {
             _pressed = true;
             context.Focus.RequestFocus(this);
@@ -171,7 +172,7 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
 
         if (input.LeftReleased)
         {
-            if (_pressed && _hovered)
+            if (_pressed && _hovered && !childHovered)
             {
                 Invoke(input);
             }
@@ -180,6 +181,26 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
         }
 
         UpdateChildren(context);
+    }
+
+    private bool IsChildHit(UiPoint point)
+    {
+        if (Children.Count == 0)
+        {
+            return false;
+        }
+
+        UiRect content = ContentBounds;
+        UiPoint localPoint = new UiPoint(point.X - content.X, point.Y - content.Y);
+        for (int i = Children.Count - 1; i >= 0; i--)
+        {
+            if (Children[i].HitTest(localPoint) != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public override void Render(UiRenderContext context)

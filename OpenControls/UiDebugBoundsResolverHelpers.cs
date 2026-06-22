@@ -27,6 +27,23 @@ internal static class UiDebugBoundsResolverHelpers
                 continue;
             }
 
+            UiRect childClipBounds = child.ClipChildren
+                ? IntersectRect(clipBounds, child.ClipBounds)
+                : clipBounds;
+            if (TryResolveTranslatedDescendantBounds(
+                    child.Children,
+                    target,
+                    0,
+                    0,
+                    childClipBounds,
+                    out UiRect descendantBounds,
+                    out UiRect descendantClipBounds))
+            {
+                bounds = TranslateRect(descendantBounds, offsetX, offsetY);
+                resolvedClipBounds = IntersectRect(TranslateRect(descendantClipBounds, offsetX, offsetY), clipBounds);
+                return true;
+            }
+
             bounds = TranslateRect(target.Bounds, offsetX, offsetY);
             resolvedClipBounds = IntersectRect(TranslateRect(target.ClipBounds, offsetX, offsetY), clipBounds);
             return true;
