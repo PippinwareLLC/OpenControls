@@ -129,6 +129,7 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     }
 
     public event Action<UiSelectableRow>? Invoked;
+    public event Action<UiSelectableRow>? RenameRequested;
     public event Action<bool>? SelectedChanged;
 
     public override bool IsFocusable => true;
@@ -161,6 +162,11 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
         if (_focused && input.Navigation.Activate)
         {
             Invoke(input);
+        }
+
+        if (_focused && input.IsKeyPressed(UiKey.F2))
+        {
+            RenameRequested?.Invoke(this);
         }
 
         if (input.LeftReleased)

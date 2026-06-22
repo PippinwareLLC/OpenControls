@@ -127,6 +127,28 @@ public sealed class UiCompositionControlsTests
     }
 
     [Fact]
+    public void SelectableRow_F2RequestsRenameWhenFocused()
+    {
+        UiSelectableRow row = new()
+        {
+            Bounds = new UiRect(0, 0, 200, 28),
+            Text = "Blueprint"
+        };
+        UiFocusManager focus = new();
+        UiMemoryClipboard clipboard = new();
+        var renameRequests = 0;
+        row.RenameRequested += _ => renameRequests++;
+
+        focus.RequestFocus(row);
+        Update(row, focus, clipboard, new UiInputState
+        {
+            KeysPressed = new[] { UiKey.F2 }
+        });
+
+        Assert.Equal(1, renameRequests);
+    }
+
+    [Fact]
     public void Combo_ComposedFilteringAndSelection_WorkEndToEnd()
     {
         UiCombo combo = new()
