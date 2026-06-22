@@ -6,6 +6,8 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     private bool _pressed;
     private bool _focused;
     private bool _selected;
+    private bool _dragStarted;
+    private UiPoint _pressPosition;
     private UiSelectionModel? _selectionModel;
     private int _selectionIndex = -1;
 
@@ -32,6 +34,8 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     public UiColor SelectedTextColor { get; set; } = UiColor.White;
     public int CornerRadius { get; set; }
     public string SelectionScope { get; set; } = string.Empty;
+    public int DragThreshold { get; set; } = 6;
+    public Func<UiSelectableRow, UiInputState, UiDragDropPayload?>? DragPayloadBuilder { get; set; }
 
     public override bool IsRenderCacheVolatile(UiContext context)
     {
@@ -130,6 +134,7 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
 
     public event Action<UiSelectableRow>? Invoked;
     public event Action<UiSelectableRow>? RenameRequested;
+    public event Action<UiSelectableRow, UiDragDropPayload>? DragStarted;
     public event Action<bool>? SelectedChanged;
 
     public override bool IsFocusable => true;
@@ -151,7 +156,23 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
         if (input.LeftClicked && _hovered && !childHovered)
         {
             _pressed = true;
+            _dragStarted = false;
+            _pressPosition = input.MousePosition;
             context.Focus.RequestFocus(this);
+        }
+
+        if (_pressed
+            && input.LeftDown
+            && !_dragStarted
+            && DragPayloadBuilder is not null
+            && HasExceededDragThreshold(input.MousePosition))
+        {
+            UiDragDropPayload? payload = DragPayloadBuilder(this, input);
+            if (payload != null && context.DragDrop.BeginDrag(this, payload, _pressPosition))
+            {
+                _dragStarted = true;
+                DragStarted?.Invoke(this, payload);
+            }
         }
 
         if (_focused && OwnerListView != null && OwnerListView.HandleNavigation(this, context))
@@ -172,7 +193,7 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
 
         if (input.LeftReleased)
         {
-            if (_pressed && _hovered && !childHovered)
+            if (_pressed && !_dragStarted && _hovered && !childHovered)
             {
                 Invoke(input);
             }
@@ -180,7 +201,20 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
             _pressed = false;
         }
 
+        if (_dragStarted && context.DragDrop.Source != this)
+        {
+            _dragStarted = false;
+        }
+
         UpdateChildren(context);
+    }
+
+    private bool HasExceededDragThreshold(UiPoint current)
+    {
+        int threshold = Math.Max(0, DragThreshold);
+        int dx = Math.Abs(current.X - _pressPosition.X);
+        int dy = Math.Abs(current.Y - _pressPosition.Y);
+        return dx >= threshold || dy >= threshold;
     }
 
     private bool IsChildHit(UiPoint point)
@@ -275,6 +309,7 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     {
         _focused = false;
         _pressed = false;
+        _dragStarted = false;
         Highlighted = false;
     }
 
