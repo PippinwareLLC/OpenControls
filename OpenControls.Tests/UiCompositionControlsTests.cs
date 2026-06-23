@@ -149,6 +149,37 @@ public sealed class UiCompositionControlsTests
     }
 
     [Fact]
+    public void SelectableRow_DoubleClickRaisesDoubleInvokedWithoutSingleInvoke()
+    {
+        UiSelectableRow row = new()
+        {
+            Bounds = new UiRect(0, 0, 200, 28),
+            Text = "Blueprint",
+            AllowToggle = false
+        };
+        UiFocusManager focus = new();
+        UiMemoryClipboard clipboard = new();
+        var invoked = 0;
+        var doubleInvoked = 0;
+        row.Invoked += _ => invoked++;
+        row.DoubleInvoked += _ => doubleInvoked++;
+
+        Update(row, focus, clipboard, new UiInputState
+        {
+            MousePosition = new UiPoint(10, 10),
+            ScreenMousePosition = new UiPoint(10, 10),
+            LeftClicked = true,
+            LeftDoubleClicked = true,
+            LeftDown = true
+        });
+
+        Assert.Equal(0, invoked);
+        Assert.Equal(1, doubleInvoked);
+        Assert.True(row.Selected);
+        Assert.Same(row, focus.Focused);
+    }
+
+    [Fact]
     public void Combo_ComposedFilteringAndSelection_WorkEndToEnd()
     {
         UiCombo combo = new()

@@ -133,6 +133,7 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     }
 
     public event Action<UiSelectableRow>? Invoked;
+    public event Action<UiSelectableRow>? DoubleInvoked;
     public event Action<UiSelectableRow>? RenameRequested;
     public event Action<UiSelectableRow, UiDragDropPayload>? DragStarted;
     public event Action<bool>? SelectedChanged;
@@ -152,6 +153,16 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
         UiInputState input = context.Input;
         _hovered = Bounds.Contains(input.MousePosition);
         bool childHovered = _hovered && IsChildHit(input.MousePosition);
+
+        if (input.LeftDoubleClicked && _hovered && !childHovered && DoubleInvoked is not null)
+        {
+            _pressed = false;
+            _dragStarted = false;
+            context.Focus.RequestFocus(this);
+            InvokeDouble(input);
+            UpdateChildren(context);
+            return;
+        }
 
         if (input.LeftClicked && _hovered && !childHovered)
         {
@@ -395,6 +406,18 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
 
     private void Invoke(UiInputState input)
     {
+        ApplySelection(input);
+        Invoked?.Invoke(this);
+    }
+
+    private void InvokeDouble(UiInputState input)
+    {
+        ApplySelection(input);
+        DoubleInvoked?.Invoke(this);
+    }
+
+    private void ApplySelection(UiInputState input)
+    {
         if (_selectionModel != null)
         {
             if (_selectionIndex >= 0)
@@ -410,8 +433,6 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
         {
             SetSelected(true);
         }
-
-        Invoked?.Invoke(this);
     }
 
     private void HandleSelectionModelChanged()
