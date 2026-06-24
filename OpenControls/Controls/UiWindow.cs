@@ -33,6 +33,7 @@ public sealed class UiWindow : UiElement
     public int ResizeGripSize { get; set; } = 12;
     public UiPoint MinSize { get; set; } = new(80, 60);
     public UiPoint MaxSize { get; set; } = new(int.MaxValue, int.MaxValue);
+    public bool AutoFitContentChildren { get; set; }
     public bool ClampResizeToParent { get; set; } = true;
     public UiColor ResizeGripColor { get; set; } = new(90, 100, 120);
     public bool ClampToParent { get; set; } = true;
@@ -152,7 +153,7 @@ public sealed class UiWindow : UiElement
             }
         }
 
-        UpdateScrollPanelBounds();
+        UpdateContentLayout();
         base.Update(context);
     }
 
@@ -165,7 +166,7 @@ public sealed class UiWindow : UiElement
 
         using IDisposable scope = UiProfiling.Scope($"OpenControls.Window.Render.{GetProfileName()}");
 
-        UpdateScrollPanelBounds();
+        UpdateContentLayout();
         UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, Background);
 
         base.Render(context);
@@ -253,7 +254,7 @@ public sealed class UiWindow : UiElement
         };
 
         AddChild(_scrollPanel);
-        UpdateScrollPanelBounds();
+        UpdateContentLayout();
         return _scrollPanel;
     }
 
@@ -268,10 +269,37 @@ public sealed class UiWindow : UiElement
         target.AddChild(child);
     }
 
-    private void UpdateScrollPanelBounds()
+    public bool FitContentChildrenToContentBounds(bool force = false)
+    {
+        if (!force && !AutoFitContentChildren)
+        {
+            return false;
+        }
+
+        var content = ContentBounds;
+        var changed = false;
+        foreach (var child in Children)
+        {
+            if (ReferenceEquals(child, _scrollPanel))
+            {
+                continue;
+            }
+
+            if (!child.Bounds.Equals(content))
+            {
+                child.Bounds = content;
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    private void UpdateContentLayout()
     {
         if (_scrollPanel == null)
         {
+            FitContentChildrenToContentBounds();
             return;
         }
 

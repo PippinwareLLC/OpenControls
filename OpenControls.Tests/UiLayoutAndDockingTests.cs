@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using OpenControls.Controls;
 using OpenControls.State;
 using Xunit;
@@ -165,6 +166,68 @@ public sealed class UiLayoutAndDockingTests
         var state = workspace.CaptureState();
         Assert.NotNull(state.Root);
         Assert.True(state.Root!.SplitRatio > 0.5f);
+    }
+
+    [Fact]
+    public void DockHost_AutoFitContentChildrenResizesContentBeforeChildUpdate()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 300, 180),
+            HideDockedTitleBars = true
+        };
+        UiWindow window = new()
+        {
+            Title = "Graph",
+            AutoFitContentChildren = true
+        };
+        RecordingElement content = new();
+        window.AddContentChild(content);
+        host.AddWindow(window);
+
+        Update(host, new UiInputState());
+
+        Assert.Equal(new UiRect(0, 24, 300, 156), content.LastUpdateBounds);
+
+        host.Bounds = new UiRect(0, 0, 520, 260);
+        Update(host, new UiInputState());
+
+        Assert.Equal(new UiRect(0, 24, 520, 236), content.LastUpdateBounds);
+    }
+
+    [Fact]
+    public void DockHost_WindowScrollPanelFitsContentAndDrawsOverflowScrollbar()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 220, 140),
+            HideDockedTitleBars = true
+        };
+        UiWindow window = new()
+        {
+            Title = "Debug",
+            AutoFitContentChildren = true
+        };
+        UiScrollPanel scrollPanel = window.EnsureScrollPanel();
+        scrollPanel.VerticalScrollbar = UiScrollbarVisibility.Auto;
+        scrollPanel.HorizontalScrollbar = UiScrollbarVisibility.Disabled;
+        scrollPanel.ScrollbarThickness = 10;
+        RecordingElement content = new()
+        {
+            Bounds = new UiRect(0, 0, 160, 260)
+        };
+        window.AddContentChild(content);
+        host.AddWindow(window);
+
+        Update(host, new UiInputState());
+
+        Assert.Equal(new UiRect(0, 24, 220, 116), scrollPanel.Bounds);
+        Assert.True(scrollPanel.ContentSize.Y > scrollPanel.ViewportBounds.Height);
+
+        ScrollRecordingRenderer renderer = new();
+        host.Render(new UiRenderContext(renderer, renderer.DefaultFont));
+
+        Assert.Contains(new UiRect(210, 24, 10, 116), renderer.FilledRects);
     }
 
     [Fact]
@@ -1002,5 +1065,74 @@ public sealed class UiLayoutAndDockingTests
             1f / 60f,
             UiFont.Default,
             new UiMemoryClipboard()));
+    }
+
+    private sealed class RecordingElement : UiElement
+    {
+        public UiRect LastUpdateBounds { get; private set; }
+
+        public override void Update(UiUpdateContext context)
+        {
+            LastUpdateBounds = Bounds;
+        }
+    }
+
+    private sealed class ScrollRecordingRenderer : IUiRenderer
+    {
+        public UiFont DefaultFont { get; set; } = UiFont.Default;
+        public List<UiRect> FilledRects { get; } = new();
+
+        public void FillRect(UiRect rect, UiColor color)
+        {
+            FilledRects.Add(rect);
+        }
+
+        public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
+        {
+        }
+
+        public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
+        {
+        }
+
+        public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+        }
+
+        public int MeasureTextWidth(string text, int scale = 1)
+        {
+            return MeasureTextWidth(text, scale, null);
+        }
+
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            return (font ?? DefaultFont).MeasureTextWidth(text, scale);
+        }
+
+        public int MeasureTextHeight(int scale = 1)
+        {
+            return MeasureTextHeight(scale, null);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            return (font ?? DefaultFont).MeasureTextHeight(scale);
+        }
+
+        public void PushClip(UiRect rect)
+        {
+        }
+
+        public void PopClip()
+        {
+        }
     }
 }
