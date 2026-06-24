@@ -332,6 +332,9 @@ public sealed class UiNodeGraphTests
         Assert.Equal(click, requested.ScreenPosition);
         Assert.Equal("", graph.NodeSearchQuery);
         Assert.Equal(2, graph.NodeSearchItems.Count);
+        Assert.Contains(graph.NodeSearchDisplayRows, row => row.Kind == "category" && row.Text.Contains("Console", StringComparison.Ordinal));
+        Assert.Contains(graph.NodeSearchDisplayRows, row => row.Kind == "category" && row.Text.Contains("Flow", StringComparison.Ordinal));
+        Assert.Contains(graph.GetNodeSearchDebugRows(), row => row.Kind == "item" && row.ItemId == "nodesharp.console.print");
         Assert.True(graph.NodeSearchPopupBounds.Width > 0);
         Assert.True(graph.NodeSearchPopupBounds.Height > 0);
 
@@ -2248,6 +2251,31 @@ public sealed class UiNodeGraphTests
         Assert.False(graph.PreviewWire.Active);
         Assert.Empty(dragEndedEvents);
         Assert.Empty(connectionRequests);
+    }
+
+    [Fact]
+    public void NodeGraph_ShowsDebugValuePopupWhenHoveringValuedPin()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out UiNodeControl print, out _, out _);
+        var messagePin = print.Pins.Single(static pin => pin.Id == "message");
+        messagePin.DebugValueText = "\"Counter value: 42\"";
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint messageScreen = graph.Canvas.WorldToScreen(messagePin.Layout.Center);
+        context.Update(new UiInputState
+        {
+            MousePosition = messageScreen,
+            ScreenMousePosition = messageScreen
+        }, 1f / 60f);
+
+        RecordingRenderer renderer = new();
+        graph.RenderOverlay(new UiRenderContext(renderer, UiFont.Default));
+
+        Assert.Same(messagePin, graph.DebugPinValuePopupPin);
+        Assert.Equal("\"Counter value: 42\"", graph.DebugPinValuePopupText);
+        Assert.True(graph.DebugPinValuePopupBounds.Width > 0);
+        Assert.Contains(renderer.DrawnTexts, text => text.Text.Contains("Counter value", StringComparison.Ordinal));
     }
 
     [Fact]
