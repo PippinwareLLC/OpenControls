@@ -335,6 +335,7 @@ public sealed class UiNodeGraphTests
         Assert.Contains(graph.NodeSearchDisplayRows, row => row.Kind == "category" && row.Text.Contains("Console", StringComparison.Ordinal));
         Assert.Contains(graph.NodeSearchDisplayRows, row => row.Kind == "category" && row.Text.Contains("Flow", StringComparison.Ordinal));
         Assert.Contains(graph.GetNodeSearchDebugRows(), row => row.Kind == "item" && row.ItemId == "nodesharp.console.print");
+        Assert.DoesNotContain(graph.GetNodeSearchDebugRows(), row => row.Kind == "item" && row.ItemId == "nodesharp.flow.branch");
         Assert.True(graph.NodeSearchPopupBounds.Width > 0);
         Assert.True(graph.NodeSearchPopupBounds.Height > 0);
 
@@ -400,6 +401,48 @@ public sealed class UiNodeGraphTests
         Assert.NotNull(invoked);
         Assert.Equal("nodesharp.console.print", invoked.Item.Id);
         Assert.Equal("pri", invoked.Query);
+    }
+
+    [Fact]
+    public void NodeGraph_NodeSearchHoverUpdatesSelectionAndWheelScrollsRows()
+    {
+        UiNodeGraph graph = CreateGraph(out _, out _, out _, out _);
+        UiNodeSearchItem[] allItems = Enumerable.Range(0, 36)
+            .Select(index => new UiNodeSearchItem($"nodesharp.test.{index:00}", $"Test Node {index:00}", "Testing"))
+            .ToArray();
+        graph.NodeSearchRequested += _ => graph.SetNodeSearchResults(allItems);
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiPoint click = new(720, 420);
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            RightClicked = true,
+            RightDown = true
+        }, 1f / 60f);
+
+        var row = graph.GetNodeSearchDebugRows().Single(debug => debug.ItemId == "nodesharp.test.01");
+        UiPoint hover = Center(row.Bounds);
+        context.Update(new UiInputState
+        {
+            MousePosition = hover,
+            ScreenMousePosition = hover
+        }, 1f / 60f);
+
+        Assert.Equal(1, graph.NodeSearchSelectedIndex);
+        Assert.Equal(0, graph.NodeSearchScrollY);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = hover,
+            ScreenMousePosition = hover,
+            ScrollDelta = -120
+        }, 1f / 60f);
+
+        Assert.True(graph.NodeSearchScrollY > 0);
+        Assert.True(graph.NodeSearchRowsViewportBounds.Height <= 320);
     }
 
     [Fact]
@@ -2201,11 +2244,13 @@ public sealed class UiNodeGraphTests
         List<UiNodeDragEvent> dragEndedEvents = [];
         List<UiNodeSelectionRequestedEvent> selectionRequests = [];
         List<UiNodeWireConnectionRequestedEvent> connectionRequests = [];
+        UiNodeSearchRequestedEvent? searchRequested = null;
         graph.NodeDragStarted += dragStartedEvents.Add;
         graph.NodeDragged += draggedEvents.Add;
         graph.NodeDragEnded += dragEndedEvents.Add;
         graph.NodeSelectionRequested += selectionRequests.Add;
         graph.WireConnectionRequested += connectionRequests.Add;
+        graph.NodeSearchRequested += ev => searchRequested = ev;
         UiContext context = new(graph);
         context.Update(new UiInputState(), 1f / 60f);
 
@@ -2251,6 +2296,9 @@ public sealed class UiNodeGraphTests
         Assert.False(graph.PreviewWire.Active);
         Assert.Empty(dragEndedEvents);
         Assert.Empty(connectionRequests);
+        Assert.True(graph.IsNodeSearchOpen);
+        Assert.NotNull(searchRequested);
+        Assert.Same(entryThen, searchRequested.ContextPin);
     }
 
     [Fact]
