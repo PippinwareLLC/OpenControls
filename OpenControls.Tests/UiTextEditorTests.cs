@@ -188,6 +188,41 @@ public sealed class UiTextEditorTests
         Assert.Equal(editor.CaretIndex, restored.CaretIndex);
     }
 
+    [Fact]
+    public void SyntaxHighlighting_RendersSpansWithoutFullLineOverlay()
+    {
+        UiTextEditor editor = CreateEditor(
+            """
+            public static async Task<int> Main(string[] args)
+            {
+                object value = "Hello from NodesSharp";
+            }
+            """,
+            width: 640,
+            height: 240);
+        editor.ShowLineNumbers = false;
+        editor.TextScale = 1;
+        editor.SyntaxMode = UiTextEditorSyntaxMode.CSharp;
+        UiFocusManager focus = new();
+        UiMemoryClipboard clipboard = new();
+        Update(editor, focus, clipboard, new UiInputState
+        {
+            MousePosition = new UiPoint(1, 1),
+            ScreenMousePosition = new UiPoint(1, 1)
+        });
+        RecordingRenderer renderer = new();
+
+        editor.Render(new UiRenderContext(renderer, renderer.DefaultFont));
+
+        Assert.DoesNotContain(renderer.TextCalls, call => call.Text == "public static async Task<int> Main(string[] args)");
+        TextCall publicCall = Assert.Single(renderer.TextCalls, static call => call.Text == "public");
+        TextCall staticCall = Assert.Single(renderer.TextCalls, static call => call.Text == "static");
+        TextCall stringCall = Assert.Single(renderer.TextCalls, static call => call.Text == "\"Hello from NodesSharp\"");
+
+        Assert.True(staticCall.Position.X > publicCall.Position.X, $"Expected static to render after public. public={publicCall.Position}; static={staticCall.Position}");
+        Assert.True(stringCall.Position.X > publicCall.Position.X, $"Expected string literal to render at its source position. public={publicCall.Position}; string={stringCall.Position}");
+    }
+
     private static UiTextEditor CreateEditor(string text, int width = 320, int height = 160)
     {
         UiTextEditor editor = new()
@@ -219,5 +254,69 @@ public sealed class UiTextEditorTests
             1f / 60f,
             UiFont.Default,
             clipboard));
+    }
+
+    private readonly record struct TextCall(string Text, UiPoint Position, UiColor Color, int Scale);
+
+    private sealed class RecordingRenderer : IUiRenderer
+    {
+        private readonly List<TextCall> _textCalls = new();
+
+        public UiFont DefaultFont { get; set; } = UiFont.Default;
+        public IReadOnlyList<TextCall> TextCalls => _textCalls;
+
+        public void FillRect(UiRect rect, UiColor color)
+        {
+        }
+
+        public void DrawRect(UiRect rect, UiColor color, int thickness = 1)
+        {
+        }
+
+        public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
+        {
+        }
+
+        public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
+        {
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale = 1)
+        {
+            DrawText(text, position, color, scale, DefaultFont);
+        }
+
+        public void DrawText(string text, UiPoint position, UiColor color, int scale, UiFont? font)
+        {
+            _textCalls.Add(new TextCall(text, position, color, scale));
+        }
+
+        public int MeasureTextWidth(string text, int scale = 1)
+        {
+            return MeasureTextWidth(text, scale, DefaultFont);
+        }
+
+        public int MeasureTextWidth(string text, int scale, UiFont? font)
+        {
+            return (font ?? DefaultFont).MeasureTextWidth(text ?? string.Empty, scale);
+        }
+
+        public int MeasureTextHeight(int scale = 1)
+        {
+            return MeasureTextHeight(scale, DefaultFont);
+        }
+
+        public int MeasureTextHeight(int scale, UiFont? font)
+        {
+            return (font ?? DefaultFont).MeasureTextHeight(scale);
+        }
+
+        public void PushClip(UiRect rect)
+        {
+        }
+
+        public void PopClip()
+        {
+        }
     }
 }

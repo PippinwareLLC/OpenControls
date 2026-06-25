@@ -1002,24 +1002,7 @@ public sealed class UiTextEditor : UiElement, IUiStatefulElement
                 context.Renderer.DrawText(lineNumber, new UiPoint(numberX, lineY), LineNumberColor, TextScale, font);
             }
 
-            string lineText = _lines[i];
-            context.Renderer.DrawText(lineText, new UiPoint(_textStartX, lineY), TextColor, TextScale, font);
-
-            if (SyntaxMode != UiTextEditorSyntaxMode.None)
-            {
-                List<LineToken> tokens = GetLineTokens(i);
-                foreach (LineToken token in tokens)
-                {
-                    if (token.Length <= 0)
-                    {
-                        continue;
-                    }
-
-                    string segment = lineText.Substring(token.Start, token.Length);
-                    int tokenX = _textStartX + MeasureLinePrefixWidth(lineText, token.Start);
-                    context.Renderer.DrawText(segment, new UiPoint(tokenX, lineY), token.Color, TextScale, font);
-                }
-            }
+            DrawLineText(context, i, lineY, font);
         }
 
         if (_hasFocus && _caretVisible)
@@ -1035,6 +1018,66 @@ public sealed class UiTextEditor : UiElement, IUiStatefulElement
 
             context.Renderer.FillRect(new UiRect(caretX, caretY, caretWidth, lineHeight), CaretColor);
         }
+    }
+
+    private void DrawLineText(UiRenderContext context, int lineIndex, int lineY, UiFont font)
+    {
+        string lineText = _lines[lineIndex];
+        if (SyntaxMode == UiTextEditorSyntaxMode.None)
+        {
+            context.Renderer.DrawText(lineText, new UiPoint(_textStartX, lineY), TextColor, TextScale, font);
+            return;
+        }
+
+        List<LineToken> tokens = GetLineTokens(lineIndex);
+        if (tokens.Count == 0)
+        {
+            context.Renderer.DrawText(lineText, new UiPoint(_textStartX, lineY), TextColor, TextScale, font);
+            return;
+        }
+
+        int column = 0;
+        int x = _textStartX;
+        foreach (LineToken token in tokens)
+        {
+            if (token.Length <= 0 || token.Start >= lineText.Length)
+            {
+                continue;
+            }
+
+            int tokenStart = Math.Clamp(token.Start, column, lineText.Length);
+            if (tokenStart > column)
+            {
+                x = DrawTextSegment(context, lineText, column, tokenStart - column, x, lineY, TextColor, font);
+            }
+
+            int tokenEnd = Math.Clamp(token.Start + token.Length, tokenStart, lineText.Length);
+            if (tokenEnd > tokenStart)
+            {
+                x = DrawTextSegment(context, lineText, tokenStart, tokenEnd - tokenStart, x, lineY, token.Color, font);
+                column = tokenEnd;
+            }
+        }
+
+        if (column < lineText.Length)
+        {
+            _ = DrawTextSegment(context, lineText, column, lineText.Length - column, x, lineY, TextColor, font);
+        }
+    }
+
+    private int DrawTextSegment(
+        UiRenderContext context,
+        string lineText,
+        int start,
+        int length,
+        int x,
+        int y,
+        UiColor color,
+        UiFont font)
+    {
+        string segment = lineText.Substring(start, length);
+        context.Renderer.DrawText(segment, new UiPoint(x, y), color, TextScale, font);
+        return x + font.MeasureTextWidth(segment, TextScale);
     }
 
     private void DrawSelection(UiRenderContext context, int lineIndex, int lineY, int lineHeight)
