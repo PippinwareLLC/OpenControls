@@ -2458,6 +2458,44 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_RaisesNodeDoubleClickedWhenNodeBodyIsDoubleClicked()
+    {
+        UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);
+        List<UiNodeDoubleClickedEvent> doubleClicks = [];
+        List<UiNodeSelectionRequestedEvent> selectionRequests = [];
+        graph.NodeDoubleClicked += doubleClicks.Add;
+        graph.NodeSelectionRequested += selectionRequests.Add;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+
+        UiPoint worldPoint = new(entry.DebugLayout.HeaderBounds.X + 48, entry.DebugLayout.HeaderBounds.Y + 12);
+        UiPoint screenPoint = graph.Canvas.WorldToScreen(worldPoint);
+        context.Update(new UiInputState
+        {
+            MousePosition = screenPoint,
+            ScreenMousePosition = screenPoint
+        }, 1f / 60f);
+
+        Assert.Same(entry, graph.HoveredNode);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = screenPoint,
+            ScreenMousePosition = screenPoint,
+            LeftClicked = true,
+            LeftDoubleClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        var ev = Assert.Single(doubleClicks);
+        Assert.Same(graph, ev.Graph);
+        Assert.Same(entry, ev.Node);
+        Assert.Equal(worldPoint, ev.WorldPosition);
+        Assert.Empty(selectionRequests);
+    }
+
+    [Fact]
     public void NodeControl_SelectsAndDragsFromHeader()
     {
         UiNodeGraph graph = CreateGraph(out UiNodeControl entry, out _, out _, out _);

@@ -410,6 +410,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public event Action<UiNodeWireConnectionRequestedEvent>? WireConnectionRequested;
     public event Action<UiNodeWireRerouteRequestedEvent>? WireRerouteRequested;
     public event Action<UiNodeSelectionRequestedEvent>? NodeSelectionRequested;
+    public event Action<UiNodeDoubleClickedEvent>? NodeDoubleClicked;
     public event Action<UiNodeClickCompletedEvent>? NodeClickCompleted;
     public event Action<UiNodeDragEvent>? NodeDragStarted;
     public event Action<UiNodeDragEvent>? NodeDragged;
@@ -2770,6 +2771,16 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
             return;
         }
 
+        if (mouseInViewport
+            && input.LeftDoubleClicked
+            && HoveredNode != null
+            && HoveredPin == null
+            && HoveredValuePin == null)
+        {
+            NodeDoubleClicked?.Invoke(new UiNodeDoubleClickedEvent(this, HoveredNode, worldMouse, input.Modifiers));
+            return;
+        }
+
         if (EnableWireRerouteHandles
             && mouseInViewport
             && input.LeftDoubleClicked
@@ -3602,6 +3613,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 public sealed record UiNodeSelectionRequestedEvent(
     UiNodeGraph Graph,
     UiNodeControl Node,
+    UiModifierKeys Modifiers);
+
+public sealed record UiNodeDoubleClickedEvent(
+    UiNodeGraph Graph,
+    UiNodeControl Node,
+    UiPoint WorldPosition,
     UiModifierKeys Modifiers);
 
 public sealed record UiNodeClickCompletedEvent(
