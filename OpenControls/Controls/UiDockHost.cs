@@ -663,7 +663,7 @@ public sealed class UiDockHost : UiElement
                     Math.Max(1, renderRect.Width / 2));
                 UiRect accentRect = new(
                     renderRect.X + accentInset,
-                    renderRect.Y + 1,
+                    renderRect.Bottom - Math.Min(TabActiveAccentHeight, Math.Max(0, renderRect.Height - 2)) - 1,
                     Math.Max(0, renderRect.Width - accentInset * 2),
                     Math.Min(TabActiveAccentHeight, Math.Max(0, renderRect.Height - 2)));
                 if (accentRect.Width > 0 && accentRect.Height > 0)
