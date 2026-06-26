@@ -306,8 +306,8 @@ public sealed class UiNodeGraphTests
             requested = ev;
             graph.SetNodeSearchResults(
             [
-                new UiNodeSearchItem("nodesharp.console.print", "Print String", "Console"),
-                new UiNodeSearchItem("nodesharp.flow.branch", "Branch", "Flow")
+                new UiNodeSearchItem("nodesharp.console.print", "Print String", "Console", "Prints a value to the console."),
+                new UiNodeSearchItem("nodesharp.flow.branch", "Branch", "Flow", "Chooses between true and false exec paths.")
             ]);
         };
 
@@ -334,6 +334,8 @@ public sealed class UiNodeGraphTests
         Assert.Equal(2, graph.NodeSearchItems.Count);
         Assert.Contains(graph.NodeSearchDisplayRows, row => row.Kind == "category" && row.Text.Contains("Console", StringComparison.Ordinal));
         Assert.Contains(graph.NodeSearchDisplayRows, row => row.Kind == "category" && row.Text.Contains("Flow", StringComparison.Ordinal));
+        Assert.Contains(graph.NodeSearchDisplayRows, row => row.Kind == "item" && row.Text == "Print String");
+        Assert.DoesNotContain(graph.NodeSearchDisplayRows, row => row.Kind == "item" && row.Text.Contains("Prints a value", StringComparison.Ordinal));
         Assert.Contains(graph.GetNodeSearchDebugRows(), row => row.Kind == "item" && row.ItemId == "nodesharp.console.print");
         Assert.DoesNotContain(graph.GetNodeSearchDebugRows(), row => row.Kind == "item" && row.ItemId == "nodesharp.flow.branch");
         Assert.True(graph.NodeSearchPopupBounds.Width > 0);
@@ -341,8 +343,11 @@ public sealed class UiNodeGraphTests
 
         RecordingRenderer renderer = new();
         graph.RenderOverlay(new UiRenderContext(renderer, UiFont.Default));
-        Assert.Contains(renderer.DrawnTexts, text => text.Text == "Search nodes...");
-        Assert.Contains(renderer.DrawnTexts, text => text.Text.Contains("Print String", StringComparison.Ordinal));
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "All Actions for this Blueprint");
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "Context Sensitive");
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "Search");
+        Assert.Contains(renderer.DrawnTexts, text => text.Text == "Print String");
+        Assert.DoesNotContain(renderer.DrawnTexts, text => text.Text.Contains("Prints a value", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -442,7 +447,7 @@ public sealed class UiNodeGraphTests
         }, 1f / 60f);
 
         Assert.True(graph.NodeSearchScrollY > 0);
-        Assert.True(graph.NodeSearchRowsViewportBounds.Height <= 320);
+        Assert.True(graph.NodeSearchRowsViewportBounds.Height <= 390);
     }
 
     [Fact]

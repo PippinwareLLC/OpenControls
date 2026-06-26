@@ -6,12 +6,13 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     private const int CommentEditorMaxLength = 4096;
     private const int NodeSearchMaxLength = 128;
     private const int NodeSearchMaxResults = 256;
-    private const int NodeSearchPopupWidth = 360;
-    private const int NodeSearchResultHeight = 24;
-    private const int NodeSearchCategoryHeight = 20;
-    private const int NodeSearchInputHeight = 28;
+    private const int NodeSearchPopupWidth = 500;
+    private const int NodeSearchHeaderHeight = 38;
+    private const int NodeSearchResultHeight = 28;
+    private const int NodeSearchCategoryHeight = 22;
+    private const int NodeSearchInputHeight = 30;
     private const int NodeSearchTextScale = 1;
-    private const int NodeSearchMaxRowsHeight = 320;
+    private const int NodeSearchMaxRowsHeight = 390;
     private const int NodeSearchScrollbarWidth = 8;
     private const int NodeSearchScrollWheelStep = 44;
 
@@ -359,6 +360,9 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
     public UiColor NodeSearchSelectedBackground { get; set; } = new(36, 92, 142, 186);
     public UiColor NodeSearchSelectedBorder { get; set; } = new(92, 166, 255, 200);
     public UiColor NodeSearchCategoryColor { get; set; } = new(130, 172, 216, 255);
+    public string NodeSearchTitle { get; set; } = "All Actions for this Blueprint";
+    public string NodeSearchPlaceholder { get; set; } = "Search";
+    public bool NodeSearchContextSensitive { get; set; } = true;
     public UiColor DebugPinValueBackground { get; set; } = new(7, 10, 16, 238);
     public UiColor DebugPinValueBorder { get; set; } = new(92, 166, 255, 220);
     public UiColor DebugPinValueTextColor { get; set; } = new(230, 244, 255, 255);
@@ -2026,11 +2030,12 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         RebuildNodeSearchDisplayRows();
         EnsureNodeSearchSelectionVisible();
         int totalRowsHeight = TotalNodeSearchRowsHeight();
-        int availableRowsHeight = Math.Max(NodeSearchResultHeight, Bounds.Height - NodeSearchInputHeight - 40);
+        int verticalChrome = 10 + NodeSearchHeaderHeight + NodeSearchInputHeight + 12 + 10;
+        int availableRowsHeight = Math.Max(NodeSearchResultHeight, Bounds.Height - verticalChrome - 12);
         int maxRowsHeight = Math.Min(NodeSearchMaxRowsHeight, availableRowsHeight);
         int rowCountHeight = Math.Min(Math.Max(NodeSearchResultHeight, totalRowsHeight), Math.Max(NodeSearchResultHeight, maxRowsHeight));
         int width = Math.Max(180, NodeSearchPopupWidth);
-        int height = 10 + NodeSearchInputHeight + 8 + rowCountHeight + 10;
+        int height = verticalChrome + rowCountHeight;
         int minX = Bounds.X + 6;
         int minY = Bounds.Y + 6;
         int maxX = Math.Max(minX, Bounds.Right - width - 6);
@@ -2038,8 +2043,8 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         int x = Math.Clamp(_nodeSearchScreenPosition.X, minX, maxX);
         int y = Math.Clamp(_nodeSearchScreenPosition.Y, minY, maxY);
         _nodeSearchBounds = new UiRect(x, y, width, height);
-        _nodeSearchInputBounds = new UiRect(x + 10, y + 10, width - 20, NodeSearchInputHeight);
-        _nodeSearchRowsViewportBounds = new UiRect(x + 8, _nodeSearchInputBounds.Bottom + 8, width - 16, rowCountHeight);
+        _nodeSearchInputBounds = new UiRect(x + 10, y + NodeSearchHeaderHeight, width - 20, NodeSearchInputHeight);
+        _nodeSearchRowsViewportBounds = new UiRect(x + 10, _nodeSearchInputBounds.Bottom + 10, width - 20, rowCountHeight);
         ClampNodeSearchScroll();
     }
 
@@ -2087,10 +2092,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         UpdateNodeSearchBounds();
         UiFont font = ResolveFont(context.DefaultFont);
         IUiRenderer renderer = context.Renderer;
-        UiRenderHelpers.FillRectRounded(renderer, _nodeSearchBounds, 4, NodeSearchBackground);
-        UiRenderHelpers.DrawRectRounded(renderer, _nodeSearchBounds, 4, NodeSearchBorder, 1);
-        UiRenderHelpers.FillRectRounded(renderer, _nodeSearchInputBounds, 3, NodeSearchInputBackground);
-        UiRenderHelpers.DrawRectRounded(renderer, _nodeSearchInputBounds, 3, NodeSearchInputBorder, 1);
+        UiRenderHelpers.FillRectRounded(renderer, _nodeSearchBounds, 2, NodeSearchBackground);
+        UiRenderHelpers.DrawRectRounded(renderer, _nodeSearchBounds, 2, NodeSearchBorder, 1);
+        DrawNodeSearchHeader(renderer, font);
+        UiRenderHelpers.FillRectRounded(renderer, _nodeSearchInputBounds, 14, NodeSearchInputBackground);
+        UiRenderHelpers.DrawRectRounded(renderer, _nodeSearchInputBounds, 14, NodeSearchInputBorder, 1);
 
         DrawNodeSearchInputText(renderer, font);
         if (_nodeSearchItems.Count == 0)
@@ -2119,15 +2125,43 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
             if (string.Equals(row.Kind, "category", StringComparison.Ordinal))
             {
-                DrawNodeSearchDisplayRowText(renderer, font, row.Text, rowIndex, selected: false, NodeSearchCategoryColor, indent: 2);
+                DrawNodeSearchCategoryRow(renderer, font, row.Text, rowIndex);
                 continue;
             }
 
-            DrawNodeSearchDisplayRowText(renderer, font, row.Text, rowIndex, selected, selected ? UiColor.White : new UiColor(184, 202, 224, 255), indent: 18);
+            DrawNodeSearchItemRow(renderer, font, row, rowIndex, selected);
         }
 
         renderer.PopClip();
         DrawNodeSearchScrollbar(renderer);
+    }
+
+    private void DrawNodeSearchHeader(IUiRenderer renderer, UiFont font)
+    {
+        var titleBounds = new UiRect(
+            _nodeSearchBounds.X + 12,
+            _nodeSearchBounds.Y + 10,
+            Math.Max(1, _nodeSearchBounds.Width - 220),
+            18);
+        renderer.PushClip(titleBounds);
+        renderer.DrawText(
+            UiRenderHelpers.BuildElidedText(NodeSearchTitle, titleBounds.Width, NodeSearchTextScale, font),
+            new UiPoint(titleBounds.X, titleBounds.Y),
+            new UiColor(204, 206, 210, 255),
+            NodeSearchTextScale,
+            font);
+        renderer.PopClip();
+
+        var checkboxBounds = new UiRect(_nodeSearchBounds.Right - 176, _nodeSearchBounds.Y + 7, 18, 18);
+        UiRenderHelpers.FillRectRounded(renderer, checkboxBounds, 3, new UiColor(8, 10, 14, 255));
+        UiRenderHelpers.DrawRectRounded(renderer, checkboxBounds, 3, new UiColor(44, 50, 58, 255), 1);
+        if (NodeSearchContextSensitive)
+        {
+            renderer.DrawText("v", new UiPoint(checkboxBounds.X + 5, checkboxBounds.Y + 2), new UiColor(55, 162, 255, 255), NodeSearchTextScale, font);
+        }
+
+        renderer.DrawText("Context Sensitive", new UiPoint(checkboxBounds.Right + 8, _nodeSearchBounds.Y + 9), NodeSearchTextColor, NodeSearchTextScale, font);
+        renderer.DrawText(">", new UiPoint(_nodeSearchBounds.Right - 18, _nodeSearchBounds.Y + 10), NodeSearchPlaceholderColor, NodeSearchTextScale, font);
     }
 
     private void DrawDebugPinValuePopup(UiRenderContext context)
@@ -2169,14 +2203,17 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
     private void DrawNodeSearchInputText(IUiRenderer renderer, UiFont font)
     {
-        int padding = 8;
+        int padding = 38;
         string query = _nodeSearchEditingState.Text;
-        string text = string.IsNullOrEmpty(query) ? "Search nodes..." : query;
+        string text = string.IsNullOrEmpty(query) ? NodeSearchPlaceholder : query;
         UiColor color = string.IsNullOrEmpty(query) ? NodeSearchPlaceholderColor : NodeSearchTextColor;
+        var iconCenter = new UiPoint(_nodeSearchInputBounds.X + 16, _nodeSearchInputBounds.Y + 14);
+        UiRenderHelpers.DrawCircle(renderer, iconCenter, 7, NodeSearchPlaceholderColor, 2);
+        renderer.FillRect(new UiRect(iconCenter.X + 5, iconCenter.Y + 5, 7, 2), NodeSearchPlaceholderColor);
         UiRect textBounds = new(
             _nodeSearchInputBounds.X + padding,
-            _nodeSearchInputBounds.Y + 5,
-            Math.Max(1, _nodeSearchInputBounds.Width - padding * 2),
+            _nodeSearchInputBounds.Y + 7,
+            Math.Max(1, _nodeSearchInputBounds.Width - padding - 10),
             Math.Max(1, _nodeSearchInputBounds.Height - 10));
         renderer.PushClip(_nodeSearchInputBounds);
         string drawText = UiRenderHelpers.BuildElidedText(text, textBounds.Width, NodeSearchTextScale, font);
@@ -2195,19 +2232,60 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
         UiRect rowBounds = new(_nodeSearchRowsViewportBounds.X, _nodeSearchRowsViewportBounds.Y, _nodeSearchRowsViewportBounds.Width, NodeSearchResultHeight);
         renderer.PushClip(_nodeSearchRowsViewportBounds);
         string drawText = UiRenderHelpers.BuildElidedText("No matching nodes", Math.Max(1, rowBounds.Width - 12), NodeSearchTextScale, font);
-        renderer.DrawText(drawText, new UiPoint(rowBounds.X + 6, rowBounds.Y + 4), NodeSearchPlaceholderColor, NodeSearchTextScale, font);
+        renderer.DrawText(drawText, new UiPoint(rowBounds.X + 6, rowBounds.Y + 5), NodeSearchPlaceholderColor, NodeSearchTextScale, font);
         renderer.PopClip();
     }
 
-    private void DrawNodeSearchDisplayRowText(IUiRenderer renderer, UiFont font, string text, int rowIndex, bool selected, UiColor color, int indent)
+    private void DrawNodeSearchCategoryRow(IUiRenderer renderer, UiFont font, string text, int rowIndex)
     {
         UiRect rowBounds = ResolveNodeSearchDisplayRowBounds(rowIndex);
         var scrollbarInset = HasNodeSearchScrollbar() ? NodeSearchScrollbarWidth + 4 : 0;
-        UiRect textBounds = new UiRect(rowBounds.X + indent, rowBounds.Y + 4, Math.Max(1, rowBounds.Width - indent - 6 - scrollbarInset), Math.Max(1, rowBounds.Height - 8));
+        var expanded = text.StartsWith("v ", StringComparison.Ordinal);
+        var label = text.Length > 2 ? text[2..] : text;
         renderer.PushClip(rowBounds);
-        string drawText = UiRenderHelpers.BuildElidedText(text, textBounds.Width, NodeSearchTextScale, font);
-        renderer.DrawText(drawText, new UiPoint(textBounds.X, textBounds.Y), color, NodeSearchTextScale, font);
+        renderer.DrawText(expanded ? "v" : ">", new UiPoint(rowBounds.X + 4, rowBounds.Y + 4), new UiColor(126, 130, 136, 255), NodeSearchTextScale, font);
+        var textBounds = new UiRect(rowBounds.X + 22, rowBounds.Y + 4, Math.Max(1, rowBounds.Width - 28 - scrollbarInset), Math.Max(1, rowBounds.Height - 8));
+        string drawText = UiRenderHelpers.BuildElidedText(label, textBounds.Width, NodeSearchTextScale, font);
+        renderer.DrawText(drawText, new UiPoint(textBounds.X, textBounds.Y), new UiColor(210, 212, 216, 255), NodeSearchTextScale, font);
         renderer.PopClip();
+    }
+
+    private void DrawNodeSearchItemRow(IUiRenderer renderer, UiFont font, UiNodeSearchDisplayRow row, int rowIndex, bool selected)
+    {
+        UiRect rowBounds = ResolveNodeSearchDisplayRowBounds(rowIndex);
+        var scrollbarInset = HasNodeSearchScrollbar() ? NodeSearchScrollbarWidth + 4 : 0;
+        var item = row.ItemIndex >= 0 && row.ItemIndex < _nodeSearchItems.Count ? _nodeSearchItems[row.ItemIndex] : null;
+        var iconColor = ResolveNodeSearchItemIconColor(item);
+        var textColor = selected ? UiColor.White : new UiColor(196, 198, 202, 255);
+        renderer.PushClip(rowBounds);
+        renderer.DrawText("f", new UiPoint(rowBounds.X + 40, rowBounds.Y + 5), iconColor, NodeSearchTextScale, font);
+        var textBounds = new UiRect(rowBounds.X + 62, rowBounds.Y + 5, Math.Max(1, rowBounds.Width - 70 - scrollbarInset), Math.Max(1, rowBounds.Height - 8));
+        string drawText = UiRenderHelpers.BuildElidedText(row.Text, textBounds.Width, NodeSearchTextScale, font);
+        renderer.DrawText(drawText, new UiPoint(textBounds.X, textBounds.Y), textColor, NodeSearchTextScale, font);
+        renderer.PopClip();
+    }
+
+    private static UiColor ResolveNodeSearchItemIconColor(UiNodeSearchItem? item)
+    {
+        if (item is null)
+        {
+            return new UiColor(105, 205, 255, 255);
+        }
+
+        var category = item.Category ?? "";
+        var id = item.Id ?? "";
+        if (category.Contains("Flow", StringComparison.OrdinalIgnoreCase)
+            || category.Contains("Console", StringComparison.OrdinalIgnoreCase)
+            || category.Contains("Function", StringComparison.OrdinalIgnoreCase)
+            || category.Contains("Event", StringComparison.OrdinalIgnoreCase)
+            || id.Contains(".flow", StringComparison.OrdinalIgnoreCase)
+            || id.Contains(".console", StringComparison.OrdinalIgnoreCase)
+            || id.Contains(".call", StringComparison.OrdinalIgnoreCase))
+        {
+            return new UiColor(105, 205, 255, 255);
+        }
+
+        return new UiColor(150, 242, 142, 255);
     }
 
     private UiRect ResolveNodeSearchDisplayRowBounds(int rowIndex)
@@ -2261,8 +2339,7 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
             foreach (var match in group.Items)
             {
-                var suffix = string.IsNullOrWhiteSpace(match.Item.Description) ? string.Empty : $"  {match.Item.Description}";
-                _nodeSearchDisplayRows.Add(new UiNodeSearchDisplayRow("item", match.Item.Title + suffix, group.Category, match.Index, NodeSearchResultHeight));
+                _nodeSearchDisplayRows.Add(new UiNodeSearchDisplayRow("item", match.Item.Title, group.Category, match.Index, NodeSearchResultHeight));
             }
         }
     }
