@@ -127,6 +127,7 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
     public UiColor ScrollbarBorder { get; set; } = new UiColor(60, 70, 90);
     public UiColor ScrollbarThumb { get; set; } = new UiColor(70, 80, 100);
     public UiColor ScrollbarThumbHover { get; set; } = new UiColor(90, 110, 140);
+    public bool AutoFitContentChildrenWidth { get; set; }
 
     public int ScrollX
     {
@@ -385,6 +386,16 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
     {
         _contentSize = CalculateContentSize();
         ResolveScrollbars();
+        if (AutoFitContentChildrenWidth)
+        {
+            FitContentChildrenToViewportWidth();
+            _contentSize = CalculateContentSize();
+            ResolveScrollbars();
+            FitContentChildrenToViewportWidth();
+            _contentSize = CalculateContentSize();
+            ResolveScrollbars();
+        }
+
         ClampScrollOffset();
     }
 
@@ -465,6 +476,24 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
         }
 
         return new UiPoint(Math.Max(0, maxRight), Math.Max(0, maxBottom));
+    }
+
+    private void FitContentChildrenToViewportWidth()
+    {
+        int viewportWidth = Math.Max(0, _viewportSize.X);
+        foreach (UiElement child in Children)
+        {
+            if (!child.Visible || child is UiPopup or UiTooltip or UiModal or UiTooltipRegion or UiContextMenuRegion)
+            {
+                continue;
+            }
+
+            int width = Math.Max(0, viewportWidth - Math.Max(0, child.Bounds.X));
+            if (child.Bounds.Width != width)
+            {
+                child.Bounds = new UiRect(child.Bounds.X, child.Bounds.Y, width, child.Bounds.Height);
+            }
+        }
     }
 
     private void ResolveScrollbars()

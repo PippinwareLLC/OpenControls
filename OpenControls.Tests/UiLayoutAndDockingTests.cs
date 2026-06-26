@@ -231,6 +231,37 @@ public sealed class UiLayoutAndDockingTests
     }
 
     [Fact]
+    public void ScrollPanel_AutoFitContentChildrenWidthTracksViewportWidth()
+    {
+        UiScrollPanel scrollPanel = new()
+        {
+            Bounds = new UiRect(0, 0, 220, 140),
+            HorizontalScrollbar = UiScrollbarVisibility.Disabled,
+            VerticalScrollbar = UiScrollbarVisibility.Auto,
+            ScrollbarThickness = 10,
+            AutoFitContentChildrenWidth = true
+        };
+        UiPanel content = new()
+        {
+            Bounds = new UiRect(8, 0, 120, 260)
+        };
+        scrollPanel.AddChild(content);
+
+        Update(scrollPanel, new UiInputState());
+
+        Assert.Equal(new UiRect(8, 0, 202, 260), content.Bounds);
+        Assert.Equal(new UiRect(0, 0, 210, 140), scrollPanel.ViewportBounds);
+        Assert.Equal(210, scrollPanel.ContentSize.X);
+
+        scrollPanel.Bounds = new UiRect(0, 0, 320, 140);
+        Update(scrollPanel, new UiInputState());
+
+        Assert.Equal(new UiRect(8, 0, 302, 260), content.Bounds);
+        Assert.Equal(new UiRect(0, 0, 310, 140), scrollPanel.ViewportBounds);
+        Assert.Equal(310, scrollPanel.ContentSize.X);
+    }
+
+    [Fact]
     public void DockWorkspace_DraggingSplitterRespectsMinimumPaneSize()
     {
         UiDockWorkspace workspace = CreateWorkspace();
