@@ -989,6 +989,11 @@ public sealed class UiNodeGraph : UiElement, IUiDebugBoundsResolver
 
     private bool TryBeginValueEdit(UiUpdateContext context, UiNodeControl node, UiNodePin pin, UiPoint worldMouse, UiInputState input)
     {
+        if (!pin.ValueFieldEditable)
+        {
+            return false;
+        }
+
         if (ReferenceEquals(_editingValueNode, node) && ReferenceEquals(_editingValuePin, pin))
         {
             context.Focus.RequestFocus(this);

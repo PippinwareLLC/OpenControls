@@ -962,6 +962,57 @@ public sealed class UiNodeGraphTests
     }
 
     [Fact]
+    public void NodeGraph_ClickingReadOnlyValueFieldDoesNotStartInlineEdit()
+    {
+        UiNodeGraph graph = new()
+        {
+            Bounds = new UiRect(0, 0, 700, 420)
+        };
+        graph.Canvas.Padding = 0;
+        graph.Canvas.ShowGrid = false;
+
+        UiNodeControl node = new()
+        {
+            Id = "self-call-node",
+            Bounds = new UiRect(120, 96, 220, 96),
+            Title = "Call Function",
+            Padding = 8,
+            PinHitSize = 18,
+            PinVisualSize = 10
+        };
+        UiNodePin target = node.AddInput("target", "Target", UiNodePinKind.Data);
+        target.ValueText = "self";
+        target.ValueFieldVisible = true;
+        target.ValueFieldEditable = false;
+        graph.AddNode(node);
+
+        UiSize size = node.MeasureDesiredSize(UiFont.Default);
+        node.Bounds = new UiRect(node.Bounds.X, node.Bounds.Y, size.Width, size.Height);
+
+        UiNodeValueEditStartedEvent? started = null;
+        graph.ValueEditStarted += ev => started = ev;
+
+        UiContext context = new(graph);
+        context.Update(new UiInputState(), 1f / 60f);
+        UiNodePinLayout layout = Assert.Single(node.DebugLayout.Pins, pin => pin.Pin?.Id == "target");
+        Assert.True(layout.ValueBounds.Width > 0);
+
+        UiPoint click = graph.Canvas.WorldToScreen(Center(layout.ValueBounds));
+        context.Update(new UiInputState
+        {
+            MousePosition = click,
+            ScreenMousePosition = click,
+            LeftClicked = true,
+            LeftDown = true
+        }, 1f / 60f);
+
+        Assert.False(graph.IsEditingValue);
+        Assert.Null(started);
+        Assert.False(target.IsValueEditing);
+        Assert.Equal("self", target.ValueText);
+    }
+
+    [Fact]
     public void NodeGraph_MiddlePanAndWheelZoomRaiseViewportChangedEvents()
     {
         UiNodeGraph graph = new()

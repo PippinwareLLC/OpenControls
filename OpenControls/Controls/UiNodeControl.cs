@@ -709,6 +709,7 @@ public sealed class UiNodeControl : UiElement
             hash.Add(pin.ValueText, StringComparer.Ordinal);
             hash.Add(pin.IsValueEditing);
             hash.Add(pin.ValueFieldVisible);
+            hash.Add(pin.ValueFieldEditable);
             hash.Add(pin.EditingValueText, StringComparer.Ordinal);
             hash.Add(pin.EditingCaretVisible);
             hash.Add(pin.EditingCaretIndex);
@@ -1002,7 +1003,7 @@ public sealed class UiNodeControl : UiElement
         }
 
         UiColor background = pin.IsValueEditing ? ValueBoxEditingBackground : ValueBoxBackground;
-        UiColor border = pin.IsValueEditing ? ValueBoxEditingBorder : ValueBoxBorder;
+        UiColor border = pin.IsValueEditing ? ValueBoxEditingBorder : pin.ValueFieldEditable ? ValueBoxBorder : Border;
         UiRenderHelpers.FillRectRounded(context.Renderer, layout.ValueBounds, 3, background);
         UiRenderHelpers.DrawRectRounded(context.Renderer, layout.ValueBounds, 3, border, pin.IsValueEditing ? 2 : 1);
     }
@@ -1033,7 +1034,12 @@ public sealed class UiNodeControl : UiElement
             string drawText = UiRenderHelpers.BuildElidedText(pin.ValueText, availableWidth, TextScale, font);
             int textWidth = font.MeasureTextWidth(drawText, TextScale);
             int textX = layout.ValueBounds.Right - padding - Math.Min(availableWidth, textWidth);
-            context.Renderer.DrawText(drawText, new UiPoint(textX, textY), ValueBoxTextColor, TextScale, font);
+            context.Renderer.DrawText(
+                drawText,
+                new UiPoint(textX, textY),
+                pin.ValueFieldEditable ? ValueBoxTextColor : SubtitleColor,
+                TextScale,
+                font);
         }
 
         context.Renderer.PopClip();
