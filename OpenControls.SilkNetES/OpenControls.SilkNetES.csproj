@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- GLES build of OpenControls.SilkNet: compiles the SAME sources against
+       Silk.NET.OpenGLES for mobile targets. OPENCONTROLS_GLES switches the GL
+       using and the GLSL version preamble inside SilkNetUiRenderer. -->
+
+  <ItemGroup>
+    <Compile Include="..\OpenControls.SilkNet\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenControls\OpenControls.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.OpenGLES" Version="2.23.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(DefineConstants);OPENCONTROLS_GLES</DefineConstants>
+  </PropertyGroup>
+
+</Project>

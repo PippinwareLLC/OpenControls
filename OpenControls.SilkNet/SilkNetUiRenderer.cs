@@ -1,7 +1,11 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Silk.NET.Core.Loader;
+#if OPENCONTROLS_GLES
+using Silk.NET.OpenGLES;
+#else
 using Silk.NET.OpenGL;
+#endif
 
 namespace OpenControls.SilkNet;
 
@@ -843,10 +847,17 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     private static uint CreateProgram(GL gl)
     {
+        // Same GLSL body compiles on both profiles; only the preamble differs.
+        // ES requires explicit float precision in the fragment stage.
+#if OPENCONTROLS_GLES
+        const string vertexHeader = "#version 300 es\n";
+        const string fragmentHeader = "#version 300 es\nprecision highp float;\n";
+#else
+        const string vertexHeader = "#version 330 core\n";
+        const string fragmentHeader = "#version 330 core\n";
+#endif
         const string vertexSource =
             """
-            #version 330 core
-
             layout(location = 0) in vec2 aPosition;
             layout(location = 1) in vec2 aTexCoord;
             layout(location = 2) in vec4 aColor;
@@ -871,8 +882,6 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
         const string fragmentSource =
             """
-            #version 330 core
-
             in vec2 vTexCoord;
             in vec4 vColor;
             in vec4 vClipRect;
@@ -897,8 +906,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             }
             """;
 
-        uint vertexShader = CompileShader(gl, ShaderType.VertexShader, vertexSource);
-        uint fragmentShader = CompileShader(gl, ShaderType.FragmentShader, fragmentSource);
+        uint vertexShader = CompileShader(gl, ShaderType.VertexShader, vertexHeader + vertexSource);
+        uint fragmentShader = CompileShader(gl, ShaderType.FragmentShader, fragmentHeader + fragmentSource);
         uint program = gl.CreateProgram();
         gl.AttachShader(program, vertexShader);
         gl.AttachShader(program, fragmentShader);

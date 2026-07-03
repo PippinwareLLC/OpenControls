@@ -4,3 +4,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("OpenControls.OpenGL")]
 [assembly: InternalsVisibleTo("OpenControls.SdlNet")]
 [assembly: InternalsVisibleTo("OpenControls.SilkNet")]
+[assembly: InternalsVisibleTo("OpenControls.SilkNetES")]
