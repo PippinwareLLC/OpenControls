@@ -26,6 +26,13 @@ public sealed class UiInputState
     public bool SuperDown { get; init; }
     public int ScrollDeltaX { get; init; }
     public int ScrollDelta { get; init; }
+
+    /// <summary>
+    /// Continuous zoom factor this frame from a touch pinch gesture (1 = no change).
+    /// Touch hosts set this instead of quantized ScrollDelta steps.
+    /// </summary>
+    public float PinchZoom { get; init; } = 1f;
+
     public IReadOnlyList<char> TextInput { get; init; } = Array.Empty<char>();
     public UiTextCompositionState Composition { get; init; }
     public IReadOnlyList<UiKey> KeysDown { get; init; } = Array.Empty<UiKey>();
