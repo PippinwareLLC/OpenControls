@@ -93,12 +93,9 @@ public static class UiStateSerializer
 
     public static string ToJson(UiStateSnapshot snapshot, bool indented = true)
     {
-        JsonSerializerOptions options = new()
-        {
-            WriteIndented = indented
-        };
-
-        return JsonSerializer.Serialize(snapshot, options);
+        return JsonSerializer.Serialize(snapshot, indented
+            ? UiStateJsonContextIndented.Default.UiStateSnapshot
+            : UiStateJsonContextCompact.Default.UiStateSnapshot);
     }
 
     public static UiStateSnapshot FromJson(string json)
@@ -108,7 +105,7 @@ public static class UiStateSerializer
             throw new ArgumentException("JSON content was empty.", nameof(json));
         }
 
-        UiStateSnapshot? snapshot = JsonSerializer.Deserialize<UiStateSnapshot>(json);
+        UiStateSnapshot? snapshot = JsonSerializer.Deserialize(json, UiStateJsonContextCompact.Default.UiStateSnapshot);
         return snapshot ?? new UiStateSnapshot();
     }
 
