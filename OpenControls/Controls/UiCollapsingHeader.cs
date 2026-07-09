@@ -292,6 +292,8 @@ public sealed class UiCollapsingHeader : UiElement, IUiDebugBoundsResolver
         {
             MousePosition = mouse,
             ScreenMousePosition = input.ScreenMousePosition,
+            PreciseMousePosition = input.ResolvedMousePosition - new System.Numerics.Vector2(content.X, content.Y),
+            PreciseScreenMousePosition = input.ResolvedScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
             LeftDoubleClicked = input.LeftDoubleClicked,
@@ -314,6 +316,7 @@ public sealed class UiCollapsingHeader : UiElement, IUiDebugBoundsResolver
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            PinchZoom = input.PinchZoom,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,

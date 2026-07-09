@@ -727,6 +727,10 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
         {
             MousePosition = mouse,
             ScreenMousePosition = input.ScreenMousePosition,
+            PreciseMousePosition = useViewportMouse
+                ? input.ResolvedMousePosition - new System.Numerics.Vector2(Bounds.X - _scrollX, Bounds.Y - _scrollY)
+                : new System.Numerics.Vector2(int.MinValue / 4f, int.MinValue / 4f),
+            PreciseScreenMousePosition = input.ResolvedScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
             LeftDoubleClicked = input.LeftDoubleClicked,
@@ -749,6 +753,7 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            PinchZoom = useViewportMouse ? input.PinchZoom : 1f,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,

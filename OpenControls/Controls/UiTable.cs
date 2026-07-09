@@ -1221,6 +1221,10 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         {
             MousePosition = mouse,
             ScreenMousePosition = input.ScreenMousePosition,
+            PreciseMousePosition = useMouse
+                ? input.ResolvedMousePosition - new System.Numerics.Vector2(bounds.X, bounds.Y)
+                : new System.Numerics.Vector2(int.MinValue / 4f, int.MinValue / 4f),
+            PreciseScreenMousePosition = input.ResolvedScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
             LeftDoubleClicked = input.LeftDoubleClicked,
@@ -1243,6 +1247,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            PinchZoom = useMouse ? input.PinchZoom : 1f,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,

@@ -955,6 +955,8 @@ public sealed class UiContext
         {
             MousePosition = input.MousePosition,
             ScreenMousePosition = input.ScreenMousePosition,
+            PreciseMousePosition = input.PreciseMousePosition,
+            PreciseScreenMousePosition = input.PreciseScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
             LeftDoubleClicked = input.LeftDoubleClicked,
@@ -977,6 +979,7 @@ public sealed class UiContext
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            PinchZoom = input.PinchZoom,
             TextInput = textInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,
@@ -1689,6 +1692,8 @@ public sealed class UiContext
 
         hash.Add(input.MousePosition);
         hash.Add(input.ScreenMousePosition);
+        hash.Add(input.ResolvedMousePosition);
+        hash.Add(input.ResolvedScreenMousePosition);
         hash.Add(input.LeftDown);
         hash.Add(input.LeftClicked);
         hash.Add(input.LeftDoubleClicked);
@@ -1711,6 +1716,7 @@ public sealed class UiContext
         hash.Add(input.SuperDown);
         hash.Add(input.ScrollDeltaX);
         hash.Add(input.ScrollDelta);
+        hash.Add(input.PinchZoom);
         hash.Add(input.Composition.Text);
         hash.Add(input.Composition.CaretIndex);
 

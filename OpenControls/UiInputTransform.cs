@@ -8,6 +8,8 @@ internal static class UiInputTransform
         {
             MousePosition = new UiPoint(input.MousePosition.X - offsetX, input.MousePosition.Y - offsetY),
             ScreenMousePosition = input.ScreenMousePosition,
+            PreciseMousePosition = input.ResolvedMousePosition - new System.Numerics.Vector2(offsetX, offsetY),
+            PreciseScreenMousePosition = input.ResolvedScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
             LeftDoubleClicked = input.LeftDoubleClicked,
@@ -30,6 +32,7 @@ internal static class UiInputTransform
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            PinchZoom = input.PinchZoom,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,

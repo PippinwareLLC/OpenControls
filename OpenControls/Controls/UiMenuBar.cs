@@ -1481,6 +1481,10 @@ public sealed class UiMenuBar : UiElement
                 {
                     MousePosition = localMouse,
                     ScreenMousePosition = input.ScreenMousePosition,
+                    PreciseMousePosition = allowInput
+                        ? input.ResolvedMousePosition - new System.Numerics.Vector2(contentRect.X, contentRect.Y)
+                        : new System.Numerics.Vector2(int.MinValue / 4f, int.MinValue / 4f),
+                    PreciseScreenMousePosition = input.ResolvedScreenMousePosition,
                     LeftDown = allowInput && input.LeftDown,
                     LeftClicked = allowInput && input.LeftClicked,
                     LeftDoubleClicked = allowInput && input.LeftDoubleClicked,
@@ -1503,6 +1507,7 @@ public sealed class UiMenuBar : UiElement
                     SuperDown = input.SuperDown,
                     ScrollDeltaX = allowInput ? input.ScrollDeltaX : 0,
                     ScrollDelta = allowInput ? input.ScrollDelta : 0,
+                    PinchZoom = allowInput ? input.PinchZoom : 1f,
                     TextInput = input.TextInput,
                     Composition = input.Composition,
                     KeysDown = input.KeysDown,

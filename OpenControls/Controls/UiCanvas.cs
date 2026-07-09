@@ -368,6 +368,10 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         {
             MousePosition = localMouse,
             ScreenMousePosition = input.ScreenMousePosition,
+            PreciseMousePosition = allowMouse
+                ? ScreenToWorldCore(input.ResolvedMousePosition)
+                : new System.Numerics.Vector2(int.MinValue / 4f, int.MinValue / 4f),
+            PreciseScreenMousePosition = input.ResolvedScreenMousePosition,
             LeftDown = input.LeftDown,
             LeftClicked = allowMouse && input.LeftClicked,
             LeftDoubleClicked = allowMouse && input.LeftDoubleClicked,
@@ -390,6 +394,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
             SuperDown = input.SuperDown,
             ScrollDeltaX = 0,
             ScrollDelta = allowMouse ? input.ScrollDelta : 0,
+            PinchZoom = allowMouse ? input.PinchZoom : 1f,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,
@@ -511,6 +516,14 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         int worldX = (int)Math.Round(PanX + (screen.X - _viewportBounds.X) * invZoom);
         int worldY = (int)Math.Round(PanY + (screen.Y - _viewportBounds.Y) * invZoom);
         return new UiPoint(worldX, worldY);
+    }
+
+    private System.Numerics.Vector2 ScreenToWorldCore(System.Numerics.Vector2 screen)
+    {
+        float invZoom = 1f / Math.Max(Zoom, 0.0001f);
+        return new System.Numerics.Vector2(
+            PanX + (screen.X - _viewportBounds.X) * invZoom,
+            PanY + (screen.Y - _viewportBounds.Y) * invZoom);
     }
 
     private float AlignToGrid(float value, float spacing, float origin)

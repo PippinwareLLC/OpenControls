@@ -243,6 +243,8 @@ public class UiPopup : UiElement
         {
             MousePosition = input.MousePosition,
             ScreenMousePosition = input.ScreenMousePosition,
+            PreciseMousePosition = input.PreciseMousePosition,
+            PreciseScreenMousePosition = input.PreciseScreenMousePosition,
             DragThreshold = input.DragThreshold,
             ShiftDown = input.ShiftDown,
             CtrlDown = input.CtrlDown,
@@ -250,6 +252,7 @@ public class UiPopup : UiElement
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            PinchZoom = input.PinchZoom,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,

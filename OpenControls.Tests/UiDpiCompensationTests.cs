@@ -1,3 +1,4 @@
+using System.Numerics;
 using Xunit;
 
 namespace OpenControls.Tests;
@@ -113,18 +114,24 @@ public sealed class UiDpiCompensationTests
         {
             MousePosition = new UiPoint(240, 120),
             ScreenMousePosition = new UiPoint(240, 120),
+            PreciseMousePosition = new Vector2(240.5f, 120.5f),
+            PreciseScreenMousePosition = new Vector2(241.5f, 121.5f),
             LeftDragOrigin = new UiPoint(200, 100),
             RightDragOrigin = new UiPoint(160, 80),
             MiddleDragOrigin = new UiPoint(80, 40),
-            DragThreshold = 6
+            DragThreshold = 6,
+            PinchZoom = 1.25f
         });
 
         Assert.Equal(new UiPoint(120, 60), logical.MousePosition);
         Assert.Equal(new UiPoint(120, 60), logical.ScreenMousePosition);
+        Assert.Equal(new Vector2(120.25f, 60.25f), logical.PreciseMousePosition);
+        Assert.Equal(new Vector2(120.75f, 60.75f), logical.PreciseScreenMousePosition);
         Assert.Equal(new UiPoint(100, 50), logical.LeftDragOrigin);
         Assert.Equal(new UiPoint(80, 40), logical.RightDragOrigin);
         Assert.Equal(new UiPoint(40, 20), logical.MiddleDragOrigin);
         Assert.Equal(6, logical.DragThreshold);
+        Assert.Equal(1.25f, logical.PinchZoom);
     }
 
     [Fact]

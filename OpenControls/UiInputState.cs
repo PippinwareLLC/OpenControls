@@ -1,9 +1,15 @@
+using System.Numerics;
+
 namespace OpenControls;
 
 public sealed class UiInputState
 {
     public UiPoint MousePosition { get; init; }
     public UiPoint ScreenMousePosition { get; init; }
+    /// <summary>Optional sub-logical-pixel client position for precision drawing surfaces.</summary>
+    public Vector2? PreciseMousePosition { get; init; }
+    /// <summary>Optional sub-logical-pixel screen position for precision drag surfaces.</summary>
+    public Vector2? PreciseScreenMousePosition { get; init; }
     public bool LeftDown { get; init; }
     public bool LeftClicked { get; init; }
     public bool LeftDoubleClicked { get; init; }
@@ -70,6 +76,8 @@ public sealed class UiInputState
     }
 
     public bool AnyMouseDown => LeftDown || RightDown || MiddleDown;
+    public Vector2 ResolvedMousePosition => ResolvePrecisePosition(PreciseMousePosition, MousePosition);
+    public Vector2 ResolvedScreenMousePosition => ResolvePrecisePosition(PreciseScreenMousePosition, ScreenMousePosition);
     public bool PrimaryShortcutDown => CtrlDown || SuperDown;
     public bool LeftDragging => LeftDown && HasExceededDragThreshold(LeftDragOrigin);
     public bool RightDragging => RightDown && HasExceededDragThreshold(RightDragOrigin);
@@ -194,6 +202,16 @@ public sealed class UiInputState
         }
 
         return false;
+    }
+
+    private static Vector2 ResolvePrecisePosition(Vector2? precise, UiPoint fallback)
+    {
+        if (precise is Vector2 value && float.IsFinite(value.X) && float.IsFinite(value.Y))
+        {
+            return value;
+        }
+
+        return new Vector2(fallback.X, fallback.Y);
     }
 
     private bool HasExceededDragThreshold(UiPoint? origin)

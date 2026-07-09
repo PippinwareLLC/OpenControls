@@ -122,6 +122,8 @@ public sealed class UiDpiCompensation
         {
             MousePosition = ToLogical(input.MousePosition),
             ScreenMousePosition = ToLogical(input.ScreenMousePosition),
+            PreciseMousePosition = ToLogical(input.ResolvedMousePosition),
+            PreciseScreenMousePosition = ToLogical(input.ResolvedScreenMousePosition),
             LeftDown = input.LeftDown,
             LeftClicked = input.LeftClicked,
             LeftDoubleClicked = input.LeftDoubleClicked,
@@ -144,6 +146,7 @@ public sealed class UiDpiCompensation
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            PinchZoom = input.PinchZoom,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,
@@ -156,6 +159,11 @@ public sealed class UiDpiCompensation
     public int ToLogicalPixels(int pixels)
     {
         return Enabled ? (int)Math.Round(pixels / ScaleFactor) : pixels;
+    }
+
+    public System.Numerics.Vector2 ToLogical(System.Numerics.Vector2 point)
+    {
+        return Enabled ? point / ScaleFactor : point;
     }
 
     public int ToLogicalExtent(int extent)

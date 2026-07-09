@@ -1,3 +1,4 @@
+using System.Numerics;
 using Xunit;
 using OpenControls.Controls;
 
@@ -120,6 +121,51 @@ public sealed class UiRenderCacheTests
 
         Assert.Equal(2, root.RenderCount);
         Assert.Equal(2, root.OverlayRenderCount);
+    }
+
+    [Fact]
+    public void RenderCaching_ReRecordsWhenPrecisePointerOrPinchZoomChanges()
+    {
+        CountingElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 24, 24)
+        };
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(12, 12),
+            ScreenMousePosition = new UiPoint(12, 12),
+            PreciseMousePosition = new Vector2(12.1f, 12.1f),
+            PreciseScreenMousePosition = new Vector2(12.1f, 12.1f)
+        });
+        context.Render(renderer);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(12, 12),
+            ScreenMousePosition = new UiPoint(12, 12),
+            PreciseMousePosition = new Vector2(12.6f, 12.6f),
+            PreciseScreenMousePosition = new Vector2(12.6f, 12.6f)
+        });
+        context.Render(renderer);
+
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(12, 12),
+            ScreenMousePosition = new UiPoint(12, 12),
+            PreciseMousePosition = new Vector2(12.6f, 12.6f),
+            PreciseScreenMousePosition = new Vector2(12.6f, 12.6f),
+            PinchZoom = 1.05f
+        });
+        context.Render(renderer);
+
+        Assert.Equal(3, root.RenderCount);
+        Assert.Equal(3, root.OverlayRenderCount);
+        Assert.Equal(3, context.RenderCacheStatistics.RootPass.RecordCount);
+        Assert.Equal(UiRenderCacheMissReason.Interaction, context.RenderCacheStatistics.RootPass.LastMissReason);
     }
 
     [Fact]
