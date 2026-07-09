@@ -6,6 +6,7 @@ public sealed class UiDockWorkspace : UiElement
 {
     public event Action<UiWindow, UiPoint>? TabDetached;
     public event Action<string>? TearOffTelemetry;
+    public Func<UiWindow, UiDockHost, DockTarget, bool>? CanDockWindowPredicate { get; set; }
 
     public readonly record struct ExternalDockDebugState(
         bool ExternalPreviewActive,
@@ -105,6 +106,17 @@ public sealed class UiDockWorkspace : UiElement
 
     public UiDockHost SplitHost(UiDockHost host, DockTarget target)
     {
+        return SplitHost(host, target, 0.5f);
+    }
+
+    public UiDockHost SplitHost(UiDockHost host, DockTarget target, float splitRatio)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        if (!float.IsFinite(splitRatio))
+        {
+            throw new ArgumentOutOfRangeException(nameof(splitRatio), splitRatio, "Split ratio must be finite.");
+        }
+
         if (target is DockTarget.Center or DockTarget.None)
         {
             return host;
@@ -136,7 +148,7 @@ public sealed class UiDockWorkspace : UiElement
         node.First = first;
         node.Second = second;
         node.SplitHorizontal = horizontal;
-        node.SplitRatio = 0.5f;
+        node.SplitRatio = Math.Clamp(splitRatio, 0.05f, 0.95f);
 
         TraceTearOffTelemetry(
             $"split-host sourceHost={FormatHost(host)} newHost={FormatHost(newHost)} target='{target}'");
@@ -212,6 +224,7 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
+        ValidateNodeState(state.Root);
         EnsureHostIds();
 
         Dictionary<string, UiDockHost> hostById = new(StringComparer.Ordinal);
@@ -223,8 +236,33 @@ public sealed class UiDockWorkspace : UiElement
             }
         }
 
+        HashSet<UiDockHost> originalHosts = new(_hosts);
         HashSet<UiDockHost> usedHosts = new();
-        _rootNode = BuildNode(state.Root, hostById, usedHosts);
+        DockNode proposedRoot;
+        try
+        {
+            proposedRoot = BuildNode(state.Root, hostById, usedHosts);
+            if (!usedHosts.Contains(RootHost))
+            {
+                throw new ArgumentException($"Dock state must include root host '{RootHost.Id}'.", nameof(state));
+            }
+
+            ValidateRestoredWindowAssignments(state, windowsById, hostById, usedHosts);
+        }
+        catch
+        {
+            foreach (UiDockHost host in _hosts.ToArray())
+            {
+                if (!originalHosts.Contains(host))
+                {
+                    RemoveDockHost(host);
+                }
+            }
+
+            throw;
+        }
+
+        _rootNode = proposedRoot;
 
         foreach (UiDockHost host in _hosts)
         {
@@ -254,6 +292,7 @@ public sealed class UiDockWorkspace : UiElement
                 if (windowsById.TryGetValue(windowId, out UiWindow? window))
                 {
                     DetachWindowInternal(window);
+                    PrepareDockedWindow(window, host);
                     host.DockWindow(window);
                 }
             }
@@ -283,6 +322,8 @@ public sealed class UiDockWorkspace : UiElement
 
         window.ShowTitleBar = true;
         window.AllowDrag = true;
+        window.AllowResize = true;
+        window.ShowResizeGrip = true;
         AddChild(window);
         _floatingWindows.Add(window);
     }
@@ -297,8 +338,18 @@ public sealed class UiDockWorkspace : UiElement
             throw new ArgumentException("Dock host is not part of this workspace.", nameof(host));
         }
 
+        if (!CanDockWindow(window, host, DockTarget.Center))
+        {
+            throw new InvalidOperationException($"Window '{window.Id}' cannot dock in host '{host.Id}'.");
+        }
+
+        if (!_hosts.Contains(host) || !CanRestoreWindow(window))
+        {
+            throw new InvalidOperationException($"Dock policy invalidated host '{host.Id}' or window '{window.Id}'.");
+        }
+
         DetachWindowInternal(window);
-        window.AllowDrag = false;
+        PrepareDockedWindow(window, host);
         if (index >= 0)
         {
             host.DockWindow(window, index);
@@ -373,19 +424,47 @@ public sealed class UiDockWorkspace : UiElement
             return false;
         }
 
+        UiWindow[] groupWindows = new UiWindow[windows.Count];
+        HashSet<UiWindow> uniqueWindows = new();
+        for (int index = 0; index < windows.Count; index++)
+        {
+            UiWindow window = windows[index]
+                ?? throw new ArgumentNullException(nameof(windows), "External dock groups cannot contain null windows.");
+            if (!uniqueWindows.Add(window))
+            {
+                throw new ArgumentException("External dock groups cannot contain duplicate windows.", nameof(windows));
+            }
+
+            groupWindows[index] = window;
+            if (!CanDockWindow(window, hoverHost, hoverTarget) || !_hosts.Contains(hoverHost))
+            {
+                return false;
+            }
+        }
+
         UiDockHost targetHost = hoverHost;
         if (hoverTarget is DockTarget.Left or DockTarget.Right or DockTarget.Top or DockTarget.Bottom)
         {
             targetHost = SplitHost(hoverHost, hoverTarget);
         }
 
+        foreach (UiWindow window in groupWindows)
+        {
+            if (!CanDockWindow(window, targetHost, DockTarget.Center) || !_hosts.Contains(targetHost))
+            {
+                CollapseEmptyHosts();
+                return false;
+            }
+        }
+
         UiWindow desiredActiveWindow = activeWindow ?? previewWindow;
         int activeIndex = -1;
-        for (int index = 0; index < windows.Count; index++)
+        for (int index = 0; index < groupWindows.Length; index++)
         {
-            UiWindow window = windows[index] ?? throw new ArgumentNullException(nameof(windows), "External dock groups cannot contain null windows.");
+            UiWindow window = groupWindows[index];
+            DetachWindowInternal(window);
             RemoveWindowFromCurrentParent(window);
-            window.AllowDrag = false;
+            PrepareDockedWindow(window, targetHost);
             targetHost.DockWindow(window);
             if (ReferenceEquals(window, desiredActiveWindow))
             {
@@ -437,6 +516,34 @@ public sealed class UiDockWorkspace : UiElement
         EnsureRootHost();
     }
 
+    /// <summary>
+    /// Arranges dock hosts and their windows immediately without processing input.
+    /// Call this after assigning <see cref="UiElement.Bounds"/> when child content
+    /// must be laid out before the next UI update pass.
+    /// </summary>
+    public void Arrange()
+    {
+        LayoutNode(_rootNode, Bounds);
+        UiDockHost[] hosts = _hosts.ToArray();
+        foreach (UiDockHost host in hosts)
+        {
+            if (_hosts.Contains(host))
+            {
+                host.ArrangeDockedWindows();
+            }
+        }
+
+        ClampFloatingWindows();
+        UiWindow[] floatingWindows = _floatingWindows.ToArray();
+        foreach (UiWindow window in floatingWindows)
+        {
+            if (_floatingWindows.Contains(window))
+            {
+                window.ArrangeContent();
+            }
+        }
+    }
+
     private void ClearFloatingWindows()
     {
         for (int i = _floatingWindows.Count - 1; i >= 0; i--)
@@ -483,11 +590,11 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
-        LayoutNode(_rootNode, Bounds);
+        Arrange();
 
         UiInputState input = context.Input;
         UpdateSplitters(input, context.Focus);
-        LayoutNode(_rootNode, Bounds);
+        Arrange();
         UpdateTabDrag(input);
 
         base.Update(context);
@@ -543,6 +650,7 @@ public sealed class UiDockWorkspace : UiElement
         host.ExternalDragHandling = template?.ExternalDragHandling ?? true;
         host.AllowDetach = template?.AllowDetach ?? false;
         host.CanDetachWindowPredicate = template?.CanDetachWindowPredicate;
+        host.TabCloseCompleted += HandleHostTabCloseCompleted;
         AssignHostId(host);
 
         _hosts.Add(host);
@@ -581,14 +689,18 @@ public sealed class UiDockWorkspace : UiElement
         if (!string.IsNullOrWhiteSpace(state.HostId))
         {
             UiDockHost host = GetOrCreateHost(state.HostId, hostById);
-            usedHosts.Add(host);
+            if (!usedHosts.Add(host))
+            {
+                throw new ArgumentException($"Dock layout contains duplicate host leaf '{state.HostId}'.", nameof(state));
+            }
+
             return new DockNode(host);
         }
 
         DockNode node = new(null)
         {
             SplitHorizontal = state.SplitHorizontal,
-            SplitRatio = state.SplitRatio
+            SplitRatio = Math.Clamp(state.SplitRatio, 0.05f, 0.95f)
         };
 
         if (state.First != null)
@@ -602,6 +714,111 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         return node;
+    }
+
+    private static void ValidateNodeState(UiDockNodeState state)
+    {
+        if (!string.IsNullOrWhiteSpace(state.HostId))
+        {
+            if (state.First != null || state.Second != null)
+            {
+                throw new ArgumentException($"Dock host node '{state.HostId}' cannot also contain split children.", nameof(state));
+            }
+
+            return;
+        }
+
+        if (state.First == null || state.Second == null)
+        {
+            throw new ArgumentException("Dock split nodes require both children.", nameof(state));
+        }
+
+        if (!float.IsFinite(state.SplitRatio))
+        {
+            throw new ArgumentOutOfRangeException(nameof(state), state.SplitRatio, "Dock split ratio must be finite.");
+        }
+
+        ValidateNodeState(state.First);
+        ValidateNodeState(state.Second);
+    }
+
+    private void ValidateRestoredWindowAssignments(
+        UiDockWorkspaceState state,
+        IReadOnlyDictionary<string, UiWindow> windowsById,
+        IReadOnlyDictionary<string, UiDockHost> hostById,
+        IReadOnlySet<UiDockHost> usedHosts)
+    {
+        HashSet<string> hostStateIds = new(StringComparer.Ordinal);
+        HashSet<UiWindow> assignedWindows = new();
+        foreach (UiDockHostState hostState in state.Hosts)
+        {
+            if (!hostStateIds.Add(hostState.HostId))
+            {
+                throw new ArgumentException($"Dock state contains duplicate host '{hostState.HostId}'.", nameof(state));
+            }
+
+            if (!hostById.TryGetValue(hostState.HostId, out UiDockHost? host) || !usedHosts.Contains(host))
+            {
+                throw new ArgumentException($"Dock state assigns windows to host '{hostState.HostId}' outside its layout tree.", nameof(state));
+            }
+
+            foreach (string windowId in hostState.WindowIds)
+            {
+                if (!windowsById.TryGetValue(windowId, out UiWindow? window))
+                {
+                    continue;
+                }
+
+                if (!assignedWindows.Add(window))
+                {
+                    throw new ArgumentException($"Dock state assigns window '{windowId}' more than once.", nameof(state));
+                }
+
+                if (!CanRestoreWindow(window))
+                {
+                    throw new InvalidOperationException($"Window '{windowId}' belongs to a different UI container.");
+                }
+
+                if (!CanDockWindow(window, host, DockTarget.Center))
+                {
+                    throw new InvalidOperationException($"Window '{window.Id}' cannot restore into host '{host.Id}'.");
+                }
+
+                if (!_hosts.Contains(host) || !CanRestoreWindow(window))
+                {
+                    throw new InvalidOperationException(
+                        $"Dock policy invalidated host '{host.Id}' or window '{window.Id}' during restore validation.");
+                }
+            }
+        }
+
+        foreach (UiFloatingWindowState floatingState in state.FloatingWindows)
+        {
+            if (!windowsById.TryGetValue(floatingState.WindowId, out UiWindow? window))
+            {
+                continue;
+            }
+
+            if (!assignedWindows.Add(window))
+            {
+                throw new ArgumentException(
+                    $"Dock state assigns window '{floatingState.WindowId}' more than once.",
+                    nameof(state));
+            }
+
+            if (!CanRestoreWindow(window))
+            {
+                throw new InvalidOperationException(
+                    $"Window '{floatingState.WindowId}' belongs to a different UI container.");
+            }
+        }
+    }
+
+    private bool CanRestoreWindow(UiWindow window)
+    {
+        return window.Parent == null
+            || ReferenceEquals(window.Parent, this) && _floatingWindows.Contains(window)
+            || window.Parent is UiDockHost host && _hosts.Contains(host);
     }
 
     private UiDockHost GetOrCreateHost(string hostId, Dictionary<string, UiDockHost> hostById)
@@ -840,6 +1057,13 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         _hoverTarget = GetDockTarget(_hoverHost, mousePosition, inferEdgeTarget: true);
+        if (!CanDockWindow(_dragWindow, _hoverHost, _hoverTarget) || !_hosts.Contains(_hoverHost))
+        {
+            _hoverTarget = DockTarget.None;
+            _previewBounds = default;
+            return;
+        }
+
         _previewBounds = GetDockPreviewBounds(_hoverHost.Bounds, _hoverTarget, _dragWindow.Bounds);
         TraceDockHoverIfChanged(mousePosition);
     }
@@ -853,6 +1077,14 @@ public sealed class UiDockWorkspace : UiElement
         {
             TraceTearOffTelemetry(
                 $"drop-skip reason='same-host-center' sourceHost={FormatHost(_dragSourceHost)} window={FormatWindow(window)} drop={FormatPoint(dropPoint)}");
+            return;
+        }
+
+        if (_hoverHost != null
+            && (!CanDockWindow(window, _hoverHost, _hoverTarget) || !_hosts.Contains(_hoverHost)))
+        {
+            TraceTearOffTelemetry(
+                $"drop-skip reason='dock-policy' targetHost={FormatHost(_hoverHost)} target='{_hoverTarget}' window={FormatWindow(window)}");
             return;
         }
 
@@ -888,6 +1120,18 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
+        UiDockHost targetHost = _hoverHost;
+        if (_hoverTarget is DockTarget.Left or DockTarget.Right or DockTarget.Top or DockTarget.Bottom)
+        {
+            targetHost = SplitHost(_hoverHost, _hoverTarget);
+        }
+
+        if (!CanDockWindow(window, targetHost, DockTarget.Center) || !_hosts.Contains(targetHost))
+        {
+            CollapseEmptyHosts();
+            return;
+        }
+
         if (_dragSourceHost != null)
         {
             _dragSourceHost.RemoveWindow(window);
@@ -899,13 +1143,7 @@ public sealed class UiDockWorkspace : UiElement
             RemoveChild(window);
         }
 
-        UiDockHost targetHost = _hoverHost;
-        if (_hoverTarget is DockTarget.Left or DockTarget.Right or DockTarget.Top or DockTarget.Bottom)
-        {
-            targetHost = SplitHost(_hoverHost, _hoverTarget);
-        }
-
-        window.AllowDrag = false;
+        PrepareDockedWindow(window, targetHost);
         targetHost.DockWindow(window);
         targetHost.ActivateWindow(targetHost.Windows.Count - 1);
         TraceTearOffTelemetry(
@@ -999,6 +1237,14 @@ public sealed class UiDockWorkspace : UiElement
 
     private void UpdateExternalPreviewHover(UiPoint hoverPoint, UiRect previewWindowBounds)
     {
+        if (_externalPreviewWindow == null)
+        {
+            _hoverHost = null;
+            _hoverTarget = DockTarget.None;
+            _previewBounds = previewWindowBounds;
+            return;
+        }
+
         _hoverHost = null;
         foreach (UiDockHost host in _hosts)
         {
@@ -1018,6 +1264,13 @@ public sealed class UiDockWorkspace : UiElement
 
         if (TryGetDockTargetRect(_hoverHost.Bounds, hoverPoint, out DockTarget externalTarget, out _))
         {
+            if (!CanDockWindow(_externalPreviewWindow, _hoverHost, externalTarget) || !_hosts.Contains(_hoverHost))
+            {
+                _hoverTarget = DockTarget.None;
+                _previewBounds = previewWindowBounds;
+                return;
+            }
+
             _hoverTarget = externalTarget;
             _previewBounds = GetDockPreviewBounds(_hoverHost.Bounds, _hoverTarget, previewWindowBounds);
             return;
@@ -1142,7 +1395,7 @@ public sealed class UiDockWorkspace : UiElement
 
     private void ClampFloatingWindows()
     {
-        if (_floatingWindows.Count == 0)
+        if (_floatingWindows.Count == 0 || Bounds.Width <= 0 || Bounds.Height <= 0)
         {
             return;
         }
@@ -1215,9 +1468,16 @@ public sealed class UiDockWorkspace : UiElement
 
     private void RemoveDockHost(UiDockHost host)
     {
+        host.TabCloseCompleted -= HandleHostTabCloseCompleted;
         host.ClearWindows();
         _hosts.Remove(host);
         RemoveChild(host);
+    }
+
+    private void HandleHostTabCloseCompleted()
+    {
+        CollapseEmptyHosts();
+        Arrange();
     }
 
     private void EnsureRootHost()
@@ -1284,15 +1544,49 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
-        while (fallback.Windows.Count > 0)
+        UiWindow[] fallbackWindows = fallback.Windows.ToArray();
+        foreach (UiWindow window in fallbackWindows)
         {
-            UiWindow window = fallback.Windows[0];
-            fallback.RemoveWindow(window);
+            if (!CanDockWindow(window, RootHost, DockTarget.Center)
+                || !_hosts.Contains(RootHost)
+                || !_hosts.Contains(fallback)
+                || !WindowSequenceMatches(fallback.Windows, fallbackWindows))
+            {
+                return;
+            }
+        }
+
+        foreach (UiWindow window in fallbackWindows)
+        {
+            if (!ReferenceEquals(window.Parent, fallback) || !fallback.RemoveWindow(window))
+            {
+                return;
+            }
+
+            PrepareDockedWindow(window, RootHost);
             RootHost.DockWindow(window);
         }
 
         RemoveDockHost(fallback);
         _rootNode = new DockNode(RootHost);
+    }
+
+    private static bool WindowSequenceMatches(IReadOnlyList<UiWindow> actual, IReadOnlyList<UiWindow> expected)
+    {
+        if (actual.Count != expected.Count)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < actual.Count; index++)
+        {
+            if (!ReferenceEquals(actual[index], expected[index]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void DrawPreview(UiRenderContext context)
@@ -1614,6 +1908,9 @@ public sealed class UiDockWorkspace : UiElement
 
     private static UiRect ClampToBounds(UiRect bounds, UiRect container)
     {
+        int width = Math.Min(Math.Max(0, bounds.Width), Math.Max(0, container.Width));
+        int height = Math.Min(Math.Max(0, bounds.Height), Math.Max(0, container.Height));
+        bounds = new UiRect(bounds.X, bounds.Y, width, height);
         int maxX = container.Right - bounds.Width;
         int maxY = container.Bottom - bounds.Height;
         if (maxX < container.X)
@@ -1629,6 +1926,23 @@ public sealed class UiDockWorkspace : UiElement
         int x = Math.Clamp(bounds.X, container.X, maxX);
         int y = Math.Clamp(bounds.Y, container.Y, maxY);
         return new UiRect(x, y, bounds.Width, bounds.Height);
+    }
+
+    private bool CanDockWindow(UiWindow window, UiDockHost host, DockTarget target)
+    {
+        return target != DockTarget.None
+            && (CanDockWindowPredicate?.Invoke(window, host, target) ?? true);
+    }
+
+    private static void PrepareDockedWindow(UiWindow window, UiDockHost host)
+    {
+        window.AllowDrag = false;
+        window.AllowResize = false;
+        window.ShowResizeGrip = false;
+        if (host.HideDockedTitleBars)
+        {
+            window.ShowTitleBar = false;
+        }
     }
 
     private IEnumerable<(DockTarget target, UiRect rect)> GetTargetRects(UiRect bounds)

@@ -1,7 +1,10 @@
+using System.Text.Json.Serialization;
+
 namespace OpenControls;
 
 public readonly struct UiRect
 {
+    [JsonConstructor]
     public UiRect(int x, int y, int width, int height)
     {
         X = x;

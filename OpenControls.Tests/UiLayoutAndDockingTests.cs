@@ -980,6 +980,484 @@ public sealed class UiLayoutAndDockingTests
         Assert.Same(workspace.RootHost, game.Parent);
     }
 
+    [Fact]
+    public void DockHost_RemovingTabBeforeActivePreservesActiveWindow()
+    {
+        UiDockHost host = new();
+        UiWindow first = new() { Title = "First" };
+        UiWindow second = new() { Title = "Second" };
+        UiWindow third = new() { Title = "Third" };
+        host.DockWindow(first);
+        host.DockWindow(second);
+        host.DockWindow(third);
+        host.ActivateWindow(2);
+
+        Assert.True(host.RemoveWindow(first));
+
+        Assert.Same(third, host.ActiveWindow);
+        Assert.Equal(1, host.ActiveIndex);
+    }
+
+    [Fact]
+    public void DockWorkspace_SplitHostUsesAuthoredRatio()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 400, 200),
+            SplitterThickness = 4
+        };
+
+        UiDockHost right = workspace.SplitHost(
+            workspace.RootHost,
+            UiDockWorkspace.DockTarget.Right,
+            splitRatio: 0.75f);
+        Update(workspace, new UiInputState());
+
+        Assert.Equal(297, workspace.RootHost.Bounds.Width);
+        Assert.Equal(99, right.Bounds.Width);
+        Assert.Equal(0.75f, workspace.CaptureState().Root!.SplitRatio);
+    }
+
+    [Fact]
+    public void DockWorkspace_DockPolicyProtectsTargetHosts()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockHost protectedHost = workspace.RootHost;
+        UiWindow panel = new() { Id = "panel", Title = "Panel" };
+        workspace.CanDockWindowPredicate = (window, host, _) =>
+            !ReferenceEquals(window, panel) || !ReferenceEquals(host, protectedHost);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => workspace.DockWindow(panel, protectedHost));
+
+        Assert.Contains("cannot dock", exception.Message, StringComparison.Ordinal);
+        Assert.Null(panel.Parent);
+    }
+
+    [Fact]
+    public void DockWorkspace_ClosingFinalTabCollapsesEmptySplitHost()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockHost splitHost = workspace.DockHosts[1];
+        splitHost.AllowClosingLastWindow = true;
+        splitHost.DockWindow(new UiWindow { Id = "panel", Title = "Panel" });
+
+        Assert.Equal(1, splitHost.CloseAllWindows());
+
+        Assert.Single(workspace.DockHosts);
+        Assert.Same(workspace.RootHost, workspace.DockHosts[0]);
+    }
+
+    [Fact]
+    public void DockWorkspace_FloatingModeResizesAndFitsOversizedWindow()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(10, 20, 300, 180)
+        };
+        UiWindow window = new()
+        {
+            Id = "floating",
+            Title = "Floating",
+            Bounds = new UiRect(-50, -40, 600, 400)
+        };
+
+        workspace.AddFloatingWindow(window);
+        Update(workspace, new UiInputState());
+
+        Assert.True(window.AllowDrag);
+        Assert.True(window.AllowResize);
+        Assert.True(window.ShowResizeGrip);
+        Assert.Equal(workspace.Bounds, window.Bounds);
+
+        workspace.DockWindow(window, workspace.RootHost);
+
+        Assert.False(window.AllowDrag);
+        Assert.False(window.AllowResize);
+        Assert.False(window.ShowResizeGrip);
+        Assert.Same(workspace.RootHost, window.Parent);
+    }
+
+    [Fact]
+    public void Window_LayoutContentRunsBeforeChildrenUpdate()
+    {
+        UiWindow window = new()
+        {
+            Bounds = new UiRect(10, 20, 240, 160),
+            ShowTitleBar = true,
+            TitleBarHeight = 24
+        };
+        BoundsProbe child = new();
+        window.AddChild(child);
+        window.LayoutContent = bounds => child.Bounds = bounds;
+
+        Update(window, new UiInputState());
+
+        Assert.Equal(window.ContentBounds, child.BoundsSeenDuringUpdate);
+    }
+
+    [Fact]
+    public void DockWorkspace_ApplyStateEnforcesPolicyAndResetsFloatingMode()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockHost target = workspace.DockHosts[1];
+        string targetId = target.Id;
+        UiWindow panel = new() { Id = "panel", Title = "Panel" };
+        target.DockWindow(panel);
+        UiDockWorkspaceState dockedState = workspace.CaptureState();
+        workspace.DetachWindow(panel);
+        panel.Bounds = new UiRect(20, 30, 140, 90);
+        workspace.AddFloatingWindow(panel);
+        workspace.CanDockWindowPredicate = (window, host, _) =>
+            !ReferenceEquals(window, panel) || !string.Equals(host.Id, targetId, StringComparison.Ordinal);
+
+        Assert.Throws<InvalidOperationException>(
+            () => workspace.ApplyState(dockedState, new Dictionary<string, UiWindow> { [panel.Id] = panel }));
+        Assert.Contains(panel, workspace.FloatingWindows);
+        Assert.True(panel.AllowDrag);
+        Assert.True(panel.AllowResize);
+        Assert.True(panel.ShowResizeGrip);
+
+        workspace.CanDockWindowPredicate = null;
+        workspace.ApplyState(dockedState, new Dictionary<string, UiWindow> { [panel.Id] = panel });
+
+        UiDockHost restoredTarget = Assert.IsType<UiDockHost>(panel.Parent);
+        Assert.Contains(restoredTarget, workspace.DockHosts);
+        Assert.DoesNotContain(panel, workspace.FloatingWindows);
+        Assert.False(panel.AllowDrag);
+        Assert.False(panel.AllowResize);
+        Assert.False(panel.ShowResizeGrip);
+    }
+
+    [Fact]
+    public void DockWorkspace_ExternalGroupValidatesEveryWindowBeforeMutation()
+    {
+        UiDockWorkspace workspace = new() { Bounds = new UiRect(0, 0, 320, 200) };
+        UiWindow allowed = new() { Id = "allowed", Bounds = new UiRect(10, 20, 120, 80) };
+        UiWindow protectedWindow = new() { Id = "protected", Bounds = new UiRect(20, 30, 120, 80) };
+        workspace.AddFloatingWindow(allowed);
+        workspace.AddFloatingWindow(protectedWindow);
+        workspace.Arrange();
+        workspace.CanDockWindowPredicate = (window, _, _) => !ReferenceEquals(window, protectedWindow);
+        UiPoint center = new(
+            workspace.RootHost.Bounds.X + workspace.RootHost.Bounds.Width / 2,
+            workspace.RootHost.Bounds.Y + workspace.RootHost.Bounds.Height / 2);
+        workspace.PreviewExternalDock(allowed, center, allowed.Bounds);
+
+        Assert.False(workspace.CommitExternalDockGroup([allowed, protectedWindow], allowed));
+        Assert.Empty(workspace.RootHost.Windows);
+        Assert.Contains(allowed, workspace.FloatingWindows);
+        Assert.Contains(protectedWindow, workspace.FloatingWindows);
+
+        workspace.CanDockWindowPredicate = null;
+        workspace.PreviewExternalDock(allowed, center, allowed.Bounds);
+        Assert.True(workspace.CommitExternalDockGroup([allowed, protectedWindow], allowed));
+        Assert.Equal([allowed, protectedWindow], workspace.RootHost.Windows);
+        Assert.Empty(workspace.FloatingWindows);
+        Assert.All(workspace.RootHost.Windows, window =>
+        {
+            Assert.False(window.AllowDrag);
+            Assert.False(window.AllowResize);
+            Assert.False(window.ShowResizeGrip);
+        });
+    }
+
+    [Fact]
+    public void DockWorkspace_ArrangePreservesFloatingBoundsUntilWorkspaceHasSize()
+    {
+        UiDockWorkspace workspace = new();
+        UiWindow floating = new() { Bounds = new UiRect(12, 18, 120, 80) };
+        workspace.AddFloatingWindow(floating);
+
+        workspace.Arrange();
+
+        Assert.Equal(new UiRect(12, 18, 120, 80), floating.Bounds);
+    }
+
+    [Fact]
+    public void DockWorkspace_ArrangeLaysOutWindowContentWithoutAnUpdatePass()
+    {
+        UiDockWorkspace workspace = new() { Bounds = new UiRect(0, 0, 320, 200) };
+        UiWindow window = new() { TitleBarHeight = 24 };
+        BoundsProbe child = new();
+        window.AddChild(child);
+        window.LayoutContent = bounds => child.Bounds = bounds;
+        workspace.RootHost.DockWindow(window);
+
+        workspace.Arrange();
+
+        Assert.Equal(window.ContentBounds, child.Bounds);
+        Assert.True(child.Bounds.Width > 0);
+        Assert.True(child.Bounds.Height > 0);
+    }
+
+    [Fact]
+    public void DockWorkspace_FinalCloseSubscriberCanReplaceTabWithoutOrphaningHost()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockHost target = workspace.DockHosts[1];
+        UiWindow original = new() { Id = "original" };
+        UiWindow replacement = new() { Id = "replacement" };
+        target.AllowClosingLastWindow = true;
+        target.DockWindow(original);
+        target.TabClosed += _ => target.DockWindow(replacement);
+
+        Assert.Equal(1, target.CloseAllWindows());
+
+        UiDockHost replacementHost = Assert.IsType<UiDockHost>(replacement.Parent);
+        Assert.Contains(replacementHost, workspace.DockHosts);
+        Assert.Contains(replacement, replacementHost.Windows);
+    }
+
+    [Fact]
+    public void DockWorkspace_DockPolicyCannotInvalidateTargetAndStillDock()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockHost target = workspace.DockHosts[1];
+        UiWindow resident = new() { Id = "resident" };
+        UiWindow incoming = new() { Id = "incoming" };
+        target.DockWindow(resident);
+        workspace.CanDockWindowPredicate = (window, _, _) =>
+        {
+            if (ReferenceEquals(window, incoming))
+            {
+                workspace.DetachWindow(resident);
+            }
+
+            return true;
+        };
+
+        Assert.Throws<InvalidOperationException>(() => workspace.DockWindow(incoming, target));
+
+        Assert.Null(incoming.Parent);
+        Assert.DoesNotContain(target, workspace.DockHosts);
+    }
+
+    [Fact]
+    public void DockWorkspace_NormalizationHonorsDockPolicy()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockHost fallback = workspace.DockHosts[1];
+        UiWindow panel = new() { Id = "panel" };
+        fallback.DockWindow(panel);
+        workspace.CanDockWindowPredicate = (window, host, _) =>
+            !ReferenceEquals(window, panel) || !ReferenceEquals(host, workspace.RootHost);
+
+        workspace.DockWindow(panel, fallback);
+
+        Assert.Same(fallback, panel.Parent);
+        Assert.Contains(fallback, workspace.DockHosts);
+        Assert.Empty(workspace.RootHost.Windows);
+    }
+
+    [Fact]
+    public void DockWorkspace_RejectsNonFiniteAuthoredAndRestoredRatios()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => workspace.SplitHost(workspace.RootHost, UiDockWorkspace.DockTarget.Bottom, float.NaN));
+
+        UiDockWorkspaceState state = workspace.CaptureState();
+        state.Root!.SplitRatio = float.PositiveInfinity;
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => workspace.ApplyState(state, new Dictionary<string, UiWindow>()));
+    }
+
+    [Fact]
+    public void DockWorkspace_ApplyStateRejectsDuplicateHostLeavesWithoutMutation()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockWorkspaceState state = workspace.CaptureState();
+        int originalHostCount = workspace.DockHosts.Count;
+        state.Root!.Second = new UiDockNodeState { HostId = workspace.RootHost.Id };
+
+        Assert.Throws<ArgumentException>(
+            () => workspace.ApplyState(state, new Dictionary<string, UiWindow>()));
+
+        Assert.Equal(originalHostCount, workspace.DockHosts.Count);
+        Assert.Contains(workspace.RootHost, workspace.DockHosts);
+        Assert.Equal(workspace.RootHost.Id, workspace.CaptureState().Root!.First!.HostId);
+    }
+
+    [Fact]
+    public void DockWorkspace_ApplyStateRejectsForeignParentBeforeClearingLayout()
+    {
+        UiDockWorkspace workspace = new();
+        UiWindow resident = new() { Id = "resident" };
+        workspace.RootHost.DockWindow(resident);
+        UiDockWorkspaceState state = workspace.CaptureState();
+        UiWindow foreign = new() { Id = "foreign", AllowResize = true };
+        UiPanel foreignParent = new();
+        foreignParent.AddChild(foreign);
+        Assert.Single(state.Hosts).WindowIds = [foreign.Id];
+
+        Assert.Throws<InvalidOperationException>(
+            () => workspace.ApplyState(state, new Dictionary<string, UiWindow> { [foreign.Id] = foreign }));
+
+        Assert.Equal([resident], workspace.RootHost.Windows);
+        Assert.Same(workspace.RootHost, resident.Parent);
+        Assert.Same(foreignParent, foreign.Parent);
+        Assert.True(foreign.AllowResize);
+    }
+
+    [Fact]
+    public void DockWorkspace_NormalizationToleratesPolicyMutation()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockHost fallback = workspace.DockHosts[1];
+        UiWindow first = new() { Id = "first" };
+        UiWindow removedByPolicy = new() { Id = "removed" };
+        fallback.DockWindow(first);
+        fallback.DockWindow(removedByPolicy);
+        workspace.CanDockWindowPredicate = (window, host, _) =>
+        {
+            if (ReferenceEquals(host, workspace.RootHost) && ReferenceEquals(window, first))
+            {
+                fallback.RemoveWindow(removedByPolicy);
+            }
+
+            return true;
+        };
+
+        workspace.DockWindow(first, fallback);
+
+        Assert.Same(fallback, first.Parent);
+        Assert.Null(removedByPolicy.Parent);
+        Assert.Contains(fallback, workspace.DockHosts);
+    }
+
+    [Fact]
+    public void DockWorkspace_ArrangeToleratesContentCallbackDetachingItsHost()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiWindow document = new() { Id = "document" };
+        UiDockHost split = workspace.DockHosts[1];
+        UiWindow panel = new() { Id = "panel" };
+        workspace.RootHost.DockWindow(document);
+        split.DockWindow(panel);
+        panel.LayoutContent = _ => workspace.DetachWindow(panel);
+
+        workspace.Arrange();
+
+        Assert.Null(panel.Parent);
+        Assert.DoesNotContain(split, workspace.DockHosts);
+        Assert.Same(workspace.RootHost, document.Parent);
+    }
+
+    [Fact]
+    public void StateSerializer_RoundTripsDockAndElementBounds()
+    {
+        UiStateSnapshot snapshot = new();
+        snapshot.Elements.Add(new UiElementState
+        {
+            Id = "panel",
+            Bounds = new UiRect(11, 22, 333, 144)
+        });
+        snapshot.DockWorkspaces.Add(new UiDockWorkspaceState
+        {
+            Id = "workspace",
+            Root = new UiDockNodeState { HostId = "root" },
+            FloatingWindows =
+            [
+                new UiFloatingWindowState
+                {
+                    WindowId = "floating",
+                    Bounds = new UiRect(40, 50, 260, 170)
+                }
+            ]
+        });
+
+        UiStateSnapshot restored = UiStateSerializer.FromJson(UiStateSerializer.ToJson(snapshot));
+
+        UiRect elementBounds = Assert.Single(restored.Elements).Bounds;
+        Assert.Equal((11, 22, 333, 144), (elementBounds.X, elementBounds.Y, elementBounds.Width, elementBounds.Height));
+        UiRect floatingBounds = Assert.Single(Assert.Single(restored.DockWorkspaces).FloatingWindows).Bounds;
+        Assert.Equal((40, 50, 260, 170), (floatingBounds.X, floatingBounds.Y, floatingBounds.Width, floatingBounds.Height));
+    }
+
+    [Fact]
+    public void DockWorkspace_DirectDockRevalidatesWindowAfterPolicyCallback()
+    {
+        UiDockWorkspace workspace = new();
+        UiWindow resident = new() { Id = "resident" };
+        UiWindow incoming = new() { Id = "incoming" };
+        UiPanel foreignParent = new();
+        workspace.RootHost.DockWindow(resident);
+        workspace.CanDockWindowPredicate = (window, _, _) =>
+        {
+            if (ReferenceEquals(window, incoming))
+            {
+                foreignParent.AddChild(incoming);
+            }
+
+            return true;
+        };
+
+        Assert.Throws<InvalidOperationException>(() => workspace.DockWindow(incoming, workspace.RootHost));
+
+        Assert.Equal([resident], workspace.RootHost.Windows);
+        Assert.Same(foreignParent, incoming.Parent);
+    }
+
+    [Fact]
+    public void DockWorkspace_ApplyStateRevalidatesWindowAfterPolicyCallback()
+    {
+        UiDockWorkspace workspace = new();
+        UiWindow resident = new() { Id = "resident" };
+        workspace.RootHost.DockWindow(resident);
+        UiDockWorkspaceState state = workspace.CaptureState();
+        UiWindow incoming = new() { Id = "incoming" };
+        UiPanel foreignParent = new();
+        Assert.Single(state.Hosts).WindowIds = [incoming.Id];
+        workspace.CanDockWindowPredicate = (window, _, _) =>
+        {
+            if (ReferenceEquals(window, incoming))
+            {
+                foreignParent.AddChild(incoming);
+            }
+
+            return true;
+        };
+
+        Assert.Throws<InvalidOperationException>(
+            () => workspace.ApplyState(state, new Dictionary<string, UiWindow> { [incoming.Id] = incoming }));
+
+        Assert.Equal([resident], workspace.RootHost.Windows);
+        Assert.Same(workspace.RootHost, resident.Parent);
+        Assert.Same(foreignParent, incoming.Parent);
+    }
+
+    [Fact]
+    public void DockWorkspace_NormalizationPreservesTabsAddedByPolicyCallback()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiDockHost fallback = workspace.DockHosts[1];
+        UiWindow first = new() { Id = "first" };
+        UiWindow second = new() { Id = "second" };
+        UiWindow addedByPolicy = new() { Id = "added" };
+        fallback.DockWindow(first);
+        fallback.DockWindow(second);
+        workspace.CanDockWindowPredicate = (window, host, _) =>
+        {
+            if (ReferenceEquals(host, workspace.RootHost)
+                && ReferenceEquals(window, first)
+                && addedByPolicy.Parent == null)
+            {
+                fallback.DockWindow(addedByPolicy);
+            }
+
+            return true;
+        };
+
+        workspace.DockWindow(first, fallback);
+
+        Assert.Contains(fallback, workspace.DockHosts);
+        Assert.Same(fallback, addedByPolicy.Parent);
+        Assert.Contains(addedByPolicy, fallback.Windows);
+        Assert.Empty(workspace.RootHost.Windows);
+    }
+
     private static UiDockWorkspace CreateWorkspace()
     {
         UiDockWorkspace workspace = new()
@@ -1002,5 +1480,16 @@ public sealed class UiLayoutAndDockingTests
             1f / 60f,
             UiFont.Default,
             new UiMemoryClipboard()));
+    }
+
+    private sealed class BoundsProbe : UiElement
+    {
+        public UiRect BoundsSeenDuringUpdate { get; private set; }
+
+        public override void Update(UiUpdateContext context)
+        {
+            BoundsSeenDuringUpdate = Bounds;
+            base.Update(context);
+        }
     }
 }

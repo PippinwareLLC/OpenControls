@@ -119,6 +119,7 @@ public sealed class UiDockHost : UiElement
 
     public event Action<UiWindow, UiPoint>? TabDetached;
     public event Action<UiWindow>? TabClosed;
+    internal event Action? TabCloseCompleted;
 
     public IReadOnlyList<UiWindow> Windows => _windows;
     public UiWindow? ActiveWindow => _activeIndex >= 0 && _activeIndex < _windows.Count ? _windows[_activeIndex] : null;
@@ -165,15 +166,22 @@ public sealed class UiDockHost : UiElement
 
     public bool RemoveWindow(UiWindow window)
     {
-        if (!_windows.Remove(window))
+        int removedIndex = _windows.IndexOf(window);
+        if (removedIndex < 0)
         {
             return false;
         }
 
+        _windows.RemoveAt(removedIndex);
         RemoveChild(window);
         if (_windows.Count == 0)
         {
             _activeIndex = -1;
+            _keepActiveTabVisible = true;
+        }
+        else if (removedIndex < _activeIndex)
+        {
+            _activeIndex--;
             _keepActiveTabVisible = true;
         }
         else if (_activeIndex >= _windows.Count)
@@ -232,6 +240,19 @@ public sealed class UiDockHost : UiElement
     public void SyncWindowVisibilityToActiveTab()
     {
         SetWindowVisibility();
+    }
+
+    internal void ArrangeDockedWindows()
+    {
+        UpdateDockedLayout();
+        UiWindow[] windows = _windows.ToArray();
+        foreach (UiWindow window in windows)
+        {
+            if (ReferenceEquals(window.Parent, this) && _windows.Contains(window))
+            {
+                window.ArrangeContent();
+            }
+        }
     }
 
     public int GetTabIndexAt(UiPoint point)
@@ -1143,6 +1164,7 @@ public sealed class UiDockHost : UiElement
         }
 
         UpdateTabLayout();
+        TabCloseCompleted?.Invoke();
         return true;
     }
 

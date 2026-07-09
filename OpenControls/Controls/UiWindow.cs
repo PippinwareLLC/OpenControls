@@ -35,6 +35,11 @@ public sealed class UiWindow : UiElement
     public UiPoint MaxSize { get; set; } = new(int.MaxValue, int.MaxValue);
     public bool ClampResizeToParent { get; set; } = true;
     public UiColor ResizeGripColor { get; set; } = new(90, 100, 120);
+    /// <summary>
+    /// Optional callback invoked after this window's content bounds are current
+    /// and before child elements process input.
+    /// </summary>
+    public Action<UiRect>? LayoutContent { get; set; }
     public bool ClampToParent { get; set; } = true;
     public bool IsDragging => _dragging;
     public bool IsResizing => _resizing;
@@ -106,10 +111,10 @@ public sealed class UiWindow : UiElement
                 if (ClampResizeToParent && Parent != null)
                 {
                     UiRect parentBounds = Parent.Bounds;
-                    int maxWidth = parentBounds.Right - _resizeStartBounds.X;
-                    int maxHeight = parentBounds.Bottom - _resizeStartBounds.Y;
-                    width = Math.Min(width, maxWidth);
-                    height = Math.Min(height, maxHeight);
+                    int maxWidth = Math.Max(1, parentBounds.Right - _resizeStartBounds.X);
+                    int maxHeight = Math.Max(1, parentBounds.Bottom - _resizeStartBounds.Y);
+                    width = Math.Clamp(width, Math.Min(MinSize.X, maxWidth), maxWidth);
+                    height = Math.Clamp(height, Math.Min(MinSize.Y, maxHeight), maxHeight);
                 }
 
                 Bounds = new UiRect(_resizeStartBounds.X, _resizeStartBounds.Y, width, height);
@@ -139,8 +144,12 @@ public sealed class UiWindow : UiElement
                     UiRect parentBounds = Parent.Bounds;
                     int maxX = parentBounds.Right - Bounds.Width;
                     int maxY = parentBounds.Bottom - Bounds.Height;
-                    newX = Math.Clamp(newX, parentBounds.X, maxX);
-                    newY = Math.Clamp(newY, parentBounds.Y, maxY);
+                    newX = maxX < parentBounds.X
+                        ? parentBounds.X
+                        : Math.Clamp(newX, parentBounds.X, maxX);
+                    newY = maxY < parentBounds.Y
+                        ? parentBounds.Y
+                        : Math.Clamp(newY, parentBounds.Y, maxY);
                 }
 
                 Bounds = new UiRect(newX, newY, Bounds.Width, Bounds.Height);
@@ -152,7 +161,7 @@ public sealed class UiWindow : UiElement
             }
         }
 
-        UpdateScrollPanelBounds();
+        ArrangeContent();
         base.Update(context);
     }
 
@@ -235,6 +244,12 @@ public sealed class UiWindow : UiElement
         }
 
         return "Window";
+    }
+
+    internal void ArrangeContent()
+    {
+        UpdateScrollPanelBounds();
+        LayoutContent?.Invoke(ContentBounds);
     }
 
     public UiScrollPanel EnsureScrollPanel()
