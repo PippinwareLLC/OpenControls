@@ -811,6 +811,13 @@ public sealed class UiDockWorkspace : UiElement
                 throw new InvalidOperationException(
                     $"Window '{floatingState.WindowId}' belongs to a different UI container.");
             }
+            if (window.Parent is UiDockHost sourceHost
+                && _hosts.Contains(sourceHost)
+                && !EvaluateExternalDetach(sourceHost, window).Allowed)
+            {
+                throw new InvalidOperationException(
+                    $"Window '{floatingState.WindowId}' cannot restore as floating from host '{sourceHost.Id}'.");
+            }
         }
     }
 

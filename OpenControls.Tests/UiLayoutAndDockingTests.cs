@@ -1458,6 +1458,30 @@ public sealed class UiLayoutAndDockingTests
         Assert.Empty(workspace.RootHost.Windows);
     }
 
+    [Fact]
+    public void DockWorkspace_ApplyStateCannotFloatWindowProtectedBySourceHost()
+    {
+        UiDockWorkspace workspace = new();
+        UiWindow document = new() { Id = "document" };
+        workspace.RootHost.AllowDetach = true;
+        workspace.RootHost.CanDetachWindowPredicate = window => !ReferenceEquals(window, document);
+        workspace.RootHost.DockWindow(document);
+        UiDockWorkspaceState state = workspace.CaptureState();
+        Assert.Single(state.Hosts).WindowIds.Clear();
+        state.FloatingWindows.Add(new UiFloatingWindowState
+        {
+            WindowId = document.Id,
+            Bounds = new UiRect(20, 30, 300, 200)
+        });
+
+        Assert.Throws<InvalidOperationException>(
+            () => workspace.ApplyState(state, new Dictionary<string, UiWindow> { [document.Id] = document }));
+
+        Assert.Same(workspace.RootHost, document.Parent);
+        Assert.Equal([document], workspace.RootHost.Windows);
+        Assert.Empty(workspace.FloatingWindows);
+    }
+
     private static UiDockWorkspace CreateWorkspace()
     {
         UiDockWorkspace workspace = new()
