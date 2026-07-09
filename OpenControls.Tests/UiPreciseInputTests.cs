@@ -69,6 +69,44 @@ public sealed class UiPreciseInputTests
     }
 
     [Fact]
+    public void SelectableRow_InteractiveChildOwnsClickWithoutInvokingRow()
+    {
+        UiSelectableRow row = new()
+        {
+            Bounds = new UiRect(100, 50, 200, 48),
+            Padding = 0,
+            AllowToggle = true
+        };
+        UiButton child = new()
+        {
+            Bounds = new UiRect(0, 0, 30, 48),
+            Text = "Child"
+        };
+        row.AddChild(child);
+
+        int rowInvocations = 0;
+        int childClicks = 0;
+        row.Invoked += _ => rowInvocations++;
+        child.Clicked += () => childClicks++;
+
+        Update(row, new UiInputState
+        {
+            MousePosition = new UiPoint(112, 72),
+            LeftClicked = true,
+            LeftDown = true
+        });
+        Update(row, new UiInputState
+        {
+            MousePosition = new UiPoint(112, 72),
+            LeftReleased = true
+        });
+
+        Assert.Equal(1, childClicks);
+        Assert.Equal(0, rowInvocations);
+        Assert.False(row.Selected);
+    }
+
+    [Fact]
     public void PopupOpenFrame_PreservesPointerCoordinatesAndGesturesWhileSuppressingButtons()
     {
         UiPopup popup = new()

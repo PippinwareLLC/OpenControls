@@ -14,6 +14,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     private enum MetricKind
     {
         FillRect,
+        FillRectGradient,
         DrawRect,
         DrawText,
         DrawTexture,
@@ -251,7 +252,53 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
     public void FillRectGradient(UiRect rect, UiColor topLeft, UiColor topRight, UiColor bottomLeft, UiColor bottomRight)
     {
-        UiRenderHelpers.FillRectGradient(this, rect, topLeft, topRight, bottomLeft, bottomRight);
+        long startTimestamp = BeginMetric();
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            EndMetric(MetricKind.FillRectGradient, startTimestamp);
+            return;
+        }
+
+        bool horizontalOnly = SameColor(topLeft, bottomLeft) && SameColor(topRight, bottomRight);
+        bool verticalOnly = SameColor(topLeft, topRight) && SameColor(bottomLeft, bottomRight);
+        if (horizontalOnly || verticalOnly)
+        {
+            QueueGradientQuad(rect, topLeft, topRight, bottomRight, bottomLeft);
+        }
+        else if (rect.Height <= rect.Width)
+        {
+            int lastRow = Math.Max(0, rect.Height - 1);
+            for (int row = 0; row < rect.Height; row++)
+            {
+                float amount = lastRow == 0 ? 0f : row / (float)lastRow;
+                UiColor left = LerpColor(topLeft, bottomLeft, amount);
+                UiColor right = LerpColor(topRight, bottomRight, amount);
+                QueueGradientQuad(
+                    new UiRect(rect.X, rect.Y + row, rect.Width, 1),
+                    left,
+                    right,
+                    right,
+                    left);
+            }
+        }
+        else
+        {
+            int lastColumn = Math.Max(0, rect.Width - 1);
+            for (int column = 0; column < rect.Width; column++)
+            {
+                float amount = lastColumn == 0 ? 0f : column / (float)lastColumn;
+                UiColor top = LerpColor(topLeft, topRight, amount);
+                UiColor bottom = LerpColor(bottomLeft, bottomRight, amount);
+                QueueGradientQuad(
+                    new UiRect(rect.X + column, rect.Y, 1, rect.Height),
+                    top,
+                    top,
+                    bottom,
+                    bottom);
+            }
+        }
+
+        EndMetric(MetricKind.FillRectGradient, startTimestamp);
     }
 
     public void FillRectCheckerboard(UiRect rect, int cellSize, UiColor colorA, UiColor colorB)
@@ -484,6 +531,29 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         ResetRenderState();
     }
 
+    private void QueueGradientQuad(
+        UiRect rect,
+        UiColor topLeft,
+        UiColor topRight,
+        UiColor bottomRight,
+        UiColor bottomLeft)
+    {
+        QueueQuad(
+            _whiteTexture,
+            rect.X,
+            rect.Y,
+            rect.Width,
+            rect.Height,
+            0f,
+            0f,
+            1f,
+            1f,
+            topLeft,
+            topRight,
+            bottomRight,
+            bottomLeft);
+    }
+
     private void QueueQuad(
         uint textureId,
         int x,
@@ -495,6 +565,37 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float u2,
         float v2,
         UiColor color)
+    {
+        QueueQuad(
+            textureId,
+            x,
+            y,
+            width,
+            height,
+            u1,
+            v1,
+            u2,
+            v2,
+            color,
+            color,
+            color,
+            color);
+    }
+
+    private void QueueQuad(
+        uint textureId,
+        int x,
+        int y,
+        int width,
+        int height,
+        float u1,
+        float v1,
+        float u2,
+        float v2,
+        UiColor topLeft,
+        UiColor topRight,
+        UiColor bottomRight,
+        UiColor bottomLeft)
     {
         if (textureId == 0 || width <= 0 || height <= 0)
         {
@@ -524,7 +625,22 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             _batchedTextureId = textureId;
         }
 
-        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, clip, ref _batchedQuadCount);
+        AppendQuad(
+            textureId,
+            x,
+            y,
+            width,
+            height,
+            u1,
+            v1,
+            u2,
+            v2,
+            topLeft,
+            topRight,
+            bottomRight,
+            bottomLeft,
+            clip,
+            ref _batchedQuadCount);
     }
 
     private void AppendQuad(
@@ -537,7 +653,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float v1,
         float u2,
         float v2,
-        UiColor color,
+        UiColor topLeft,
+        UiColor topRight,
+        UiColor bottomRight,
+        UiColor bottomLeft,
         UiRect clip,
         ref int quadCount)
     {
@@ -552,10 +671,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float right = x + width;
         float bottom = y + height;
 
-        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, color, clip);
-        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, color, clip);
-        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, color, clip);
-        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, color, clip);
+        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, topLeft, clip);
+        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, topRight, clip);
+        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, bottomRight, clip);
+        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, bottomLeft, clip);
         quadCount++;
     }
 
@@ -579,6 +698,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         return kind switch
         {
             MetricKind.FillRect => "FillRect",
+            MetricKind.FillRectGradient => "FillRectGradient",
             MetricKind.DrawRect => "DrawRect",
             MetricKind.DrawText => "DrawText",
             MetricKind.DrawTexture => "DrawTexture",
@@ -608,6 +728,25 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             _ => MetricKind.Flush
         };
     }
+
+    private static UiColor LerpColor(UiColor start, UiColor end, float amount)
+    {
+        amount = Math.Clamp(amount, 0f, 1f);
+        return new UiColor(
+            LerpByte(start.R, end.R, amount),
+            LerpByte(start.G, end.G, amount),
+            LerpByte(start.B, end.B, amount),
+            LerpByte(start.A, end.A, amount));
+    }
+
+    private static byte LerpByte(byte start, byte end, float amount) =>
+        (byte)Math.Round(start + ((end - start) * amount));
+
+    private static bool SameColor(UiColor left, UiColor right) =>
+        left.R == right.R
+        && left.G == right.G
+        && left.B == right.B
+        && left.A == right.A;
 
     private void Flush(uint textureId, int quadCount, FlushReason reason)
     {

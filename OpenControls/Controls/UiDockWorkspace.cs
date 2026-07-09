@@ -92,6 +92,11 @@ public sealed class UiDockWorkspace : UiElement
     public int SplitterVisualThickness { get; set; } = 2;
     public int SplitterVisualInset { get; set; } = 2;
     public int MinPaneSize { get; set; } = 80;
+    /// <summary>
+    /// When enabled, splitters honor the largest minimum size requested by any
+    /// window tabbed into each dock host, in addition to <see cref="MinPaneSize"/>.
+    /// </summary>
+    public bool RespectDockedWindowMinimums { get; set; }
     public UiColor SplitterColor { get; set; } = new(44, 52, 68);
     public UiColor SplitterHoverColor { get; set; } = new(68, 82, 106);
     public UiColor SplitterActiveColor { get; set; } = new(96, 120, 154);
@@ -2529,7 +2534,20 @@ public sealed class UiDockWorkspace : UiElement
         if (node.Host != null)
         {
             int paneSize = Math.Max(0, MinPaneSize);
-            return new UiPoint(paneSize, paneSize);
+            if (!RespectDockedWindowMinimums || node.Host.Windows.Count == 0)
+            {
+                return new UiPoint(paneSize, paneSize);
+            }
+
+            int minimumWidth = paneSize;
+            int minimumHeight = paneSize;
+            foreach (UiWindow window in node.Host.Windows)
+            {
+                minimumWidth = Math.Max(minimumWidth, Math.Max(0, window.MinSize.X));
+                minimumHeight = Math.Max(minimumHeight, Math.Max(0, window.MinSize.Y));
+            }
+
+            return new UiPoint(minimumWidth, minimumHeight);
         }
 
         UiPoint first = GetMinimumNodeSize(node.First);

@@ -69,5 +69,16 @@ public enum UiKey
     Shift,
     Control,
     Alt,
-    Super
+    Super,
+    Minus,
+    Equal,
+    LeftBracket,
+    RightBracket,
+    Backslash,
+    Semicolon,
+    Apostrophe,
+    Comma,
+    Period,
+    Slash,
+    GraveAccent
 }

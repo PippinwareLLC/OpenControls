@@ -146,7 +146,11 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
         UiInputState input = context.Input;
         _hovered = Bounds.Contains(input.MousePosition);
 
-        if (input.LeftClicked && _hovered)
+        // Rows can host real controls (visibility toggles, inline actions, etc.).
+        // Let the deepest child own a pointer press instead of also arming the
+        // containing row, otherwise one click invokes both controls on release.
+        bool pointerOwnedByRow = HitTest(input.MousePosition) == this;
+        if (input.LeftClicked && _hovered && pointerOwnedByRow)
         {
             _pressed = true;
             context.Focus.RequestFocus(this);

@@ -180,10 +180,40 @@ public sealed class UiMenuBar : UiElement
                     key = (UiKey)((int)UiKey.D0 + (character - '0'));
                     return true;
                 }
+
+                key = character switch
+                {
+                    '-' => UiKey.Minus,
+                    '=' => UiKey.Equal,
+                    '[' => UiKey.LeftBracket,
+                    ']' => UiKey.RightBracket,
+                    '\\' => UiKey.Backslash,
+                    ';' => UiKey.Semicolon,
+                    '\'' => UiKey.Apostrophe,
+                    ',' => UiKey.Comma,
+                    '.' => UiKey.Period,
+                    '/' => UiKey.Slash,
+                    '`' => UiKey.GraveAccent,
+                    _ => UiKey.Unknown
+                };
+                return key != UiKey.Unknown;
             }
 
             key = token.ToLowerInvariant() switch
             {
+                "minus" => UiKey.Minus,
+                "equal" => UiKey.Equal,
+                "equals" => UiKey.Equal,
+                "plus" => UiKey.Equal,
+                "leftbracket" => UiKey.LeftBracket,
+                "rightbracket" => UiKey.RightBracket,
+                "backslash" => UiKey.Backslash,
+                "semicolon" => UiKey.Semicolon,
+                "apostrophe" => UiKey.Apostrophe,
+                "comma" => UiKey.Comma,
+                "period" => UiKey.Period,
+                "slash" => UiKey.Slash,
+                "graveaccent" => UiKey.GraveAccent,
                 "left" => UiKey.Left,
                 "right" => UiKey.Right,
                 "up" => UiKey.Up,

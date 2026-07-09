@@ -454,11 +454,20 @@ public sealed class UiColorPicker : UiElement
 
     private void DrawSvGrid(UiRenderContext context, UiRect rect)
     {
+        byte drawAlpha = ShowAlpha ? (byte)255 : _alpha;
+        if (GridSize <= 1)
+        {
+            UiColor white = new(255, 255, 255, drawAlpha);
+            UiColor hue = UiColorConversion.HsvToColor(_h, 1f, 1f, drawAlpha);
+            UiColor black = new(0, 0, 0, drawAlpha);
+            context.Renderer.FillRectGradient(rect, white, hue, black, black);
+            return;
+        }
+
         int columns = GridSize > 1 ? Math.Min(GridSize, rect.Width) : rect.Width;
         int rows = GridSize > 1 ? Math.Min(GridSize, rect.Height) : rect.Height;
         int cellWidth = Math.Max(1, rect.Width / Math.Max(1, columns));
         int cellHeight = Math.Max(1, rect.Height / Math.Max(1, rows));
-        byte drawAlpha = ShowAlpha ? (byte)255 : _alpha;
 
         int y = rect.Y;
         for (int row = 0; row < rows; row++)
