@@ -68,6 +68,11 @@ public sealed class UiDockHost : UiElement
     private string _tabMetricsCloseButtonText = string.Empty;
     private UiTabTextOverflowMode _tabMetricsOverflowMode;
     private int _cachedCloseAreaWidth = -1;
+    private UiRect _collapseToggleBounds;
+    private bool _collapseToggleHover;
+    private bool _collapseInteractionEnabled;
+    private bool _isCollapsed;
+    private UiDockCollapseEdge _collapseEdge = UiDockCollapseEdge.Right;
 
     public UiColor Background { get; set; } = new(20, 24, 34);
     public UiColor Border { get; set; } = new(90, 100, 120);
@@ -109,6 +114,9 @@ public sealed class UiDockHost : UiElement
     public int ScrollStep { get; set; } = 80;
     public bool ShowOverflowMenuButton { get; set; } = true;
     public bool ShowTabContextMenu { get; set; } = true;
+    public bool ShowCollapseButton { get; set; } = true;
+    public bool AllowCollapse { get; set; } = true;
+    public int CollapseButtonWidth { get; set; } = 18;
     public bool HideDockedTitleBars { get; set; } = true;
     public bool AllowReorder { get; set; } = true;
     public bool AllowDetach { get; set; } = true;
@@ -120,11 +128,47 @@ public sealed class UiDockHost : UiElement
     public event Action<UiWindow, UiPoint>? TabDetached;
     public event Action<UiWindow>? TabClosed;
     internal event Action? TabCloseCompleted;
+    internal event Action<UiDockHost>? WindowsAdding;
+    internal event Action<UiDockHost>? WindowsMutating;
+    internal event Action<UiDockHost>? WindowsMutated;
+    internal bool IsClosingWindow { get; private set; }
 
     public IReadOnlyList<UiWindow> Windows => _windows;
     public UiWindow? ActiveWindow => _activeIndex >= 0 && _activeIndex < _windows.Count ? _windows[_activeIndex] : null;
     public int ActiveIndex => _activeIndex;
     public bool IsEmpty => _windows.Count == 0;
+    public bool IsCollapsed => _isCollapsed;
+    public UiDockCollapseEdge CollapseEdge => _collapseEdge;
+    public UiRect CollapseToggleBounds
+    {
+        get
+        {
+            UpdateTabLayout();
+            return _collapseToggleBounds;
+        }
+    }
+
+    internal void ConfigureCollapsePresentation(
+        bool collapsed,
+        bool interactionEnabled,
+        UiDockCollapseEdge edge)
+    {
+        bool changed = _isCollapsed != collapsed
+            || _collapseInteractionEnabled != interactionEnabled
+            || _collapseEdge != edge;
+        _isCollapsed = collapsed;
+        _collapseInteractionEnabled = interactionEnabled;
+        _collapseEdge = edge;
+        if (!changed)
+        {
+            return;
+        }
+
+        CloseTransientMenus();
+        ResetTabInteraction();
+        SetWindowVisibility();
+        Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
 
     public void AddWindow(UiWindow window)
     {
@@ -135,6 +179,7 @@ public sealed class UiDockHost : UiElement
             return;
         }
 
+        WindowsAdding?.Invoke(this);
         _windows.Add(window);
         AddChild(window);
         if (_activeIndex == -1)
@@ -156,6 +201,7 @@ public sealed class UiDockHost : UiElement
             return;
         }
 
+        WindowsAdding?.Invoke(this);
         index = Math.Clamp(index, 0, _windows.Count);
         _windows.Insert(index, window);
         AddChild(window);
@@ -167,6 +213,13 @@ public sealed class UiDockHost : UiElement
     public bool RemoveWindow(UiWindow window)
     {
         int removedIndex = _windows.IndexOf(window);
+        if (removedIndex < 0)
+        {
+            return false;
+        }
+
+        WindowsMutating?.Invoke(this);
+        removedIndex = _windows.IndexOf(window);
         if (removedIndex < 0)
         {
             return false;
@@ -197,6 +250,7 @@ public sealed class UiDockHost : UiElement
         }
 
         SetWindowVisibility();
+        WindowsMutated?.Invoke(this);
 
         return true;
     }
@@ -244,6 +298,11 @@ public sealed class UiDockHost : UiElement
 
     internal void ArrangeDockedWindows()
     {
+        if (_isCollapsed)
+        {
+            return;
+        }
+
         UpdateDockedLayout();
         UiWindow[] windows = _windows.ToArray();
         foreach (UiWindow window in windows)
@@ -287,6 +346,11 @@ public sealed class UiDockHost : UiElement
 
     public bool IsPointInTabBar(UiPoint point)
     {
+        if (_isCollapsed)
+        {
+            return false;
+        }
+
         UiRect panelBounds = GetPanelBounds();
         return point.X >= panelBounds.X
             && point.X < panelBounds.Right
@@ -313,6 +377,7 @@ public sealed class UiDockHost : UiElement
             return;
         }
 
+        WindowsMutating?.Invoke(this);
         UiWindow window = _windows[fromIndex];
         _windows.RemoveAt(fromIndex);
         toIndex = Math.Clamp(toIndex, 0, _windows.Count);
@@ -409,6 +474,15 @@ public sealed class UiDockHost : UiElement
         ValidateTransientMenus();
 
         UiInputState input = context.Input;
+        _collapseToggleHover = _collapseInteractionEnabled
+            && _collapseToggleBounds.Contains(input.MousePosition);
+        if (_isCollapsed)
+        {
+            SetWindowVisibility();
+            UpdateChildren(context, BlockChildInput(input, block: true));
+            return;
+        }
+
         bool menusWereOpen = _overflowMenuOpen || _contextMenuOpen;
         _closeHoverIndex = GetCloseIndexAt(input.MousePosition);
         _scrollLeftHover = _tabsOverflow && _scrollLeftBounds.Contains(input.MousePosition);
@@ -634,6 +708,11 @@ public sealed class UiDockHost : UiElement
         _layoutFont = font;
         UpdateTabLayout();
 
+        if (_isCollapsed)
+        {
+            return;
+        }
+
         UiRect panelBounds = GetPanelBounds();
         if (panelBounds.Width <= 0 || panelBounds.Height <= 0)
         {
@@ -651,7 +730,7 @@ public sealed class UiDockHost : UiElement
             Math.Max(0, panelBounds.Height - tabHeight));
         FillTabBarRect(context, tabBar);
 
-        UiRect clipBounds = _tabsOverflow ? _tabAreaBounds : tabBar;
+        UiRect clipBounds = _tabAreaBounds;
         context.Renderer.PushClip(clipBounds);
         int closeTextWidth = MeasureTextWidth(GetCloseButtonText(), TabTextScale, font);
         for (int i = 0; i < _windows.Count; i++)
@@ -748,6 +827,11 @@ public sealed class UiDockHost : UiElement
             RenderButton(context, _scrollRightBounds, UiArrowDirection.Right, _scrollRightHover, canScrollRight);
         }
 
+        if (_collapseToggleBounds.Width > 0 && _collapseToggleBounds.Height > 0)
+        {
+            RenderCollapseButton(context, _collapseToggleBounds, _collapseToggleHover);
+        }
+
         base.Render(context);
 
         if (ClipChildren && CornerRadius > 0 && Background.A > 0)
@@ -761,6 +845,11 @@ public sealed class UiDockHost : UiElement
     public override void RenderOverlay(UiRenderContext context)
     {
         if (!Visible)
+        {
+            return;
+        }
+
+        if (_isCollapsed)
         {
             return;
         }
@@ -785,6 +874,29 @@ public sealed class UiDockHost : UiElement
 
         UiRect panelBounds = GetPanelBounds();
         int tabHeight = GetEffectiveTabBarHeight(panelBounds);
+        int collapseWidth = _collapseInteractionEnabled && ShowCollapseButton
+            ? Math.Min(Math.Max(0, CollapseButtonWidth), panelBounds.Width)
+            : 0;
+        _collapseToggleBounds = collapseWidth > 0
+            ? new UiRect(panelBounds.Right - collapseWidth, panelBounds.Y, collapseWidth, tabHeight)
+            : default;
+        UiRect tabLayoutBounds = new(
+            panelBounds.X,
+            panelBounds.Y,
+            Math.Max(0, panelBounds.Width - collapseWidth),
+            tabHeight);
+        if (_isCollapsed)
+        {
+            _tabScrollOffset = 0;
+            _tabMaxScroll = 0;
+            _tabsOverflow = false;
+            _tabAreaBounds = default;
+            _scrollLeftBounds = default;
+            _scrollRightBounds = default;
+            _overflowButtonBounds = default;
+            return;
+        }
+
         if (_windows.Count == 0)
         {
             _activeIndex = -1;
@@ -792,7 +904,7 @@ public sealed class UiDockHost : UiElement
             _tabMaxScroll = 0;
             _tabsOverflow = false;
             _keepActiveTabVisible = true;
-            _tabAreaBounds = new UiRect(panelBounds.X, panelBounds.Y, panelBounds.Width, tabHeight);
+            _tabAreaBounds = tabLayoutBounds;
             _scrollLeftBounds = default;
             _scrollRightBounds = default;
             _overflowButtonBounds = default;
@@ -806,28 +918,28 @@ public sealed class UiDockHost : UiElement
         }
 
         int totalWidth = GetTotalTabWidth();
-        _tabsOverflow = totalWidth > panelBounds.Width;
+        _tabsOverflow = totalWidth > tabLayoutBounds.Width;
 
         int scrollButtonWidth = _tabsOverflow ? Math.Max(0, ScrollButtonWidth) : 0;
         int overflowButtonWidth = HasOverflowButton ? Math.Max(0, OverflowButtonWidth) : 0;
         if (_tabsOverflow)
         {
-            scrollButtonWidth = Math.Min(scrollButtonWidth, Math.Max(0, panelBounds.Width / 3));
-            overflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, panelBounds.Width - scrollButtonWidth));
+            scrollButtonWidth = Math.Min(scrollButtonWidth, Math.Max(0, tabLayoutBounds.Width / 3));
+            overflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, tabLayoutBounds.Width - scrollButtonWidth));
         }
 
         bool showScrollLeft = _tabsOverflow && _tabScrollOffset > 0 && scrollButtonWidth > 0;
         bool showScrollRight = _tabsOverflow && scrollButtonWidth > 0;
         int leftScrollWidth = 0;
         int rightScrollWidth = 0;
-        int tabAreaWidth = panelBounds.Width;
+        int tabAreaWidth = tabLayoutBounds.Width;
         int appliedOverflowButtonWidth = overflowButtonWidth;
         for (int pass = 0; pass < 4; pass++)
         {
             leftScrollWidth = showScrollLeft ? scrollButtonWidth : 0;
             rightScrollWidth = showScrollRight ? scrollButtonWidth : 0;
-            appliedOverflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, panelBounds.Width - leftScrollWidth - rightScrollWidth));
-            tabAreaWidth = Math.Max(0, panelBounds.Width - leftScrollWidth - rightScrollWidth - appliedOverflowButtonWidth);
+            appliedOverflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, tabLayoutBounds.Width - leftScrollWidth - rightScrollWidth));
+            tabAreaWidth = Math.Max(0, tabLayoutBounds.Width - leftScrollWidth - rightScrollWidth - appliedOverflowButtonWidth);
 
             _tabMaxScroll = Math.Max(0, totalWidth - tabAreaWidth);
             _tabScrollOffset = Math.Clamp(_tabScrollOffset, 0, _tabMaxScroll);
@@ -844,14 +956,14 @@ public sealed class UiDockHost : UiElement
         }
 
         _scrollLeftBounds = leftScrollWidth > 0
-            ? new UiRect(panelBounds.X, panelBounds.Y, leftScrollWidth, tabHeight)
+            ? new UiRect(tabLayoutBounds.X, tabLayoutBounds.Y, leftScrollWidth, tabHeight)
             : default;
-        _tabAreaBounds = new UiRect(panelBounds.X + leftScrollWidth, panelBounds.Y, tabAreaWidth, tabHeight);
+        _tabAreaBounds = new UiRect(tabLayoutBounds.X + leftScrollWidth, tabLayoutBounds.Y, tabAreaWidth, tabHeight);
         _overflowButtonBounds = appliedOverflowButtonWidth > 0
-            ? new UiRect(_tabAreaBounds.Right, panelBounds.Y, appliedOverflowButtonWidth, tabHeight)
+            ? new UiRect(_tabAreaBounds.Right, tabLayoutBounds.Y, appliedOverflowButtonWidth, tabHeight)
             : default;
         _scrollRightBounds = rightScrollWidth > 0
-            ? new UiRect(panelBounds.Right - rightScrollWidth, panelBounds.Y, rightScrollWidth, tabHeight)
+            ? new UiRect(tabLayoutBounds.Right - rightScrollWidth, tabLayoutBounds.Y, rightScrollWidth, tabHeight)
             : default;
 
         LayoutTabRects(_tabAreaBounds.X - _tabScrollOffset, tabHeight);
@@ -1149,23 +1261,31 @@ public sealed class UiDockHost : UiElement
         }
 
         UiWindow window = _windows[index];
-        bool removed = RemoveWindow(window);
-        if (!removed)
+        IsClosingWindow = true;
+        try
         {
-            return false;
-        }
+            bool removed = RemoveWindow(window);
+            if (!removed)
+            {
+                return false;
+            }
 
-        TabClosed?.Invoke(window);
-        if (_dragWindow == window)
+            TabClosed?.Invoke(window);
+            if (_dragWindow == window)
+            {
+                _dragWindow = null;
+                _dragIndex = -1;
+                _dragMoved = false;
+            }
+
+            UpdateTabLayout();
+            TabCloseCompleted?.Invoke();
+            return true;
+        }
+        finally
         {
-            _dragWindow = null;
-            _dragIndex = -1;
-            _dragMoved = false;
+            IsClosingWindow = false;
         }
-
-        UpdateTabLayout();
-        TabCloseCompleted?.Invoke();
-        return true;
     }
 
     private void ScrollTabs(int direction)
@@ -1228,6 +1348,37 @@ public sealed class UiDockHost : UiElement
         }
 
         UiArrow.DrawTriangle(context.Renderer, GetTabButtonArrowBounds(renderRect), UiArrowDirection.Down, TabTextColor);
+    }
+
+    private void RenderCollapseButton(UiRenderContext context, UiRect bounds, bool hover)
+    {
+        UiColor background = hover ? TabHoverColor : TabInactiveColor;
+        UiRect renderRect = GetRenderedButtonRect(bounds);
+        if (TabCornerRadius > 0)
+        {
+            UiRenderHelpers.FillRectTopRounded(
+                context.Renderer,
+                renderRect,
+                Math.Max(0, TabCornerRadius - 1),
+                background);
+            UiRenderHelpers.DrawRectTopRounded(
+                context.Renderer,
+                renderRect,
+                Math.Max(0, TabCornerRadius - 1),
+                TabBorderColor,
+                1);
+        }
+        else
+        {
+            context.Renderer.FillRect(renderRect, background);
+            context.Renderer.DrawRect(renderRect, TabBorderColor, 1);
+        }
+
+        UiDoubleChevron.Draw(
+            context.Renderer,
+            renderRect,
+            GetCollapseArrowDirection(_collapseEdge),
+            TabTextColor);
     }
 
     private UiRect GetRenderedTabRect(UiRect tabRect)
@@ -1428,8 +1579,19 @@ public sealed class UiDockHost : UiElement
     {
         for (int i = 0; i < _windows.Count; i++)
         {
-            _windows[i].Visible = i == _activeIndex;
+            _windows[i].Visible = !_isCollapsed && i == _activeIndex;
         }
+    }
+
+    private static UiArrowDirection GetCollapseArrowDirection(UiDockCollapseEdge edge)
+    {
+        return edge switch
+        {
+            UiDockCollapseEdge.Left => UiArrowDirection.Left,
+            UiDockCollapseEdge.Top => UiArrowDirection.Up,
+            UiDockCollapseEdge.Bottom => UiArrowDirection.Down,
+            _ => UiArrowDirection.Right
+        };
     }
 
     private void DetachWindow(UiWindow window, UiPoint dropPoint)

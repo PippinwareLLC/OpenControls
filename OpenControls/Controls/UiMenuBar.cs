@@ -12,7 +12,7 @@ public enum UiMenuDisplayMode
 
 public sealed class UiMenuBar : UiElement
 {
-    private readonly record struct TopItemTextMetrics(int ContentWidth, int DrawOffsetX);
+    private readonly record struct MenuTextMetrics(int ContentWidth, int DrawOffsetX);
     private UiFont _lastDefaultFont = UiFont.Default;
 
     public sealed class MenuItem
@@ -311,7 +311,7 @@ public sealed class UiMenuBar : UiElement
     }
 
     private readonly List<UiRect> _topItemRects = new();
-    private readonly List<TopItemTextMetrics> _topItemTextMetrics = new();
+    private readonly List<MenuTextMetrics> _topItemTextMetrics = new();
     private readonly List<MenuLayout> _openLayouts = new();
     private readonly List<int> _openPath = new();
     private int _hoveredTopIndex = -1;
@@ -349,11 +349,13 @@ public sealed class UiMenuBar : UiElement
     public int BarItemSpacing { get; set; } = 4;
     public int TextScale { get; set; } = 1;
     public int DropdownItemHeight { get; set; } = 22;
+    public int DropdownVerticalPadding { get; set; } = 4;
     public int DropdownMinWidth { get; set; } = 160;
     public int ItemPadding { get; set; } = 8;
     public int ItemVerticalPadding { get; set; } = 3;
     public int SeparatorHeight { get; set; } = 6;
     public int ShortcutPadding { get; set; } = 12;
+    public int ShortcutTrailingPadding { get; set; } = 12;
     public int CheckmarkSize { get; set; } = 6;
     public int CheckmarkAreaWidth { get; set; } = 12;
     public int SubmenuIndicatorWidth { get; set; } = 10;
@@ -383,6 +385,16 @@ public sealed class UiMenuBar : UiElement
         }
 
         return bounds;
+    }
+
+    public IReadOnlyList<UiRect> GetDebugOpenItemBounds(int layoutIndex = 0)
+    {
+        if (layoutIndex < 0 || layoutIndex >= _openLayouts.Count)
+        {
+            return Array.Empty<UiRect>();
+        }
+
+        return _openLayouts[layoutIndex].ItemRects.ToArray();
     }
 
     public bool TryGetDebugHighlightedItemBounds(out UiRect bounds)
@@ -680,9 +692,9 @@ public sealed class UiMenuBar : UiElement
             MenuItem item = Items[i];
             UiColor color = item.Enabled ? TextColor : DisabledTextColor;
             int textY = rect.Y + (rect.Height - textHeight) / 2;
-            TopItemTextMetrics textMetrics = i < _topItemTextMetrics.Count
+            MenuTextMetrics textMetrics = i < _topItemTextMetrics.Count
                 ? _topItemTextMetrics[i]
-                : GetTopItemTextMetrics(item.Text, font);
+                : GetMenuTextMetrics(item.Text, font);
             context.Renderer.DrawText(item.Text, new UiPoint(rect.X + BarItemPadding + textMetrics.DrawOffsetX, textY), color, TextScale, font);
         }
 
@@ -744,13 +756,21 @@ public sealed class UiMenuBar : UiElement
                 {
                     UiColor color = item.Enabled ? TextColor : DisabledTextColor;
                     int itemTextY = itemRect.Y + (itemRect.Height - textHeight) / 2;
-                    int textX = itemRect.X + ItemPadding + GetCheckmarkAreaWidth();
+                    MenuTextMetrics itemTextMetrics = GetMenuTextMetrics(item.Text, font);
+                    int textX = itemRect.X + ItemPadding + GetCheckmarkAreaWidth() + itemTextMetrics.DrawOffsetX;
                     context.Renderer.DrawText(item.Text, new UiPoint(textX, itemTextY), color, TextScale, font);
 
                     if (!string.IsNullOrEmpty(item.Shortcut))
                     {
-                        int shortcutWidth = GetTextWidth(item.Shortcut);
-                        int shortcutX = itemRect.Right - ItemPadding - shortcutWidth - GetSubmenuIndicatorWidth(item);
+                        MenuTextMetrics shortcutMetrics = GetMenuTextMetrics(item.Shortcut, font);
+                        int submenuSpace = item.HasChildren
+                            ? GetSubmenuIndicatorWidth(item) + Math.Max(0, ItemPadding)
+                            : 0;
+                        int shortcutX = itemRect.Right
+                            - submenuSpace
+                            - Math.Max(1, ShortcutTrailingPadding)
+                            - shortcutMetrics.ContentWidth
+                            + shortcutMetrics.DrawOffsetX;
                         context.Renderer.DrawText(item.Shortcut, new UiPoint(shortcutX, itemTextY), color, TextScale, font);
                     }
 
@@ -788,6 +808,7 @@ public sealed class UiMenuBar : UiElement
 
     private void UpdatePopup(UiUpdateContext context, bool wasOpen)
     {
+        _lastDefaultFont = context.DefaultFont ?? UiFont.Default;
         if (!_popupOpen)
         {
             _openLayouts.Clear();
@@ -887,7 +908,7 @@ public sealed class UiMenuBar : UiElement
 
         foreach (MenuItem item in Items)
         {
-            TopItemTextMetrics textMetrics = GetTopItemTextMetrics(item.Text, font);
+            MenuTextMetrics textMetrics = GetMenuTextMetrics(item.Text, font);
             _topItemTextMetrics.Add(textMetrics);
             int width = textMetrics.ContentWidth + BarItemPadding * 2;
             UiRect rect = new(x, barBounds.Y, width, barBounds.Height);
@@ -1064,9 +1085,10 @@ public sealed class UiMenuBar : UiElement
         int checkArea = GetCheckmarkAreaWidth();
         int submenuWidth = Math.Max(0, SubmenuIndicatorWidth);
         int maxWidth = Math.Max(1, DropdownMinWidth);
+        int verticalPadding = Math.Max(0, DropdownVerticalPadding);
 
         List<int> itemHeights = new(items.Count);
-        int totalHeight = 0;
+        int totalHeight = verticalPadding * 2;
 
         foreach (MenuItem item in items)
         {
@@ -1094,7 +1116,7 @@ public sealed class UiMenuBar : UiElement
         bounds = ClampMenu(bounds);
 
         List<UiRect> rects = new(items.Count);
-        int cursorY = bounds.Y;
+        int cursorY = bounds.Y + verticalPadding;
         foreach (int height in itemHeights)
         {
             rects.Add(new UiRect(bounds.X, cursorY, bounds.Width, height));
@@ -1256,14 +1278,17 @@ public sealed class UiMenuBar : UiElement
             return;
         }
 
-        CloseMenu(focus);
+        if (!IsPointInOpenLayouts(point))
+        {
+            CloseMenu(focus);
+        }
     }
 
     private void HandlePopupClick(UiPoint point, UiFocusManager focus)
     {
         if (!TryGetMenuItemAt(point, out int level, out int index))
         {
-            if (ClosePopupOnOutsideClick)
+            if (ClosePopupOnOutsideClick && !IsPointInOpenLayouts(point))
             {
                 ClosePopup(focus);
             }
@@ -1411,6 +1436,11 @@ public sealed class UiMenuBar : UiElement
                 _hoveredMenuLevel = level;
                 _hoveredMenuIndex = index;
             }
+        }
+        else if (IsPointInOpenLayouts(point))
+        {
+            _hoveredMenuLevel = -1;
+            _hoveredMenuIndex = -1;
         }
     }
 
@@ -2244,17 +2274,28 @@ public sealed class UiMenuBar : UiElement
     {
         if (!item.HasContent)
         {
-            int textWidth = GetTextWidth(item.Text);
-            int shortcutWidth = string.IsNullOrEmpty(item.Shortcut) ? 0 : GetTextWidth(item.Shortcut);
-            int width = ItemPadding + checkArea + textWidth + ItemPadding;
+            UiFont font = ResolveFont(_lastDefaultFont);
+            int textWidth = GetMenuTextMetrics(item.Text, font).ContentWidth;
+            int shortcutWidth = string.IsNullOrEmpty(item.Shortcut)
+                ? 0
+                : GetMenuTextMetrics(item.Shortcut, font).ContentWidth;
+            int itemPadding = Math.Max(0, ItemPadding);
+            int width = itemPadding + checkArea + textWidth;
             if (shortcutWidth > 0)
             {
-                width += ShortcutPadding + shortcutWidth;
+                width += itemPadding
+                    + Math.Max(0, ShortcutPadding)
+                    + shortcutWidth
+                    + Math.Max(1, ShortcutTrailingPadding);
+            }
+            else
+            {
+                width += itemPadding;
             }
 
             if (item.HasChildren)
             {
-                width += submenuWidth + ItemPadding;
+                width += submenuWidth + itemPadding;
             }
 
             return width;
@@ -2290,19 +2331,19 @@ public sealed class UiMenuBar : UiElement
         return -1;
     }
 
-    private TopItemTextMetrics GetTopItemTextMetrics(string text, UiFont font)
+    private MenuTextMetrics GetMenuTextMetrics(string text, UiFont font)
     {
         int advanceWidth = GetTextWidth(text);
         UiRect inkBounds = font.MeasureTextInkBounds(text ?? string.Empty, TextScale);
         if (inkBounds.Width <= 0)
         {
-            return new TopItemTextMetrics(advanceWidth, 0);
+            return new MenuTextMetrics(advanceWidth, 0);
         }
 
         int drawOffsetX = Math.Max(0, -inkBounds.X);
         int inkExtent = Math.Max(0, inkBounds.X) + inkBounds.Width;
         int contentWidth = Math.Max(advanceWidth + drawOffsetX, inkExtent);
-        return new TopItemTextMetrics(contentWidth, drawOffsetX);
+        return new MenuTextMetrics(contentWidth, drawOffsetX);
     }
 
     private int ComputeLayoutStateStamp()
@@ -2338,7 +2379,11 @@ public sealed class UiMenuBar : UiElement
             return MeasureTextWidth(text, TextScale);
         }
 
-        return text.Length * FallbackCharWidth * TextScale;
+        UiFont font = ResolveFont(_lastDefaultFont);
+        int measuredWidth = font.MeasureTextWidth(text ?? string.Empty, TextScale);
+        return measuredWidth > 0 || string.IsNullOrEmpty(text)
+            ? measuredWidth
+            : text.Length * FallbackCharWidth * TextScale;
     }
 
     private int GetTextHeight(int scale)

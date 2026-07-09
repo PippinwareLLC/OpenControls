@@ -63,6 +63,7 @@ public sealed class UiDockNodeState
     public UiDockNodeState? Second { get; set; }
     public bool SplitHorizontal { get; set; }
     public float SplitRatio { get; set; }
+    public bool IsCollapsed { get; set; }
 }
 
 public sealed class UiDockHostState

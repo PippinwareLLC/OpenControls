@@ -42,6 +42,8 @@ public sealed class UiDockWorkspace : UiElement
         public DockNode? Second { get; set; }
         public bool SplitHorizontal { get; set; }
         public float SplitRatio { get; set; } = 0.5f;
+        public bool IsCollapsed { get; set; }
+        public UiDockCollapseEdge CollapseEdge { get; set; } = UiDockCollapseEdge.Right;
         public UiRect Bounds { get; set; }
         public UiRect FirstBounds { get; set; }
         public UiRect SecondBounds { get; set; }
@@ -74,6 +76,10 @@ public sealed class UiDockWorkspace : UiElement
     private DockNode? _dragSplitNode;
     private int _dragSplitStartAxis;
     private int _dragSplitStartPrimarySize;
+    private DockNode? _hoverCollapsedNode;
+    private bool _suppressHostMutationCallbacks;
+    private bool _restoreValidationActive;
+    private long _topologyMutationVersion;
 
     public UiColor DragPreviewColor { get; set; } = new(70, 130, 200, 120);
     public UiColor DragPreviewOutline { get; set; } = new(120, 180, 220, 200);
@@ -91,6 +97,11 @@ public sealed class UiDockWorkspace : UiElement
     public UiColor SplitterActiveColor { get; set; } = new(96, 120, 154);
     public UiColor SplitterTrackHoverColor { get; set; } = new(68, 82, 106, 32);
     public UiColor SplitterTrackActiveColor { get; set; } = new(96, 120, 154, 44);
+    public UiColor CollapsedStripColor { get; set; } = new(22, 26, 36);
+    public UiColor CollapsedStripHoverColor { get; set; } = new(32, 36, 48);
+    public UiColor CollapsedStripBorderColor { get; set; } = new(60, 70, 90);
+    public UiColor CollapsedStripGlyphColor { get; set; } = UiColor.White;
+    public int CollapsedStripSize { get; set; } = 28;
 
     public UiDockHost RootHost { get; }
     public IReadOnlyList<UiDockHost> DockHosts => _hosts;
@@ -100,8 +111,121 @@ public sealed class UiDockWorkspace : UiElement
     public UiDockWorkspace()
     {
         RootHost = CreateHost();
+        RootHost.AllowCollapse = false;
         AssignHostId(RootHost);
         _rootNode = new DockNode(RootHost);
+    }
+
+    public bool IsCollapseRegionCollapsed(UiDockHost memberHost)
+    {
+        ArgumentNullException.ThrowIfNull(memberHost);
+        DockNode? node = FindNode(_rootNode, memberHost);
+        return node != null && FindCollapsedAncestor(_rootNode, node) != null;
+    }
+
+    public bool CanCollapseRegion(UiDockHost memberHost)
+    {
+        ArgumentNullException.ThrowIfNull(memberHost);
+        if (ReferenceEquals(memberHost, RootHost)
+            || !_hosts.Contains(memberHost)
+            || IsCollapseRegionCollapsed(memberHost))
+        {
+            return false;
+        }
+
+        DockNode? collapseNode = ResolveCollapseNode(_rootNode, memberHost);
+        return collapseNode != null && CanCollapseNode(collapseNode);
+    }
+
+    public bool SetCollapseRegionCollapsed(UiDockHost memberHost, bool collapsed)
+    {
+        ArgumentNullException.ThrowIfNull(memberHost);
+        ThrowIfRestoreValidationMutation("collapse dock regions");
+        if (!_hosts.Contains(memberHost))
+        {
+            throw new ArgumentException("Dock host is not part of this workspace.", nameof(memberHost));
+        }
+
+        if (ReferenceEquals(memberHost, RootHost))
+        {
+            return false;
+        }
+
+        DockNode? hostNode = FindNode(_rootNode, memberHost);
+        if (hostNode == null)
+        {
+            return false;
+        }
+
+        if (!collapsed)
+        {
+            DockNode? collapsedNode = FindCollapsedAncestor(_rootNode, hostNode);
+            if (collapsedNode == null)
+            {
+                return false;
+            }
+
+            CancelDockInteractionsForTopologyChange();
+            collapsedNode.IsCollapsed = false;
+            _topologyMutationVersion++;
+            _hoverCollapsedNode = null;
+            Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+            return true;
+        }
+
+        if (!CanCollapseRegion(memberHost))
+        {
+            return false;
+        }
+
+        DockNode? collapseNode = ResolveCollapseNode(_rootNode, memberHost);
+        if (collapseNode == null || collapseNode.IsCollapsed)
+        {
+            return false;
+        }
+
+        CancelDockInteractionsForTopologyChange();
+        collapseNode.IsCollapsed = true;
+        _topologyMutationVersion++;
+        _hoverCollapsedNode = null;
+        Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+        return true;
+    }
+
+    public bool ToggleCollapseRegion(UiDockHost memberHost)
+    {
+        ArgumentNullException.ThrowIfNull(memberHost);
+        return SetCollapseRegionCollapsed(memberHost, !IsCollapseRegionCollapsed(memberHost));
+    }
+
+    public UiRect GetCollapseRegionBounds(UiDockHost memberHost)
+    {
+        ArgumentNullException.ThrowIfNull(memberHost);
+        DockNode? hostNode = FindNode(_rootNode, memberHost);
+        DockNode? collapsedNode = hostNode == null ? null : FindCollapsedAncestor(_rootNode, hostNode);
+        return collapsedNode?.Bounds ?? default;
+    }
+
+    public UiRect GetCollapseRegionRestoreBounds(UiDockHost memberHost)
+    {
+        ArgumentNullException.ThrowIfNull(memberHost);
+        DockNode? hostNode = FindNode(_rootNode, memberHost);
+        DockNode? collapsedNode = hostNode == null ? null : FindCollapsedAncestor(_rootNode, hostNode);
+        return collapsedNode == null ? default : GetCollapsedRestoreBounds(collapsedNode);
+    }
+
+    public UiDockHost? GetCollapseRegionRepresentative(UiDockHost memberHost)
+    {
+        ArgumentNullException.ThrowIfNull(memberHost);
+        DockNode? region = ResolveCollapseNode(_rootNode, memberHost);
+        return region == null ? null : EnumerateHosts(region).FirstOrDefault();
+    }
+
+    public IReadOnlyList<UiDockHost> GetCollapseRegionMembers(UiDockHost memberHost)
+    {
+        ArgumentNullException.ThrowIfNull(memberHost);
+        DockNode? region = ResolveCollapseNode(_rootNode, memberHost);
+        return region == null ? Array.Empty<UiDockHost>() : EnumerateHosts(region).ToArray();
     }
 
     public UiDockHost SplitHost(UiDockHost host, DockTarget target)
@@ -112,6 +236,7 @@ public sealed class UiDockWorkspace : UiElement
     public UiDockHost SplitHost(UiDockHost host, DockTarget target, float splitRatio)
     {
         ArgumentNullException.ThrowIfNull(host);
+        ThrowIfRestoreValidationMutation("split dock hosts");
         if (!float.IsFinite(splitRatio))
         {
             throw new ArgumentOutOfRangeException(nameof(splitRatio), splitRatio, "Split ratio must be finite.");
@@ -121,6 +246,13 @@ public sealed class UiDockWorkspace : UiElement
         {
             return host;
         }
+
+        if (IsCollapseRegionCollapsed(host))
+        {
+            SetCollapseRegionCollapsed(host, collapsed: false);
+        }
+
+        CancelDockInteractionsForTopologyChange();
 
         DockNode? node = FindNode(_rootNode, host);
         if (node == null)
@@ -149,6 +281,7 @@ public sealed class UiDockWorkspace : UiElement
         node.Second = second;
         node.SplitHorizontal = horizontal;
         node.SplitRatio = Math.Clamp(splitRatio, 0.05f, 0.95f);
+        _topologyMutationVersion++;
 
         TraceTearOffTelemetry(
             $"split-host sourceHost={FormatHost(host)} newHost={FormatHost(newHost)} target='{target}'");
@@ -209,6 +342,7 @@ public sealed class UiDockWorkspace : UiElement
 
     public void ApplyState(UiDockWorkspaceState state, IReadOnlyDictionary<string, UiWindow> windowsById)
     {
+        ThrowIfRestoreValidationMutation("apply dock workspace state");
         if (state == null)
         {
             throw new ArgumentNullException(nameof(state));
@@ -237,6 +371,7 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         HashSet<UiDockHost> originalHosts = new(_hosts);
+        Dictionary<UiDockHost, string> originalHostIds = _hosts.ToDictionary(host => host, host => host.Id);
         HashSet<UiDockHost> usedHosts = new();
         DockNode proposedRoot;
         try
@@ -247,10 +382,35 @@ public sealed class UiDockWorkspace : UiElement
                 throw new ArgumentException($"Dock state must include root host '{RootHost.Id}'.", nameof(state));
             }
 
-            ValidateRestoredWindowAssignments(state, windowsById, hostById, usedHosts);
+            long validationVersion = _topologyMutationVersion;
+            UiDockHost[] validationHosts = _hosts.ToArray();
+            Dictionary<UiDockHost, string> validationHostIds = _hosts.ToDictionary(host => host, host => host.Id);
+            DockNode liveTopology = CloneDockNode(_rootNode);
+            _restoreValidationActive = true;
+            try
+            {
+                ValidateRestoredWindowAssignments(state, windowsById, hostById, usedHosts);
+                ValidateRestoredCollapsedBranches(state, proposedRoot, windowsById, hostById);
+            }
+            finally
+            {
+                _restoreValidationActive = false;
+            }
+
+            ValidateLiveRestorePreCommit(
+                state,
+                windowsById,
+                hostById,
+                usedHosts,
+                proposedRoot,
+                liveTopology,
+                validationHosts,
+                validationHostIds,
+                validationVersion);
         }
         catch
         {
+            _restoreValidationActive = false;
             foreach (UiDockHost host in _hosts.ToArray())
             {
                 if (!originalHosts.Contains(host))
@@ -259,62 +419,79 @@ public sealed class UiDockWorkspace : UiElement
                 }
             }
 
+            foreach ((UiDockHost host, string hostId) in originalHostIds)
+            {
+                host.Id = hostId;
+            }
+
             throw;
         }
 
-        _rootNode = proposedRoot;
-
-        foreach (UiDockHost host in _hosts)
+        CancelDockInteractionsForTopologyChange();
+        bool previousSuppression = _suppressHostMutationCallbacks;
+        _suppressHostMutationCallbacks = true;
+        try
         {
-            host.ClearWindows();
-        }
+            _rootNode = proposedRoot;
+            _topologyMutationVersion++;
 
-        ClearFloatingWindows();
-
-        List<UiDockHost> existingHosts = new(_hosts);
-        foreach (UiDockHost host in existingHosts)
-        {
-            if (host != RootHost && !usedHosts.Contains(host))
+            foreach (UiDockHost host in _hosts)
             {
-                RemoveDockHost(host);
-            }
-        }
-
-        foreach (UiDockHostState hostState in state.Hosts)
-        {
-            if (!hostById.TryGetValue(hostState.HostId, out UiDockHost? host))
-            {
-                continue;
+                host.ClearWindows();
             }
 
-            foreach (string windowId in hostState.WindowIds)
+            ClearFloatingWindows();
+
+            List<UiDockHost> existingHosts = new(_hosts);
+            foreach (UiDockHost host in existingHosts)
             {
-                if (windowsById.TryGetValue(windowId, out UiWindow? window))
+                if (host != RootHost && !usedHosts.Contains(host))
                 {
-                    DetachWindowInternal(window);
-                    PrepareDockedWindow(window, host);
-                    host.DockWindow(window);
+                    RemoveDockHost(host);
                 }
             }
 
-            host.ActivateWindow(hostState.ActiveIndex);
-        }
-
-        foreach (UiFloatingWindowState floatingState in state.FloatingWindows)
-        {
-            if (windowsById.TryGetValue(floatingState.WindowId, out UiWindow? window))
+            foreach (UiDockHostState hostState in state.Hosts)
             {
-                DetachWindowInternal(window);
-                window.Bounds = floatingState.Bounds;
-                AddFloatingWindow(window);
-            }
-        }
+                if (!hostById.TryGetValue(hostState.HostId, out UiDockHost? host))
+                {
+                    continue;
+                }
 
-        CollapseEmptyHosts();
+                foreach (string windowId in hostState.WindowIds)
+                {
+                    if (windowsById.TryGetValue(windowId, out UiWindow? window))
+                    {
+                        DetachWindowInternal(window);
+                        PrepareDockedWindow(window, host);
+                        host.DockWindow(window);
+                    }
+                }
+
+                host.ActivateWindow(hostState.ActiveIndex);
+            }
+
+            foreach (UiFloatingWindowState floatingState in state.FloatingWindows)
+            {
+                if (windowsById.TryGetValue(floatingState.WindowId, out UiWindow? window))
+                {
+                    DetachWindowInternal(window);
+                    window.Bounds = floatingState.Bounds;
+                    AddFloatingWindow(window);
+                }
+            }
+
+            CollapseEmptyHosts();
+        }
+        finally
+        {
+            _suppressHostMutationCallbacks = previousSuppression;
+        }
     }
 
     public void AddFloatingWindow(UiWindow window)
     {
+        ThrowIfRestoreValidationMutation("add floating windows");
         if (_floatingWindows.Contains(window))
         {
             return;
@@ -332,6 +509,7 @@ public sealed class UiDockWorkspace : UiElement
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(host);
+        ThrowIfRestoreValidationMutation("dock windows");
 
         if (!_hosts.Contains(host))
         {
@@ -367,6 +545,7 @@ public sealed class UiDockWorkspace : UiElement
     public void DetachWindow(UiWindow window)
     {
         ArgumentNullException.ThrowIfNull(window);
+        ThrowIfRestoreValidationMutation("detach windows");
 
         DetachWindowInternal(window);
         CollapseEmptyHosts();
@@ -410,6 +589,7 @@ public sealed class UiDockWorkspace : UiElement
     {
         ArgumentNullException.ThrowIfNull(windows);
         ArgumentNullException.ThrowIfNull(previewWindow);
+        ThrowIfRestoreValidationMutation("commit external docking");
 
         if (windows.Count == 0 || !ReferenceEquals(_externalPreviewWindow, previewWindow))
         {
@@ -494,26 +674,38 @@ public sealed class UiDockWorkspace : UiElement
 
     public void ResetLayout()
     {
-        foreach (UiDockHost host in _hosts)
+        ThrowIfRestoreValidationMutation("reset dock layout");
+        CancelDockInteractionsForTopologyChange();
+        bool previousSuppression = _suppressHostMutationCallbacks;
+        _suppressHostMutationCallbacks = true;
+        try
         {
-            host.ClearWindows();
-        }
-
-        ClearFloatingWindows();
-
-        for (int i = _hosts.Count - 1; i >= 0; i--)
-        {
-            UiDockHost host = _hosts[i];
-            if (host == RootHost)
+            foreach (UiDockHost host in _hosts)
             {
-                continue;
+                host.ClearWindows();
             }
 
-            RemoveDockHost(host);
-        }
+            ClearFloatingWindows();
 
-        _rootNode = new DockNode(RootHost);
-        EnsureRootHost();
+            for (int i = _hosts.Count - 1; i >= 0; i--)
+            {
+                UiDockHost host = _hosts[i];
+                if (host == RootHost)
+                {
+                    continue;
+                }
+
+                RemoveDockHost(host);
+            }
+
+            _rootNode = new DockNode(RootHost);
+            _topologyMutationVersion++;
+            EnsureRootHost();
+        }
+        finally
+        {
+            _suppressHostMutationCallbacks = previousSuppression;
+        }
     }
 
     /// <summary>
@@ -523,7 +715,7 @@ public sealed class UiDockWorkspace : UiElement
     /// </summary>
     public void Arrange()
     {
-        LayoutNode(_rootNode, Bounds);
+        LayoutNode(_rootNode, Bounds, UiDockCollapseEdge.Right);
         UiDockHost[] hosts = _hosts.ToArray();
         foreach (UiDockHost host in hosts)
         {
@@ -576,10 +768,24 @@ public sealed class UiDockWorkspace : UiElement
 
         foreach (UiDockHost host in _hosts)
         {
-            if (host.RemoveWindow(window))
+            if (RemoveWindowForWorkspaceMutation(host, window))
             {
                 return;
             }
+        }
+    }
+
+    private bool RemoveWindowForWorkspaceMutation(UiDockHost host, UiWindow window)
+    {
+        bool previousSuppression = _suppressHostMutationCallbacks;
+        _suppressHostMutationCallbacks = true;
+        try
+        {
+            return host.RemoveWindow(window);
+        }
+        finally
+        {
+            _suppressHostMutationCallbacks = previousSuppression;
         }
     }
 
@@ -593,6 +799,21 @@ public sealed class UiDockWorkspace : UiElement
         Arrange();
 
         UiInputState input = context.Input;
+        bool collapseInputHandled = HandleCollapseInputBeforeChildren(input, context.Focus);
+        if (collapseInputHandled)
+        {
+            Arrange();
+            input = SuppressInputForFrame(input);
+            context = new UiUpdateContext(
+                input,
+                context.Focus,
+                context.DragDrop,
+                context.DeltaSeconds,
+                context.DefaultFont,
+                context.Clipboard,
+                context.ActiveInputLayer);
+        }
+
         UpdateSplitters(input, context.Focus);
         Arrange();
         UpdateTabDrag(input);
@@ -613,6 +834,7 @@ public sealed class UiDockWorkspace : UiElement
 
         base.Render(context);
         DrawSplitters(context);
+        DrawCollapsedStrips(context, _rootNode);
 
         if ((_dragWindow != null && _dragMoved) || _externalPreviewWindow != null)
         {
@@ -651,10 +873,14 @@ public sealed class UiDockWorkspace : UiElement
         host.AllowDetach = template?.AllowDetach ?? false;
         host.CanDetachWindowPredicate = template?.CanDetachWindowPredicate;
         host.TabCloseCompleted += HandleHostTabCloseCompleted;
+        host.WindowsAdding += HandleHostWindowsAdding;
+        host.WindowsMutating += HandleHostWindowsMutating;
+        host.WindowsMutated += HandleHostWindowsMutated;
         AssignHostId(host);
 
         _hosts.Add(host);
         AddChild(host);
+        _topologyMutationVersion++;
         return host;
     }
 
@@ -662,13 +888,18 @@ public sealed class UiDockWorkspace : UiElement
     {
         if (node.Host != null)
         {
-            return new UiDockNodeState { HostId = node.Host.Id };
+            return new UiDockNodeState
+            {
+                HostId = node.Host.Id,
+                IsCollapsed = node.IsCollapsed
+            };
         }
 
         UiDockNodeState state = new()
         {
             SplitHorizontal = node.SplitHorizontal,
-            SplitRatio = node.SplitRatio
+            SplitRatio = node.SplitRatio,
+            IsCollapsed = node.IsCollapsed
         };
 
         if (node.First != null)
@@ -694,13 +925,17 @@ public sealed class UiDockWorkspace : UiElement
                 throw new ArgumentException($"Dock layout contains duplicate host leaf '{state.HostId}'.", nameof(state));
             }
 
-            return new DockNode(host);
+            return new DockNode(host)
+            {
+                IsCollapsed = state.IsCollapsed
+            };
         }
 
         DockNode node = new(null)
         {
             SplitHorizontal = state.SplitHorizontal,
-            SplitRatio = Math.Clamp(state.SplitRatio, 0.05f, 0.95f)
+            SplitRatio = Math.Clamp(state.SplitRatio, 0.05f, 0.95f),
+            IsCollapsed = state.IsCollapsed
         };
 
         if (state.First != null)
@@ -819,6 +1054,216 @@ public sealed class UiDockWorkspace : UiElement
                     $"Window '{floatingState.WindowId}' cannot restore as floating from host '{sourceHost.Id}'.");
             }
         }
+    }
+
+    private void ValidateRestoredCollapsedBranches(
+        UiDockWorkspaceState state,
+        DockNode proposedRoot,
+        IReadOnlyDictionary<string, UiWindow> windowsById,
+        IReadOnlyDictionary<string, UiDockHost> hostById)
+    {
+        Dictionary<string, UiDockHostState> hostStates = new(StringComparer.Ordinal);
+        foreach (UiDockHostState hostState in state.Hosts)
+        {
+            hostStates[hostState.HostId] = hostState;
+        }
+
+        ValidateRestoredCollapsedNode(
+            proposedRoot,
+            proposedRoot,
+            ancestorCollapsed: false,
+            windowsById,
+            hostById,
+            hostStates);
+    }
+
+    private void ValidateRestoredCollapsedNode(
+        DockNode root,
+        DockNode node,
+        bool ancestorCollapsed,
+        IReadOnlyDictionary<string, UiWindow> windowsById,
+        IReadOnlyDictionary<string, UiDockHost> hostById,
+        IReadOnlyDictionary<string, UiDockHostState> hostStates)
+    {
+        if (node.First?.IsCollapsed == true && node.Second?.IsCollapsed == true)
+        {
+            throw new ArgumentException("Dock state cannot collapse both sibling branches.", nameof(node));
+        }
+
+        if (node.IsCollapsed)
+        {
+            if (ancestorCollapsed)
+            {
+                throw new ArgumentException("Dock state cannot contain nested collapsed branches.", nameof(node));
+            }
+
+            if (ContainsHost(node, RootHost))
+            {
+                throw new InvalidOperationException("Dock state cannot collapse the root document host.");
+            }
+
+            UiDockHost? representative = EnumerateHosts(node).FirstOrDefault();
+            if (representative == null || !ReferenceEquals(ResolveCollapseNode(root, representative), node))
+            {
+                throw new ArgumentException(
+                    "Dock state collapsed a partial branch instead of its stable root-side region.",
+                    nameof(node));
+            }
+
+            foreach (UiDockHost host in EnumerateHosts(node))
+            {
+                if (!host.AllowCollapse)
+                {
+                    throw new InvalidOperationException($"Dock host '{host.Id}' does not allow collapse.");
+                }
+
+                if (!hostById.TryGetValue(host.Id, out UiDockHost? currentHost)
+                    || !ReferenceEquals(currentHost, host))
+                {
+                    throw new InvalidOperationException($"Dock collapse policy invalidated host '{host.Id}'.");
+                }
+
+                if (!hostStates.TryGetValue(host.Id, out UiDockHostState? hostState)
+                    || !hostState.WindowIds.Any(windowsById.ContainsKey))
+                {
+                    throw new ArgumentException(
+                        $"Collapsed dock host '{host.Id}' must contain at least one restorable window.",
+                        nameof(node));
+                }
+            }
+        }
+
+        bool childAncestorCollapsed = ancestorCollapsed || node.IsCollapsed;
+        if (node.First != null)
+        {
+            ValidateRestoredCollapsedNode(
+                root,
+                node.First,
+                childAncestorCollapsed,
+                windowsById,
+                hostById,
+                hostStates);
+        }
+
+        if (node.Second != null)
+        {
+            ValidateRestoredCollapsedNode(
+                root,
+                node.Second,
+                childAncestorCollapsed,
+                windowsById,
+                hostById,
+                hostStates);
+        }
+    }
+
+    private void ValidateLiveRestorePreCommit(
+        UiDockWorkspaceState state,
+        IReadOnlyDictionary<string, UiWindow> windowsById,
+        IReadOnlyDictionary<string, UiDockHost> hostById,
+        IReadOnlySet<UiDockHost> usedHosts,
+        DockNode proposedRoot,
+        DockNode liveTopology,
+        IReadOnlyList<UiDockHost> validationHosts,
+        IReadOnlyDictionary<UiDockHost, string> validationHostIds,
+        long validationVersion)
+    {
+        if (_topologyMutationVersion != validationVersion
+            || _hosts.Count != validationHosts.Count
+            || !DockNodesEquivalent(_rootNode, liveTopology))
+        {
+            throw new InvalidOperationException(
+                "Dock topology changed while workspace state policy was being validated.");
+        }
+
+        for (int index = 0; index < validationHosts.Count; index++)
+        {
+            UiDockHost expected = validationHosts[index];
+            if (!ReferenceEquals(_hosts[index], expected)
+                || !ReferenceEquals(expected.Parent, this)
+                || !validationHostIds.TryGetValue(expected, out string? expectedId)
+                || !string.Equals(expected.Id, expectedId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Dock host membership changed while workspace state policy was being validated.");
+            }
+        }
+
+        HashSet<UiDockHost> proposedHosts = new(EnumerateHosts(proposedRoot));
+        if (!proposedHosts.SetEquals(usedHosts))
+        {
+            throw new InvalidOperationException("Proposed dock topology diverged from its validated host set.");
+        }
+
+        foreach (UiDockHost host in proposedHosts)
+        {
+            if (!_hosts.Contains(host)
+                || !ReferenceEquals(host.Parent, this)
+                || !hostById.TryGetValue(host.Id, out UiDockHost? mappedHost)
+                || !ReferenceEquals(mappedHost, host))
+            {
+                throw new InvalidOperationException($"Proposed dock host '{host.Id}' is no longer live.");
+            }
+        }
+
+        foreach (UiDockHostState hostState in state.Hosts)
+        {
+            foreach (string windowId in hostState.WindowIds)
+            {
+                if (windowsById.TryGetValue(windowId, out UiWindow? window) && !CanRestoreWindow(window))
+                {
+                    throw new InvalidOperationException(
+                        $"Window '{windowId}' changed container during workspace state validation.");
+                }
+            }
+        }
+
+        foreach (UiFloatingWindowState floatingState in state.FloatingWindows)
+        {
+            if (windowsById.TryGetValue(floatingState.WindowId, out UiWindow? window)
+                && !CanRestoreWindow(window))
+            {
+                throw new InvalidOperationException(
+                    $"Window '{floatingState.WindowId}' changed container during workspace state validation.");
+            }
+        }
+    }
+
+    private static DockNode CloneDockNode(DockNode node)
+    {
+        DockNode clone = new(node.Host)
+        {
+            SplitHorizontal = node.SplitHorizontal,
+            SplitRatio = node.SplitRatio,
+            IsCollapsed = node.IsCollapsed
+        };
+        if (node.First != null)
+        {
+            clone.First = CloneDockNode(node.First);
+        }
+
+        if (node.Second != null)
+        {
+            clone.Second = CloneDockNode(node.Second);
+        }
+
+        return clone;
+    }
+
+    private static bool DockNodesEquivalent(DockNode left, DockNode right)
+    {
+        if (!ReferenceEquals(left.Host, right.Host)
+            || left.SplitHorizontal != right.SplitHorizontal
+            || left.SplitRatio != right.SplitRatio
+            || left.IsCollapsed != right.IsCollapsed
+            || (left.First == null) != (right.First == null)
+            || (left.Second == null) != (right.Second == null))
+        {
+            return false;
+        }
+
+        return (left.First == null || DockNodesEquivalent(left.First, right.First!))
+            && (left.Second == null || DockNodesEquivalent(left.Second, right.Second!));
     }
 
     private bool CanRestoreWindow(UiWindow window)
@@ -967,7 +1412,7 @@ public sealed class UiDockWorkspace : UiElement
                     UiPoint detachPoint = GetDetachPoint(input);
                     TraceTearOffTelemetry(
                         $"drag-detach-dispatch host={FormatHost(sourceHost)} window={FormatWindow(window)} detachPoint={FormatPoint(detachPoint)}");
-                    sourceHost.RemoveWindow(window);
+                    RemoveWindowForWorkspaceMutation(sourceHost, window);
                     CollapseEmptyHosts();
                     TabDetached?.Invoke(window, detachPoint);
                     ResetTabDragState();
@@ -1077,13 +1522,14 @@ public sealed class UiDockWorkspace : UiElement
 
     private void HandleDrop(UiWindow window, UiPoint dropPoint, UiPoint screenDropPoint)
     {
+        UiDockHost? sourceHost = _dragSourceHost;
         TraceTearOffTelemetry(
-            $"drop-start sourceHost={FormatHostOrNone(_dragSourceHost)} hoverHost={FormatHostOrNone(_hoverHost)} target='{_hoverTarget}' window={FormatWindow(window)} drop={FormatPoint(dropPoint)} screenDrop={FormatPoint(screenDropPoint)} workspace={FormatRect(Bounds)}");
+            $"drop-start sourceHost={FormatHostOrNone(sourceHost)} hoverHost={FormatHostOrNone(_hoverHost)} target='{_hoverTarget}' window={FormatWindow(window)} drop={FormatPoint(dropPoint)} screenDrop={FormatPoint(screenDropPoint)} workspace={FormatRect(Bounds)}");
 
-        if (_dragSourceHost != null && _hoverHost == _dragSourceHost && _hoverTarget == DockTarget.Center)
+        if (sourceHost != null && _hoverHost == sourceHost && _hoverTarget == DockTarget.Center)
         {
             TraceTearOffTelemetry(
-                $"drop-skip reason='same-host-center' sourceHost={FormatHost(_dragSourceHost)} window={FormatWindow(window)} drop={FormatPoint(dropPoint)}");
+                $"drop-skip reason='same-host-center' sourceHost={FormatHost(sourceHost)} window={FormatWindow(window)} drop={FormatPoint(dropPoint)}");
             return;
         }
 
@@ -1095,28 +1541,28 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
-        bool collapseEmptyHosts = _dragSourceHost != null;
+        bool collapseEmptyHosts = sourceHost != null;
         if (_hoverHost == null)
         {
-            if (_dragSourceHost != null)
+            if (sourceHost != null)
             {
-                ExternalDetachDecision detachDecision = EvaluateExternalDetach(_dragSourceHost, window);
+                ExternalDetachDecision detachDecision = EvaluateExternalDetach(sourceHost, window);
                 bool dropOutsideWorkspace = !Bounds.Contains(dropPoint);
                 TraceTearOffTelemetry(
-                    $"drop-detach-check host={FormatHost(_dragSourceHost)} window={FormatWindow(window)} allowed={(detachDecision.Allowed ? 1 : 0)} reason='{detachDecision.Reason}' predicatePresent={(detachDecision.PredicatePresent ? 1 : 0)} predicateResult={(detachDecision.PredicateResult ? 1 : 0)} dropOutside={(dropOutsideWorkspace ? 1 : 0)} drop={FormatPoint(dropPoint)} screenDrop={FormatPoint(screenDropPoint)} workspace={FormatRect(Bounds)}");
-                _dragSourceHost.RemoveWindow(window);
+                    $"drop-detach-check host={FormatHost(sourceHost)} window={FormatWindow(window)} allowed={(detachDecision.Allowed ? 1 : 0)} reason='{detachDecision.Reason}' predicatePresent={(detachDecision.PredicatePresent ? 1 : 0)} predicateResult={(detachDecision.PredicateResult ? 1 : 0)} dropOutside={(dropOutsideWorkspace ? 1 : 0)} drop={FormatPoint(dropPoint)} screenDrop={FormatPoint(screenDropPoint)} workspace={FormatRect(Bounds)}");
+                RemoveWindowForWorkspaceMutation(sourceHost, window);
                 if (dropOutsideWorkspace && detachDecision.Allowed)
                 {
                     UiPoint detachPoint = GetDetachPoint(screenDropPoint);
                     TraceTearOffTelemetry(
-                        $"drop-detach-dispatch host={FormatHost(_dragSourceHost)} window={FormatWindow(window)} detachPoint={FormatPoint(detachPoint)}");
+                        $"drop-detach-dispatch host={FormatHost(sourceHost)} window={FormatWindow(window)} detachPoint={FormatPoint(detachPoint)}");
                     TabDetached?.Invoke(window, detachPoint);
                 }
                 else
                 {
                     window.Bounds = ClampToBounds(GetFloatingPreviewBounds(dropPoint, window.Bounds), Bounds);
                     TraceTearOffTelemetry(
-                        $"drop-floating-fallback host={FormatHost(_dragSourceHost)} window={FormatWindow(window)} bounds={FormatRect(window.Bounds)}");
+                        $"drop-floating-fallback host={FormatHost(sourceHost)} window={FormatWindow(window)} bounds={FormatRect(window.Bounds)}");
                     AddFloatingWindow(window);
                 }
             }
@@ -1139,9 +1585,9 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
-        if (_dragSourceHost != null)
+        if (sourceHost != null)
         {
-            _dragSourceHost.RemoveWindow(window);
+            RemoveWindowForWorkspaceMutation(sourceHost, window);
         }
 
         if (_floatingWindows.Contains(window))
@@ -1204,6 +1650,8 @@ public sealed class UiDockWorkspace : UiElement
         destination.ScrollStep = source.ScrollStep;
         destination.ShowOverflowMenuButton = source.ShowOverflowMenuButton;
         destination.ShowTabContextMenu = source.ShowTabContextMenu;
+        destination.ShowCollapseButton = source.ShowCollapseButton;
+        destination.CollapseButtonWidth = source.CollapseButtonWidth;
         destination.HideDockedTitleBars = source.HideDockedTitleBars;
         destination.AllowReorder = source.AllowReorder;
         destination.DragThreshold = source.DragThreshold;
@@ -1421,15 +1869,28 @@ public sealed class UiDockWorkspace : UiElement
 
     private void CollapseEmptyHosts()
     {
+        ThrowIfRestoreValidationMutation("replace dock topology");
+        CancelDockInteractionsForTopologyChange();
+        DockNode originalRoot = _rootNode;
+        int originalHostCount = _hosts.Count;
         DockNode? collapsed = CollapseNode(_rootNode);
         if (collapsed == null)
         {
             EnsureRootHost();
+            if (!ReferenceEquals(originalRoot, _rootNode) || originalHostCount != _hosts.Count)
+            {
+                _topologyMutationVersion++;
+            }
+
             return;
         }
 
         _rootNode = collapsed;
         EnsureRootHost();
+        if (!ReferenceEquals(originalRoot, _rootNode) || originalHostCount != _hosts.Count)
+        {
+            _topologyMutationVersion++;
+        }
     }
 
     private DockNode? CollapseNode(DockNode node)
@@ -1462,11 +1923,21 @@ public sealed class UiDockWorkspace : UiElement
 
         if (node.First == null)
         {
+            if (node.IsCollapsed && node.Second != null)
+            {
+                node.Second.IsCollapsed = true;
+            }
+
             return node.Second;
         }
 
         if (node.Second == null)
         {
+            if (node.IsCollapsed)
+            {
+                node.First.IsCollapsed = true;
+            }
+
             return node.First;
         }
 
@@ -1476,13 +1947,60 @@ public sealed class UiDockWorkspace : UiElement
     private void RemoveDockHost(UiDockHost host)
     {
         host.TabCloseCompleted -= HandleHostTabCloseCompleted;
+        host.WindowsAdding -= HandleHostWindowsAdding;
+        host.WindowsMutating -= HandleHostWindowsMutating;
+        host.WindowsMutated -= HandleHostWindowsMutated;
         host.ClearWindows();
         _hosts.Remove(host);
         RemoveChild(host);
+        _topologyMutationVersion++;
     }
 
     private void HandleHostTabCloseCompleted()
     {
+        CollapseEmptyHosts();
+        Arrange();
+    }
+
+    private void HandleHostWindowsMutating(UiDockHost host)
+    {
+        if (_restoreValidationActive)
+        {
+            throw new InvalidOperationException(
+                "Dock windows cannot be mutated while workspace state policy is being validated.");
+        }
+
+        if (_suppressHostMutationCallbacks || !_hosts.Contains(host))
+        {
+            return;
+        }
+
+        if (IsCollapseRegionCollapsed(host))
+        {
+            SetCollapseRegionCollapsed(host, collapsed: false);
+        }
+    }
+
+    private void HandleHostWindowsAdding(UiDockHost host)
+    {
+        if (_restoreValidationActive)
+        {
+            throw new InvalidOperationException(
+                "Dock windows cannot be mutated while workspace state policy is being validated.");
+        }
+    }
+
+    private void HandleHostWindowsMutated(UiDockHost host)
+    {
+        if (_suppressHostMutationCallbacks
+            || !_hosts.Contains(host)
+            || ReferenceEquals(host, RootHost)
+            || host.IsClosingWindow
+            || !host.IsEmpty)
+        {
+            return;
+        }
+
         CollapseEmptyHosts();
         Arrange();
     }
@@ -1565,7 +2083,8 @@ public sealed class UiDockWorkspace : UiElement
 
         foreach (UiWindow window in fallbackWindows)
         {
-            if (!ReferenceEquals(window.Parent, fallback) || !fallback.RemoveWindow(window))
+            if (!ReferenceEquals(window.Parent, fallback)
+                || !RemoveWindowForWorkspaceMutation(fallback, window))
             {
                 return;
             }
@@ -1614,6 +2133,11 @@ public sealed class UiDockWorkspace : UiElement
 
     private void DrawSplitters(UiRenderContext context, DockNode node)
     {
+        if (node.IsCollapsed)
+        {
+            return;
+        }
+
         if (node.Host != null)
         {
             return;
@@ -1679,6 +2203,163 @@ public sealed class UiDockWorkspace : UiElement
         }
     }
 
+    private void DrawCollapsedStrips(UiRenderContext context, DockNode node)
+    {
+        if (node.IsCollapsed)
+        {
+            UiRect bounds = node.Bounds;
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                return;
+            }
+
+            UiColor background = ReferenceEquals(node, _hoverCollapsedNode)
+                ? CollapsedStripHoverColor
+                : CollapsedStripColor;
+            context.Renderer.FillRect(bounds, background);
+            context.Renderer.DrawRect(bounds, CollapsedStripBorderColor, 1);
+            UiRect restoreBounds = GetCollapsedRestoreBounds(node);
+            UiDoubleChevron.Draw(
+                context.Renderer,
+                restoreBounds,
+                GetRestoreArrowDirection(node.CollapseEdge),
+                CollapsedStripGlyphColor);
+            return;
+        }
+
+        if (node.First != null)
+        {
+            DrawCollapsedStrips(context, node.First);
+        }
+
+        if (node.Second != null)
+        {
+            DrawCollapsedStrips(context, node.Second);
+        }
+    }
+
+    private bool HandleCollapseInputBeforeChildren(UiInputState input, UiFocusManager focus)
+    {
+        _hoverCollapsedNode = FindCollapsedRestoreNode(_rootNode, input.MousePosition);
+        if (!input.LeftClicked)
+        {
+            return false;
+        }
+
+        UiDockHost? memberHost = _hoverCollapsedNode == null
+            ? FindExpandedCollapseToggleHost(input.MousePosition)
+            : EnumerateHosts(_hoverCollapsedNode).FirstOrDefault();
+        if (memberHost == null)
+        {
+            return false;
+        }
+
+        bool collapse = _hoverCollapsedNode == null;
+        focus.ClearFocus();
+        bool changed = SetCollapseRegionCollapsed(memberHost, collapse);
+        _hoverCollapsedNode = null;
+        return changed;
+    }
+
+    private UiDockHost? FindExpandedCollapseToggleHost(UiPoint point)
+    {
+        foreach (UiDockHost host in _hosts)
+        {
+            if (host.IsCollapsed || host.CollapseToggleBounds.Width <= 0)
+            {
+                continue;
+            }
+
+            if (host.CollapseToggleBounds.Contains(point))
+            {
+                return host;
+            }
+        }
+
+        return null;
+    }
+
+    private void CancelDockInteractionsForTopologyChange()
+    {
+        _dragSplitNode = null;
+        _hoverSplitNode = null;
+        _dragWindow = null;
+        _dragSourceHost = null;
+        _dragMoved = false;
+        _floatingDragWindow = null;
+        _hoverHost = null;
+        _hoverTarget = DockTarget.None;
+        _previewBounds = default;
+        _externalPreviewWindow = null;
+        _externalPreviewHoverPoint = default;
+        _externalPreviewWindowBounds = default;
+        _dragOutsideWorkspaceTelemetryEmitted = false;
+        ResetDockHoverTelemetry();
+    }
+
+    private void ThrowIfRestoreValidationMutation(string operation)
+    {
+        if (_restoreValidationActive)
+        {
+            throw new InvalidOperationException(
+                $"Cannot {operation} while workspace state policy is being validated.");
+        }
+    }
+
+    private static UiInputState SuppressInputForFrame(UiInputState input)
+    {
+        UiPoint blockedPoint = new(-1_000_000, -1_000_000);
+        return new UiInputState
+        {
+            MousePosition = blockedPoint,
+            ScreenMousePosition = blockedPoint,
+            DragThreshold = input.DragThreshold,
+            Composition = UiTextCompositionState.Empty
+        };
+    }
+
+    private static DockNode? FindCollapsedRestoreNode(DockNode node, UiPoint point)
+    {
+        if (node.IsCollapsed)
+        {
+            return GetCollapsedRestoreBounds(node).Contains(point) ? node : null;
+        }
+
+        if (node.First != null)
+        {
+            DockNode? first = FindCollapsedRestoreNode(node.First, point);
+            if (first != null)
+            {
+                return first;
+            }
+        }
+
+        return node.Second == null ? null : FindCollapsedRestoreNode(node.Second, point);
+    }
+
+    private static UiRect GetCollapsedRestoreBounds(DockNode node)
+    {
+        UiRect bounds = node.Bounds;
+        bool vertical = node.CollapseEdge is UiDockCollapseEdge.Left or UiDockCollapseEdge.Right;
+        int extent = vertical
+            ? Math.Min(bounds.Width, bounds.Height)
+            : Math.Min(bounds.Height, bounds.Width);
+        return vertical
+            ? new UiRect(bounds.X, bounds.Y, bounds.Width, Math.Max(0, extent))
+            : new UiRect(bounds.X, bounds.Y, Math.Max(0, extent), bounds.Height);
+    }
+
+    private static UiArrowDirection GetRestoreArrowDirection(UiDockCollapseEdge edge)
+    {
+        return edge switch
+        {
+            UiDockCollapseEdge.Left => UiArrowDirection.Right,
+            UiDockCollapseEdge.Top => UiArrowDirection.Down,
+            UiDockCollapseEdge.Bottom => UiArrowDirection.Up,
+            _ => UiArrowDirection.Left
+        };
+    }
+
     private void DrawTargets(UiRenderContext context)
     {
         if (_hoverHost == null)
@@ -1694,9 +2375,25 @@ public sealed class UiDockWorkspace : UiElement
         }
     }
 
-    private void LayoutNode(DockNode node, UiRect bounds)
+    private void LayoutNode(DockNode node, UiRect bounds, UiDockCollapseEdge edge)
     {
         node.Bounds = bounds;
+        node.CollapseEdge = edge;
+
+        if (node.IsCollapsed)
+        {
+            if (ReferenceEquals(node, _rootNode))
+            {
+                int strip = Math.Min(GetCollapsedStripExtent(), Math.Max(0, bounds.Width));
+                bounds = new UiRect(bounds.Right - strip, bounds.Y, strip, bounds.Height);
+            }
+
+            ConfigureCollapsedNode(node, bounds, edge);
+            node.FirstBounds = default;
+            node.SecondBounds = default;
+            node.SplitterBounds = default;
+            return;
+        }
 
         if (node.Host != null)
         {
@@ -1704,6 +2401,15 @@ public sealed class UiDockWorkspace : UiElement
             node.SecondBounds = default;
             node.SplitterBounds = default;
             node.Host.Bounds = bounds;
+            DockNode? collapseNode = ResolveCollapseNode(_rootNode, node.Host);
+            UiDockHost? representative = collapseNode == null
+                ? null
+                : EnumerateHosts(collapseNode).FirstOrDefault();
+            node.Host.ConfigureCollapsePresentation(
+                collapsed: false,
+                interactionEnabled: ReferenceEquals(node.Host, representative)
+                    && CanCollapseRegion(node.Host),
+                edge: collapseNode?.CollapseEdge ?? edge);
             return;
         }
 
@@ -1715,7 +2421,11 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
-        int splitterThickness = Math.Max(1, SplitterThickness);
+        bool firstCollapsed = node.First.IsCollapsed;
+        bool secondCollapsed = node.Second.IsCollapsed;
+        int splitterThickness = firstCollapsed || secondCollapsed
+            ? 0
+            : Math.Max(1, SplitterThickness);
         UiPoint firstMinSize = GetMinimumNodeSize(node.First);
         UiPoint secondMinSize = GetMinimumNodeSize(node.Second);
         // Preserve the authored split ratio across transient layout passes.
@@ -1726,8 +2436,21 @@ public sealed class UiDockWorkspace : UiElement
         if (node.SplitHorizontal)
         {
             int availableHeight = Math.Max(0, bounds.Height - splitterThickness);
-            int desiredFirstHeight = (int)Math.Round(availableHeight * node.SplitRatio);
-            int firstHeight = ClampSplitSize(desiredFirstHeight, availableHeight, firstMinSize.Y, secondMinSize.Y);
+            int firstHeight;
+            if (firstCollapsed)
+            {
+                firstHeight = Math.Min(availableHeight, GetCollapsedStripExtent());
+            }
+            else if (secondCollapsed)
+            {
+                firstHeight = Math.Max(0, availableHeight - Math.Min(availableHeight, GetCollapsedStripExtent()));
+            }
+            else
+            {
+                int desiredFirstHeight = (int)Math.Round(availableHeight * node.SplitRatio);
+                firstHeight = ClampSplitSize(desiredFirstHeight, availableHeight, firstMinSize.Y, secondMinSize.Y);
+            }
+
             int secondHeight = Math.Max(0, availableHeight - firstHeight);
 
             UiRect firstBounds = new(bounds.X, bounds.Y, bounds.Width, firstHeight);
@@ -1738,14 +2461,27 @@ public sealed class UiDockWorkspace : UiElement
             node.SecondBounds = secondBounds;
             node.SplitterBounds = splitterBounds;
 
-            LayoutNode(node.First, firstBounds);
-            LayoutNode(node.Second, secondBounds);
+            LayoutNode(node.First, firstBounds, UiDockCollapseEdge.Top);
+            LayoutNode(node.Second, secondBounds, UiDockCollapseEdge.Bottom);
         }
         else
         {
             int availableWidth = Math.Max(0, bounds.Width - splitterThickness);
-            int desiredFirstWidth = (int)Math.Round(availableWidth * node.SplitRatio);
-            int firstWidth = ClampSplitSize(desiredFirstWidth, availableWidth, firstMinSize.X, secondMinSize.X);
+            int firstWidth;
+            if (firstCollapsed)
+            {
+                firstWidth = Math.Min(availableWidth, GetCollapsedStripExtent());
+            }
+            else if (secondCollapsed)
+            {
+                firstWidth = Math.Max(0, availableWidth - Math.Min(availableWidth, GetCollapsedStripExtent()));
+            }
+            else
+            {
+                int desiredFirstWidth = (int)Math.Round(availableWidth * node.SplitRatio);
+                firstWidth = ClampSplitSize(desiredFirstWidth, availableWidth, firstMinSize.X, secondMinSize.X);
+            }
+
             int secondWidth = Math.Max(0, availableWidth - firstWidth);
 
             UiRect firstBounds = new(bounds.X, bounds.Y, firstWidth, bounds.Height);
@@ -1756,16 +2492,38 @@ public sealed class UiDockWorkspace : UiElement
             node.SecondBounds = secondBounds;
             node.SplitterBounds = splitterBounds;
 
-            LayoutNode(node.First, firstBounds);
-            LayoutNode(node.Second, secondBounds);
+            LayoutNode(node.First, firstBounds, UiDockCollapseEdge.Left);
+            LayoutNode(node.Second, secondBounds, UiDockCollapseEdge.Right);
         }
     }
+
+    private static void ConfigureCollapsedNode(DockNode node, UiRect bounds, UiDockCollapseEdge edge)
+    {
+        node.Bounds = bounds;
+        node.CollapseEdge = edge;
+        foreach (UiDockHost host in EnumerateHosts(node))
+        {
+            host.Bounds = default;
+            host.ConfigureCollapsePresentation(
+                collapsed: true,
+                interactionEnabled: false,
+                edge: edge);
+        }
+    }
+
+    private int GetCollapsedStripExtent() => Math.Max(1, CollapsedStripSize);
 
     private UiPoint GetMinimumNodeSize(DockNode? node)
     {
         if (node == null)
         {
             return new UiPoint(0, 0);
+        }
+
+        if (node.IsCollapsed)
+        {
+            int strip = GetCollapsedStripExtent();
+            return new UiPoint(strip, strip);
         }
 
         if (node.Host != null)
@@ -1832,8 +2590,142 @@ public sealed class UiDockWorkspace : UiElement
         return null;
     }
 
+    private DockNode? ResolveCollapseNode(DockNode root, UiDockHost host)
+    {
+        List<DockNode> path = new();
+        if (!TryBuildHostPath(root, host, path))
+        {
+            return null;
+        }
+
+        DockNode candidate = path[^1];
+        if (ReferenceEquals(host, RootHost))
+        {
+            return candidate;
+        }
+
+        for (int index = path.Count - 2; index >= 0; index--)
+        {
+            DockNode ancestor = path[index];
+            if (ContainsHost(ancestor, RootHost))
+            {
+                break;
+            }
+
+            candidate = ancestor;
+        }
+
+        return candidate;
+    }
+
+    private static DockNode? FindCollapsedAncestor(DockNode root, DockNode target)
+    {
+        List<DockNode> path = new();
+        if (!TryBuildNodePath(root, target, path))
+        {
+            return null;
+        }
+
+        for (int index = 0; index < path.Count; index++)
+        {
+            if (path[index].IsCollapsed)
+            {
+                return path[index];
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryBuildHostPath(DockNode node, UiDockHost host, List<DockNode> path)
+    {
+        path.Add(node);
+        if (ReferenceEquals(node.Host, host))
+        {
+            return true;
+        }
+
+        if (node.First != null && TryBuildHostPath(node.First, host, path))
+        {
+            return true;
+        }
+
+        if (node.Second != null && TryBuildHostPath(node.Second, host, path))
+        {
+            return true;
+        }
+
+        path.RemoveAt(path.Count - 1);
+        return false;
+    }
+
+    private static bool TryBuildNodePath(DockNode node, DockNode target, List<DockNode> path)
+    {
+        path.Add(node);
+        if (ReferenceEquals(node, target))
+        {
+            return true;
+        }
+
+        if (node.First != null && TryBuildNodePath(node.First, target, path))
+        {
+            return true;
+        }
+
+        if (node.Second != null && TryBuildNodePath(node.Second, target, path))
+        {
+            return true;
+        }
+
+        path.RemoveAt(path.Count - 1);
+        return false;
+    }
+
+    private bool CanCollapseNode(DockNode node)
+    {
+        foreach (UiDockHost host in EnumerateHosts(node))
+        {
+            if (!host.AllowCollapse || host.IsEmpty)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static IEnumerable<UiDockHost> EnumerateHosts(DockNode node)
+    {
+        if (node.Host != null)
+        {
+            yield return node.Host;
+            yield break;
+        }
+
+        if (node.First != null)
+        {
+            foreach (UiDockHost host in EnumerateHosts(node.First))
+            {
+                yield return host;
+            }
+        }
+
+        if (node.Second != null)
+        {
+            foreach (UiDockHost host in EnumerateHosts(node.Second))
+            {
+                yield return host;
+            }
+        }
+    }
+
     private DockNode? FindSplitterNode(DockNode node, UiPoint point)
     {
+        if (node.IsCollapsed)
+        {
+            return null;
+        }
+
         if (node.Host != null)
         {
             return null;
@@ -1857,7 +2749,9 @@ public sealed class UiDockWorkspace : UiElement
             }
         }
 
-        return node.SplitterBounds.Contains(point) ? node : null;
+        return node.First?.IsCollapsed == true || node.Second?.IsCollapsed == true
+            ? null
+            : node.SplitterBounds.Contains(point) ? node : null;
     }
 
     private DockTarget GetDockTarget(UiDockHost host, UiPoint point, bool inferEdgeTarget)
