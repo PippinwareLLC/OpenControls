@@ -65,6 +65,19 @@ public sealed class UiButton : UiElement
 
     public event Action? Clicked;
 
+    /// <summary>Optional owner-drawn content (icons, badges, price lines)
+    /// rendered inside the element pass right after the button chrome, so
+    /// it layers correctly beneath anything drawn above the button. A
+    /// button with a painter opts out of the render cache: painters
+    /// typically draw through side channels (sprite bridges) that a cached
+    /// quad stream cannot replay.</summary>
+    public Action<IUiRenderer, UiRect>? IconPainter { get; set; }
+
+    public override bool IsRenderCacheVolatile(UiContext context)
+    {
+        return IconPainter is not null || base.IsRenderCacheVolatile(context);
+    }
+
     public override bool IsFocusable => true;
 
     public override void Update(UiUpdateContext context)
@@ -124,6 +137,8 @@ public sealed class UiButton : UiElement
         context.Renderer.PushClip(Bounds);
         context.Renderer.DrawText(drawText, new UiPoint(textX, textY), TextColor, TextScale, font);
         context.Renderer.PopClip();
+
+        IconPainter?.Invoke(context.Renderer, Bounds);
 
         base.Render(context);
     }
