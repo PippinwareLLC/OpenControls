@@ -50,6 +50,29 @@ public sealed class UiDockWorkspace : UiElement
         public UiRect SplitterBounds { get; set; }
     }
 
+    private sealed class ExternalGroupLeaseState
+    {
+        public required UiDockHost SourceHost { get; init; }
+        public required UiWindow[] Windows { get; init; }
+        public required ExternalGroupTabPlacement[] Placements { get; init; }
+        public required UiWindow GroupActiveWindow { get; init; }
+        public required UiWindow SourceActiveWindow { get; init; }
+        public required int HostListIndex { get; init; }
+        public required bool CompleteSourceHost { get; init; }
+        public DockNode? SurvivingSibling { get; init; }
+        public bool SourceWasFirst { get; init; }
+        public bool SplitHorizontal { get; init; }
+        public float SplitRatio { get; init; }
+        public bool WasCollapsed { get; init; }
+        public bool SiblingWasCollapsed { get; init; }
+    }
+
+    private readonly record struct ExternalGroupTabPlacement(
+        UiWindow Window,
+        int OriginalIndex,
+        UiWindow? PreviousStableWindow,
+        UiWindow? NextStableWindow);
+
     private readonly List<UiDockHost> _hosts = new();
     private readonly List<UiWindow> _floatingWindows = new();
     private DockNode _rootNode;
@@ -80,6 +103,8 @@ public sealed class UiDockWorkspace : UiElement
     private bool _suppressHostMutationCallbacks;
     private bool _restoreValidationActive;
     private long _topologyMutationVersion;
+    private readonly Dictionary<long, ExternalGroupLeaseState> _externalGroupLeases = new();
+    private long _externalGroupLeaseId;
 
     public UiColor DragPreviewColor { get; set; } = new(70, 130, 200, 120);
     public UiColor DragPreviewOutline { get; set; } = new(120, 180, 220, 200);
@@ -556,6 +581,356 @@ public sealed class UiDockWorkspace : UiElement
         CollapseEmptyHosts();
     }
 
+    /// <summary>
+    /// Atomically detaches a non-empty tab group from one dock host and returns
+    /// an opaque, single-use lease that can restore the group to the same
+    /// topology and tab positions.
+    /// </summary>
+    /// <remarks>
+    /// All supplied windows must belong to one live dock host. Their source tab
+    /// order, stable neighboring tabs, original indices, and active tab are
+    /// captured from the host. All detach policies are evaluated before the
+    /// first window is removed.
+    /// </remarks>
+    public UiDockExternalGroupLease BeginExternalDockGroup(IReadOnlyList<UiWindow> windows)
+    {
+        ArgumentNullException.ThrowIfNull(windows);
+        ThrowIfRestoreValidationMutation("begin external dock groups");
+
+        UiWindow[] requestedWindows = ValidateExternalGroupMembership(windows, nameof(windows));
+        if (requestedWindows[0].Parent is not UiDockHost sourceHost || !_hosts.Contains(sourceHost))
+        {
+            throw new InvalidOperationException("External dock groups must start in a live workspace dock host.");
+        }
+
+        UiWindow[] sourceWindows = sourceHost.Windows.ToArray();
+        HashSet<UiWindow> requestedWindowSet = new(requestedWindows);
+        if (requestedWindows.Any(window => !ReferenceEquals(window.Parent, sourceHost))
+            || requestedWindows.Any(window => !sourceWindows.Contains(window)))
+        {
+            throw new ArgumentException(
+                "External dock groups must contain windows from exactly one source host.",
+                nameof(windows));
+        }
+
+        UiWindow[] leasedWindows = sourceWindows.Where(requestedWindowSet.Contains).ToArray();
+        UiWindow sourceActiveWindow = sourceHost.ActiveWindow ?? sourceWindows[0];
+        UiWindow groupActiveWindow = requestedWindowSet.Contains(sourceActiveWindow)
+            ? sourceActiveWindow
+            : leasedWindows[0];
+        ExternalGroupTabPlacement[] placements = CaptureExternalGroupTabPlacements(
+            sourceWindows,
+            requestedWindowSet);
+        bool completeSourceHost = leasedWindows.Length == sourceWindows.Length;
+        DockNode sourceNode = FindNode(_rootNode, sourceHost)
+            ?? throw new InvalidOperationException("The external dock group's source host is not in the dock topology.");
+        TryFindDockNodeParent(_rootNode, sourceNode, out DockNode? sourceParent, out bool sourceWasFirst);
+        DockNode? survivingSibling = sourceParent == null
+            ? null
+            : sourceWasFirst ? sourceParent.Second : sourceParent.First;
+
+        int sourceHostIndex = _hosts.IndexOf(sourceHost);
+        long validationVersion = _topologyMutationVersion;
+        _restoreValidationActive = true;
+        try
+        {
+            foreach (UiWindow window in leasedWindows)
+            {
+                if (!EvaluateExternalDetach(sourceHost, window).Allowed)
+                {
+                    throw new InvalidOperationException(
+                        $"Window '{window.Id}' is not eligible for external detachment from host '{sourceHost.Id}'.");
+                }
+            }
+        }
+        finally
+        {
+            _restoreValidationActive = false;
+        }
+
+        if (_topologyMutationVersion != validationVersion
+            || sourceHostIndex < 0
+            || sourceHostIndex >= _hosts.Count
+            || !ReferenceEquals(_hosts[sourceHostIndex], sourceHost)
+            || !WindowSequenceMatches(sourceHost.Windows, sourceWindows)
+            || !ReferenceEquals(sourceHost.ActiveWindow, sourceActiveWindow)
+            || !ReferenceEquals(FindNode(_rootNode, sourceHost), sourceNode))
+        {
+            throw new InvalidOperationException(
+                "Dock group membership or topology changed while detach policy was being validated.");
+        }
+
+        ExternalGroupLeaseState leaseState = new()
+        {
+            SourceHost = sourceHost,
+            Windows = leasedWindows,
+            Placements = placements,
+            GroupActiveWindow = groupActiveWindow,
+            SourceActiveWindow = sourceActiveWindow,
+            HostListIndex = sourceHostIndex,
+            CompleteSourceHost = completeSourceHost,
+            SurvivingSibling = survivingSibling,
+            SourceWasFirst = sourceWasFirst,
+            SplitHorizontal = sourceParent?.SplitHorizontal ?? false,
+            SplitRatio = sourceParent?.SplitRatio ?? 0.5f,
+            WasCollapsed = sourceParent?.IsCollapsed ?? false,
+            SiblingWasCollapsed = survivingSibling?.IsCollapsed ?? false
+        };
+
+        CancelDockInteractionsForTopologyChange();
+        bool previousSuppression = _suppressHostMutationCallbacks;
+        _suppressHostMutationCallbacks = true;
+        try
+        {
+            foreach (UiWindow window in leasedWindows)
+            {
+                if (!RemoveWindowForWorkspaceMutation(sourceHost, window))
+                {
+                    throw new InvalidOperationException(
+                        $"Window '{window.Id}' left its source host during external group detachment.");
+                }
+            }
+
+            CollapseEmptyHosts();
+        }
+        finally
+        {
+            _suppressHostMutationCallbacks = previousSuppression;
+        }
+
+        long leaseId = ++_externalGroupLeaseId;
+        _externalGroupLeases.Add(leaseId, leaseState);
+        return new UiDockExternalGroupLease(this, leaseId);
+    }
+
+    /// <summary>
+    /// Restores an external group in its captured tab order with its captured
+    /// active tab.
+    /// </summary>
+    public bool RestoreExternalDockGroup(UiDockExternalGroupLease lease)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ThrowIfRestoreValidationMutation("restore external dock groups");
+        ExternalGroupLeaseState state = GetExternalDockGroupLeaseState(lease, out long leaseId);
+        return RestoreExternalDockGroupCore(
+            leaseId,
+            state,
+            state.Windows,
+            state.SourceActiveWindow,
+            requireActiveWindowInGroup: false);
+    }
+
+    /// <summary>
+    /// Restores an external group to the exact source topology and selects the
+    /// supplied active tab. Complete-host groups apply the supplied current tab
+    /// order; subsets return to their captured source order and slots.
+    /// </summary>
+    /// <remarks>
+    /// Invalid membership throws before mutation. A docking-policy rejection or
+    /// unavailable structural anchor returns <see langword="false"/> and leaves
+    /// both the workspace and external host unchanged. Successful restoration
+    /// consumes the lease.
+    /// </remarks>
+    public bool RestoreExternalDockGroup(
+        UiDockExternalGroupLease lease,
+        IReadOnlyList<UiWindow> windows,
+        UiWindow? activeWindow = null)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(windows);
+        ThrowIfRestoreValidationMutation("restore external dock groups");
+
+        ExternalGroupLeaseState state = GetExternalDockGroupLeaseState(lease, out long leaseId);
+        UiWindow[] orderedWindows = ValidateExternalGroupMembership(windows, nameof(windows));
+        if (orderedWindows.Length != state.Windows.Length
+            || !new HashSet<UiWindow>(orderedWindows).SetEquals(state.Windows))
+        {
+            throw new ArgumentException(
+                "Restored external dock groups must contain exactly the leased windows.",
+                nameof(windows));
+        }
+
+        UiWindow desiredActiveWindow = activeWindow ?? state.GroupActiveWindow;
+        if (!orderedWindows.Contains(desiredActiveWindow))
+        {
+            throw new ArgumentException("The active window must belong to the leased external group.", nameof(activeWindow));
+        }
+
+        return RestoreExternalDockGroupCore(
+            leaseId,
+            state,
+            orderedWindows,
+            desiredActiveWindow,
+            requireActiveWindowInGroup: true);
+    }
+
+    private bool RestoreExternalDockGroupCore(
+        long leaseId,
+        ExternalGroupLeaseState state,
+        IReadOnlyList<UiWindow> requestedOrder,
+        UiWindow desiredActiveWindow,
+        bool requireActiveWindowInGroup)
+    {
+        UiWindow[] orderedWindows = requestedOrder.ToArray();
+
+        if (orderedWindows.Any(window =>
+                ReferenceEquals(window.Parent, this)
+                || window.Parent is UiDockHost host && _hosts.Contains(host)))
+        {
+            return false;
+        }
+
+        bool sourceHostIsLive = _hosts.Contains(state.SourceHost);
+        DockNode? sourceNode = sourceHostIsLive ? FindNode(_rootNode, state.SourceHost) : null;
+        if (!state.CompleteSourceHost)
+        {
+            if (!sourceHostIsLive
+                || sourceNode == null
+                || state.Windows.Any(window => ReferenceEquals(window.Parent, state.SourceHost)))
+            {
+                return false;
+            }
+        }
+        else if (sourceHostIsLive)
+        {
+            if (sourceNode == null || !state.SourceHost.IsEmpty)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if (state.SurvivingSibling == null
+                || state.SourceHost.Parent != null
+                || !state.SourceHost.IsEmpty
+                || _hosts.Any(host => string.Equals(host.Id, state.SourceHost.Id, StringComparison.Ordinal))
+                || !ContainsDockNodeReference(_rootNode, state.SurvivingSibling))
+            {
+                return false;
+            }
+        }
+
+        if (!requireActiveWindowInGroup
+            && !state.Windows.Contains(desiredActiveWindow)
+            && !ReferenceEquals(desiredActiveWindow.Parent, state.SourceHost))
+        {
+            return false;
+        }
+
+        Dictionary<UiWindow, UiElement?> originalParents = orderedWindows.ToDictionary(window => window, window => window.Parent);
+        Dictionary<UiDockHost, UiWindow[]> externalHostWindows = orderedWindows
+            .Select(window => window.Parent)
+            .OfType<UiDockHost>()
+            .Where(host => !_hosts.Contains(host))
+            .Distinct()
+            .ToDictionary(host => host, host => host.Windows.ToArray());
+        Dictionary<UiDockHost, UiWindow?> externalHostActiveWindows = externalHostWindows.Keys
+            .ToDictionary(host => host, host => host.ActiveWindow);
+        UiWindow[] sourceHostWindows = sourceHostIsLive ? state.SourceHost.Windows.ToArray() : [];
+        UiWindow? sourceHostActiveWindow = sourceHostIsLive ? state.SourceHost.ActiveWindow : null;
+        long validationVersion = _topologyMutationVersion;
+        _restoreValidationActive = true;
+        bool canRestore = true;
+        try
+        {
+            foreach (UiWindow window in orderedWindows)
+            {
+                if (!CanDockWindow(window, state.SourceHost, DockTarget.Center))
+                {
+                    canRestore = false;
+                }
+            }
+        }
+        finally
+        {
+            _restoreValidationActive = false;
+        }
+
+        bool validationStable = _topologyMutationVersion == validationVersion
+            && orderedWindows.All(window => ReferenceEquals(window.Parent, originalParents[window]))
+            && externalHostWindows.All(pair => WindowSequenceMatches(pair.Key.Windows, pair.Value))
+            && externalHostActiveWindows.All(pair => ReferenceEquals(pair.Key.ActiveWindow, pair.Value));
+        if (sourceHostIsLive)
+        {
+            validationStable = validationStable
+                && _hosts.Contains(state.SourceHost)
+                && WindowSequenceMatches(state.SourceHost.Windows, sourceHostWindows)
+                && ReferenceEquals(state.SourceHost.ActiveWindow, sourceHostActiveWindow)
+                && ReferenceEquals(FindNode(_rootNode, state.SourceHost), sourceNode);
+        }
+        else
+        {
+            validationStable = validationStable
+                && !_hosts.Contains(state.SourceHost)
+                && state.SourceHost.Parent == null
+                && state.SourceHost.IsEmpty
+                && state.SurvivingSibling != null
+                && ContainsDockNodeReference(_rootNode, state.SurvivingSibling);
+        }
+
+        if (!validationStable)
+        {
+            throw new InvalidOperationException(
+                "Dock group membership or topology changed while restore policy was being validated.");
+        }
+
+        if (!canRestore)
+        {
+            return false;
+        }
+
+        CancelDockInteractionsForTopologyChange();
+        bool previousSuppression = _suppressHostMutationCallbacks;
+        _suppressHostMutationCallbacks = true;
+        try
+        {
+            if (!sourceHostIsLive)
+            {
+                AttachExistingDockHost(state.SourceHost, state.HostListIndex);
+                DockNode sourceLeaf = new(state.SourceHost);
+                DockNode sibling = state.SurvivingSibling!;
+                sibling.IsCollapsed = state.SiblingWasCollapsed;
+                DockNode wrapper = new(null)
+                {
+                    First = state.SourceWasFirst ? sourceLeaf : sibling,
+                    Second = state.SourceWasFirst ? sibling : sourceLeaf,
+                    SplitHorizontal = state.SplitHorizontal,
+                    SplitRatio = state.SplitRatio,
+                    IsCollapsed = state.WasCollapsed
+                };
+                if (!ReplaceDockNodeReference(sibling, wrapper))
+                {
+                    throw new InvalidOperationException("The external dock group's structural return anchor is no longer live.");
+                }
+
+                _topologyMutationVersion++;
+            }
+
+            if (state.CompleteSourceHost)
+            {
+                foreach (UiWindow window in orderedWindows)
+                {
+                    RemoveWindowFromCurrentParent(window);
+                    PrepareDockedWindow(window, state.SourceHost);
+                    state.SourceHost.DockWindow(window);
+                }
+            }
+            else
+            {
+                RestoreExternalGroupSubset(state);
+            }
+
+            state.SourceHost.ActivateWindow(Array.IndexOf(state.SourceHost.Windows.ToArray(), desiredActiveWindow));
+            _externalGroupLeases.Remove(leaseId);
+            Arrange();
+            return true;
+        }
+        finally
+        {
+            _suppressHostMutationCallbacks = previousSuppression;
+        }
+    }
+
     public void PreviewExternalDock(UiWindow window, UiPoint hoverPoint, UiRect previewWindowBounds)
     {
         ArgumentNullException.ThrowIfNull(window);
@@ -907,6 +1282,196 @@ public sealed class UiDockWorkspace : UiElement
         AddChild(host);
         _topologyMutationVersion++;
         return host;
+    }
+
+    private void AttachExistingDockHost(UiDockHost host, int preferredIndex)
+    {
+        if (_hosts.Contains(host) || host.Parent != null)
+        {
+            throw new InvalidOperationException($"Dock host '{host.Id}' is already attached.");
+        }
+
+        host.TabCloseCompleted += HandleHostTabCloseCompleted;
+        host.WindowsAdding += HandleHostWindowsAdding;
+        host.WindowsMutating += HandleHostWindowsMutating;
+        host.WindowsMutated += HandleHostWindowsMutated;
+        int index = Math.Clamp(preferredIndex, 0, _hosts.Count);
+        _hosts.Insert(index, host);
+        AddChild(host);
+        _topologyMutationVersion++;
+    }
+
+    private static UiWindow[] ValidateExternalGroupMembership(IReadOnlyList<UiWindow> windows, string parameterName)
+    {
+        if (windows.Count == 0)
+        {
+            throw new ArgumentException("External dock groups cannot be empty.", parameterName);
+        }
+
+        UiWindow[] result = new UiWindow[windows.Count];
+        HashSet<UiWindow> uniqueWindows = new();
+        for (int index = 0; index < windows.Count; index++)
+        {
+            UiWindow window = windows[index]
+                ?? throw new ArgumentNullException(parameterName, "External dock groups cannot contain null windows.");
+            if (!uniqueWindows.Add(window))
+            {
+                throw new ArgumentException("External dock groups cannot contain duplicate windows.", parameterName);
+            }
+
+            result[index] = window;
+        }
+
+        return result;
+    }
+
+    private static ExternalGroupTabPlacement[] CaptureExternalGroupTabPlacements(
+        IReadOnlyList<UiWindow> sourceWindows,
+        IReadOnlySet<UiWindow> leasedWindows)
+    {
+        List<ExternalGroupTabPlacement> placements = new(leasedWindows.Count);
+        for (int index = 0; index < sourceWindows.Count; index++)
+        {
+            UiWindow window = sourceWindows[index];
+            if (!leasedWindows.Contains(window))
+            {
+                continue;
+            }
+
+            UiWindow? previousStableWindow = null;
+            for (int previousIndex = index - 1; previousIndex >= 0; previousIndex--)
+            {
+                if (!leasedWindows.Contains(sourceWindows[previousIndex]))
+                {
+                    previousStableWindow = sourceWindows[previousIndex];
+                    break;
+                }
+            }
+
+            UiWindow? nextStableWindow = null;
+            for (int nextIndex = index + 1; nextIndex < sourceWindows.Count; nextIndex++)
+            {
+                if (!leasedWindows.Contains(sourceWindows[nextIndex]))
+                {
+                    nextStableWindow = sourceWindows[nextIndex];
+                    break;
+                }
+            }
+
+            placements.Add(new ExternalGroupTabPlacement(
+                window,
+                index,
+                previousStableWindow,
+                nextStableWindow));
+        }
+
+        return placements.ToArray();
+    }
+
+    private static void RestoreExternalGroupSubset(ExternalGroupLeaseState state)
+    {
+        foreach (UiWindow window in state.Windows)
+        {
+            RemoveWindowFromCurrentParent(window);
+        }
+
+        int runStart = 0;
+        while (runStart < state.Placements.Length)
+        {
+            int runEnd = runStart + 1;
+            while (runEnd < state.Placements.Length
+                && state.Placements[runEnd].OriginalIndex == state.Placements[runEnd - 1].OriginalIndex + 1)
+            {
+                runEnd++;
+            }
+
+            ExternalGroupTabPlacement first = state.Placements[runStart];
+            ExternalGroupTabPlacement last = state.Placements[runEnd - 1];
+            int insertionIndex = ResolveExternalGroupSubsetInsertionIndex(
+                state.SourceHost,
+                first.OriginalIndex,
+                first.PreviousStableWindow,
+                last.NextStableWindow);
+            for (int placementIndex = runStart; placementIndex < runEnd; placementIndex++)
+            {
+                UiWindow window = state.Placements[placementIndex].Window;
+                PrepareDockedWindow(window, state.SourceHost);
+                state.SourceHost.DockWindow(window, insertionIndex++);
+            }
+
+            runStart = runEnd;
+        }
+    }
+
+    private static int ResolveExternalGroupSubsetInsertionIndex(
+        UiDockHost host,
+        int originalIndex,
+        UiWindow? previousStableWindow,
+        UiWindow? nextStableWindow)
+    {
+        UiWindow[] currentWindows = host.Windows.ToArray();
+        int previousIndex = previousStableWindow == null
+            ? -1
+            : Array.IndexOf(currentWindows, previousStableWindow);
+        int nextIndex = nextStableWindow == null
+            ? -1
+            : Array.IndexOf(currentWindows, nextStableWindow);
+
+        if (previousIndex >= 0 && nextIndex >= 0)
+        {
+            if (previousIndex < nextIndex)
+            {
+                return Math.Clamp(originalIndex, previousIndex + 1, nextIndex);
+            }
+
+            return previousIndex + 1;
+        }
+
+        if (previousIndex >= 0)
+        {
+            return previousIndex + 1;
+        }
+
+        if (nextIndex >= 0)
+        {
+            return Math.Clamp(originalIndex, 0, nextIndex);
+        }
+
+        return Math.Clamp(originalIndex, 0, currentWindows.Length);
+    }
+
+    private ExternalGroupLeaseState GetExternalDockGroupLeaseState(
+        UiDockExternalGroupLease lease,
+        out long leaseId)
+    {
+        if (!lease.BelongsTo(this, out leaseId))
+        {
+            throw new ArgumentException("The external dock group lease belongs to a different workspace.", nameof(lease));
+        }
+
+        if (!_externalGroupLeases.TryGetValue(leaseId, out ExternalGroupLeaseState? state))
+        {
+            throw new InvalidOperationException("The external dock group lease is no longer active.");
+        }
+
+        return state;
+    }
+
+    internal bool IsExternalDockGroupLeaseActive(UiDockExternalGroupLease lease, long leaseId)
+    {
+        return lease.BelongsTo(this, out long actualLeaseId)
+            && actualLeaseId == leaseId
+            && _externalGroupLeases.ContainsKey(leaseId);
+    }
+
+    internal void AbandonExternalDockGroup(UiDockExternalGroupLease lease, long leaseId)
+    {
+        if (!lease.BelongsTo(this, out long actualLeaseId) || actualLeaseId != leaseId)
+        {
+            throw new ArgumentException("The external dock group lease belongs to a different workspace.", nameof(lease));
+        }
+
+        _externalGroupLeases.Remove(leaseId);
     }
 
     private UiDockNodeState CaptureNodeState(DockNode node)
@@ -1659,6 +2224,7 @@ public sealed class UiDockWorkspace : UiElement
         destination.TabPadding = source.TabPadding;
         destination.TabIconSpacing = source.TabIconSpacing;
         destination.TabInset = source.TabInset;
+        destination.TabTrailingInset = source.TabTrailingInset;
         destination.TabBottomInset = source.TabBottomInset;
         destination.TabCornerRadius = source.TabCornerRadius;
         destination.TabActiveAccentHeight = source.TabActiveAccentHeight;
@@ -2626,6 +3192,79 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         return null;
+    }
+
+    private static bool TryFindDockNodeParent(
+        DockNode current,
+        DockNode target,
+        out DockNode? parent,
+        out bool targetWasFirst)
+    {
+        if (ReferenceEquals(current.First, target))
+        {
+            parent = current;
+            targetWasFirst = true;
+            return true;
+        }
+
+        if (ReferenceEquals(current.Second, target))
+        {
+            parent = current;
+            targetWasFirst = false;
+            return true;
+        }
+
+        if (current.First != null
+            && TryFindDockNodeParent(current.First, target, out parent, out targetWasFirst))
+        {
+            return true;
+        }
+
+        if (current.Second != null
+            && TryFindDockNodeParent(current.Second, target, out parent, out targetWasFirst))
+        {
+            return true;
+        }
+
+        parent = null;
+        targetWasFirst = false;
+        return false;
+    }
+
+    private static bool ContainsDockNodeReference(DockNode current, DockNode target)
+    {
+        return ReferenceEquals(current, target)
+            || current.First != null && ContainsDockNodeReference(current.First, target)
+            || current.Second != null && ContainsDockNodeReference(current.Second, target);
+    }
+
+    private bool ReplaceDockNodeReference(DockNode target, DockNode replacement)
+    {
+        if (ReferenceEquals(_rootNode, target))
+        {
+            _rootNode = replacement;
+            return true;
+        }
+
+        return ReplaceDockNodeReference(_rootNode, target, replacement);
+    }
+
+    private static bool ReplaceDockNodeReference(DockNode current, DockNode target, DockNode replacement)
+    {
+        if (ReferenceEquals(current.First, target))
+        {
+            current.First = replacement;
+            return true;
+        }
+
+        if (ReferenceEquals(current.Second, target))
+        {
+            current.Second = replacement;
+            return true;
+        }
+
+        return current.First != null && ReplaceDockNodeReference(current.First, target, replacement)
+            || current.Second != null && ReplaceDockNodeReference(current.Second, target, replacement);
     }
 
     private DockNode? ResolveCollapseNode(DockNode root, UiDockHost host)

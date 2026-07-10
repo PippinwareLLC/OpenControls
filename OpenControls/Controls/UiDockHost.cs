@@ -97,6 +97,8 @@ public sealed class UiDockHost : UiElement
     public int TabPadding { get; set; } = 6;
     public int TabIconSpacing { get; set; } = 4;
     public int TabInset { get; set; } = 0;
+    /// <summary>Space reserved at the trailing edge of the tab strip for host chrome.</summary>
+    public int TabTrailingInset { get; set; }
     public int TabBottomInset { get; set; } = 0;
     public int TabCornerRadius { get; set; } = 0;
     public int TabActiveAccentHeight { get; set; } = 0;
@@ -905,13 +907,16 @@ public sealed class UiDockHost : UiElement
         int collapseWidth = _collapseInteractionEnabled && ShowCollapseButton
             ? Math.Min(Math.Max(0, CollapseButtonWidth), panelBounds.Width)
             : 0;
+        int trailingInset = Math.Min(
+            Math.Max(0, TabTrailingInset),
+            Math.Max(0, panelBounds.Width - collapseWidth));
         _collapseToggleBounds = collapseWidth > 0
             ? new UiRect(panelBounds.Right - collapseWidth, panelBounds.Y, collapseWidth, tabHeight)
             : default;
         UiRect tabLayoutBounds = new(
             panelBounds.X,
             panelBounds.Y,
-            Math.Max(0, panelBounds.Width - collapseWidth),
+            Math.Max(0, panelBounds.Width - collapseWidth - trailingInset),
             tabHeight);
         if (_isCollapsed)
         {

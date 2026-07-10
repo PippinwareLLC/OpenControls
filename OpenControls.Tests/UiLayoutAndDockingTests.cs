@@ -690,6 +690,181 @@ public sealed class UiLayoutAndDockingTests
     }
 
     [Fact]
+    public void DockWorkspace_ExternalGroupLease_RestoresSoleCustomHostAroundMutatedSiblingSubtree()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 640, 400)
+        };
+        workspace.RootHost.AllowDetach = true;
+        UiWindow document = new() { Id = "document", Title = "Document" };
+        workspace.RootHost.DockWindow(document);
+
+        UiDockHost paletteHost = workspace.SplitHost(
+            workspace.RootHost,
+            UiDockWorkspace.DockTarget.Right,
+            0.68f);
+        UiWindow layers = new() { Id = "layers", Title = "Layers" };
+        UiWindow history = new() { Id = "history", Title = "History" };
+        paletteHost.DockWindow(layers);
+        paletteHost.DockWindow(history);
+        paletteHost.ActivateWindow(1);
+        string paletteHostId = paletteHost.Id;
+
+        UiDockExternalGroupLease lease = workspace.BeginExternalDockGroup([layers, history]);
+
+        Assert.True(lease.IsActive);
+        Assert.DoesNotContain(paletteHost, workspace.DockHosts);
+        Assert.Null(layers.Parent);
+        Assert.Null(history.Parent);
+
+        UiDockHost externalHost = new();
+        externalHost.DockWindow(layers);
+        externalHost.DockWindow(history);
+
+        UiWindow properties = new() { Id = "properties", Title = "Properties" };
+        workspace.RootHost.DockWindow(properties);
+        workspace.RootHost.MoveWindow(properties, 0);
+        UiDockHost timelineHost = workspace.SplitHost(
+            workspace.RootHost,
+            UiDockWorkspace.DockTarget.Bottom,
+            0.62f);
+        UiWindow timeline = new() { Id = "timeline", Title = "Timeline" };
+        workspace.DockWindow(timeline, timelineHost);
+
+        bool restored = workspace.RestoreExternalDockGroup(lease, [history, layers], history);
+
+        Assert.True(restored);
+        Assert.False(lease.IsActive);
+        Assert.Contains(paletteHost, workspace.DockHosts);
+        Assert.Equal([history, layers], paletteHost.Windows);
+        Assert.Same(history, paletteHost.ActiveWindow);
+        Assert.Empty(externalHost.Windows);
+        Assert.Equal([properties, document], workspace.RootHost.Windows);
+        Assert.Equal([timeline], timelineHost.Windows);
+
+        UiDockWorkspaceState state = workspace.CaptureState();
+        Assert.NotNull(state.Root);
+        Assert.False(state.Root!.SplitHorizontal);
+        Assert.Equal(0.68f, state.Root.SplitRatio);
+        Assert.NotNull(state.Root.First);
+        Assert.True(state.Root.First!.SplitHorizontal);
+        Assert.Equal(0.62f, state.Root.First.SplitRatio);
+        Assert.Equal(paletteHostId, state.Root.Second?.HostId);
+    }
+
+    [Fact]
+    public void DockWorkspace_ExternalGroupLease_PolicyFailureDoesNotMutateWorkspaceOrExternalHost()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 640, 400)
+        };
+        workspace.RootHost.AllowDetach = true;
+        UiWindow document = new() { Id = "document", Title = "Document" };
+        workspace.RootHost.DockWindow(document);
+
+        UiDockHost paletteHost = workspace.SplitHost(
+            workspace.RootHost,
+            UiDockWorkspace.DockTarget.Right,
+            0.7f);
+        UiWindow layers = new() { Id = "layers", Title = "Layers" };
+        UiWindow history = new() { Id = "history", Title = "History" };
+        paletteHost.DockWindow(layers);
+        paletteHost.DockWindow(history);
+        UiDockExternalGroupLease lease = workspace.BeginExternalDockGroup([layers, history]);
+
+        UiDockHost externalHost = new();
+        externalHost.DockWindow(layers);
+        externalHost.DockWindow(history);
+        UiWindow properties = new() { Id = "properties", Title = "Properties" };
+        workspace.RootHost.DockWindow(properties);
+        UiDockHost timelineHost = workspace.SplitHost(
+            workspace.RootHost,
+            UiDockWorkspace.DockTarget.Bottom,
+            0.58f);
+        UiWindow timeline = new() { Id = "timeline", Title = "Timeline" };
+        workspace.DockWindow(timeline, timelineHost);
+        UiDockHost[] hostsBefore = workspace.DockHosts.ToArray();
+
+        workspace.CanDockWindowPredicate = (window, host, target) =>
+            !ReferenceEquals(window, history)
+            && ReferenceEquals(host, paletteHost)
+            && target == UiDockWorkspace.DockTarget.Center;
+
+        bool restored = workspace.RestoreExternalDockGroup(lease, [history, layers], layers);
+
+        Assert.False(restored);
+        Assert.True(lease.IsActive);
+        Assert.Equal(hostsBefore, workspace.DockHosts);
+        Assert.DoesNotContain(paletteHost, workspace.DockHosts);
+        Assert.Equal([layers, history], externalHost.Windows);
+        Assert.Same(externalHost, layers.Parent);
+        Assert.Same(externalHost, history.Parent);
+        Assert.Equal([document, properties], workspace.RootHost.Windows);
+        Assert.Equal([timeline], timelineHost.Windows);
+
+        UiDockWorkspaceState failedState = workspace.CaptureState();
+        Assert.NotNull(failedState.Root);
+        Assert.True(failedState.Root!.SplitHorizontal);
+        Assert.Equal(0.58f, failedState.Root.SplitRatio);
+
+        workspace.CanDockWindowPredicate = null;
+        Assert.True(workspace.RestoreExternalDockGroup(lease, [history, layers], layers));
+        Assert.Equal([history, layers], paletteHost.Windows);
+        Assert.Same(layers, paletteHost.ActiveWindow);
+    }
+
+    [Fact]
+    public void DockWorkspace_ExternalGroupLease_RestoresSubsetSlotsAfterSurvivingTabAddAndReorder()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 640, 400)
+        };
+        workspace.RootHost.AllowDetach = true;
+        workspace.RootHost.DockWindow(new UiWindow { Id = "document", Title = "Document" });
+
+        UiDockHost paletteHost = workspace.SplitHost(
+            workspace.RootHost,
+            UiDockWorkspace.DockTarget.Right,
+            0.7f);
+        UiWindow navigator = new() { Id = "navigator", Title = "Navigator" };
+        UiWindow layers = new() { Id = "layers", Title = "Layers" };
+        UiWindow info = new() { Id = "info", Title = "Info" };
+        UiWindow history = new() { Id = "history", Title = "History" };
+        UiWindow color = new() { Id = "color", Title = "Color" };
+        paletteHost.DockWindow(navigator);
+        paletteHost.DockWindow(layers);
+        paletteHost.DockWindow(info);
+        paletteHost.DockWindow(history);
+        paletteHost.DockWindow(color);
+        paletteHost.ActivateWindow(2);
+
+        UiDockExternalGroupLease lease = workspace.BeginExternalDockGroup([history, layers]);
+
+        Assert.True(lease.IsActive);
+        Assert.Contains(paletteHost, workspace.DockHosts);
+        Assert.Equal([navigator, info, color], paletteHost.Windows);
+
+        UiDockHost externalHost = new();
+        externalHost.DockWindow(history);
+        externalHost.DockWindow(layers);
+        UiWindow properties = new() { Id = "properties", Title = "Properties" };
+        paletteHost.DockWindow(properties);
+        paletteHost.MoveWindow(properties, 0);
+        Assert.Equal([properties, navigator, info, color], paletteHost.Windows);
+
+        bool restored = workspace.RestoreExternalDockGroup(lease);
+
+        Assert.True(restored);
+        Assert.False(lease.IsActive);
+        Assert.Empty(externalHost.Windows);
+        Assert.Equal([properties, navigator, layers, info, history, color], paletteHost.Windows);
+        Assert.Same(info, paletteHost.ActiveWindow);
+    }
+
+    [Fact]
     public void DockWorkspace_SplitHost_InheritsExternalDetachBehavior()
     {
         UiDockWorkspace workspace = new()

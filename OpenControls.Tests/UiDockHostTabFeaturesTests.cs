@@ -301,6 +301,26 @@ public sealed class UiDockHostTabFeaturesTests
     }
 
     [Fact]
+    public void DockHost_TrailingTabInsetReservesHostChromeWithoutShrinkingContent()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160),
+            TabBarHeight = 24,
+            TabWidth = 120,
+            TabTrailingInset = 24
+        };
+        UiWindow window = new() { Title = "Layers" };
+        host.AddWindow(window);
+
+        Update(host, new UiInputState());
+
+        Assert.True(host.IsPointInEmptyTabBarSpace(new UiPoint(200, 12)));
+        Assert.False(host.IsPointInEmptyTabBarSpace(new UiPoint(308, 12)));
+        Assert.Equal(new UiRect(0, 24, 320, 136), window.Bounds);
+    }
+
+    [Fact]
     public void DockHost_EmptyTabBarSpaceQueryRejectsOverflowAndCollapseControls()
     {
         UiDockHost overflowing = new()

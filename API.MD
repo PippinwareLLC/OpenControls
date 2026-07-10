@@ -130,8 +130,10 @@ This is a brief overview of the current OpenControls surface area.
 ## Dock Host Events
 - `UiDockHost.TabDetached`: raised when a tab is dragged outside the host bounds.
 - `UiDockHost.TabClosed`: raised when a tab close button is clicked and the window is removed.
+- `UiDockHost.TabTrailingInset`: reserves trailing tab-strip space for native-host chrome without reducing the docked content area.
 - `UiDockWorkspace.PreviewExternalDock(...)` / `CommitExternalDock(...)` / `ClearExternalDockPreview(...)`: let an external host surface the normal workspace drop-preview and docking targets before committing a re-dock. External previews now keep a ghosted preview rect until the pointer lands on an explicit dock target instead of silently defaulting to `Center`.
 - `UiDockWorkspace.CommitExternalDockGroup(...)`: commits an ordered external palette group as one tab host. The group must be non-empty, contain no null or duplicate windows, and contain both the preview window and any explicit active window. Invalid membership throws before the current preview is cleared or workspace state is mutated.
+- `UiDockWorkspace.BeginExternalDockGroup(...)` / `RestoreExternalDockGroup(...)`: detaches any non-empty subset of one host under an opaque `UiDockExternalGroupLease`, then returns that group to its exact source host and tab slots. Partial-host leases retain stable previous/next tab anchors, original indices, captured order, and active state while preserving additions and reorders among tabs that stayed behind. A complete-host lease also retains the collapsed split wrapper and restores it around the surviving sibling subtree, so mutations made there while the palette was native remain intact. Membership and docking policy are validated before mutation; policy rejection leaves both hosts untouched. Call `UiDockExternalGroupLease.Abandon()` after committing the group somewhere other than its captured source.
 
 ## Layout Notes
 - Use `UiStack` for retained row/column layout instead of manually spacing siblings when the arrangement is stable.
