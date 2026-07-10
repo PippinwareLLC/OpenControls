@@ -282,6 +282,67 @@ public sealed class UiDockHostTabFeaturesTests
     }
 
     [Fact]
+    public void DockHost_EmptyTabBarSpaceQueryAcceptsOnlyUnusedTabBackground()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160),
+            TabBarHeight = 24,
+            TabWidth = 120
+        };
+        host.AddWindow(new UiWindow { Title = "Layers" });
+
+        UiRect tab = host.GetTabBounds(0);
+
+        Assert.False(host.IsPointInEmptyTabBarSpace(new UiPoint(tab.X + 20, tab.Y + 12)));
+        Assert.True(host.IsPointInEmptyTabBarSpace(new UiPoint(200, 12)));
+        Assert.False(host.IsPointInEmptyTabBarSpace(new UiPoint(200, 40)));
+        Assert.False(host.IsPointInEmptyTabBarSpace(new UiPoint(321, 12)));
+    }
+
+    [Fact]
+    public void DockHost_EmptyTabBarSpaceQueryRejectsOverflowAndCollapseControls()
+    {
+        UiDockHost overflowing = new()
+        {
+            Bounds = new UiRect(0, 0, 180, 120),
+            TabBarHeight = 24,
+            TabWidth = 120,
+            ScrollButtonWidth = 18,
+            OverflowButtonWidth = 18,
+            ShowOverflowMenuButton = true
+        };
+        overflowing.AddWindow(new UiWindow { Title = "Layers" });
+        overflowing.AddWindow(new UiWindow { Title = "Channels" });
+        overflowing.AddWindow(new UiWindow { Title = "Paths" });
+
+        Assert.NotEmpty(overflowing.GetOverflowWindowIndices());
+        Assert.False(overflowing.IsPointInEmptyTabBarSpace(new UiPoint(153, 12)));
+        Assert.False(overflowing.IsPointInEmptyTabBarSpace(new UiPoint(171, 12)));
+
+        overflowing.ActivateWindow(2);
+        Assert.False(overflowing.IsPointInEmptyTabBarSpace(new UiPoint(9, 12)));
+
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 600, 300)
+        };
+        UiDockHost paletteHost = workspace.SplitHost(
+            workspace.RootHost,
+            UiDockWorkspace.DockTarget.Right,
+            0.30f);
+        workspace.RootHost.DockWindow(new UiWindow { Title = "Document" });
+        paletteHost.DockWindow(new UiWindow { Title = "Color" });
+        workspace.Arrange();
+        UiRect collapse = paletteHost.CollapseToggleBounds;
+
+        Assert.True(collapse.Width > 0);
+        Assert.False(paletteHost.IsPointInEmptyTabBarSpace(new UiPoint(
+            collapse.X + collapse.Width / 2,
+            collapse.Y + collapse.Height / 2)));
+    }
+
+    [Fact]
     public void DockHost_DraggingTabOutsideBoundsDetachesImmediatelyUsingScreenCoordinates()
     {
         UiDockHost host = new()

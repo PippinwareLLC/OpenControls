@@ -633,6 +633,63 @@ public sealed class UiLayoutAndDockingTests
     }
 
     [Fact]
+    public void DockWorkspace_CommitExternalDockGroup_RejectsInvalidMembershipBeforeClearingPreview()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        UiWindow resident = new() { Id = "resident", Title = "Resident" };
+        UiWindow first = new() { Id = "external-a", Title = "External A" };
+        UiWindow preview = new() { Id = "external-b", Title = "External B" };
+        UiWindow outsider = new() { Id = "outsider", Title = "Outsider" };
+        workspace.RootHost.DockWindow(resident);
+        Update(workspace, new UiInputState());
+
+        UiRect hostBounds = workspace.RootHost.Bounds;
+        UiPoint centerPoint = new(
+            hostBounds.X + hostBounds.Width / 2,
+            hostBounds.Y + hostBounds.Height / 2);
+        workspace.PreviewExternalDock(preview, centerPoint, preview.Bounds);
+        int policyCalls = 0;
+        workspace.CanDockWindowPredicate = (_, _, _) =>
+        {
+            policyCalls++;
+            return true;
+        };
+
+        Assert.Throws<ArgumentException>(() => workspace.CommitExternalDockGroup([], preview));
+        AssertPreviewPreserved();
+        Assert.Throws<ArgumentNullException>(() =>
+            workspace.CommitExternalDockGroup(new UiWindow[] { first, null! }, preview));
+        AssertPreviewPreserved();
+        Assert.Throws<ArgumentException>(() =>
+            workspace.CommitExternalDockGroup([first, first], preview));
+        AssertPreviewPreserved();
+        Assert.Throws<ArgumentException>(() =>
+            workspace.CommitExternalDockGroup([first], preview));
+        AssertPreviewPreserved();
+        Assert.Throws<ArgumentException>(() =>
+            workspace.CommitExternalDockGroup([first, preview], preview, outsider));
+        AssertPreviewPreserved();
+
+        Assert.Equal(0, policyCalls);
+        Assert.Equal([resident], workspace.RootHost.Windows);
+        Assert.Null(first.Parent);
+        Assert.Null(preview.Parent);
+        Assert.Null(outsider.Parent);
+
+        Assert.True(workspace.CommitExternalDockGroup([first, preview], preview, first));
+        Assert.Equal([resident, first, preview], workspace.RootHost.Windows);
+        Assert.Same(first, workspace.RootHost.ActiveWindow);
+
+        void AssertPreviewPreserved()
+        {
+            UiDockWorkspace.ExternalDockDebugState state = workspace.GetExternalDockDebugState();
+            Assert.True(state.ExternalPreviewActive);
+            Assert.Equal(preview.Id, state.ExternalPreviewWindowId);
+            Assert.Equal(UiDockWorkspace.DockTarget.Center, state.HoverTarget);
+        }
+    }
+
+    [Fact]
     public void DockWorkspace_SplitHost_InheritsExternalDetachBehavior()
     {
         UiDockWorkspace workspace = new()

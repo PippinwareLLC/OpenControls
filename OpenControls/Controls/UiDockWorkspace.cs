@@ -596,17 +596,9 @@ public sealed class UiDockWorkspace : UiElement
         ArgumentNullException.ThrowIfNull(previewWindow);
         ThrowIfRestoreValidationMutation("commit external docking");
 
-        if (windows.Count == 0 || !ReferenceEquals(_externalPreviewWindow, previewWindow))
+        if (windows.Count == 0)
         {
-            return false;
-        }
-
-        UiDockHost? hoverHost = _hoverHost;
-        DockTarget hoverTarget = _hoverTarget;
-        ClearExternalDockPreview(previewWindow);
-        if (hoverHost == null || hoverTarget == DockTarget.None)
-        {
-            return false;
+            throw new ArgumentException("External dock groups cannot be empty.", nameof(windows));
         }
 
         UiWindow[] groupWindows = new UiWindow[windows.Count];
@@ -621,6 +613,34 @@ public sealed class UiDockWorkspace : UiElement
             }
 
             groupWindows[index] = window;
+        }
+
+        if (!uniqueWindows.Contains(previewWindow))
+        {
+            throw new ArgumentException("The preview window must belong to the external dock group.", nameof(previewWindow));
+        }
+
+        if (activeWindow != null && !uniqueWindows.Contains(activeWindow))
+        {
+            throw new ArgumentException("The active window must belong to the external dock group.", nameof(activeWindow));
+        }
+
+        if (!ReferenceEquals(_externalPreviewWindow, previewWindow))
+        {
+            return false;
+        }
+
+        UiDockHost? hoverHost = _hoverHost;
+        DockTarget hoverTarget = _hoverTarget;
+        ClearExternalDockPreview(previewWindow);
+        if (hoverHost == null || hoverTarget == DockTarget.None)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < groupWindows.Length; index++)
+        {
+            UiWindow window = groupWindows[index];
             if (!CanDockWindow(window, hoverHost, hoverTarget) || !_hosts.Contains(hoverHost))
             {
                 return false;

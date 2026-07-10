@@ -260,6 +260,8 @@ public sealed class UiContext
 
     public void Update(UiInputState input, float deltaSeconds = 0f)
     {
+        RepairFocusedElement();
+
         UiInputState effectiveInput = input;
         if (input.Navigation.Tab && !IsTabHandled())
         {
@@ -267,15 +269,11 @@ public sealed class UiContext
             effectiveInput = ConsumeTabInput(input);
         }
 
-        if (Focus.Focused != null && (!Focus.Focused.Visible || !Focus.Focused.Enabled))
-        {
-            Focus.ClearFocus();
-        }
-
         UiElement? activeInputLayer = UiUpdateContext.ResolveActiveInputLayer(Root) ?? _activeInputLayer;
         DragDrop.BeginFrame(effectiveInput);
         Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont, Clipboard, activeInputLayer));
         DragDrop.EndFrame();
+        RepairFocusedElement();
         RefreshOutputs(effectiveInput);
     }
 
@@ -1057,6 +1055,7 @@ public sealed class UiContext
         PointerCaptureTarget = _mouseCaptureTarget ?? hoveredCaptureTarget;
         ApplyPendingFocusRequest();
         ApplyDefaultFocusForActiveLayer(previousActiveInputLayer);
+        RepairFocusedElement();
 
         bool blockingOverlayOpen = _activeInputLayer != null;
         WantTextInput = Focus.Focused?.WantsTextInput == true;
@@ -1190,6 +1189,16 @@ public sealed class UiContext
         }
 
         return false;
+    }
+
+    private void RepairFocusedElement()
+    {
+        UiElement? focused = Focus.Focused;
+        if (focused != null
+            && (!IsEligibleFocusTarget(focused) || !IsElementOrAncestor(Root, focused)))
+        {
+            Focus.ClearFocus();
+        }
     }
 
     private static UiElement? FindActiveInputLayer(UiElement element)

@@ -131,6 +131,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiDockHost.TabDetached`: raised when a tab is dragged outside the host bounds.
 - `UiDockHost.TabClosed`: raised when a tab close button is clicked and the window is removed.
 - `UiDockWorkspace.PreviewExternalDock(...)` / `CommitExternalDock(...)` / `ClearExternalDockPreview(...)`: let an external host surface the normal workspace drop-preview and docking targets before committing a re-dock. External previews now keep a ghosted preview rect until the pointer lands on an explicit dock target instead of silently defaulting to `Center`.
+- `UiDockWorkspace.CommitExternalDockGroup(...)`: commits an ordered external palette group as one tab host. The group must be non-empty, contain no null or duplicate windows, and contain both the preview window and any explicit active window. Invalid membership throws before the current preview is cleared or workspace state is mutated.
 
 ## Layout Notes
 - Use `UiStack` for retained row/column layout instead of manually spacing siblings when the arrangement is stable.
@@ -145,6 +146,7 @@ This is a brief overview of the current OpenControls surface area.
 - Dock hosts show scroll arrows when tabs exceed the available width; use `ScrollStep` and `ScrollButtonWidth` to tune behavior.
 - `UiDockHost.ShowOverflowMenuButton` adds a trailing overflow button that lists hidden tabs.
 - `UiDockHost.ShowTabContextMenu` enables right-click dock-tab commands for `Close`, `Close Others`, `Close Tabs To The Right`, and `Close All`.
+- `UiDockHost.IsPointInEmptyTabBarSpace(...)` identifies unused tab-strip background for native whole-palette dragging. It returns false over tabs, scroll/overflow/collapse controls, content, hidden/disabled/collapsed hosts, and while a transient tab menu is open.
 
 ## Dock Workspace Notes
 - `UiDockWorkspace.ResetLayout`: clears dock hosts and floating windows back to a single root host.

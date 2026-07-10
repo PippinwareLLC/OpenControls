@@ -358,6 +358,34 @@ public sealed class UiDockHost : UiElement
             && point.Y < panelBounds.Y + GetEffectiveTabBarHeight(panelBounds);
     }
 
+    public bool IsPointInEmptyTabBarSpace(UiPoint point)
+    {
+        UpdateTabLayout();
+        if (!Visible
+            || !Enabled
+            || !IsPointInTabBar(point)
+            || _overflowMenuOpen
+            || _contextMenuOpen
+            || _collapseToggleBounds.Contains(point)
+            || _scrollLeftBounds.Contains(point)
+            || _scrollRightBounds.Contains(point)
+            || _overflowButtonBounds.Contains(point)
+            || !_tabAreaBounds.Contains(point))
+        {
+            return false;
+        }
+
+        for (int index = 0; index < _tabRects.Count; index++)
+        {
+            if (_tabRects[index].Contains(point))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public UiRect GetTabBounds(int index)
     {
         UpdateTabLayout();
