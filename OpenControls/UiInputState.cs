@@ -33,6 +33,19 @@ public sealed class UiInputState
     /// </summary>
     public float PinchZoom { get; init; } = 1f;
 
+    /// <summary>
+    /// Continuous two-finger trackpad scroll this frame, in points (0 = none).
+    /// Hosts with precise scroll devices (macOS trackpads) set these alongside
+    /// the quantized ScrollDelta steps; consumers that treat trackpad scroll
+    /// as a PAN gesture read these, everything else keeps the quantized steps.
+    /// Signs follow the system's natural-scrolling preference: the deltas
+    /// describe how far the CONTENT should move with the fingers.
+    /// </summary>
+    public float PrecisePanX { get; init; }
+
+    /// <inheritdoc cref="PrecisePanX"/>
+    public float PrecisePanY { get; init; }
+
     public IReadOnlyList<char> TextInput { get; init; } = Array.Empty<char>();
     public UiTextCompositionState Composition { get; init; }
     public IReadOnlyList<UiKey> KeysDown { get; init; } = Array.Empty<UiKey>();

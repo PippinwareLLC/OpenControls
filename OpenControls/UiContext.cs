@@ -977,6 +977,9 @@ public sealed class UiContext
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            PinchZoom = input.PinchZoom,
+            PrecisePanX = input.PrecisePanX,
+            PrecisePanY = input.PrecisePanY,
             TextInput = textInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,
@@ -1711,6 +1714,9 @@ public sealed class UiContext
         hash.Add(input.SuperDown);
         hash.Add(input.ScrollDeltaX);
         hash.Add(input.ScrollDelta);
+        hash.Add(input.PinchZoom);
+        hash.Add(input.PrecisePanX);
+        hash.Add(input.PrecisePanY);
         hash.Add(input.Composition.Text);
         hash.Add(input.Composition.CaretIndex);
 
