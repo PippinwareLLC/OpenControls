@@ -170,6 +170,7 @@ This is a brief overview of the current OpenControls surface area.
 - `MenuItem.Activated` and `UiMenuBar.ItemActivated` report a `UiMenuItemActivation` containing both the activation source and the modifiers held on that activation frame. Programmatic command invocation reports `UiModifierKeys.None`.
 - `UiMenuBar.MeasureTextWidth/MeasureTextHeight`: set these when you need accurate sizing for a custom renderer.
 - Set `UiMenuBar.EnableShortcutDispatch = true` when the menu should parse and dispatch `MenuItem.Shortcut` text instead of rendering it as a label only.
+- `UiMenuBar.TryDispatchShortcut(UiInputState, UiFocusManager)` routes a shortcut frame received by an external/native UI context through the menu's normal enabled-item, text-focus, modifier-metadata, and open-menu close behavior.
 - Set `UiMenuBar.DisplayMode` to `Popup` and call `OpenPopup`/`ClosePopup`/`TogglePopup` for context-style menus anchored to `Bounds`.
 - `MenuItem.Content` can host custom controls (tables, sliders, panels); use `ContentWidth`/`ContentHeight` and `ContentPadding` to size the row, and `ContentClip`/`ContentCapturesInput` to control input behavior.
 - Menu dropdowns clamp to the nearest scroll panel viewport when present, otherwise to ancestor bounds in local coordinates.

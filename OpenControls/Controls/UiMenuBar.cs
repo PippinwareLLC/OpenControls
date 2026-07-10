@@ -580,6 +580,26 @@ public sealed class UiMenuBar : UiElement
         return true;
     }
 
+    /// <summary>
+    /// Dispatches one menu shortcut from host-supplied input and focus state.
+    /// This is useful when a menu owned by the primary UI context must route
+    /// shortcuts received by an external or native window context.
+    /// </summary>
+    /// <param name="input">The external context's current input frame.</param>
+    /// <param name="focus">The external context's focus manager.</param>
+    /// <returns><see langword="true"/> when an enabled menu item was activated.</returns>
+    public bool TryDispatchShortcut(UiInputState input, UiFocusManager focus)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(focus);
+        if (!Visible || !Enabled)
+        {
+            return false;
+        }
+
+        return TryDispatchShortcutCore(input, focus);
+    }
+
     public override void Update(UiUpdateContext context)
     {
         if (!Visible || !Enabled)
@@ -1951,31 +1971,34 @@ public sealed class UiMenuBar : UiElement
         }
     }
 
-    private bool TryDispatchShortcut(UiUpdateContext context)
+    private bool TryDispatchShortcut(UiUpdateContext context) =>
+        TryDispatchShortcutCore(context.Input, context.Focus);
+
+    private bool TryDispatchShortcutCore(UiInputState input, UiFocusManager focus)
     {
         if (!EnableShortcutDispatch)
         {
             return false;
         }
 
-        if (DisplayMode == UiMenuDisplayMode.Popup && !_popupOpen && context.Focus.Focused != this)
+        if (DisplayMode == UiMenuDisplayMode.Popup && !_popupOpen && focus.Focused != this)
         {
             return false;
         }
 
-        if (!TryFindShortcutItem(Items, context.Input, context.Focus.Focused, out MenuItem? item) || item == null)
+        if (!TryFindShortcutItem(Items, input, focus.Focused, out MenuItem? item) || item == null)
         {
             return false;
         }
 
-        ActivateItem(item, new UiMenuItemActivation(UiMenuItemActivationSource.Shortcut, context.Input.Modifiers));
+        ActivateItem(item, new UiMenuItemActivation(UiMenuItemActivationSource.Shortcut, input.Modifiers));
         if (DisplayMode == UiMenuDisplayMode.Popup && _popupOpen && ClosePopupOnItemClick)
         {
-            ClosePopup(context.Focus);
+            ClosePopup(focus);
         }
         else if (DisplayMode != UiMenuDisplayMode.Popup && HasOpenMenu)
         {
-            CloseMenu(context.Focus);
+            CloseMenu(focus);
         }
 
         return true;
