@@ -6,6 +6,8 @@ public class UiPopup : UiElement
 {
     private bool _suppressOutsideClick;
     private bool _suppressPointerInputOnOpen;
+    private bool _dragging;
+    private UiPoint _dragOffset;
     private UiElement? _pendingFocusTarget;
     private Action? _beforeDeferredFocus;
 
@@ -18,11 +20,18 @@ public class UiPopup : UiElement
     public UiColor Border { get; set; } = new UiColor(70, 80, 100);
     public int BorderThickness { get; set; } = 1;
     public int CornerRadius { get; set; }
+    public UiColor ShadowColor { get; set; } = UiColor.Transparent;
+    public UiPoint ShadowOffset { get; set; }
+    public int ShadowBlur { get; set; }
+    public bool AllowDrag { get; set; }
+    public int DragRegionHeight { get; set; }
+    public bool ClampDragToParent { get; set; } = true;
     public bool ClampToParent { get; set; } = true;
     public bool CloseOnOutsideClick { get; set; } = true;
     public bool CloseOnEscape { get; set; } = true;
 
     public bool IsOpen { get; private set; }
+    public bool IsDragging => _dragging;
     public override bool CapturesPointerInput => IsOpen;
 
     public event Action? Opened;
@@ -74,6 +83,7 @@ public class UiPopup : UiElement
         }
 
         IsOpen = false;
+        _dragging = false;
         Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Layout | UiInvalidationReason.Clip);
         Closed?.Invoke();
     }
@@ -107,9 +117,14 @@ public class UiPopup : UiElement
             context.Focus.RequestFocus(focusTarget);
         }
 
+        // A popup can contain a deeper popup (for example a combo box inside a
+        // modal). Only the deepest active layer may consume Escape or outside
+        // clicks; otherwise the ancestor closes first and can orphan its child.
+        UiInputState selfInput = context.GetSelfInput(this);
         UiInputState input = _suppressPointerInputOnOpen
-            ? SuppressPointerInput(context.Input)
-            : context.Input;
+            ? SuppressPointerInput(selfInput)
+            : selfInput;
+        UpdateDragging(input);
         if (CloseOnEscape && input.Navigation.Escape)
         {
             Close();
@@ -139,6 +154,46 @@ public class UiPopup : UiElement
 
         base.Update(childContext);
         _suppressPointerInputOnOpen = false;
+    }
+
+    private void UpdateDragging(UiInputState input)
+    {
+        if (!AllowDrag || DragRegionHeight <= 0)
+        {
+            _dragging = false;
+            return;
+        }
+
+        int dragHeight = Math.Min(Math.Max(1, DragRegionHeight), Math.Max(1, Bounds.Height));
+        UiRect dragRegion = new(Bounds.X, Bounds.Y, Bounds.Width, dragHeight);
+        if (!_dragging && input.LeftClicked && dragRegion.Contains(input.MousePosition))
+        {
+            _dragging = true;
+            _dragOffset = new UiPoint(
+                input.MousePosition.X - Bounds.X,
+                input.MousePosition.Y - Bounds.Y);
+        }
+
+        if (_dragging && (input.LeftDown || input.LeftReleased))
+        {
+            int x = input.MousePosition.X - _dragOffset.X;
+            int y = input.MousePosition.Y - _dragOffset.Y;
+            if (ClampDragToParent && Parent != null)
+            {
+                UiRect parent = Parent.Bounds;
+                int maxX = parent.Right - Bounds.Width;
+                int maxY = parent.Bottom - Bounds.Height;
+                x = maxX < parent.X ? parent.X : Math.Clamp(x, parent.X, maxX);
+                y = maxY < parent.Y ? parent.Y : Math.Clamp(y, parent.Y, maxY);
+            }
+
+            Bounds = new UiRect(x, y, Bounds.Width, Bounds.Height);
+        }
+
+        if (_dragging && input.LeftReleased)
+        {
+            _dragging = false;
+        }
     }
 
     public override UiElement? HitTest(UiPoint point)
@@ -178,6 +233,8 @@ public class UiPopup : UiElement
             return;
         }
 
+        RenderShadow(context.Renderer);
+
         if (Background.A > 0)
         {
             UiRenderHelpers.FillRectRounded(context.Renderer, Bounds, CornerRadius, Background);
@@ -191,7 +248,6 @@ public class UiPopup : UiElement
         foreach (UiElement child in Children)
         {
             context.RenderChild(child);
-            context.RenderChildOverlay(child);
         }
 
         if (ClipChildren)
@@ -207,6 +263,39 @@ public class UiPopup : UiElement
         if (Border.A > 0 && BorderThickness > 0)
         {
             UiRenderHelpers.DrawRectRounded(context.Renderer, Bounds, CornerRadius, Border, BorderThickness);
+        }
+
+        // Child overlays are independent surfaces and may legitimately extend
+        // past popup content bounds. A combo dropdown inside a compact modal is
+        // the canonical case, and it must remain above the parent border.
+        foreach (UiElement child in Children)
+        {
+            context.RenderChildOverlay(child);
+        }
+    }
+
+    private void RenderShadow(IUiRenderer renderer)
+    {
+        int blur = Math.Max(0, ShadowBlur);
+        if (ShadowColor.A == 0 || blur == 0)
+        {
+            return;
+        }
+
+        byte layerAlpha = (byte)Math.Max(1, ShadowColor.A / blur);
+        UiColor layerColor = new(ShadowColor.R, ShadowColor.G, ShadowColor.B, layerAlpha);
+        for (int spread = blur; spread >= 1; spread--)
+        {
+            UiRect shadowBounds = new(
+                Bounds.X + ShadowOffset.X - spread,
+                Bounds.Y + ShadowOffset.Y - spread,
+                Bounds.Width + spread * 2,
+                Bounds.Height + spread * 2);
+            UiRenderHelpers.FillRectRounded(
+                renderer,
+                shadowBounds,
+                Math.Max(0, CornerRadius + spread),
+                layerColor);
         }
     }
 

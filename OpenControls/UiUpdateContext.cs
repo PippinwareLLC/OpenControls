@@ -75,6 +75,13 @@ public readonly struct UiUpdateContext
             return null;
         }
 
+        // Closed popups are inactive subtrees. Descendant overlays must never
+        // outlive a closed ancestor as the global input layer.
+        if (element is UiPopup { IsOpen: false })
+        {
+            return null;
+        }
+
         if (element is UiModalHost { BlockInputWhenModalOpen: true } modalHost)
         {
             UiModal? activeModal = modalHost.ActiveModal;

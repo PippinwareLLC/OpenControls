@@ -35,6 +35,7 @@ public sealed class UiMenuBar : UiElement
         public List<MenuItem> Items { get; } = new();
         public Action<MenuItem>? Clicked { get; set; }
         public Action<MenuItem, UiMenuItemActivationSource>? Invoked { get; set; }
+        public Action<MenuItem, UiMenuItemActivation>? Activated { get; set; }
 
         public bool HasChildren => Items.Count > 0;
         public bool HasContent => Content != null;
@@ -400,6 +401,7 @@ public sealed class UiMenuBar : UiElement
     public override bool CapturesPointerInput => DisplayMode != UiMenuDisplayMode.Popup || _popupOpen;
 
     public event Action<MenuItem, UiMenuItemActivationSource>? ItemInvoked;
+    public event Action<MenuItem, UiMenuItemActivation>? ItemActivated;
 
     public IReadOnlyList<UiRect> GetDebugOpenLayoutBounds()
     {
@@ -574,7 +576,7 @@ public sealed class UiMenuBar : UiElement
             return false;
         }
 
-        ActivateItem(item, UiMenuItemActivationSource.Programmatic);
+        ActivateItem(item, new UiMenuItemActivation(UiMenuItemActivationSource.Programmatic, UiModifierKeys.None));
         return true;
     }
 
@@ -616,12 +618,12 @@ public sealed class UiMenuBar : UiElement
         {
             if (_hoveredTopIndex >= 0)
             {
-                HandleTopClick(_hoveredTopIndex, context.Focus);
+                HandleTopClick(_hoveredTopIndex, context.Focus, input.Modifiers);
                 layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
             }
             else if (menuOpen)
             {
-                HandleMenuClick(mouse, context.Focus);
+                HandleMenuClick(mouse, context.Focus, input.Modifiers);
                 layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
             }
         }
@@ -885,7 +887,7 @@ public sealed class UiMenuBar : UiElement
 
         if (input.LeftClicked)
         {
-            HandlePopupClick(mouse, context.Focus);
+            HandlePopupClick(mouse, context.Focus, input.Modifiers);
             BuildPopupLayouts();
         }
 
@@ -1248,7 +1250,7 @@ public sealed class UiMenuBar : UiElement
         return false;
     }
 
-    private void HandleTopClick(int index, UiFocusManager focus)
+    private void HandleTopClick(int index, UiFocusManager focus, UiModifierKeys modifiers)
     {
         if (index < 0 || index >= Items.Count)
         {
@@ -1275,11 +1277,11 @@ public sealed class UiMenuBar : UiElement
             return;
         }
 
-        ActivateItem(item, UiMenuItemActivationSource.Mouse);
+        ActivateItem(item, new UiMenuItemActivation(UiMenuItemActivationSource.Mouse, modifiers));
         CloseMenu(focus);
     }
 
-    private void HandleMenuClick(UiPoint point, UiFocusManager focus)
+    private void HandleMenuClick(UiPoint point, UiFocusManager focus, UiModifierKeys modifiers)
     {
         if (TryGetMenuItemAt(point, out int level, out int index))
         {
@@ -1303,7 +1305,7 @@ public sealed class UiMenuBar : UiElement
                 return;
             }
 
-            ActivateItem(item, UiMenuItemActivationSource.Mouse);
+            ActivateItem(item, new UiMenuItemActivation(UiMenuItemActivationSource.Mouse, modifiers));
             CloseMenu(focus);
             return;
         }
@@ -1314,7 +1316,7 @@ public sealed class UiMenuBar : UiElement
         }
     }
 
-    private void HandlePopupClick(UiPoint point, UiFocusManager focus)
+    private void HandlePopupClick(UiPoint point, UiFocusManager focus, UiModifierKeys modifiers)
     {
         if (!TryGetMenuItemAt(point, out int level, out int index))
         {
@@ -1346,7 +1348,7 @@ public sealed class UiMenuBar : UiElement
             return;
         }
 
-        ActivateItem(item, UiMenuItemActivationSource.Mouse);
+        ActivateItem(item, new UiMenuItemActivation(UiMenuItemActivationSource.Mouse, modifiers));
         if (ClosePopupOnItemClick)
         {
             ClosePopup(focus);
@@ -1439,7 +1441,7 @@ public sealed class UiMenuBar : UiElement
         RestoreFocus(focus);
     }
 
-    private void ActivateItem(MenuItem item, UiMenuItemActivationSource source)
+    private void ActivateItem(MenuItem item, UiMenuItemActivation activation)
     {
         if (!item.Enabled)
         {
@@ -1452,8 +1454,10 @@ public sealed class UiMenuBar : UiElement
         }
 
         item.Clicked?.Invoke(item);
-        item.Invoked?.Invoke(item, source);
-        ItemInvoked?.Invoke(item, source);
+        item.Invoked?.Invoke(item, activation.Source);
+        item.Activated?.Invoke(item, activation);
+        ItemInvoked?.Invoke(item, activation.Source);
+        ItemActivated?.Invoke(item, activation);
     }
 
     private void UpdateHoveredMenuItem(UiPoint point)
@@ -1656,7 +1660,7 @@ public sealed class UiMenuBar : UiElement
 
         if (input.Navigation.Enter || input.Navigation.KeypadEnter || input.Navigation.Space)
         {
-            ActivateSelection(context.Focus);
+            ActivateSelection(context.Focus, input.Modifiers);
         }
     }
 
@@ -1740,7 +1744,7 @@ public sealed class UiMenuBar : UiElement
         }
     }
 
-    private void ActivateSelection(UiFocusManager focus)
+    private void ActivateSelection(UiFocusManager focus, UiModifierKeys modifiers)
     {
         if (_openLayouts.Count == 0)
         {
@@ -1768,7 +1772,7 @@ public sealed class UiMenuBar : UiElement
             return;
         }
 
-        ActivateItem(item, UiMenuItemActivationSource.Keyboard);
+        ActivateItem(item, new UiMenuItemActivation(UiMenuItemActivationSource.Keyboard, modifiers));
         if (DisplayMode == UiMenuDisplayMode.Popup)
         {
             if (ClosePopupOnItemClick)
@@ -1964,7 +1968,7 @@ public sealed class UiMenuBar : UiElement
             return false;
         }
 
-        ActivateItem(item, UiMenuItemActivationSource.Shortcut);
+        ActivateItem(item, new UiMenuItemActivation(UiMenuItemActivationSource.Shortcut, context.Input.Modifiers));
         if (DisplayMode == UiMenuDisplayMode.Popup && _popupOpen && ClosePopupOnItemClick)
         {
             ClosePopup(context.Focus);

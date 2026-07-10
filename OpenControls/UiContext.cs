@@ -888,6 +888,48 @@ public sealed class UiContext
         return true;
     }
 
+    internal static bool IsEligibleFocusTarget(UiElement element)
+    {
+        ArgumentNullException.ThrowIfNull(element);
+        if (!element.IsFocusable)
+        {
+            return false;
+        }
+
+        UiElement? current = element;
+        while (current != null)
+        {
+            if (!current.Visible || !current.Enabled)
+            {
+                return false;
+            }
+
+            if (current is UiPopup { IsOpen: false }
+                || current is UiTabItem { IsActive: false })
+            {
+                return false;
+            }
+
+            if (!ReferenceEquals(current, element)
+                && (current is UiTreeNode { IsOpen: false }
+                    || current is UiCollapsingHeader { IsOpen: false }))
+            {
+                return false;
+            }
+
+            if (current is UiWindow window
+                && window.Parent is UiDockHost dockHost
+                && !ReferenceEquals(dockHost.ActiveWindow, window))
+            {
+                return false;
+            }
+
+            current = current.Parent;
+        }
+
+        return true;
+    }
+
     private static UiModal? FindActiveModal(UiModalHost host)
     {
         for (int i = host.Children.Count - 1; i >= 0; i--)

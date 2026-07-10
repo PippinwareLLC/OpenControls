@@ -167,6 +167,7 @@ This is a brief overview of the current OpenControls surface area.
 - `UiMenuBar.MenuItem`: data objects describing menu entries, separators, shortcuts, command IDs, and submenus.
 - `MenuItem.CommandId` and `UiMenuBar.TryInvokeCommand(...)` let callers route the same menu item from mouse, keyboard shortcut, or programmatic command paths.
 - `MenuItem.Invoked` and `UiMenuBar.ItemInvoked` report the activation source through `UiMenuItemActivationSource`.
+- `MenuItem.Activated` and `UiMenuBar.ItemActivated` report a `UiMenuItemActivation` containing both the activation source and the modifiers held on that activation frame. Programmatic command invocation reports `UiModifierKeys.None`.
 - `UiMenuBar.MeasureTextWidth/MeasureTextHeight`: set these when you need accurate sizing for a custom renderer.
 - Set `UiMenuBar.EnableShortcutDispatch = true` when the menu should parse and dispatch `MenuItem.Shortcut` text instead of rendering it as a label only.
 - Set `UiMenuBar.DisplayMode` to `Popup` and call `OpenPopup`/`ClosePopup`/`TogglePopup` for context-style menus anchored to `Bounds`.
@@ -177,9 +178,13 @@ This is a brief overview of the current OpenControls surface area.
 - `UiContextMenuRegion.Target` lets a popup or popup-mode menu follow a separate control without needing a manual overlay wrapper element in the layout tree.
 - `UiTooltipRegion.HoverTarget` and `FocusTarget` support delayed hover tooltips plus keyboard-focus tooltips for the same target control.
 - `UiTooltipRegion` is hit-test transparent, so it can sit beside interactive controls without stealing pointer input.
+- `UiPopup.ShadowColor`, `ShadowOffset`, and `ShadowBlur` add an optional layered drop shadow; defaults remain transparent/off.
+- `UiPopup.AllowDrag` plus `DragRegionHeight` enables title-region dragging; `ClampDragToParent` keeps the popup on-screen and `IsDragging` reports the active gesture.
+- Nested popup overlays render outside their parent popup's content clip, and Escape is consumed by the deepest active popup first.
 
 ## Modal Notes
 - `UiModalHost.ActiveModal` returns the topmost open modal when one is blocking input.
+- `UiModalHost` captures focus before the first blocking modal opens, prevents covered modal or background children from retaining focus, and safely restores the prior focus target after the final modal closes.
 
 ## Drag Notes
 - `UiDragFloat`/`UiDragInt`: drag horizontally to adjust values; set `Speed`, `Min`, `Max`, and `Flags` for clamping behavior.
