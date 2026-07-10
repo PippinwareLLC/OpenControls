@@ -65,6 +65,7 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
     public event Action<string>? TextChanged;
     public event Action? Submitted;
     public event Action? Cancelled;
+    public event Action? FocusLost;
     public event Action<UiTextField>? CompletionRequested;
     public event Action<UiTextField, int>? HistoryRequested;
 
@@ -214,6 +215,7 @@ public sealed class UiTextField : UiElement, IUiStatefulElement
         _editingState.ClearSelection();
         _editingState.EndSession();
         Invalidate(UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Volatility);
+        FocusLost?.Invoke();
     }
 
     protected internal override bool TryGetMouseCursor(UiInputState input, bool focused, out UiMouseCursor cursor)
