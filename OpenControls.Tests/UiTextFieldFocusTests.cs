@@ -62,4 +62,36 @@ public sealed class UiTextFieldFocusTests
         Assert.Equal(["cancelled", "focus-lost"], events);
         Assert.Null(context.Focus.Focused);
     }
+
+    [Fact]
+    public void FocusLostCanRedirectFocusWithoutReenteringTheTransition()
+    {
+        UiPanel root = new();
+        UiTextField field = new()
+        {
+            Bounds = new UiRect(10, 10, 160, 28),
+            Text = "Layer 1"
+        };
+        UiButton destination = new()
+        {
+            Bounds = new UiRect(10, 50, 80, 28),
+            Text = "Done"
+        };
+        root.AddChild(field);
+        root.AddChild(destination);
+
+        UiContext context = new(root);
+        int focusLostCount = 0;
+        field.FocusLost += () =>
+        {
+            focusLostCount++;
+            context.Focus.ClearFocus();
+        };
+
+        context.Focus.RequestFocus(field);
+        context.Focus.RequestFocus(destination);
+
+        Assert.Equal(1, focusLostCount);
+        Assert.Null(context.Focus.Focused);
+    }
 }
