@@ -511,6 +511,17 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         FlushPending(FlushReason.Default);
     }
 
+    /// <summary>
+    /// Flushes queued UI geometry and releases renderer-owned OpenGL bindings before a host
+    /// issues direct GL commands. Call this at the interop boundary so the renderer never
+    /// mistakes externally changed texture/program/VAO state for its cached state.
+    /// </summary>
+    public void FlushPendingForExternalGlCommands()
+    {
+        FlushPending(FlushReason.Default);
+        ResetRenderState();
+    }
+
     public void FlushPending(FlushReason reason)
     {
         if (_batchedTextureId == 0 || _batchedQuadCount <= 0)
