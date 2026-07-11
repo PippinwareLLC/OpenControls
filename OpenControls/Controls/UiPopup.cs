@@ -32,6 +32,10 @@ public class UiPopup : UiElement
 
     public bool IsOpen { get; private set; }
     public bool IsDragging => _dragging;
+    internal bool HasTransientInputState => IsOpen
+        || _dragging
+        || _pendingFocusTarget != null
+        || _beforeDeferredFocus != null;
     public override bool CapturesPointerInput => IsOpen;
 
     public event Action? Opened;
@@ -45,7 +49,7 @@ public class UiPopup : UiElement
 
     public void Open()
     {
-        if (IsOpen)
+        if (IsOpen || UiTransientInputSuppression.IsSuppressed(this))
         {
             return;
         }
@@ -86,6 +90,51 @@ public class UiPopup : UiElement
         _dragging = false;
         Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Layout | UiInvalidationReason.Clip);
         Closed?.Invoke();
+    }
+
+    internal void DismissForAncestorSuppression()
+    {
+        bool wasOpen = IsOpen;
+        IsOpen = false;
+        _pendingFocusTarget = null;
+        _beforeDeferredFocus = null;
+        _suppressOutsideClick = false;
+        _suppressPointerInputOnOpen = false;
+        _dragging = false;
+        if (wasOpen)
+        {
+            Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Layout | UiInvalidationReason.Clip);
+            Delegate[] closedHandlers = Closed?.GetInvocationList() ?? [];
+            foreach (Delegate closedHandler in closedHandlers)
+            {
+                try
+                {
+                    ((Action)closedHandler)();
+                }
+                catch
+                {
+                    // Ancestor suppression is cleanup. One consumer must not
+                    // prevent the remaining input layers from being dismissed.
+                }
+            }
+        }
+
+        ForceDismissForAncestorSuppression();
+    }
+
+    internal void ForceDismissForAncestorSuppression()
+    {
+        bool changed = IsOpen || HasTransientInputState;
+        IsOpen = false;
+        _pendingFocusTarget = null;
+        _beforeDeferredFocus = null;
+        _suppressOutsideClick = false;
+        _suppressPointerInputOnOpen = false;
+        _dragging = false;
+        if (changed)
+        {
+            Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Layout | UiInvalidationReason.Clip);
+        }
     }
 
     public void Toggle()

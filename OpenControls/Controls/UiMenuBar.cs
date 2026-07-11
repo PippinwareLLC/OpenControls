@@ -491,7 +491,7 @@ public sealed class UiMenuBar : UiElement
 
     public void OpenPopup()
     {
-        if (_popupOpen)
+        if (_popupOpen || UiTransientInputSuppression.IsSuppressed(this))
         {
             return;
         }
@@ -518,6 +518,22 @@ public sealed class UiMenuBar : UiElement
     public void ClosePopup()
     {
         ClosePopup(null);
+    }
+
+    internal void DismissForAncestorSuppression()
+    {
+        bool wasOpen = HasOpenMenu;
+        _popupOpen = false;
+        _suppressOutsideClick = false;
+        _openPath.Clear();
+        _openLayouts.Clear();
+        ClearSelection();
+        _focusBeforeOpen = null;
+        _restoreFocusOnClose = false;
+        if (wasOpen)
+        {
+            Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.State | UiInvalidationReason.Paint | UiInvalidationReason.Layout | UiInvalidationReason.Clip);
+        }
     }
 
     public void TogglePopup()

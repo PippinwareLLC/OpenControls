@@ -262,14 +262,24 @@ public sealed class UiContext
     {
         RepairFocusedElement();
 
-        UiInputState effectiveInput = input;
-        if (input.Navigation.Tab && !IsTabHandled())
+        if (ConsumeDockWorkspaceDragDropCancellationRequests(Root))
         {
-            MoveFocus(input.ShiftDown);
+            DragDrop.Cancel();
+        }
+
+        UiElement? resolvedActiveInputLayer = UiUpdateContext.ResolveActiveInputLayer(Root);
+        UiInputState effectiveInput = input;
+        if (input.Navigation.Tab && !IsTabHandled(resolvedActiveInputLayer))
+        {
+            MoveFocus(input.ShiftDown, resolvedActiveInputLayer ?? Root);
             effectiveInput = ConsumeTabInput(input);
         }
 
-        UiElement? activeInputLayer = UiUpdateContext.ResolveActiveInputLayer(Root) ?? _activeInputLayer;
+        // Route this frame against the live tree only. The cached layer is an
+        // output snapshot from the previous frame and may have been closed by a
+        // host between updates; reusing it would block the first input frame after
+        // popup or native-peer dismissal.
+        UiElement? activeInputLayer = resolvedActiveInputLayer;
         DragDrop.BeginFrame(effectiveInput);
         Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont, Clipboard, activeInputLayer));
         DragDrop.EndFrame();
@@ -627,14 +637,15 @@ public sealed class UiContext
         return target != null;
     }
 
-    private bool IsTabHandled()
+    private bool IsTabHandled(UiElement? activeInputLayer)
     {
         if (Focus.Focused is not { Visible: true, Enabled: true } focused)
         {
             return false;
         }
 
-        return focused.HandlesTabInput;
+        return (activeInputLayer == null || IsElementOrAncestor(activeInputLayer, focused))
+            && focused.HandlesTabInput;
     }
 
     public void Render(IUiRenderer renderer)
@@ -797,10 +808,10 @@ public sealed class UiContext
         }
     }
 
-    private void MoveFocus(bool reverse)
+    private void MoveFocus(bool reverse, UiElement scope)
     {
         List<UiElement> focusables = new();
-        CollectFocusable(Root, focusables);
+        CollectFocusable(scope, focusables);
 
         if (focusables.Count == 0)
         {
@@ -826,6 +837,18 @@ public sealed class UiContext
         }
 
         Focus.RequestFocus(focusables[nextIndex]);
+    }
+
+    private static bool ConsumeDockWorkspaceDragDropCancellationRequests(UiElement element)
+    {
+        bool requested = element is UiDockWorkspace workspace
+            && workspace.ConsumeDragDropCancellationRequest();
+        foreach (UiElement child in element.Children)
+        {
+            requested |= ConsumeDockWorkspaceDragDropCancellationRequests(child);
+        }
+
+        return requested;
     }
 
     private static void CollectFocusable(UiElement element, List<UiElement> focusables)

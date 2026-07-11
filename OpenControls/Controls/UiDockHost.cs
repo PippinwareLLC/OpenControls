@@ -2,6 +2,12 @@ namespace OpenControls.Controls;
 
 public sealed class UiDockHost : UiElement
 {
+    internal readonly record struct PresentationStateSnapshot(
+        bool AuthoredVisible,
+        UiWindow? ActiveWindow,
+        int ActiveIndex,
+        bool KeepActiveTabVisible);
+
     private sealed class TabMetricsEntry
     {
         public string Title { get; set; } = string.Empty;
@@ -73,6 +79,8 @@ public sealed class UiDockHost : UiElement
     private bool _collapseInteractionEnabled;
     private bool _isCollapsed;
     private UiDockCollapseEdge _collapseEdge = UiDockCollapseEdge.Right;
+    private bool _presentationSuppressed;
+    private bool _visibleBeforePresentationSuppression = true;
 
     public UiColor Background { get; set; } = new(20, 24, 34);
     public UiColor Border { get; set; } = new(90, 100, 120);
@@ -134,6 +142,7 @@ public sealed class UiDockHost : UiElement
     internal event Action<UiDockHost>? WindowsMutating;
     internal event Action<UiDockHost>? WindowsMutated;
     internal bool IsClosingWindow { get; private set; }
+    internal bool IsPresentationSuppressed => _presentationSuppressed;
 
     public IReadOnlyList<UiWindow> Windows => _windows;
     public UiWindow? ActiveWindow => _activeIndex >= 0 && _activeIndex < _windows.Count ? _windows[_activeIndex] : null;
@@ -170,6 +179,70 @@ public sealed class UiDockHost : UiElement
         ResetTabInteraction();
         SetWindowVisibility();
         Invalidate(UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    internal void ConfigurePresentationSuppression(bool suppressed)
+    {
+        PresentationStateSnapshot authoredState = CapturePresentationState();
+
+        if (suppressed)
+        {
+            _presentationSuppressed = true;
+            Visible = false;
+            CloseTransientMenus();
+            ResetTabInteraction();
+            UiWindow[] windows = _windows.ToArray();
+            foreach (UiWindow window in windows)
+            {
+                if (ReferenceEquals(window.Parent, this) && _windows.Contains(window))
+                {
+                    window.CancelTransientInteractions();
+                }
+            }
+        }
+
+        EnforcePresentationState(authoredState, suppressed);
+    }
+
+    internal PresentationStateSnapshot CapturePresentationState()
+    {
+        bool authoredVisible = _presentationSuppressed
+            ? _visibleBeforePresentationSuppression
+            : Visible;
+        return new PresentationStateSnapshot(
+            authoredVisible,
+            ActiveWindow,
+            _activeIndex,
+            _keepActiveTabVisible);
+    }
+
+    internal void EnforcePresentationState(
+        PresentationStateSnapshot authoredState,
+        bool suppressed)
+    {
+        int restoredActiveIndex = authoredState.ActiveWindow == null
+            ? authoredState.ActiveIndex
+            : _windows.IndexOf(authoredState.ActiveWindow);
+        restoredActiveIndex = _windows.Count == 0
+            ? -1
+            : Math.Clamp(restoredActiveIndex, 0, _windows.Count - 1);
+        bool effectiveVisible = !suppressed && authoredState.AuthoredVisible;
+        bool changed = _presentationSuppressed != suppressed
+            || _visibleBeforePresentationSuppression != authoredState.AuthoredVisible
+            || Visible != effectiveVisible
+            || _activeIndex != restoredActiveIndex
+            || _keepActiveTabVisible != authoredState.KeepActiveTabVisible;
+
+        _presentationSuppressed = suppressed;
+        _visibleBeforePresentationSuppression = authoredState.AuthoredVisible;
+        Visible = effectiveVisible;
+        _activeIndex = restoredActiveIndex;
+        _keepActiveTabVisible = authoredState.KeepActiveTabVisible;
+        SetWindowVisibility();
+        if (changed)
+        {
+            Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+        }
     }
 
     public void AddWindow(UiWindow window)
@@ -300,12 +373,12 @@ public sealed class UiDockHost : UiElement
 
     internal void ArrangeDockedWindows()
     {
-        if (_isCollapsed)
+        ArrangeDockedWindowBounds();
+        if (_isCollapsed || _presentationSuppressed)
         {
             return;
         }
 
-        UpdateDockedLayout();
         UiWindow[] windows = _windows.ToArray();
         foreach (UiWindow window in windows)
         {
@@ -314,6 +387,16 @@ public sealed class UiDockHost : UiElement
                 window.ArrangeContent();
             }
         }
+    }
+
+    internal void ArrangeDockedWindowBounds()
+    {
+        if (_isCollapsed || _presentationSuppressed)
+        {
+            return;
+        }
+
+        UpdateDockedLayout();
     }
 
     public int GetTabIndexAt(UiPoint point)
@@ -1612,7 +1695,7 @@ public sealed class UiDockHost : UiElement
     {
         for (int i = 0; i < _windows.Count; i++)
         {
-            _windows[i].Visible = !_isCollapsed && i == _activeIndex;
+            _windows[i].Visible = !_presentationSuppressed && !_isCollapsed && i == _activeIndex;
         }
     }
 

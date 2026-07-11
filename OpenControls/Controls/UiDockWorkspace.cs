@@ -44,6 +44,7 @@ public sealed class UiDockWorkspace : UiElement
         public float SplitRatio { get; set; } = 0.5f;
         public bool IsCollapsed { get; set; }
         public UiDockCollapseEdge CollapseEdge { get; set; } = UiDockCollapseEdge.Right;
+        public bool HasCollapseEdge { get; set; }
         public UiRect Bounds { get; set; }
         public UiRect FirstBounds { get; set; }
         public UiRect SecondBounds { get; set; }
@@ -77,6 +78,11 @@ public sealed class UiDockWorkspace : UiElement
 
     private readonly List<UiDockHost> _hosts = new();
     private readonly List<UiWindow> _floatingWindows = new();
+    private readonly HashSet<UiWindow> _presentationSuppressedWindows = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<UiWindow, bool> _presentationSuppressedOriginalVisibility = new(ReferenceEqualityComparer.Instance);
+    private long _presentationSuppressionTopologyVersion;
+    private bool _dragDropCancellationRequested;
+    private UiDragDropContext? _activeUpdateDragDrop;
     private DockNode _rootNode;
     private int _hostIdCounter;
 
@@ -138,6 +144,7 @@ public sealed class UiDockWorkspace : UiElement
     public UiDockHost RootHost { get; }
     public IReadOnlyList<UiDockHost> DockHosts => _hosts;
     public IReadOnlyList<UiWindow> FloatingWindows => _floatingWindows;
+    public IReadOnlyList<UiWindow> PresentationSuppressedWindows => _presentationSuppressedWindows.ToArray();
     public override bool CapturesPointerInput => _hoverSplitNode != null || _dragSplitNode != null;
 
     public UiDockWorkspace()
@@ -146,6 +153,134 @@ public sealed class UiDockWorkspace : UiElement
         RootHost.AllowCollapse = false;
         AssignHostId(RootHost);
         _rootNode = new DockNode(RootHost);
+        _presentationSuppressionTopologyVersion = _topologyMutationVersion;
+    }
+
+    /// <summary>
+    /// Replaces the set of windows omitted from this workspace's presentation.
+    /// Suppression is transient: it does not alter dock topology, active tabs,
+    /// collapse state, split ratios, floating bounds, or captured workspace state.
+    /// The collection is validated and applied as one atomic batch.
+    /// </summary>
+    /// <remarks>
+    /// Dock hosts are an atomic presentation unit. A batch must contain either
+    /// every window in a dock host or none of them; partial-host batches are
+    /// rejected before any presentation changes. This preserves the authored
+    /// active tab without maintaining a second, ambiguous tab order. A later dock
+    /// mutation that creates a partial suppressed host safely reveals that host on
+    /// the next arrange pass; callers can then submit a new intentional batch.
+    /// Floating windows may be selected independently. Descendant transient input
+    /// layers are dismissed immediately; focus and drag/drop ownership belong to
+    /// <see cref="UiContext"/> and are repaired or canceled on its next update.
+    /// </remarks>
+    public void SetPresentationSuppressedWindows(IEnumerable<UiWindow> windows)
+    {
+        ThrowIfRestoreValidationMutation("change workspace presentation suppression");
+        ArgumentNullException.ThrowIfNull(windows);
+
+        HashSet<UiWindow> requested = new(ReferenceEqualityComparer.Instance);
+        foreach (UiWindow window in windows)
+        {
+            if (window == null)
+            {
+                throw new ArgumentException("Presentation suppression cannot contain a null window.", nameof(windows));
+            }
+
+            if (!ContainsWorkspaceWindow(window))
+            {
+                throw new ArgumentException(
+                    $"Window '{window.Id}' is not part of this workspace.",
+                    nameof(windows));
+            }
+
+            requested.Add(window);
+        }
+
+        foreach (UiDockHost host in _hosts)
+        {
+            int suppressedCount = 0;
+            foreach (UiWindow window in host.Windows)
+            {
+                if (requested.Contains(window))
+                {
+                    suppressedCount++;
+                }
+            }
+
+            if (suppressedCount > 0 && suppressedCount != host.Windows.Count)
+            {
+                throw new ArgumentException(
+                    $"Dock host '{host.Id}' must be presentation-suppressed as a complete tab group.",
+                    nameof(windows));
+            }
+        }
+
+        if (IsPresentationSuppressionSynchronized(requested))
+        {
+            return;
+        }
+
+        ApplyPresentationSuppression(
+            requested,
+            cancelInteractions: !_presentationSuppressedWindows.SetEquals(requested),
+            layoutTree: true);
+    }
+
+    /// <summary>
+    /// Atomically adds windows to, or removes windows from, the current transient
+    /// presentation-suppression batch.
+    /// </summary>
+    /// <remarks>
+    /// The resulting batch must obey the complete-dock-host constraint documented
+    /// by <see cref="SetPresentationSuppressedWindows"/>.
+    /// </remarks>
+    public void SetWindowsPresentationSuppressed(IEnumerable<UiWindow> windows, bool suppressed)
+    {
+        ThrowIfRestoreValidationMutation("change workspace presentation suppression");
+        ArgumentNullException.ThrowIfNull(windows);
+
+        UiWindow[] requested = windows.ToArray();
+        foreach (UiWindow window in requested)
+        {
+            if (window == null)
+            {
+                throw new ArgumentException("Presentation suppression cannot contain a null window.", nameof(windows));
+            }
+
+            if (!ContainsWorkspaceWindow(window))
+            {
+                throw new ArgumentException(
+                    $"Window '{window.Id}' is not part of this workspace.",
+                    nameof(windows));
+            }
+        }
+
+        HashSet<UiWindow> replacement = new(
+            _presentationSuppressedWindows.Where(ContainsWorkspaceWindow),
+            ReferenceEqualityComparer.Instance);
+        if (suppressed)
+        {
+            replacement.UnionWith(requested);
+        }
+        else
+        {
+            replacement.ExceptWith(requested);
+        }
+
+        SetPresentationSuppressedWindows(replacement);
+    }
+
+    /// <summary>Returns whether a window is in the current transient suppression batch.</summary>
+    public bool IsWindowPresentationSuppressed(UiWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        return _presentationSuppressedWindows.Contains(window);
+    }
+
+    /// <summary>Clears the current transient presentation-suppression batch.</summary>
+    public void ClearWindowsPresentationSuppression()
+    {
+        SetPresentationSuppressedWindows(Array.Empty<UiWindow>());
     }
 
     public bool IsCollapseRegionCollapsed(UiDockHost memberHost)
@@ -1159,6 +1294,7 @@ public sealed class UiDockWorkspace : UiElement
     /// </summary>
     public void Arrange()
     {
+        SynchronizePresentationSuppressionForCurrentTopology();
         LayoutNode(_rootNode, Bounds, UiDockCollapseEdge.Right);
         UiDockHost[] hosts = _hosts.ToArray();
         foreach (UiDockHost host in hosts)
@@ -1173,7 +1309,8 @@ public sealed class UiDockWorkspace : UiElement
         UiWindow[] floatingWindows = _floatingWindows.ToArray();
         foreach (UiWindow window in floatingWindows)
         {
-            if (_floatingWindows.Contains(window))
+            if (_floatingWindows.Contains(window)
+                && !_presentationSuppressedWindows.Contains(window))
             {
                 window.ArrangeContent();
             }
@@ -1235,12 +1372,35 @@ public sealed class UiDockWorkspace : UiElement
 
     public override void Update(UiUpdateContext context)
     {
+        UiDragDropContext? previousDragDrop = _activeUpdateDragDrop;
+        _activeUpdateDragDrop = context.DragDrop;
+        try
+        {
+            UpdateCore(context);
+        }
+        finally
+        {
+            _activeUpdateDragDrop = previousDragDrop;
+        }
+    }
+
+    private void UpdateCore(UiUpdateContext context)
+    {
+        if (ConsumeDragDropCancellationRequest())
+        {
+            context.DragDrop.Cancel();
+        }
+
         if (!Visible || !Enabled)
         {
             return;
         }
 
         Arrange();
+        if (ConsumeDragDropCancellationRequest())
+        {
+            context.DragDrop.Cancel();
+        }
 
         UiInputState input = context.Input;
         bool collapseInputHandled = HandleCollapseInputBeforeChildren(input, context.Focus);
@@ -1880,7 +2040,9 @@ public sealed class UiDockWorkspace : UiElement
         {
             SplitHorizontal = node.SplitHorizontal,
             SplitRatio = node.SplitRatio,
-            IsCollapsed = node.IsCollapsed
+            IsCollapsed = node.IsCollapsed,
+            CollapseEdge = node.CollapseEdge,
+            HasCollapseEdge = node.HasCollapseEdge
         };
         if (node.First != null)
         {
@@ -1916,6 +2078,261 @@ public sealed class UiDockWorkspace : UiElement
         return window.Parent == null
             || ReferenceEquals(window.Parent, this) && _floatingWindows.Contains(window)
             || window.Parent is UiDockHost host && _hosts.Contains(host);
+    }
+
+    private bool ContainsWorkspaceWindow(UiWindow window)
+    {
+        return ReferenceEquals(window.Parent, this) && _floatingWindows.Contains(window)
+            || window.Parent is UiDockHost host
+                && _hosts.Contains(host)
+                && host.Windows.Contains(window);
+    }
+
+    private bool IsPresentationSuppressionSynchronized(IReadOnlySet<UiWindow> requested)
+    {
+        if (_presentationSuppressionTopologyVersion != _topologyMutationVersion
+            || !_presentationSuppressedWindows.SetEquals(requested)
+            || _presentationSuppressedOriginalVisibility.Count != requested.Count
+            || _presentationSuppressedOriginalVisibility.Keys.Any(window => !requested.Contains(window))
+            || requested.Any(window => !ContainsWorkspaceWindow(window)))
+        {
+            return false;
+        }
+
+        foreach (UiDockHost host in _hosts)
+        {
+            int suppressedCount = host.Windows.Count(requested.Contains);
+            if (suppressedCount > 0 && suppressedCount != host.Windows.Count)
+            {
+                return false;
+            }
+
+            bool shouldSuppress = suppressedCount > 0;
+            if (host.IsPresentationSuppressed != shouldSuppress)
+            {
+                return false;
+            }
+
+            if (shouldSuppress
+                && (host.Visible
+                    || host.Windows.Any(window => window.Visible || window.HasOpenDescendantInputLayer())))
+            {
+                return false;
+            }
+        }
+
+        foreach (UiWindow window in _floatingWindows)
+        {
+            if (requested.Contains(window)
+                && (window.Visible || window.HasOpenDescendantInputLayer()))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void SynchronizePresentationSuppressionForCurrentTopology()
+    {
+        if (IsPresentationSuppressionSynchronized(_presentationSuppressedWindows))
+        {
+            return;
+        }
+
+        HashSet<UiWindow> reconciled = new(
+            _presentationSuppressedWindows.Where(ContainsWorkspaceWindow),
+            ReferenceEqualityComparer.Instance);
+        foreach (UiDockHost host in _hosts)
+        {
+            int suppressedCount = host.Windows.Count(reconciled.Contains);
+            if (suppressedCount > 0 && suppressedCount != host.Windows.Count)
+            {
+                reconciled.ExceptWith(host.Windows);
+            }
+        }
+
+        ApplyPresentationSuppression(
+            reconciled,
+            cancelInteractions: !_presentationSuppressedWindows.SetEquals(reconciled),
+            layoutTree: false);
+    }
+
+    private void ApplyPresentationSuppression(
+        IReadOnlySet<UiWindow> requested,
+        bool cancelInteractions,
+        bool layoutTree)
+    {
+        ThrowIfRestoreValidationMutation("change workspace presentation suppression");
+        _restoreValidationActive = true;
+        try
+        {
+            ApplyPresentationSuppressionCore(requested, cancelInteractions, layoutTree);
+        }
+        finally
+        {
+            _restoreValidationActive = false;
+        }
+    }
+
+    private void ApplyPresentationSuppressionCore(
+        IReadOnlySet<UiWindow> requested,
+        bool cancelInteractions,
+        bool layoutTree)
+    {
+        UiDockHost[] hosts = _hosts.ToArray();
+        (UiDockHost Host, UiDockHost.PresentationStateSnapshot State, bool Suppressed)[] hostStates = hosts
+            .Select(host => (
+                host,
+                host.CapturePresentationState(),
+                host.Windows.Count > 0 && host.Windows.All(requested.Contains)))
+            .ToArray();
+        UiWindow[] requestedWindows = requested.Where(ContainsWorkspaceWindow).ToArray();
+        bool hidesInteractiveSurface = requested.Count > 0
+            && (cancelInteractions
+                || requested.Any(window => window.Visible || window.HasOpenDescendantInputLayer())
+                || _hosts.Any(host => host.Visible
+                    && host.Windows.Count > 0
+                    && host.Windows.All(requested.Contains)));
+        if (hidesInteractiveSurface)
+        {
+            if (_activeUpdateDragDrop != null)
+            {
+                // This update owns the live drag context, so cancellation is
+                // complete synchronously. Do not poison a drag begun after the
+                // frame with a stale queued request.
+                _dragDropCancellationRequested = false;
+                _activeUpdateDragDrop.Cancel();
+            }
+            else
+            {
+                _dragDropCancellationRequested = true;
+            }
+        }
+
+        if (cancelInteractions)
+        {
+            CancelDockInteractionsForTopologyChange();
+        }
+
+        foreach ((UiWindow window, bool wasVisible) in _presentationSuppressedOriginalVisibility.ToArray())
+        {
+            if (requested.Contains(window))
+            {
+                continue;
+            }
+
+            if (!ContainsWorkspaceWindow(window)
+                || ReferenceEquals(window.Parent, this) && _floatingWindows.Contains(window))
+            {
+                window.Visible = wasVisible;
+            }
+
+            _presentationSuppressedOriginalVisibility.Remove(window);
+        }
+
+        foreach (UiWindow window in requested)
+        {
+            if (!_presentationSuppressedOriginalVisibility.ContainsKey(window))
+            {
+                _presentationSuppressedOriginalVisibility[window] = window.Visible;
+            }
+        }
+
+        _presentationSuppressedWindows.Clear();
+        _presentationSuppressedWindows.UnionWith(requested);
+
+        using IDisposable transientSuppression = UiTransientInputSuppression.Enter(requestedWindows);
+        foreach ((UiDockHost host, _, bool suppressed) in hostStates)
+        {
+            if (!_hosts.Contains(host))
+            {
+                continue;
+            }
+
+            host.ConfigurePresentationSuppression(suppressed);
+        }
+
+        UiWindow[] floatingWindows = _floatingWindows.ToArray();
+        foreach (UiWindow window in floatingWindows)
+        {
+            if (!_floatingWindows.Contains(window)
+                || !_presentationSuppressedWindows.Contains(window))
+            {
+                continue;
+            }
+
+            window.CancelTransientInteractions();
+            window.Visible = false;
+        }
+
+        CancelPresentationSuppressedTransientInteractions(requestedWindows);
+
+        // Close callbacks can mutate hosts that have already been processed or
+        // hosts that have not yet been processed. Reassert the single authored
+        // snapshot only after every callback and the workspace-wide dismissal
+        // fixpoint have completed.
+        foreach ((UiDockHost host, UiDockHost.PresentationStateSnapshot state, bool suppressed) in hostStates)
+        {
+            if (_hosts.Contains(host))
+            {
+                host.EnforcePresentationState(state, suppressed);
+            }
+        }
+
+        foreach (UiWindow window in floatingWindows)
+        {
+            if (_floatingWindows.Contains(window)
+                && _presentationSuppressedWindows.Contains(window))
+            {
+                window.Visible = false;
+            }
+        }
+
+        if (layoutTree)
+        {
+            LayoutNode(_rootNode, Bounds, UiDockCollapseEdge.Right);
+            foreach (UiDockHost host in hosts)
+            {
+                if (_hosts.Contains(host))
+                {
+                    host.ArrangeDockedWindowBounds();
+                }
+            }
+        }
+
+        _presentationSuppressionTopologyVersion = _topologyMutationVersion;
+        Invalidate(UiInvalidationReason.Visibility | UiInvalidationReason.Layout | UiInvalidationReason.Paint | UiInvalidationReason.State);
+    }
+
+    private static void CancelPresentationSuppressedTransientInteractions(
+        IReadOnlyList<UiWindow> windows)
+    {
+        const int maximumDismissPasses = 64;
+        for (int pass = 0; pass < maximumDismissPasses; pass++)
+        {
+            foreach (UiWindow window in windows)
+            {
+                window.CancelTransientInteractions();
+            }
+
+            if (!windows.Any(window => window.HasOpenDescendantInputLayer()))
+            {
+                return;
+            }
+        }
+
+        foreach (UiWindow window in windows)
+        {
+            window.ForceCancelTransientInteractions();
+        }
+    }
+
+    internal bool ConsumeDragDropCancellationRequest()
+    {
+        bool requested = _dragDropCancellationRequested;
+        _dragDropCancellationRequested = false;
+        return requested;
     }
 
     private UiDockHost GetOrCreateHost(string hostId, Dictionary<string, UiDockHost> hostById)
@@ -2504,7 +2921,10 @@ public sealed class UiDockWorkspace : UiElement
         UiRect workspaceBounds = Bounds;
         foreach (UiWindow window in _floatingWindows)
         {
-            if (!window.ClampToParent || window.IsDragging || window.IsResizing)
+            if (_presentationSuppressedWindows.Contains(window)
+                || !window.ClampToParent
+                || window.IsDragging
+                || window.IsResizing)
             {
                 continue;
             }
@@ -2572,6 +2992,8 @@ public sealed class UiDockWorkspace : UiElement
             if (node.IsCollapsed && node.Second != null)
             {
                 node.Second.IsCollapsed = true;
+                node.Second.CollapseEdge = node.CollapseEdge;
+                node.Second.HasCollapseEdge = node.HasCollapseEdge;
             }
 
             return node.Second;
@@ -2582,6 +3004,8 @@ public sealed class UiDockWorkspace : UiElement
             if (node.IsCollapsed)
             {
                 node.First.IsCollapsed = true;
+                node.First.CollapseEdge = node.CollapseEdge;
+                node.First.HasCollapseEdge = node.HasCollapseEdge;
             }
 
             return node.First;
@@ -3023,23 +3447,32 @@ public sealed class UiDockWorkspace : UiElement
 
     private void LayoutNode(DockNode node, UiRect bounds, UiDockCollapseEdge edge)
     {
+        if (IsNodePresentationSuppressed(node))
+        {
+            ConfigurePresentationSuppressedNode(node);
+            return;
+        }
+
         node.Bounds = bounds;
-        node.CollapseEdge = edge;
 
         if (node.IsCollapsed)
         {
-            if (ReferenceEquals(node, _rootNode))
+            if (!node.HasCollapseEdge)
             {
-                int strip = Math.Min(GetCollapsedStripExtent(), Math.Max(0, bounds.Width));
-                bounds = new UiRect(bounds.Right - strip, bounds.Y, strip, bounds.Height);
+                node.CollapseEdge = edge;
+                node.HasCollapseEdge = true;
             }
 
-            ConfigureCollapsedNode(node, bounds, edge);
+            bounds = GetCollapsedPresentationBounds(bounds, node.CollapseEdge);
+            ConfigureCollapsedNode(node, bounds, node.CollapseEdge);
             node.FirstBounds = default;
             node.SecondBounds = default;
             node.SplitterBounds = default;
             return;
         }
+
+        node.CollapseEdge = edge;
+        node.HasCollapseEdge = true;
 
         if (node.Host != null)
         {
@@ -3067,9 +3500,44 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
-        bool firstCollapsed = node.First.IsCollapsed;
-        bool secondCollapsed = node.Second.IsCollapsed;
-        int splitterThickness = firstCollapsed || secondCollapsed
+        bool firstSuppressed = IsNodePresentationSuppressed(node.First);
+        bool secondSuppressed = IsNodePresentationSuppressed(node.Second);
+        bool firstCollapsed = TryGetNodePresentationCollapseEdge(node.First, out UiDockCollapseEdge firstCollapseEdge)
+            && IsCollapseEdgeCompatibleWithSplit(firstCollapseEdge, node.SplitHorizontal);
+        bool secondCollapsed = TryGetNodePresentationCollapseEdge(node.Second, out UiDockCollapseEdge secondCollapseEdge)
+            && IsCollapseEdgeCompatibleWithSplit(secondCollapseEdge, node.SplitHorizontal);
+        if ((firstSuppressed && secondCollapsed) || (secondSuppressed && firstCollapsed))
+        {
+            int collapsedExtent = node.SplitHorizontal
+                ? Math.Min(bounds.Height, GetCollapsedStripExtent())
+                : Math.Min(bounds.Width, GetCollapsedStripExtent());
+            UiRect collapsedBounds;
+            if (node.SplitHorizontal)
+            {
+                int y = firstCollapsed ? bounds.Y : bounds.Bottom - collapsedExtent;
+                collapsedBounds = new UiRect(bounds.X, y, bounds.Width, collapsedExtent);
+            }
+            else
+            {
+                int x = firstCollapsed ? bounds.X : bounds.Right - collapsedExtent;
+                collapsedBounds = new UiRect(x, bounds.Y, collapsedExtent, bounds.Height);
+            }
+
+            node.FirstBounds = firstCollapsed ? collapsedBounds : default;
+            node.SecondBounds = secondCollapsed ? collapsedBounds : default;
+            node.SplitterBounds = default;
+            LayoutNode(
+                node.First,
+                node.FirstBounds,
+                node.SplitHorizontal ? UiDockCollapseEdge.Top : UiDockCollapseEdge.Left);
+            LayoutNode(
+                node.Second,
+                node.SecondBounds,
+                node.SplitHorizontal ? UiDockCollapseEdge.Bottom : UiDockCollapseEdge.Right);
+            return;
+        }
+
+        int splitterThickness = firstSuppressed || secondSuppressed || firstCollapsed || secondCollapsed
             ? 0
             : Math.Max(1, SplitterThickness);
         UiPoint firstMinSize = GetMinimumNodeSize(node.First);
@@ -3083,7 +3551,15 @@ public sealed class UiDockWorkspace : UiElement
         {
             int availableHeight = Math.Max(0, bounds.Height - splitterThickness);
             int firstHeight;
-            if (firstCollapsed)
+            if (firstSuppressed)
+            {
+                firstHeight = 0;
+            }
+            else if (secondSuppressed)
+            {
+                firstHeight = availableHeight;
+            }
+            else if (firstCollapsed)
             {
                 firstHeight = Math.Min(availableHeight, GetCollapsedStripExtent());
             }
@@ -3114,7 +3590,15 @@ public sealed class UiDockWorkspace : UiElement
         {
             int availableWidth = Math.Max(0, bounds.Width - splitterThickness);
             int firstWidth;
-            if (firstCollapsed)
+            if (firstSuppressed)
+            {
+                firstWidth = 0;
+            }
+            else if (secondSuppressed)
+            {
+                firstWidth = availableWidth;
+            }
+            else if (firstCollapsed)
             {
                 firstWidth = Math.Min(availableWidth, GetCollapsedStripExtent());
             }
@@ -3143,10 +3627,87 @@ public sealed class UiDockWorkspace : UiElement
         }
     }
 
+    private bool IsNodePresentationSuppressed(DockNode node)
+    {
+        if (_presentationSuppressedWindows.Count == 0)
+        {
+            return false;
+        }
+
+        if (node.Host != null)
+        {
+            return node.Host.Windows.Count > 0
+                && node.Host.Windows.All(_presentationSuppressedWindows.Contains);
+        }
+
+        bool firstSuppressed = node.First == null || IsNodePresentationSuppressed(node.First);
+        bool secondSuppressed = node.Second == null || IsNodePresentationSuppressed(node.Second);
+        return firstSuppressed && secondSuppressed;
+    }
+
+    private bool TryGetNodePresentationCollapseEdge(DockNode node, out UiDockCollapseEdge edge)
+    {
+        if (node.IsCollapsed)
+        {
+            edge = node.CollapseEdge;
+            return true;
+        }
+
+        if (node.Host != null || IsNodePresentationSuppressed(node))
+        {
+            edge = default;
+            return false;
+        }
+
+        bool firstPresented = node.First != null && !IsNodePresentationSuppressed(node.First);
+        bool secondPresented = node.Second != null && !IsNodePresentationSuppressed(node.Second);
+        if (firstPresented == secondPresented)
+        {
+            edge = default;
+            return false;
+        }
+
+        return firstPresented
+            ? TryGetNodePresentationCollapseEdge(node.First!, out edge)
+            : TryGetNodePresentationCollapseEdge(node.Second!, out edge);
+    }
+
+    private static bool IsCollapseEdgeCompatibleWithSplit(UiDockCollapseEdge edge, bool splitHorizontal)
+    {
+        return splitHorizontal
+            ? edge is UiDockCollapseEdge.Top or UiDockCollapseEdge.Bottom
+            : edge is UiDockCollapseEdge.Left or UiDockCollapseEdge.Right;
+    }
+
+    private static void ConfigurePresentationSuppressedNode(DockNode node)
+    {
+        node.Bounds = default;
+        node.FirstBounds = default;
+        node.SecondBounds = default;
+        node.SplitterBounds = default;
+
+        if (node.Host != null)
+        {
+            node.Host.Bounds = default;
+            return;
+        }
+
+        if (node.First != null)
+        {
+            ConfigurePresentationSuppressedNode(node.First);
+        }
+
+        if (node.Second != null)
+        {
+            ConfigurePresentationSuppressedNode(node.Second);
+        }
+    }
+
     private static void ConfigureCollapsedNode(DockNode node, UiRect bounds, UiDockCollapseEdge edge)
     {
         node.Bounds = bounds;
         node.CollapseEdge = edge;
+        node.HasCollapseEdge = true;
         foreach (UiDockHost host in EnumerateHosts(node))
         {
             host.Bounds = default;
@@ -3157,11 +3718,44 @@ public sealed class UiDockWorkspace : UiElement
         }
     }
 
+    private UiRect GetCollapsedPresentationBounds(UiRect bounds, UiDockCollapseEdge edge)
+    {
+        int extent = GetCollapsedStripExtent();
+        return edge switch
+        {
+            UiDockCollapseEdge.Left => new UiRect(
+                bounds.X,
+                bounds.Y,
+                Math.Min(extent, Math.Max(0, bounds.Width)),
+                bounds.Height),
+            UiDockCollapseEdge.Top => new UiRect(
+                bounds.X,
+                bounds.Y,
+                bounds.Width,
+                Math.Min(extent, Math.Max(0, bounds.Height))),
+            UiDockCollapseEdge.Bottom => new UiRect(
+                bounds.X,
+                bounds.Bottom - Math.Min(extent, Math.Max(0, bounds.Height)),
+                bounds.Width,
+                Math.Min(extent, Math.Max(0, bounds.Height))),
+            _ => new UiRect(
+                bounds.Right - Math.Min(extent, Math.Max(0, bounds.Width)),
+                bounds.Y,
+                Math.Min(extent, Math.Max(0, bounds.Width)),
+                bounds.Height)
+        };
+    }
+
     private int GetCollapsedStripExtent() => Math.Max(1, CollapsedStripSize);
 
     private UiPoint GetMinimumNodeSize(DockNode? node)
     {
         if (node == null)
+        {
+            return new UiPoint(0, 0);
+        }
+
+        if (IsNodePresentationSuppressed(node))
         {
             return new UiPoint(0, 0);
         }
@@ -3193,7 +3787,12 @@ public sealed class UiDockWorkspace : UiElement
 
         UiPoint first = GetMinimumNodeSize(node.First);
         UiPoint second = GetMinimumNodeSize(node.Second);
-        int splitterThickness = Math.Max(1, SplitterThickness);
+        int splitterThickness = node.First != null
+            && node.Second != null
+            && !IsNodePresentationSuppressed(node.First)
+            && !IsNodePresentationSuppressed(node.Second)
+                ? Math.Max(1, SplitterThickness)
+                : 0;
 
         return node.SplitHorizontal
             ? new UiPoint(Math.Max(first.X, second.X), first.Y + splitterThickness + second.Y)

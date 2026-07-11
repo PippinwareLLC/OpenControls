@@ -1,5 +1,99 @@
 namespace OpenControls.Controls;
 
+internal static class UiTransientInputSuppression
+{
+    [ThreadStatic]
+    private static List<UiElement>? s_roots;
+
+    public static IDisposable Enter(UiElement root)
+    {
+        s_roots ??= new List<UiElement>();
+        s_roots.Add(root);
+        return new Scope(root);
+    }
+
+    public static IDisposable Enter(IEnumerable<UiElement> roots)
+    {
+        UiElement[] snapshot = roots.Distinct().ToArray();
+        s_roots ??= new List<UiElement>();
+        s_roots.AddRange(snapshot);
+        return new MultiScope(snapshot);
+    }
+
+    public static bool IsSuppressed(UiElement element)
+    {
+        if (s_roots == null || s_roots.Count == 0)
+        {
+            return false;
+        }
+
+        for (UiElement? current = element; current != null; current = current.Parent)
+        {
+            if (s_roots.Contains(current))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private sealed class Scope : IDisposable
+    {
+        private UiElement? _root;
+
+        public Scope(UiElement root)
+        {
+            _root = root;
+        }
+
+        public void Dispose()
+        {
+            if (_root == null || s_roots == null)
+            {
+                return;
+            }
+
+            int index = s_roots.LastIndexOf(_root);
+            if (index >= 0)
+            {
+                s_roots.RemoveAt(index);
+            }
+
+            _root = null;
+        }
+    }
+
+    private sealed class MultiScope : IDisposable
+    {
+        private UiElement[]? _roots;
+
+        public MultiScope(UiElement[] roots)
+        {
+            _roots = roots;
+        }
+
+        public void Dispose()
+        {
+            if (_roots == null || s_roots == null)
+            {
+                return;
+            }
+
+            for (int rootIndex = _roots.Length - 1; rootIndex >= 0; rootIndex--)
+            {
+                int index = s_roots.LastIndexOf(_roots[rootIndex]);
+                if (index >= 0)
+                {
+                    s_roots.RemoveAt(index);
+                }
+            }
+
+            _roots = null;
+        }
+    }
+}
+
 public sealed class UiWindow : UiElement
 {
     private bool _dragging;
@@ -48,6 +142,99 @@ public sealed class UiWindow : UiElement
     public override bool CapturesPointerInput => true;
 
     public override UiRect ClipBounds => ContentBounds;
+
+    /// <summary>
+    /// Cancels this window's drag/resize gesture and dismisses every descendant
+    /// popup, modal, menu, and queued popup-focus request. Native-window hosts can
+    /// call this before hiding or deactivating an external peer.
+    /// </summary>
+    public void CancelTransientInteractions()
+    {
+        _dragging = false;
+        _resizing = false;
+        using IDisposable suppression = UiTransientInputSuppression.Enter(this);
+        const int maximumDismissPasses = 64;
+        for (int pass = 0; pass < maximumDismissPasses; pass++)
+        {
+            DismissTransientInputLayers(this, notifyClosed: true);
+            if (!HasDescendantTransientInputState(this))
+            {
+                return;
+            }
+        }
+
+        // A hostile close subscriber can continually attach an already-open
+        // replacement. Finish authoritatively without another callback cycle.
+        DismissTransientInputLayers(this, notifyClosed: false);
+    }
+
+    internal bool HasOpenDescendantInputLayer()
+    {
+        return HasDescendantTransientInputState(this);
+    }
+
+    internal void ForceCancelTransientInteractions()
+    {
+        _dragging = false;
+        _resizing = false;
+        using IDisposable suppression = UiTransientInputSuppression.Enter(this);
+        DismissTransientInputLayers(this, notifyClosed: false);
+    }
+
+    private static bool HasDescendantTransientInputState(UiElement root)
+    {
+        foreach (UiElement child in root.Children)
+        {
+            if (child is UiPopup { HasTransientInputState: true }
+                || child is UiMenuBar { HasOpenMenu: true }
+                || child is UiContextMenuRegion { Popup.HasTransientInputState: true }
+                || child is UiContextMenuRegion { Menu.HasOpenMenu: true }
+                || HasDescendantTransientInputState(child))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void DismissTransientInputLayers(UiElement root, bool notifyClosed)
+    {
+        UiElement[] children = root.Children.ToArray();
+        foreach (UiElement child in children)
+        {
+            if (child is UiPopup popup)
+            {
+                if (notifyClosed)
+                {
+                    popup.DismissForAncestorSuppression();
+                }
+                else
+                {
+                    popup.ForceDismissForAncestorSuppression();
+                }
+            }
+            else if (child is UiMenuBar menu)
+            {
+                menu.DismissForAncestorSuppression();
+            }
+            else if (child is UiContextMenuRegion contextMenu)
+            {
+                if (notifyClosed)
+                {
+                    contextMenu.Popup?.DismissForAncestorSuppression();
+                }
+                else
+                {
+                    contextMenu.Popup?.ForceDismissForAncestorSuppression();
+                }
+
+                contextMenu.Menu?.DismissForAncestorSuppression();
+            }
+
+            DismissTransientInputLayers(child, notifyClosed);
+        }
+    }
 
     public UiRect ContentBounds
     {
