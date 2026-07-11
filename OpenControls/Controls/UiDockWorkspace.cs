@@ -53,6 +53,8 @@ public sealed class UiDockWorkspace : UiElement
     private sealed class ExternalGroupLeaseState
     {
         public required UiDockHost SourceHost { get; init; }
+        public required DockNode SourceNode { get; init; }
+        public DockNode? SourceWrapper { get; init; }
         public required UiWindow[] Windows { get; init; }
         public required ExternalGroupTabPlacement[] Placements { get; init; }
         public required UiWindow GroupActiveWindow { get; init; }
@@ -663,6 +665,8 @@ public sealed class UiDockWorkspace : UiElement
         ExternalGroupLeaseState leaseState = new()
         {
             SourceHost = sourceHost,
+            SourceNode = sourceNode,
+            SourceWrapper = sourceParent,
             Windows = leasedWindows,
             Placements = placements,
             GroupActiveWindow = groupActiveWindow,
@@ -718,6 +722,40 @@ public sealed class UiDockWorkspace : UiElement
             state.Windows,
             state.SourceActiveWindow,
             requireActiveWindowInGroup: false);
+    }
+
+    /// <summary>
+    /// Returns whether two active external-group leases share a source host or
+    /// a structural return anchor and therefore must be restored together in
+    /// reverse detachment order.
+    /// </summary>
+    public bool ExternalDockGroupLeasesShareReturnTopology(
+        UiDockExternalGroupLease first,
+        UiDockExternalGroupLease second)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+        ExternalGroupLeaseState firstState =
+            GetExternalDockGroupLeaseState(first, out long firstId);
+        ExternalGroupLeaseState secondState =
+            GetExternalDockGroupLeaseState(second, out long secondId);
+        if (firstId == secondId
+            || ReferenceEquals(firstState.SourceHost, secondState.SourceHost))
+        {
+            return true;
+        }
+
+        if (!firstState.CompleteSourceHost || !secondState.CompleteSourceHost)
+        {
+            return false;
+        }
+
+        return (firstState.SurvivingSibling != null
+                && ReferenceEquals(
+                    firstState.SurvivingSibling,
+                    secondState.SurvivingSibling))
+            || LeaseConsumesReturnAnchor(firstState, secondState)
+            || LeaseConsumesReturnAnchor(secondState, firstState);
     }
 
     /// <summary>
@@ -793,7 +831,9 @@ public sealed class UiDockWorkspace : UiElement
         }
         else if (sourceHostIsLive)
         {
-            if (sourceNode == null || !state.SourceHost.IsEmpty)
+            if (sourceNode == null
+                || !ReferenceEquals(sourceNode, state.SourceNode)
+                || !state.SourceHost.IsEmpty)
             {
                 return false;
             }
@@ -803,6 +843,9 @@ public sealed class UiDockWorkspace : UiElement
             if (state.SurvivingSibling == null
                 || state.SourceHost.Parent != null
                 || !state.SourceHost.IsEmpty
+                || ContainsDockNodeReference(_rootNode, state.SourceNode)
+                || state.SourceWrapper != null
+                    && ContainsDockNodeReference(_rootNode, state.SourceWrapper)
                 || _hosts.Any(host => string.Equals(host.Id, state.SourceHost.Id, StringComparison.Ordinal))
                 || !ContainsDockNodeReference(_rootNode, state.SurvivingSibling))
             {
@@ -864,6 +907,9 @@ public sealed class UiDockWorkspace : UiElement
                 && !_hosts.Contains(state.SourceHost)
                 && state.SourceHost.Parent == null
                 && state.SourceHost.IsEmpty
+                && !ContainsDockNodeReference(_rootNode, state.SourceNode)
+                && (state.SourceWrapper == null
+                    || !ContainsDockNodeReference(_rootNode, state.SourceWrapper))
                 && state.SurvivingSibling != null
                 && ContainsDockNodeReference(_rootNode, state.SurvivingSibling);
         }
@@ -887,17 +933,15 @@ public sealed class UiDockWorkspace : UiElement
             if (!sourceHostIsLive)
             {
                 AttachExistingDockHost(state.SourceHost, state.HostListIndex);
-                DockNode sourceLeaf = new(state.SourceHost);
                 DockNode sibling = state.SurvivingSibling!;
                 sibling.IsCollapsed = state.SiblingWasCollapsed;
-                DockNode wrapper = new(null)
-                {
-                    First = state.SourceWasFirst ? sourceLeaf : sibling,
-                    Second = state.SourceWasFirst ? sibling : sourceLeaf,
-                    SplitHorizontal = state.SplitHorizontal,
-                    SplitRatio = state.SplitRatio,
-                    IsCollapsed = state.WasCollapsed
-                };
+                DockNode wrapper = state.SourceWrapper ?? new DockNode(null);
+                wrapper.Host = null;
+                wrapper.First = state.SourceWasFirst ? state.SourceNode : sibling;
+                wrapper.Second = state.SourceWasFirst ? sibling : state.SourceNode;
+                wrapper.SplitHorizontal = state.SplitHorizontal;
+                wrapper.SplitRatio = state.SplitRatio;
+                wrapper.IsCollapsed = state.WasCollapsed;
                 if (!ReplaceDockNodeReference(sibling, wrapper))
                 {
                     throw new InvalidOperationException("The external dock group's structural return anchor is no longer live.");
@@ -1455,6 +1499,17 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         return state;
+    }
+
+    private static bool LeaseConsumesReturnAnchor(
+        ExternalGroupLeaseState anchorOwner,
+        ExternalGroupLeaseState laterLease)
+    {
+        DockNode? anchor = anchorOwner.SurvivingSibling;
+        return anchor != null
+            && (ReferenceEquals(anchor, laterLease.SourceNode)
+                || laterLease.SourceWrapper != null
+                    && ReferenceEquals(anchor, laterLease.SourceWrapper));
     }
 
     internal bool IsExternalDockGroupLeaseActive(UiDockExternalGroupLease lease, long leaseId)
