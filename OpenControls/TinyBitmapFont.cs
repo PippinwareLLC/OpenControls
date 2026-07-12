@@ -337,6 +337,33 @@ public sealed class TinyBitmapFont
         }
 
         byte[] rows = CloneGlyph(baseGlyph);
+
+        // Make room BEFORE marking. Capitals fill the whole cell, so a mark
+        // OR'd into their pixels silently vanishes (E+acute stayed a plain E)
+        // or smears into the letterform (the Czech caron landed INSIDE the C
+        // on the ALL-CAPS chrome - Tom, 2026-07-12). Tall letterforms squash
+        // to a 5-row body first; x-height letters that block a bottom mark
+        // raise one row, the same trick the descender bowls already use.
+        bool wantsAbove = false;
+        bool blockedBelow = false;
+        for (int i = 1; i < decomposed.Length; i++)
+        {
+            wantsAbove |= IsAboveMark(decomposed[i]);
+            byte mask = BelowMarkMask(decomposed[i]);
+            blockedBelow |= mask != 0 && (rows[6] & mask) != 0;
+        }
+
+        if (wantsAbove && (rows[0] | rows[1]) != 0)
+        {
+            rows = SquashForMarkRoom(rows, freeTopRows: 2);
+        }
+        else if (blockedBelow)
+        {
+            rows = (rows[0] | rows[1]) == 0
+                ? ShiftUpOneRow(rows)
+                : SquashForMarkRoom(rows, freeTopRows: 1);
+        }
+
         bool applied = false;
 
         for (int i = 1; i < decomposed.Length; i++)
@@ -440,6 +467,58 @@ public sealed class TinyBitmapFont
 
         glyph = Array.Empty<byte>();
         return false;
+    }
+
+    /// <summary>Combining marks that draw in the top two rows of the cell.</summary>
+    private static bool IsAboveMark(char mark) => mark is
+        '̀' or '́' or '̂' or '̃' or '̄' or '̆'
+        or '̇' or '̈' or '̊' or '̋' or '̌';
+
+    /// <summary>The bottom-row pixels a below mark needs; 0 for non-below
+    /// marks. When the letter's baseline row already owns those pixels the
+    /// mark would vanish, so the letterform has to move first.</summary>
+    private static byte BelowMarkMask(char mark) => mark switch
+    {
+        '̧' => 0b00100, // cedilla
+        '̦' => 0b00001, // comma below
+        '̨' => 0b10000, // ogonek
+        _ => 0
+    };
+
+    /// <summary>Pack the 7-row letterform into a 5-row body (merge rows 1+2
+    /// and 4+5) and seat it so the freed rows can hold a combining mark:
+    /// two on top for carons/acutes, or one top + one bottom for a cedilla
+    /// hook under a capital.</summary>
+    private static byte[] SquashForMarkRoom(byte[] rows, int freeTopRows)
+    {
+        byte[] packed =
+        {
+            rows[0],
+            (byte)(rows[1] | rows[2]),
+            rows[3],
+            (byte)(rows[4] | rows[5]),
+            rows[6],
+        };
+        byte[] seated = new byte[7];
+        for (int i = 0; i < packed.Length; i++)
+        {
+            seated[freeTopRows + i] = packed[i];
+        }
+
+        return seated;
+    }
+
+    /// <summary>Raise an x-height letter one row so the baseline row frees
+    /// up for a bottom mark (the descender bowls already sit raised).</summary>
+    private static byte[] ShiftUpOneRow(byte[] rows)
+    {
+        byte[] raised = new byte[7];
+        for (int i = 1; i < rows.Length; i++)
+        {
+            raised[i - 1] = rows[i];
+        }
+
+        return raised;
     }
 
     private static bool TryApplyCombiningMark(byte[] rows, char mark)

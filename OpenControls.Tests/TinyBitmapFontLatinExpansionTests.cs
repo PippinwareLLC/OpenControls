@@ -7,9 +7,10 @@ namespace OpenControls.Tests;
 /// alphabet renders a real glyph (no '?' boxes), and the new marks are
 /// actually visible - a mark OR'd into occupied pixels would silently
 /// disappear at 5x7, so the load-bearing pairs must differ pixel-for-pixel.
-/// Uppercase accents merge into full-width top rows by house convention
-/// (E and É share a top bar), so distinctness is asserted where the cell
-/// has room: lowercase forms and the stroked hand glyphs.
+/// Capitals included: the old "uppercase accents merge into full-width top
+/// rows" convention was overruled (Tom, 2026-07-12 - the ALL-CAPS chrome is
+/// most of the UI), so tall letterforms now squash to a 5-row body and the
+/// mark rides the freed rows.
 /// </summary>
 public sealed class TinyBitmapFontLatinExpansionTests
 {
@@ -80,12 +81,80 @@ public sealed class TinyBitmapFontLatinExpansionTests
     [InlineData('ț', 't')]
     [InlineData('ą', 'a')]
     [InlineData('ę', 'e')]
+    // Bottom marks whose pixels the letter USED to own: the letterform
+    // moves out of the way now instead of swallowing the mark.
+    [InlineData('ç', 'c')]
+    [InlineData('Ç', 'C')]
+    [InlineData('Ę', 'E')]
+    [InlineData('Ą', 'A')]
+    [InlineData('Ș', 'S')]
+    [InlineData('Ț', 'T')]
+    [InlineData('ş', 's')]
+    [InlineData('Ş', 'S')]
+    // Capitals: the full-height letterform squashes to make headroom, so
+    // every accented capital reads as its own character on ALL-CAPS chrome.
+    [InlineData('Č', 'C')]
+    [InlineData('Š', 'S')]
+    [InlineData('Ž', 'Z')]
+    [InlineData('Ř', 'R')]
+    [InlineData('Ď', 'D')]
+    [InlineData('Ť', 'T')]
+    [InlineData('Ň', 'N')]
+    [InlineData('Ě', 'E')]
+    [InlineData('É', 'E')]
+    [InlineData('Á', 'A')]
+    [InlineData('Í', 'I')]
+    [InlineData('Ó', 'O')]
+    [InlineData('Ú', 'U')]
+    [InlineData('Ů', 'U')]
+    [InlineData('Ý', 'Y')]
+    [InlineData('Ä', 'A')]
+    [InlineData('Ö', 'O')]
+    [InlineData('Ü', 'U')]
+    [InlineData('Å', 'A')]
+    [InlineData('Ő', 'O')]
+    [InlineData('Ű', 'U')]
+    [InlineData('Ã', 'A')]
+    [InlineData('Õ', 'O')]
+    [InlineData('Ê', 'E')]
+    [InlineData('Â', 'A')]
+    [InlineData('Ă', 'A')]
+    [InlineData('İ', 'I')]
+    [InlineData('Ğ', 'G')]
+    [InlineData('Ń', 'N')]
+    [InlineData('Ś', 'S')]
+    [InlineData('Ź', 'Z')]
+    [InlineData('Ż', 'Z')]
     public void Marked_letters_differ_from_their_bases(char marked, char baseChar)
     {
         TinyBitmapFont font = new();
         Assert.False(
             font.GetGlyph(marked).AsSpan().SequenceEqual(font.GetGlyph(baseChar)),
             $"'{marked}' (U+{(int)marked:X4}) renders identically to '{baseChar}'");
+    }
+
+    [Fact]
+    public void Uppercase_caron_rides_above_the_squashed_capital()
+    {
+        // The Czech Č must read as a wedge floating over a C - before the
+        // squash the caron pixels merged into the C's top arc.
+        TinyBitmapFont font = new();
+        byte[] rows = font.GetGlyph('Č');
+        Assert.Equal(0b01010, rows[0]);
+        Assert.Equal(0b00100, rows[1]);
+        // The letterform sits wholly below the mark rows.
+        byte[] plain = font.GetGlyph('C');
+        Assert.NotEqual(0, rows[2] | rows[3] | rows[4] | rows[5] | rows[6]);
+        Assert.False(rows.AsSpan(2).SequenceEqual(plain.AsSpan(2)));
+    }
+
+    [Fact]
+    public void Capital_cedilla_hook_sits_clear_of_the_letter()
+    {
+        // Ç squashes upward: the hook owns the baseline row alone.
+        TinyBitmapFont font = new();
+        byte[] rows = font.GetGlyph('Ç');
+        Assert.Equal(0b00100, rows[6]);
     }
 
     [Theory]
