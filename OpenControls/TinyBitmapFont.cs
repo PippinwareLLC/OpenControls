@@ -140,6 +140,7 @@ public sealed class TinyBitmapFont
         ['\u010F'] = G(0b00101, 0b00101, 0b01101, 0b10011, 0b10001, 0b10001, 0b01111), // d caron-tick
         ['\u0165'] = G(0b01010, 0b01010, 0b11100, 0b01000, 0b01000, 0b01001, 0b00110), // t caron-tick
         ['\u013E'] = G(0b11010, 0b01010, 0b01000, 0b01000, 0b01000, 0b01000, 0b11100), // l caron-tick
+        ['\u2026'] = G(0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b10101, 0b10101), // ellipsis
         ['\u00A1'] = G(0b00100, 0b00000, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100),
         ['\u00BF'] = G(0b00100, 0b00000, 0b00100, 0b01000, 0b10000, 0b10001, 0b01110),
         ['\u00A2'] = G(0b00100, 0b01110, 0b10000, 0b10000, 0b10000, 0b01110, 0b00100),
@@ -377,6 +378,33 @@ public sealed class TinyBitmapFont
         if (c == '\u00A0')
         {
             glyph = BaseGlyphs[' '];
+            return true;
+        }
+
+        // Typographic quote/dash family folds onto the ASCII forms: the
+        // Latin-expansion translations quote natively (\u201Etak" / \u00ABainsi\u00BB-style)
+        // and a 5x7 cell has one honest quote shape anyway.
+        if (c is '\u2018' or '\u2019' or '\u201A' or '\u201B')
+        {
+            glyph = BaseGlyphs['\''];
+            return true;
+        }
+
+        if (c is '\u201C' or '\u201D' or '\u201E' or '\u201F')
+        {
+            glyph = BaseGlyphs['"'];
+            return true;
+        }
+
+        if (c is '\u2013' or '\u2014')
+        {
+            glyph = BaseGlyphs['-'];
+            return true;
+        }
+
+        if (c == '\u2026')
+        {
+            glyph = SymbolGlyphs['\u2026'];
             return true;
         }
 

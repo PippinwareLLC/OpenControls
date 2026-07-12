@@ -27,8 +27,10 @@ public sealed class TinyBitmapFontLatinExpansionTests
         ("cs", "áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ"),
         ("sk", "áäčďéíĺľňóôŕšťúýžÁÄČĎÉÍĹĽŇÓÔŔŠŤÚÝŽ"),
         ("hr", "čćđšžČĆĐŠŽ"),
-        ("ca", "àçéèíïóòúü·ÀÇÉÈÍÏÓÒÚÜ")
+        ("ca", "àçéèíïóòúü·ÀÇÉÈÍÏÓÒÚÜ"),
         // id/ms are pure ASCII - nothing beyond the base table.
+        // Typographic punctuation the translations quote natively with:
+        ("punctuation", "‘’‚“”„–—…«»")
     };
 
     [Fact]
