@@ -669,7 +669,14 @@ internal sealed class UiBitmapFontSource : IUiGlyphSource
             byte[] rows = Font.GetGlyph(key.Character);
             int advance = (TinyBitmapFont.GlyphWidth + TinyBitmapFont.GlyphSpacing) * scale;
             byte[] alpha = RasterizeBitmapGlyph(rows, scale, out int width, out int height);
-            return new UiGlyphBitmap(width, height, alpha, 0, 0, advance, TinyBitmapFont.GlyphHeight * scale);
+            // Top-extended glyphs (accented capitals) draw with a negative
+            // offset: the letterform keeps the baseline and the mark
+            // overhangs the line box, print-style. Bottom-extended glyphs
+            // (capital cedilla hooks) just run past it into descender space.
+            int offsetY = rows.Length == TinyBitmapFont.GlyphHeight + TinyBitmapFont.AboveOverhangRows
+                ? -TinyBitmapFont.AboveOverhangRows * scale
+                : 0;
+            return new UiGlyphBitmap(width, height, alpha, 0, offsetY, advance, TinyBitmapFont.GlyphHeight * scale);
         });
 
         return true;
@@ -678,10 +685,10 @@ internal sealed class UiBitmapFontSource : IUiGlyphSource
     private static byte[] RasterizeBitmapGlyph(byte[] rows, int scale, out int width, out int height)
     {
         width = TinyBitmapFont.GlyphWidth * scale;
-        height = TinyBitmapFont.GlyphHeight * scale;
+        height = rows.Length * scale;
         byte[] alpha = new byte[width * height];
 
-        for (int row = 0; row < TinyBitmapFont.GlyphHeight; row++)
+        for (int row = 0; row < rows.Length; row++)
         {
             byte bits = rows[row];
             for (int col = 0; col < TinyBitmapFont.GlyphWidth; col++)

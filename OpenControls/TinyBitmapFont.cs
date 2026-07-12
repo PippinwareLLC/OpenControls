@@ -341,9 +341,13 @@ public sealed class TinyBitmapFont
         // Make room BEFORE marking. Capitals fill the whole cell, so a mark
         // OR'd into their pixels silently vanishes (E+acute stayed a plain E)
         // or smears into the letterform (the Czech caron landed INSIDE the C
-        // on the ALL-CAPS chrome - Tom, 2026-07-12). Tall letterforms squash
-        // to a 5-row body first; x-height letters that block a bottom mark
-        // raise one row, the same trick the descender bowls already use.
+        // on the ALL-CAPS chrome - Tom, 2026-07-12). The letterform never
+        // shrinks - a squashed capital reads as lowercase - it OVERHANGS the
+        // cell instead, the way print accents exceed cap height: above-marks
+        // get a 9-row glyph (mark rows 0-1 ride above the line box via a
+        // negative raster offset), blocked bottom marks an 8-row glyph whose
+        // hook hangs into descender space. Marks only ever write the first
+        // two rows or the last row, so the seated letterform is untouched.
         bool wantsAbove = false;
         bool blockedBelow = false;
         for (int i = 1; i < decomposed.Length; i++)
@@ -355,13 +359,11 @@ public sealed class TinyBitmapFont
 
         if (wantsAbove && (rows[0] | rows[1]) != 0)
         {
-            rows = SquashForMarkRoom(rows, freeTopRows: 2);
+            rows = ExtendAbove(rows, AboveOverhangRows);
         }
         else if (blockedBelow)
         {
-            rows = (rows[0] | rows[1]) == 0
-                ? ShiftUpOneRow(rows)
-                : SquashForMarkRoom(rows, freeTopRows: 1);
+            rows = ExtendBelow(rows, BelowOverhangRows);
         }
 
         bool applied = false;
@@ -485,40 +487,34 @@ public sealed class TinyBitmapFont
         _ => 0
     };
 
-    /// <summary>Pack the 7-row letterform into a 5-row body (merge rows 1+2
-    /// and 4+5) and seat it so the freed rows can hold a combining mark:
-    /// two on top for carons/acutes, or one top + one bottom for a cedilla
-    /// hook under a capital.</summary>
-    private static byte[] SquashForMarkRoom(byte[] rows, int freeTopRows)
-    {
-        byte[] packed =
-        {
-            rows[0],
-            (byte)(rows[1] | rows[2]),
-            rows[3],
-            (byte)(rows[4] | rows[5]),
-            rows[6],
-        };
-        byte[] seated = new byte[7];
-        for (int i = 0; i < packed.Length; i++)
-        {
-            seated[freeTopRows + i] = packed[i];
-        }
+    /// <summary>Rows an above-mark overhang adds on top of the cell. A glyph
+    /// of GlyphHeight + AboveOverhangRows rows is TOP-EXTENDED: the raster
+    /// side draws it with a negative vertical offset so the letterform stays
+    /// on the baseline and the mark rides above the line box.</summary>
+    public const int AboveOverhangRows = 2;
 
-        return seated;
+    /// <summary>Rows a blocked bottom mark adds under the cell. A glyph of
+    /// GlyphHeight + BelowOverhangRows rows is BOTTOM-EXTENDED: it draws at
+    /// the normal position and the hook hangs into descender space.</summary>
+    public const int BelowOverhangRows = 1;
+
+    /// <summary>Seat the full letterform below <paramref name="extraRows"/>
+    /// empty overhang rows. Above-marks write rows 0-1, exactly the freed
+    /// rows, so TryApplyCombiningMark works on the extended array as-is.</summary>
+    private static byte[] ExtendAbove(byte[] rows, int extraRows)
+    {
+        byte[] extended = new byte[rows.Length + extraRows];
+        rows.CopyTo(extended, extraRows);
+        return extended;
     }
 
-    /// <summary>Raise an x-height letter one row so the baseline row frees
-    /// up for a bottom mark (the descender bowls already sit raised).</summary>
-    private static byte[] ShiftUpOneRow(byte[] rows)
+    /// <summary>Append empty rows under the letterform for a bottom-mark
+    /// hook; below-marks write the LAST row, so they land in the overhang.</summary>
+    private static byte[] ExtendBelow(byte[] rows, int extraRows)
     {
-        byte[] raised = new byte[7];
-        for (int i = 1; i < rows.Length; i++)
-        {
-            raised[i - 1] = rows[i];
-        }
-
-        return raised;
+        byte[] extended = new byte[rows.Length + extraRows];
+        rows.CopyTo(extended, 0);
+        return extended;
     }
 
     private static bool TryApplyCombiningMark(byte[] rows, char mark)
@@ -621,7 +617,7 @@ public sealed class TinyBitmapFont
                 rows[0] |= 0b11111;
                 break;
             case Accent.Cedilla:
-                rows[6] |= 0b00100;
+                rows[^1] |= 0b00100;
                 break;
             case Accent.Breve:
                 rows[0] |= 0b10001;
@@ -638,14 +634,15 @@ public sealed class TinyBitmapFont
                 rows[0] |= 0b01010;
                 rows[1] |= 0b00100;
                 break;
-            // The bottom-row marks pick pixels the letter bottoms leave free
-            // (s/t bottoms fill the left cols, a/e bottoms fill the right) -
-            // a mark OR'd into an occupied pixel vanishes at 5x7.
+            // The bottom marks write the LAST row: on a plain 7-row glyph
+            // that picks pixels the letter bottom leaves free (s/t bottoms
+            // fill the left cols, a/e bottoms fill the right); on a
+            // bottom-extended glyph it is the overhang row under the letter.
             case Accent.CommaBelow:
-                rows[6] |= 0b00001;
+                rows[^1] |= 0b00001;
                 break;
             case Accent.Ogonek:
-                rows[6] |= 0b10000;
+                rows[^1] |= 0b10000;
                 break;
         }
     }

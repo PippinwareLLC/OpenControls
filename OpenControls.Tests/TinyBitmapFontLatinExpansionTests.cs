@@ -134,27 +134,31 @@ public sealed class TinyBitmapFontLatinExpansionTests
     }
 
     [Fact]
-    public void Uppercase_caron_rides_above_the_squashed_capital()
+    public void Uppercase_caron_overhangs_a_full_height_capital()
     {
-        // The Czech Č must read as a wedge floating over a C - before the
-        // squash the caron pixels merged into the C's top arc.
+        // The Czech Č keeps the COMPLETE 7-row C - a squashed capital reads
+        // as lowercase (Tom, 2026-07-12) - and the caron rides two overhang
+        // rows above it, the way print accents exceed cap height.
         TinyBitmapFont font = new();
         byte[] rows = font.GetGlyph('Č');
+        Assert.Equal(TinyBitmapFont.GlyphHeight + TinyBitmapFont.AboveOverhangRows, rows.Length);
         Assert.Equal(0b01010, rows[0]);
         Assert.Equal(0b00100, rows[1]);
-        // The letterform sits wholly below the mark rows.
-        byte[] plain = font.GetGlyph('C');
-        Assert.NotEqual(0, rows[2] | rows[3] | rows[4] | rows[5] | rows[6]);
-        Assert.False(rows.AsSpan(2).SequenceEqual(plain.AsSpan(2)));
+        Assert.True(rows.AsSpan(TinyBitmapFont.AboveOverhangRows).SequenceEqual(font.GetGlyph('C')),
+            "the letterform under the caron must be the untouched capital C");
     }
 
     [Fact]
-    public void Capital_cedilla_hook_sits_clear_of_the_letter()
+    public void Capital_cedilla_hook_hangs_below_the_full_letter()
     {
-        // Ç squashes upward: the hook owns the baseline row alone.
+        // Ç keeps the complete C; the hook takes a bottom-extended row in
+        // descender space.
         TinyBitmapFont font = new();
         byte[] rows = font.GetGlyph('Ç');
-        Assert.Equal(0b00100, rows[6]);
+        Assert.Equal(TinyBitmapFont.GlyphHeight + TinyBitmapFont.BelowOverhangRows, rows.Length);
+        Assert.True(rows.AsSpan(0, TinyBitmapFont.GlyphHeight).SequenceEqual(font.GetGlyph('C')),
+            "the letterform above the hook must be the untouched capital C");
+        Assert.Equal(0b00100, rows[^1]);
     }
 
     [Theory]
