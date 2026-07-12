@@ -137,7 +137,13 @@ public sealed class UiFont
         return new UiFont(fontName, resolvedPixelSize, _layers.Select(static layer => layer.ToDefinition()));
     }
 
-    internal UiTextLayout LayoutText(string text, int scale = 1)
+    /// <summary>The text-layout API for rendering backends: glyph placement,
+    /// font layers, and fallback resolution in one pass. Public since
+    /// 2026-07-11 - TowerWorks' Metal backend consumes it directly (it
+    /// previously bridged in via reflection), and the first-party GL
+    /// renderers use this same path, so there is exactly one layout
+    /// truth.</summary>
+    public UiTextLayout LayoutText(string text, int scale = 1)
     {
         string resolvedText = text ?? string.Empty;
         int safeScale = Math.Max(1, scale);
@@ -1131,7 +1137,7 @@ internal readonly record struct UiGlyphBitmap(
     public bool IsValid => Alpha != null;
 }
 
-internal sealed class UiRasterizedGlyph
+public sealed class UiRasterizedGlyph
 {
     public static UiRasterizedGlyph Invalid { get; } = new(0, 0, Array.Empty<byte>(), 0, 0, 0, 0, false);
 
@@ -1184,9 +1190,9 @@ internal sealed class UiShapedRun
     public int Width { get; }
 }
 
-internal readonly record struct UiPositionedGlyph(UiRasterizedGlyph Glyph, int X, int Y);
+public readonly record struct UiPositionedGlyph(UiRasterizedGlyph Glyph, int X, int Y);
 
-internal sealed class UiTextLayout
+public sealed class UiTextLayout
 {
     public UiTextLayout(IReadOnlyList<UiPositionedGlyph> glyphs, int width, int height)
     {
