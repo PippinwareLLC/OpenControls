@@ -125,6 +125,21 @@ public sealed class TinyBitmapFont
         ['\u0152'] = G(0b01111, 0b10100, 0b10100, 0b10111, 0b10100, 0b10100, 0b01111), // OE
         ['\u00E6'] = G(0b00000, 0b00000, 0b11010, 0b00101, 0b01111, 0b10100, 0b01111), // ae
         ['\u00C6'] = G(0b01111, 0b10100, 0b10100, 0b11111, 0b10100, 0b10100, 0b10111), // AE
+        // Stroked/dotless letters do not decompose under NFD, so they are
+        // hand glyphs like ss/oe/ae above: Danish-Norwegian o-slash, Polish
+        // l-stroke, Croatian d-stroke, Turkish dotless i, and the Czech and
+        // Slovak caron-as-apostrophe forms (no headroom for a wedge on tall
+        // letters - the tick rides beside the ascender, as in print).
+        ['\u00F8'] = G(0b00000, 0b00001, 0b01110, 0b10011, 0b10101, 0b11001, 0b01110), // o slash
+        ['\u00D8'] = G(0b01111, 0b10011, 0b10101, 0b10101, 0b10101, 0b11001, 0b11110), // O slash
+        ['\u0142'] = G(0b11000, 0b01000, 0b01010, 0b01100, 0b11000, 0b01000, 0b11100), // l stroke
+        ['\u0141'] = G(0b10000, 0b10000, 0b10100, 0b11000, 0b10000, 0b10000, 0b11111), // L stroke
+        ['\u0111'] = G(0b00001, 0b00111, 0b01101, 0b10011, 0b10001, 0b10001, 0b01111), // d stroke
+        ['\u0110'] = G(0b11110, 0b10001, 0b10001, 0b11001, 0b10001, 0b10001, 0b11110), // D stroke
+        ['\u0131'] = G(0b00000, 0b00000, 0b01100, 0b00100, 0b00100, 0b00100, 0b01110), // dotless i
+        ['\u010F'] = G(0b00101, 0b00101, 0b01101, 0b10011, 0b10001, 0b10001, 0b01111), // d caron-tick
+        ['\u0165'] = G(0b01010, 0b01010, 0b11100, 0b01000, 0b01000, 0b01001, 0b00110), // t caron-tick
+        ['\u013E'] = G(0b11010, 0b01010, 0b01000, 0b01000, 0b01000, 0b01000, 0b11100), // l caron-tick
         ['\u00A1'] = G(0b00100, 0b00000, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100),
         ['\u00BF'] = G(0b00100, 0b00000, 0b00100, 0b01000, 0b10000, 0b10001, 0b01110),
         ['\u00A2'] = G(0b00100, 0b01110, 0b10000, 0b10000, 0b10000, 0b01110, 0b00100),
@@ -427,6 +442,24 @@ public sealed class TinyBitmapFont
             case '\u0327':
                 ApplyAccent(rows, Accent.Cedilla);
                 return true;
+            case '\u0306':
+                ApplyAccent(rows, Accent.Breve);
+                return true;
+            case '\u0307':
+                ApplyAccent(rows, Accent.DotAbove);
+                return true;
+            case '\u030b':
+                ApplyAccent(rows, Accent.DoubleAcute);
+                return true;
+            case '\u030c':
+                ApplyAccent(rows, Accent.Caron);
+                return true;
+            case '\u0326':
+                ApplyAccent(rows, Accent.CommaBelow);
+                return true;
+            case '\u0328':
+                ApplyAccent(rows, Accent.Ogonek);
+                return true;
             case '\u0338':
                 ApplySlashOverlay(rows);
                 return true;
@@ -444,7 +477,13 @@ public sealed class TinyBitmapFont
         Diaeresis,
         Ring,
         Macron,
-        Cedilla
+        Cedilla,
+        Breve,
+        DotAbove,
+        DoubleAcute,
+        Caron,
+        CommaBelow,
+        Ogonek
     }
 
     private static void ApplyAccent(byte[] rows, Accent accent)
@@ -476,6 +515,30 @@ public sealed class TinyBitmapFont
                 break;
             case Accent.Cedilla:
                 rows[6] |= 0b00100;
+                break;
+            case Accent.Breve:
+                rows[0] |= 0b10001;
+                rows[1] |= 0b01110;
+                break;
+            case Accent.DotAbove:
+                rows[0] |= 0b00100;
+                break;
+            case Accent.DoubleAcute:
+                rows[0] |= 0b00101;
+                rows[1] |= 0b01010;
+                break;
+            case Accent.Caron:
+                rows[0] |= 0b01010;
+                rows[1] |= 0b00100;
+                break;
+            // The bottom-row marks pick pixels the letter bottoms leave free
+            // (s/t bottoms fill the left cols, a/e bottoms fill the right) -
+            // a mark OR'd into an occupied pixel vanishes at 5x7.
+            case Accent.CommaBelow:
+                rows[6] |= 0b00001;
+                break;
+            case Accent.Ogonek:
+                rows[6] |= 0b10000;
                 break;
         }
     }
