@@ -66,8 +66,9 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         public float ClipTop;
         public float ClipRight;
         public float ClipBottom;
+        public float Silhouette;
 
-        public UiVertex(float x, float y, float u, float v, UiColor color, UiRect clip)
+        public UiVertex(float x, float y, float u, float v, UiColor color, UiRect clip, bool silhouette = false)
         {
             X = x;
             Y = y;
@@ -81,6 +82,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             ClipTop = clip.Y;
             ClipRight = clip.Right;
             ClipBottom = clip.Bottom;
+            Silhouette = silhouette ? 1f : 0f;
         }
     }
 
@@ -313,9 +315,9 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         EndMetric(MetricKind.DrawText, startTimestamp);
     }
 
-    public void DrawTexture(uint textureId, UiRect rect, bool flipVertical = false, UiColor? tint = null)
+    public void DrawTexture(uint textureId, UiRect rect, bool flipVertical = false, UiColor? tint = null, bool silhouette = false)
     {
-        DrawTexture(textureId, rect, 0f, 0f, 1f, 1f, flipVertical, tint);
+        DrawTexture(textureId, rect, 0f, 0f, 1f, 1f, flipVertical, tint, silhouette);
     }
 
     public void DrawTexture(
@@ -326,7 +328,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float sourceWidth,
         float sourceHeight,
         bool flipVertical = false,
-        UiColor? tint = null)
+        UiColor? tint = null,
+        bool silhouette = false)
     {
         long startTimestamp = BeginMetric();
         if (textureId == 0 || rect.Width <= 0 || rect.Height <= 0)
@@ -354,7 +357,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float vBottom = flipVertical
             ? clampedSourceY
             : clampedSourceY + clampedSourceHeight;
-        QueueQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, uLeft, vTop, uRight, vBottom, drawColor);
+        QueueQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, uLeft, vTop, uRight, vBottom, drawColor, silhouette);
         EndMetric(MetricKind.DrawTexture, startTimestamp);
     }
 
@@ -494,7 +497,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float v1,
         float u2,
         float v2,
-        UiColor color)
+        UiColor color,
+        bool silhouette = false)
     {
         if (textureId == 0 || width <= 0 || height <= 0)
         {
@@ -524,7 +528,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             _batchedTextureId = textureId;
         }
 
-        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, clip, ref _batchedQuadCount);
+        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, clip, silhouette, ref _batchedQuadCount);
     }
 
     private void AppendQuad(
@@ -539,6 +543,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float v2,
         UiColor color,
         UiRect clip,
+        bool silhouette,
         ref int quadCount)
     {
         if (width <= 0 || height <= 0)
@@ -552,10 +557,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float right = x + width;
         float bottom = y + height;
 
-        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, color, clip);
-        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, color, clip);
-        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, color, clip);
-        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, color, clip);
+        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, color, clip, silhouette);
+        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, color, clip, silhouette);
+        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, color, clip, silhouette);
+        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, color, clip, silhouette);
         quadCount++;
     }
 
@@ -721,7 +726,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
         if (uploadBufferData)
         {
-            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_vertices.Length * sizeof(float) * 12), null, BufferUsageARB.StreamDraw);
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_vertices.Length * sizeof(float) * 13), null, BufferUsageARB.StreamDraw);
         }
 
         _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
@@ -737,7 +742,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             }
         }
 
-        const uint stride = sizeof(float) * 12;
+        const uint stride = sizeof(float) * 13;
         _gl.EnableVertexAttribArray(0);
         _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, stride, (void*)0);
         _gl.EnableVertexAttribArray(1);
@@ -746,6 +751,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 4));
         _gl.EnableVertexAttribArray(3);
         _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 8));
+        _gl.EnableVertexAttribArray(4);
+        _gl.VertexAttribPointer(4, 1, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 12));
     }
 
     private void ResetRenderState()
@@ -862,12 +869,14 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             layout(location = 1) in vec2 aTexCoord;
             layout(location = 2) in vec4 aColor;
             layout(location = 3) in vec4 aClipRect;
+            layout(location = 4) in float aSilhouette;
 
             uniform vec2 uViewportSize;
 
             out vec2 vTexCoord;
             out vec4 vColor;
             out vec4 vClipRect;
+            flat out float vSilhouette;
 
             void main()
             {
@@ -877,6 +886,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                 vTexCoord = aTexCoord;
                 vColor = aColor;
                 vClipRect = aClipRect;
+                vSilhouette = aSilhouette;
             }
             """;
 
@@ -885,6 +895,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             in vec2 vTexCoord;
             in vec4 vColor;
             in vec4 vClipRect;
+            flat in float vSilhouette;
 
             uniform sampler2D uTexture;
             uniform vec2 uViewportSize;
@@ -902,7 +913,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                     discard;
                 }
 
-                FragColor = texture(uTexture, vTexCoord) * vColor;
+                vec4 sampled = texture(uTexture, vTexCoord);
+                FragColor = vSilhouette > 0.5
+                    ? vec4(vColor.rgb, sampled.a * vColor.a)
+                    : sampled * vColor;
             }
             """;
 
