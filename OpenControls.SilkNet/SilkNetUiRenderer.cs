@@ -67,8 +67,17 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         public float ClipRight;
         public float ClipBottom;
         public float Silhouette;
+        public float SkyKey;
 
-        public UiVertex(float x, float y, float u, float v, UiColor color, UiRect clip, bool silhouette = false)
+        public UiVertex(
+            float x,
+            float y,
+            float u,
+            float v,
+            UiColor color,
+            UiRect clip,
+            bool silhouette = false,
+            bool skyKey = false)
         {
             X = x;
             Y = y;
@@ -83,6 +92,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             ClipRight = clip.Right;
             ClipBottom = clip.Bottom;
             Silhouette = silhouette ? 1f : 0f;
+            SkyKey = skyKey ? 1f : 0f;
         }
     }
 
@@ -107,6 +117,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     private readonly uint _whiteTexture;
     private readonly int _viewportUniformLocation;
     private readonly int _textureUniformLocation;
+    private readonly int _skyTextureUniformLocation;
+    private readonly int _skyDestUniformLocation;
     private readonly MetricAccumulator[] _metricAccumulators = new MetricAccumulator[Enum.GetValues<MetricKind>().Length];
     private bool _disposed;
     private bool _metricsActive;
@@ -114,6 +126,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
     private long _metricsSequence;
     private uint _batchedTextureId;
     private uint _boundTextureId;
+    private uint _sharedSkyTextureId;
+    private UiRect _sharedSkyDest;
     private int _batchedQuadCount;
     private int _viewportWidth = 1;
     private int _viewportHeight = 1;
@@ -130,6 +144,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
 
         _viewportUniformLocation = _gl.GetUniformLocation(_program, "uViewportSize");
         _textureUniformLocation = _gl.GetUniformLocation(_program, "uTexture");
+        _skyTextureUniformLocation = _gl.GetUniformLocation(_program, "uSkyTexture");
+        _skyDestUniformLocation = _gl.GetUniformLocation(_program, "uSkyDest");
 
         CreateVertexArrayForCurrentContext(uploadBufferData: true);
     }
@@ -331,6 +347,58 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         UiColor? tint = null,
         bool silhouette = false)
     {
+        DrawTextureCore(
+            textureId,
+            rect,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            flipVertical,
+            tint,
+            silhouette,
+            skyKey: false);
+    }
+
+    /// <summary>Draw one sprite quad whose opaque magenta texels sample the
+    /// shared screen-space sky texture. The extra flag rides vertex data, so
+    /// keyed and ordinary quads retain the normal texture batching rules.</summary>
+    public void DrawSkyKeyedTexture(
+        uint textureId,
+        UiRect rect,
+        float sourceX,
+        float sourceY,
+        float sourceWidth,
+        float sourceHeight,
+        bool flipVertical = false,
+        UiColor? tint = null,
+        bool silhouette = false)
+    {
+        DrawTextureCore(
+            textureId,
+            rect,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            flipVertical,
+            tint,
+            silhouette,
+            skyKey: true);
+    }
+
+    private void DrawTextureCore(
+        uint textureId,
+        UiRect rect,
+        float sourceX,
+        float sourceY,
+        float sourceWidth,
+        float sourceHeight,
+        bool flipVertical,
+        UiColor? tint,
+        bool silhouette,
+        bool skyKey)
+    {
         long startTimestamp = BeginMetric();
         if (textureId == 0 || rect.Width <= 0 || rect.Height <= 0)
         {
@@ -357,8 +425,19 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float vBottom = flipVertical
             ? clampedSourceY
             : clampedSourceY + clampedSourceHeight;
-        QueueQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, uLeft, vTop, uRight, vBottom, drawColor, silhouette);
+        QueueQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, uLeft, vTop, uRight, vBottom, drawColor, silhouette, skyKey);
         EndMetric(MetricKind.DrawTexture, startTimestamp);
+    }
+
+    /// <summary>Bind the half-resolution sky for subsequent keyed quads. The
+    /// renderer does not own this texture; the post-effect that created it
+    /// retains and deletes it.</summary>
+    public void SetSharedSkyTexture(uint textureId, UiRect screenDest)
+    {
+        FlushPending(FlushReason.RenderPassEnd);
+        ResetRenderState();
+        _sharedSkyTextureId = textureId;
+        _sharedSkyDest = screenDest;
     }
 
     public int MeasureTextWidth(string text, int scale = 1)
@@ -498,7 +577,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float u2,
         float v2,
         UiColor color,
-        bool silhouette = false)
+        bool silhouette = false,
+        bool skyKey = false)
     {
         if (textureId == 0 || width <= 0 || height <= 0)
         {
@@ -528,7 +608,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             _batchedTextureId = textureId;
         }
 
-        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, clip, silhouette, ref _batchedQuadCount);
+        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, clip, silhouette, skyKey, ref _batchedQuadCount);
     }
 
     private void AppendQuad(
@@ -544,6 +624,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         UiColor color,
         UiRect clip,
         bool silhouette,
+        bool skyKey,
         ref int quadCount)
     {
         if (width <= 0 || height <= 0)
@@ -557,10 +638,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float right = x + width;
         float bottom = y + height;
 
-        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, color, clip, silhouette);
-        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, color, clip, silhouette);
-        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, color, clip, silhouette);
-        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, color, clip, silhouette);
+        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, color, clip, silhouette, skyKey);
+        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, color, clip, silhouette, skyKey);
+        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, color, clip, silhouette, skyKey);
+        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, color, clip, silhouette, skyKey);
         quadCount++;
     }
 
@@ -692,6 +773,15 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
             _gl.Uniform2(_viewportUniformLocation, (float)_viewportWidth, (float)_viewportHeight);
             _gl.Uniform1(_textureUniformLocation, 0);
+            _gl.Uniform1(_skyTextureUniformLocation, 1);
+            _gl.Uniform4(
+                _skyDestUniformLocation,
+                (float)_sharedSkyDest.X,
+                (float)_sharedSkyDest.Y,
+                (float)_sharedSkyDest.Width,
+                (float)_sharedSkyDest.Height);
+            _gl.ActiveTexture(TextureUnit.Texture1);
+            _gl.BindTexture(TextureTarget.Texture2D, _sharedSkyTextureId != 0 ? _sharedSkyTextureId : _whiteTexture);
             _gl.ActiveTexture(TextureUnit.Texture0);
             _renderStateBound = true;
             _boundTextureId = 0;
@@ -726,7 +816,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
         if (uploadBufferData)
         {
-            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_vertices.Length * sizeof(float) * 13), null, BufferUsageARB.StreamDraw);
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_vertices.Length * sizeof(float) * 14), null, BufferUsageARB.StreamDraw);
         }
 
         _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
@@ -742,7 +832,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             }
         }
 
-        const uint stride = sizeof(float) * 13;
+        const uint stride = sizeof(float) * 14;
         _gl.EnableVertexAttribArray(0);
         _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, stride, (void*)0);
         _gl.EnableVertexAttribArray(1);
@@ -753,6 +843,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 8));
         _gl.EnableVertexAttribArray(4);
         _gl.VertexAttribPointer(4, 1, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 12));
+        _gl.EnableVertexAttribArray(5);
+        _gl.VertexAttribPointer(5, 1, VertexAttribPointerType.Float, false, stride, (void*)(sizeof(float) * 13));
     }
 
     private void ResetRenderState()
@@ -762,6 +854,9 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             return;
         }
 
+        _gl.ActiveTexture(TextureUnit.Texture1);
+        _gl.BindTexture(TextureTarget.Texture2D, 0);
+        _gl.ActiveTexture(TextureUnit.Texture0);
         _gl.BindTexture(TextureTarget.Texture2D, 0);
         _gl.BindVertexArray(0);
         _gl.UseProgram(0);
@@ -870,6 +965,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             layout(location = 2) in vec4 aColor;
             layout(location = 3) in vec4 aClipRect;
             layout(location = 4) in float aSilhouette;
+            layout(location = 5) in float aSkyKey;
 
             uniform vec2 uViewportSize;
 
@@ -877,6 +973,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             out vec4 vColor;
             out vec4 vClipRect;
             flat out float vSilhouette;
+            flat out float vSkyKey;
 
             void main()
             {
@@ -887,6 +984,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                 vColor = aColor;
                 vClipRect = aClipRect;
                 vSilhouette = aSilhouette;
+                vSkyKey = aSkyKey;
             }
             """;
 
@@ -896,9 +994,12 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             in vec4 vColor;
             in vec4 vClipRect;
             flat in float vSilhouette;
+            flat in float vSkyKey;
 
             uniform sampler2D uTexture;
+            uniform sampler2D uSkyTexture;
             uniform vec2 uViewportSize;
+            uniform vec4 uSkyDest;
 
             out vec4 FragColor;
 
@@ -914,6 +1015,14 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                 }
 
                 vec4 sampled = texture(uTexture, vTexCoord);
+                if (vSkyKey > 0.5 && uSkyDest.z > 0.0 && uSkyDest.w > 0.0)
+                {
+                    float keyDistance = distance(sampled.rgb, vec3(1.0, 0.0, 1.0));
+                    float keyCoverage = 1.0 - smoothstep(0.125490, 0.250980, keyDistance);
+                    vec2 skyUv = clamp((fragmentPosition - uSkyDest.xy) / uSkyDest.zw, 0.0, 1.0);
+                    skyUv.y = 1.0 - skyUv.y;
+                    sampled.rgb = mix(sampled.rgb, texture(uSkyTexture, skyUv).rgb, keyCoverage);
+                }
                 FragColor = vSilhouette > 0.5
                     ? vec4(vColor.rgb, sampled.a * vColor.a)
                     : sampled * vColor;
