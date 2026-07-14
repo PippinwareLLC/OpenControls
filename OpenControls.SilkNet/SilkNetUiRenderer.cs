@@ -77,7 +77,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             UiColor color,
             UiRect clip,
             bool silhouette = false,
-            bool skyKey = false)
+            bool skyKey = false,
+            float skyGlow = 0f)
         {
             X = x;
             Y = y;
@@ -92,7 +93,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             ClipRight = clip.Right;
             ClipBottom = clip.Bottom;
             Silhouette = silhouette ? 1f : 0f;
-            SkyKey = skyKey ? 1f : 0f;
+            SkyKey = skyKey ? 1f + Math.Clamp(skyGlow, 0f, 1f) : 0f;
         }
     }
 
@@ -372,7 +373,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float sourceHeight,
         bool flipVertical = false,
         UiColor? tint = null,
-        bool silhouette = false)
+        bool silhouette = false,
+        float skyGlow = 0f)
     {
         DrawTextureCore(
             textureId,
@@ -384,7 +386,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             flipVertical,
             tint,
             silhouette,
-            skyKey: true);
+            skyKey: true,
+            skyGlow: skyGlow);
     }
 
     private void DrawTextureCore(
@@ -397,7 +400,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         bool flipVertical,
         UiColor? tint,
         bool silhouette,
-        bool skyKey)
+        bool skyKey,
+        float skyGlow = 0f)
     {
         long startTimestamp = BeginMetric();
         if (textureId == 0 || rect.Width <= 0 || rect.Height <= 0)
@@ -425,7 +429,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float vBottom = flipVertical
             ? clampedSourceY
             : clampedSourceY + clampedSourceHeight;
-        QueueQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, uLeft, vTop, uRight, vBottom, drawColor, silhouette, skyKey);
+        QueueQuad(textureId, rect.X, rect.Y, rect.Width, rect.Height, uLeft, vTop, uRight, vBottom, drawColor, silhouette, skyKey, skyGlow);
         EndMetric(MetricKind.DrawTexture, startTimestamp);
     }
 
@@ -578,7 +582,8 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float v2,
         UiColor color,
         bool silhouette = false,
-        bool skyKey = false)
+        bool skyKey = false,
+        float skyGlow = 0f)
     {
         if (textureId == 0 || width <= 0 || height <= 0)
         {
@@ -608,7 +613,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             _batchedTextureId = textureId;
         }
 
-        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, clip, silhouette, skyKey, ref _batchedQuadCount);
+        AppendQuad(textureId, x, y, width, height, u1, v1, u2, v2, color, clip, silhouette, skyKey, skyGlow, ref _batchedQuadCount);
     }
 
     private void AppendQuad(
@@ -625,6 +630,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         UiRect clip,
         bool silhouette,
         bool skyKey,
+        float skyGlow,
         ref int quadCount)
     {
         if (width <= 0 || height <= 0)
@@ -638,10 +644,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         float right = x + width;
         float bottom = y + height;
 
-        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, color, clip, silhouette, skyKey);
-        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, color, clip, silhouette, skyKey);
-        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, color, clip, silhouette, skyKey);
-        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, color, clip, silhouette, skyKey);
+        _vertices[baseIndex + 0] = new UiVertex(left, top, u1, v1, color, clip, silhouette, skyKey, skyGlow);
+        _vertices[baseIndex + 1] = new UiVertex(right, top, u2, v1, color, clip, silhouette, skyKey, skyGlow);
+        _vertices[baseIndex + 2] = new UiVertex(right, bottom, u2, v2, color, clip, silhouette, skyKey, skyGlow);
+        _vertices[baseIndex + 3] = new UiVertex(left, bottom, u1, v2, color, clip, silhouette, skyKey, skyGlow);
         quadCount++;
     }
 
@@ -1025,7 +1031,10 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                     float keyCoverage = 1.0 - step(0.250980, keyDistance);
                     vec2 skyUv = clamp((fragmentPosition - uSkyDest.xy) / uSkyDest.zw, 0.0, 1.0);
                     skyUv.y = 1.0 - skyUv.y;
-                    sampled.rgb = mix(sampled.rgb, texture(uSkyTexture, skyUv).rgb, keyCoverage);
+                    vec3 sky = texture(uSkyTexture, skyUv).rgb;
+                    float glow = clamp(vSkyKey - 1.0, 0.0, 1.0);
+                    vec3 litSky = mix(sky, vec3(1.0, 0.58, 0.24), glow * 0.58);
+                    sampled.rgb = mix(sampled.rgb, litSky, keyCoverage);
                 }
                 FragColor = vSilhouette > 0.5
                     ? vec4(vColor.rgb, sampled.a * vColor.a)
