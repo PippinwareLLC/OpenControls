@@ -1018,7 +1018,11 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                 if (vSkyKey > 0.5 && uSkyDest.z > 0.0 && uSkyDest.w > 0.0)
                 {
                     float keyDistance = distance(sampled.rgb, vec3(1.0, 0.0, 1.0));
-                    float keyCoverage = 1.0 - smoothstep(0.125490, 0.250980, keyDistance);
+                    // Key-aware half scaling has already snapped edge texels to
+                    // either exact glass or key-free art. A hard outer-radius
+                    // classification prevents ASTC drift from reintroducing a
+                    // pink blend beside mullions.
+                    float keyCoverage = 1.0 - step(0.250980, keyDistance);
                     vec2 skyUv = clamp((fragmentPosition - uSkyDest.xy) / uSkyDest.zw, 0.0, 1.0);
                     skyUv.y = 1.0 - skyUv.y;
                     sampled.rgb = mix(sampled.rgb, texture(uSkyTexture, skyUv).rgb, keyCoverage);
