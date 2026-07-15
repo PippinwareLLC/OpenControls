@@ -348,6 +348,8 @@ public sealed class UiMenuBar : UiElement
     private int _hoveredTopIndex = -1;
     private int _hoveredMenuLevel = -1;
     private int _hoveredMenuIndex = -1;
+    private int _suppressedSubmenuHoverLevel = -1;
+    private int _suppressedSubmenuHoverIndex = -1;
     private bool _popupOpen;
     private bool _suppressOutsideClick;
     private UiElement? _focusBeforeOpen;
@@ -364,6 +366,7 @@ public sealed class UiMenuBar : UiElement
     public bool ClosePopupOnOutsideClick { get; set; } = true;
     public bool ClosePopupOnEscape { get; set; } = true;
     public bool ClosePopupOnItemClick { get; set; } = true;
+    public bool CloseOneLevelOnEscape { get; set; }
 
     public UiColor BarBackground { get; set; } = new(22, 26, 36);
     public UiColor BarBorder { get; set; } = new(60, 70, 90);
@@ -642,9 +645,14 @@ public sealed class UiMenuBar : UiElement
             layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
         }
 
+        bool closedSubmenuOnEscape = false;
         if (_openPath.Count > 0 && input.Navigation.Escape)
         {
-            CloseMenu(context.Focus);
+            closedSubmenuOnEscape = CloseOneLevelOnEscape && TryCloseDeepestSubmenu();
+            if (!closedSubmenuOnEscape)
+            {
+                CloseMenu(context.Focus);
+            }
             layoutStateStamp = RefreshLayoutIfNeeded(layoutStateStamp, context.DefaultFont);
         }
 
@@ -666,7 +674,7 @@ public sealed class UiMenuBar : UiElement
 
         menuOpen = _openPath.Count > 0;
 
-        if (menuOpen)
+        if (menuOpen && !closedSubmenuOnEscape)
         {
             if (_hoveredTopIndex >= 0 && _hoveredTopIndex != _openPath[0])
             {
@@ -680,7 +688,7 @@ public sealed class UiMenuBar : UiElement
             }
         }
 
-        if (EnableKeyboardNavigation)
+        if (EnableKeyboardNavigation && !closedSubmenuOnEscape)
         {
             HandleKeyboardNavigation(context);
             layoutStateStamp = ComputeLayoutStateStamp();
@@ -905,10 +913,17 @@ public sealed class UiMenuBar : UiElement
             return;
         }
 
+        bool closedSubmenuOnEscape = false;
         if (ClosePopupOnEscape && input.Navigation.Escape)
         {
-            ClosePopup(context.Focus);
-            return;
+            closedSubmenuOnEscape = CloseOneLevelOnEscape && TryCloseDeepestSubmenu();
+            if (!closedSubmenuOnEscape)
+            {
+                ClosePopup(context.Focus);
+                return;
+            }
+
+            BuildPopupLayouts();
         }
 
         if (_suppressOutsideClick)
@@ -927,14 +942,17 @@ public sealed class UiMenuBar : UiElement
             BuildPopupLayouts();
         }
 
-        if (EnableKeyboardNavigation)
+        if (EnableKeyboardNavigation && !closedSubmenuOnEscape)
         {
             HandleKeyboardNavigation(context);
             BuildPopupLayouts();
         }
 
-        UpdateHoverSubmenu(mouse);
-        BuildPopupLayouts();
+        if (!closedSubmenuOnEscape)
+        {
+            UpdateHoverSubmenu(mouse);
+            BuildPopupLayouts();
+        }
         UpdateHoveredMenuItem(mouse);
         UpdateOpenContent(context);
 
@@ -1412,8 +1430,16 @@ public sealed class UiMenuBar : UiElement
     {
         if (!TryGetMenuItemAt(point, out int level, out int index))
         {
+            ClearSubmenuHoverSuppression();
             return;
         }
+
+        if (level == _suppressedSubmenuHoverLevel && index == _suppressedSubmenuHoverIndex)
+        {
+            return;
+        }
+
+        ClearSubmenuHoverSuppression();
 
         MenuLayout layout = _openLayouts[level];
         MenuItem item = layout.Items[index];
@@ -1435,6 +1461,7 @@ public sealed class UiMenuBar : UiElement
 
     private void OpenSubmenu(int level, int index)
     {
+        ClearSubmenuHoverSuppression();
         if (DisplayMode == UiMenuDisplayMode.Popup)
         {
             if (_openPath.Count > level)
@@ -1475,6 +1502,28 @@ public sealed class UiMenuBar : UiElement
         _openPath.Clear();
         ClearSelection();
         RestoreFocus(focus);
+    }
+
+    private bool TryCloseDeepestSubmenu()
+    {
+        if (_openLayouts.Count <= 1)
+        {
+            return false;
+        }
+
+        int level = _openLayouts.Count - 1;
+        int parentLevel = level - 1;
+        int parentIndex = GetParentItemIndexForLevel(level);
+        CloseSubmenuLevel(level);
+        if (parentIndex >= 0)
+        {
+            _hoveredMenuLevel = parentLevel;
+            _hoveredMenuIndex = parentIndex;
+            _suppressedSubmenuHoverLevel = parentLevel;
+            _suppressedSubmenuHoverIndex = parentIndex;
+        }
+
+        return true;
     }
 
     private void ActivateItem(MenuItem item, UiMenuItemActivation activation)
@@ -2195,6 +2244,13 @@ public sealed class UiMenuBar : UiElement
     {
         _hoveredMenuLevel = -1;
         _hoveredMenuIndex = -1;
+        ClearSubmenuHoverSuppression();
+    }
+
+    private void ClearSubmenuHoverSuppression()
+    {
+        _suppressedSubmenuHoverLevel = -1;
+        _suppressedSubmenuHoverIndex = -1;
     }
 
     private static UiPoint? TranslatePoint(UiPoint? point, int offsetX, int offsetY)
