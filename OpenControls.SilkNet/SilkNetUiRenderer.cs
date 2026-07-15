@@ -93,7 +93,14 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
             ClipRight = clip.Right;
             ClipBottom = clip.Bottom;
             Silhouette = silhouette ? 1f : 0f;
-            SkyKey = skyKey ? 1f + Math.Clamp(skyGlow, 0f, 1f) : 0f;
+            // skyGlow < 0 is the EARTH-GLASS sentinel: keyed texels go
+            // transparent instead of sampling the sky capture (basement
+            // windows reveal the earth drawn behind the room).
+            SkyKey = !skyKey
+                ? 0f
+                : skyGlow < 0f
+                    ? -1f
+                    : 1f + Math.Clamp(skyGlow, 0f, 1f);
         }
     }
 
@@ -1021,7 +1028,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                 }
 
                 vec4 sampled = texture(uTexture, vTexCoord);
-                if (vSkyKey > 0.5 && uSkyDest.z > 0.0 && uSkyDest.w > 0.0)
+                if (abs(vSkyKey) > 0.5)
                 {
                     float keyDistance = distance(sampled.rgb, vec3(1.0, 0.0, 1.0));
                     // Key-aware half scaling has already snapped edge texels to
@@ -1029,12 +1036,23 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                     // classification prevents ASTC drift from reintroducing a
                     // pink blend beside mullions.
                     float keyCoverage = 1.0 - step(0.250980, keyDistance);
-                    vec2 skyUv = clamp((fragmentPosition - uSkyDest.xy) / uSkyDest.zw, 0.0, 1.0);
-                    skyUv.y = 1.0 - skyUv.y;
-                    vec3 sky = texture(uSkyTexture, skyUv).rgb;
-                    float glow = clamp(vSkyKey - 1.0, 0.0, 1.0);
-                    vec3 litSky = mix(sky, vec3(1.0, 0.58, 0.24), glow * 0.58);
-                    sampled.rgb = mix(sampled.rgb, litSky, keyCoverage);
+                    bool haveSky = uSkyDest.z > 0.0 && uSkyDest.w > 0.0;
+                    if (vSkyKey < 0.0 || !haveSky)
+                    {
+                        // Earth glass (or no capture available): keyed texels
+                        // go transparent so whatever was drawn behind the
+                        // room - the basement earth - shows through.
+                        sampled = mix(sampled, vec4(0.0), keyCoverage);
+                    }
+                    else
+                    {
+                        vec2 skyUv = clamp((fragmentPosition - uSkyDest.xy) / uSkyDest.zw, 0.0, 1.0);
+                        skyUv.y = 1.0 - skyUv.y;
+                        vec3 sky = texture(uSkyTexture, skyUv).rgb;
+                        float glow = clamp(vSkyKey - 1.0, 0.0, 1.0);
+                        vec3 litSky = mix(sky, vec3(1.0, 0.58, 0.24), glow * 0.58);
+                        sampled.rgb = mix(sampled.rgb, litSky, keyCoverage);
+                    }
                 }
                 FragColor = vSilhouette > 0.5
                     ? vec4(vColor.rgb, sampled.a * vColor.a)
