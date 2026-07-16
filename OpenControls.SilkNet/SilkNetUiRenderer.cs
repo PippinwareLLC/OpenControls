@@ -451,6 +451,13 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
         _sharedSkyDest = screenDest;
     }
 
+    /// <summary>The captured sky bound by <see cref="SetSharedSkyTexture"/>,
+    /// for effect passes (room-3d window glass) that sample it outside the
+    /// quad pipeline. Texture id 0 / an empty dest means no capture exists.</summary>
+    public uint SharedSkyTextureId => _sharedSkyTextureId;
+
+    public UiRect SharedSkyDest => _sharedSkyDest;
+
     public int MeasureTextWidth(string text, int scale = 1)
     {
         return MeasureTextWidth(text, scale, null);
