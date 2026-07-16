@@ -19,6 +19,7 @@ public sealed class UiMenuBar : UiElement
     {
         public string Text { get; set; } = string.Empty;
         public string Shortcut { get; set; } = string.Empty;
+        public string TrailingText { get; set; } = string.Empty;
         public string CommandId { get; set; } = string.Empty;
         public UiKeyChord? ShortcutChord { get; set; }
         public bool AllowShortcutDuringTextInput { get; set; }
@@ -390,6 +391,8 @@ public sealed class UiMenuBar : UiElement
     public int SeparatorHeight { get; set; } = 6;
     public int ShortcutPadding { get; set; } = 12;
     public int ShortcutTrailingPadding { get; set; } = 12;
+    public int TrailingTextPadding { get; set; } = 8;
+    public int TrailingTextTrailingPadding { get; set; } = 8;
     public int CheckmarkSize { get; set; } = 6;
     public int CheckmarkAreaWidth { get; set; } = 12;
     public int SubmenuIndicatorWidth { get; set; } = 10;
@@ -836,14 +839,30 @@ public sealed class UiMenuBar : UiElement
                     int textX = itemRect.X + ItemPadding + GetCheckmarkAreaWidth() + itemTextMetrics.DrawOffsetX;
                     context.Renderer.DrawText(item.Text, new UiPoint(textX, itemTextY), color, TextScale, font);
 
+                    int submenuSpace = item.HasChildren
+                        ? GetSubmenuIndicatorWidth(item) + Math.Max(0, ItemPadding)
+                        : 0;
+                    int trailingTextSpace = 0;
+                    if (!string.IsNullOrEmpty(item.TrailingText))
+                    {
+                        MenuTextMetrics trailingTextMetrics = GetMenuTextMetrics(item.TrailingText, font);
+                        int trailingTextX = itemRect.Right
+                            - submenuSpace
+                            - Math.Max(1, TrailingTextTrailingPadding)
+                            - trailingTextMetrics.ContentWidth
+                            + trailingTextMetrics.DrawOffsetX;
+                        context.Renderer.DrawText(item.TrailingText, new UiPoint(trailingTextX, itemTextY), color, TextScale, font);
+                        trailingTextSpace = Math.Max(0, TrailingTextPadding)
+                            + trailingTextMetrics.ContentWidth
+                            + Math.Max(1, TrailingTextTrailingPadding);
+                    }
+
                     if (!string.IsNullOrEmpty(item.Shortcut))
                     {
                         MenuTextMetrics shortcutMetrics = GetMenuTextMetrics(item.Shortcut, font);
-                        int submenuSpace = item.HasChildren
-                            ? GetSubmenuIndicatorWidth(item) + Math.Max(0, ItemPadding)
-                            : 0;
                         int shortcutX = itemRect.Right
                             - submenuSpace
+                            - trailingTextSpace
                             - Math.Max(1, ShortcutTrailingPadding)
                             - shortcutMetrics.ContentWidth
                             + shortcutMetrics.DrawOffsetX;
@@ -2408,6 +2427,9 @@ public sealed class UiMenuBar : UiElement
             int shortcutWidth = string.IsNullOrEmpty(item.Shortcut)
                 ? 0
                 : GetMenuTextMetrics(item.Shortcut, font).ContentWidth;
+            int trailingTextWidth = string.IsNullOrEmpty(item.TrailingText)
+                ? 0
+                : GetMenuTextMetrics(item.TrailingText, font).ContentWidth;
             int itemPadding = Math.Max(0, ItemPadding);
             int width = itemPadding + checkArea + textWidth;
             if (shortcutWidth > 0)
@@ -2420,6 +2442,13 @@ public sealed class UiMenuBar : UiElement
             else
             {
                 width += itemPadding;
+            }
+
+            if (trailingTextWidth > 0)
+            {
+                width += Math.Max(0, TrailingTextPadding)
+                    + trailingTextWidth
+                    + Math.Max(1, TrailingTextTrailingPadding);
             }
 
             if (item.HasChildren)

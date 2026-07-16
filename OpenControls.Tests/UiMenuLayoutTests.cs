@@ -32,6 +32,52 @@ public sealed class UiMenuLayoutTests
     }
 
     [Fact]
+    public void PopupWidthAndRendering_ReserveMeasuredTrailingText()
+    {
+        const string label = "Subdivision";
+        const string shortcut = "Ctrl+2";
+        const string trailingText = "#";
+        UiMenuBar menu = CreatePopupMenu(label, shortcut);
+        menu.Items[0].TrailingText = trailingText;
+        menu.ItemPadding = 5;
+        menu.CheckmarkAreaWidth = 9;
+        menu.ShortcutPadding = 7;
+        menu.ShortcutTrailingPadding = 6;
+        menu.TrailingTextPadding = 10;
+        menu.TrailingTextTrailingPadding = 11;
+
+        Update(menu);
+
+        UiRect layout = Assert.Single(menu.GetDebugOpenLayoutBounds());
+        int expectedWidth = menu.ItemPadding
+            + menu.CheckmarkAreaWidth
+            + UiFont.Default.MeasureTextWidth(label)
+            + menu.ItemPadding
+            + menu.ShortcutPadding
+            + UiFont.Default.MeasureTextWidth(shortcut)
+            + menu.ShortcutTrailingPadding
+            + menu.TrailingTextPadding
+            + UiFont.Default.MeasureTextWidth(trailingText)
+            + menu.TrailingTextTrailingPadding;
+        Assert.Equal(expectedWidth, layout.Width);
+
+        CaptureRenderer renderer = new();
+        menu.RenderOverlay(new UiRenderContext(renderer, renderer.DefaultFont));
+        TextDraw shortcutDraw = Assert.Single(renderer.TextDraws, draw => draw.Text == shortcut);
+        TextDraw trailingDraw = Assert.Single(renderer.TextDraws, draw => draw.Text == trailingText);
+        UiRect shortcutInk = shortcutDraw.Font.MeasureTextInkBounds(shortcut, shortcutDraw.Scale);
+        UiRect trailingInk = trailingDraw.Font.MeasureTextInkBounds(trailingText, trailingDraw.Scale);
+        int shortcutInkRight = shortcutDraw.Position.X + shortcutInk.Right;
+        int trailingInkLeft = trailingDraw.Position.X + trailingInk.X;
+        int trailingInkRight = trailingDraw.Position.X + trailingInk.Right;
+
+        Assert.True(
+            trailingInkLeft - shortcutInkRight >= menu.ShortcutTrailingPadding + menu.TrailingTextPadding,
+            "Shortcut and trailing text must retain both configured gaps.");
+        Assert.True(layout.Right - trailingInkRight >= menu.TrailingTextTrailingPadding);
+    }
+
+    [Fact]
     public void LongShortcut_RenderingLeavesConfiguredTrailingGapBeforePopupBorder()
     {
         const string shortcut = "Primary+Shift+Alt+Super+F12";
