@@ -137,6 +137,67 @@ public sealed class UiMenuActivationTests
             Assert.IsType<UiMenuItemActivation>(actual));
     }
 
+    [Fact]
+    public void TrailingMouseActionCanActivateWhilePrimaryCommandIsDisabled()
+    {
+        (UiContext context, UiMenuBar menu, UiMenuBar.MenuItem item) = CreateOpenPopupMenu();
+        item.Enabled = false;
+        item.CommandId = "file.new";
+        item.TrailingText = "[]";
+        item.TrailingActionEnabled = true;
+        bool primaryClicked = false;
+        UiMenuItemActivation? itemActivation = null;
+        UiMenuItemActivation? menuActivation = null;
+        item.Clicked = _ => primaryClicked = true;
+        item.TrailingActivated = (_, activation) => itemActivation = activation;
+        menu.TrailingItemActivated += (_, activation) => menuActivation = activation;
+
+        context.Update(new UiInputState());
+        Assert.True(menu.TryGetDebugOpenTrailingActionBounds(0, 0, out UiRect actionBounds));
+        UiPoint point = new(
+            actionBounds.X + actionBounds.Width / 2,
+            actionBounds.Y + actionBounds.Height / 2);
+        context.Update(new UiInputState
+        {
+            MousePosition = point,
+            ScreenMousePosition = point,
+            LeftClicked = true,
+            LeftDown = true,
+            ShiftDown = true
+        });
+
+        Assert.False(primaryClicked);
+        Assert.False(menu.IsPopupOpen);
+        Assert.Equal(
+            new UiMenuItemActivation(UiMenuItemActivationSource.Mouse, UiModifierKeys.Shift),
+            Assert.IsType<UiMenuItemActivation>(itemActivation));
+        Assert.Equal(itemActivation, menuActivation);
+    }
+
+    [Fact]
+    public void ProgrammaticTrailingActionIsIndependentFromPrimaryCommandAvailability()
+    {
+        UiMenuBar menu = new();
+        UiMenuBar.MenuItem item = new()
+        {
+            Text = "New",
+            CommandId = "file.new",
+            Enabled = false,
+            TrailingText = "[]",
+            TrailingActionEnabled = true
+        };
+        menu.Items.Add(item);
+
+        UiMenuItemActivation? actual = null;
+        item.TrailingActivated = (_, activation) => actual = activation;
+
+        Assert.False(menu.TryInvokeCommand("file.new"));
+        Assert.True(menu.TryInvokeTrailingCommand("file.new"));
+        Assert.Equal(
+            new UiMenuItemActivation(UiMenuItemActivationSource.Programmatic, UiModifierKeys.None),
+            Assert.IsType<UiMenuItemActivation>(actual));
+    }
+
     private static (UiContext Context, UiMenuBar Menu, UiMenuBar.MenuItem Item) CreateOpenPopupMenu()
     {
         UiPanel root = new() { Bounds = new UiRect(0, 0, 320, 200) };

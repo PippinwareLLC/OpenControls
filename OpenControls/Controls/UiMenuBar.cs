@@ -20,6 +20,7 @@ public sealed class UiMenuBar : UiElement
         public string Text { get; set; } = string.Empty;
         public string Shortcut { get; set; } = string.Empty;
         public string TrailingText { get; set; } = string.Empty;
+        public bool TrailingActionEnabled { get; set; }
         public string CommandId { get; set; } = string.Empty;
         public UiKeyChord? ShortcutChord { get; set; }
         public bool AllowShortcutDuringTextInput { get; set; }
@@ -37,6 +38,7 @@ public sealed class UiMenuBar : UiElement
         public Action<MenuItem>? Clicked { get; set; }
         public Action<MenuItem, UiMenuItemActivationSource>? Invoked { get; set; }
         public Action<MenuItem, UiMenuItemActivation>? Activated { get; set; }
+        public Action<MenuItem, UiMenuItemActivation>? TrailingActivated { get; set; }
 
         public bool HasChildren => Items.Count > 0;
         public bool HasContent => Content != null;
@@ -408,6 +410,7 @@ public sealed class UiMenuBar : UiElement
 
     public event Action<MenuItem, UiMenuItemActivationSource>? ItemInvoked;
     public event Action<MenuItem, UiMenuItemActivation>? ItemActivated;
+    public event Action<MenuItem, UiMenuItemActivation>? TrailingItemActivated;
 
     public IReadOnlyList<UiRect> GetDebugOpenLayoutBounds()
     {
@@ -433,6 +436,27 @@ public sealed class UiMenuBar : UiElement
         }
 
         return _openLayouts[layoutIndex].ItemRects.ToArray();
+    }
+
+    public bool TryGetDebugOpenTrailingActionBounds(
+        int layoutIndex,
+        int itemIndex,
+        out UiRect bounds)
+    {
+        if (layoutIndex < 0 ||
+            layoutIndex >= _openLayouts.Count ||
+            itemIndex < 0 ||
+            itemIndex >= _openLayouts[layoutIndex].Items.Count)
+        {
+            bounds = default;
+            return false;
+        }
+
+        MenuLayout layout = _openLayouts[layoutIndex];
+        return TryGetTrailingActionBounds(
+            layout.Items[itemIndex],
+            layout.ItemRects[itemIndex],
+            out bounds);
     }
 
     public bool TryGetDebugHighlightedItemBounds(out UiRect bounds)
@@ -599,6 +623,24 @@ public sealed class UiMenuBar : UiElement
         }
 
         ActivateItem(item, new UiMenuItemActivation(UiMenuItemActivationSource.Programmatic, UiModifierKeys.None));
+        return true;
+    }
+
+    public bool TryInvokeTrailingCommand(string commandId)
+    {
+        if (string.IsNullOrWhiteSpace(commandId))
+        {
+            return false;
+        }
+
+        if (!TryFindTrailingCommandItem(Items, commandId, out MenuItem? item) || item == null)
+        {
+            return false;
+        }
+
+        ActivateTrailingAction(
+            item,
+            new UiMenuItemActivation(UiMenuItemActivationSource.Programmatic, UiModifierKeys.None));
         return true;
     }
 
@@ -851,7 +893,13 @@ public sealed class UiMenuBar : UiElement
                             - Math.Max(1, TrailingTextTrailingPadding)
                             - trailingTextMetrics.ContentWidth
                             + trailingTextMetrics.DrawOffsetX;
-                        context.Renderer.DrawText(item.TrailingText, new UiPoint(trailingTextX, itemTextY), color, TextScale, font);
+                        UiColor trailingColor = item.TrailingActionEnabled ? TextColor : color;
+                        context.Renderer.DrawText(
+                            item.TrailingText,
+                            new UiPoint(trailingTextX, itemTextY),
+                            trailingColor,
+                            TextScale,
+                            font);
                         trailingTextSpace = Math.Max(0, TrailingTextPadding)
                             + trailingTextMetrics.ContentWidth
                             + Math.Max(1, TrailingTextTrailingPadding);
@@ -1360,6 +1408,16 @@ public sealed class UiMenuBar : UiElement
         {
             MenuLayout layout = _openLayouts[level];
             MenuItem item = layout.Items[index];
+            if (TryActivateTrailingAction(
+                    item,
+                    layout.ItemRects[index],
+                    point,
+                    new UiMenuItemActivation(UiMenuItemActivationSource.Mouse, modifiers)))
+            {
+                CloseMenu(focus);
+                return;
+            }
+
             if (!item.Enabled || item.IsSeparator)
             {
                 return;
@@ -1403,6 +1461,20 @@ public sealed class UiMenuBar : UiElement
 
         MenuLayout layout = _openLayouts[level];
         MenuItem item = layout.Items[index];
+        if (TryActivateTrailingAction(
+                item,
+                layout.ItemRects[index],
+                point,
+                new UiMenuItemActivation(UiMenuItemActivationSource.Mouse, modifiers)))
+        {
+            if (ClosePopupOnItemClick)
+            {
+                ClosePopup(focus);
+            }
+
+            return;
+        }
+
         if (!item.Enabled || item.IsSeparator)
         {
             return;
@@ -1562,6 +1634,32 @@ public sealed class UiMenuBar : UiElement
         item.Activated?.Invoke(item, activation);
         ItemInvoked?.Invoke(item, activation.Source);
         ItemActivated?.Invoke(item, activation);
+    }
+
+    private void ActivateTrailingAction(MenuItem item, UiMenuItemActivation activation)
+    {
+        if (!item.TrailingActionEnabled || item.IsSeparator)
+        {
+            return;
+        }
+
+        item.TrailingActivated?.Invoke(item, activation);
+        TrailingItemActivated?.Invoke(item, activation);
+    }
+
+    private bool TryActivateTrailingAction(
+        MenuItem item,
+        UiRect itemRect,
+        UiPoint point,
+        UiMenuItemActivation activation)
+    {
+        if (!TryGetTrailingActionBounds(item, itemRect, out UiRect bounds) || !bounds.Contains(point))
+        {
+            return false;
+        }
+
+        ActivateTrailingAction(item, activation);
+        return true;
     }
 
     private void UpdateHoveredMenuItem(UiPoint point)
@@ -2169,6 +2267,31 @@ public sealed class UiMenuBar : UiElement
         return false;
     }
 
+    private static bool TryFindTrailingCommandItem(
+        IReadOnlyList<MenuItem> items,
+        string commandId,
+        out MenuItem? match)
+    {
+        for (int i = 0; i < items.Count; i++)
+        {
+            MenuItem item = items[i];
+            if (item.TrailingActionEnabled &&
+                string.Equals(item.CommandId, commandId, StringComparison.OrdinalIgnoreCase))
+            {
+                match = item;
+                return true;
+            }
+
+            if (item.HasChildren && TryFindTrailingCommandItem(item.Items, commandId, out match))
+            {
+                return true;
+            }
+        }
+
+        match = null;
+        return false;
+    }
+
     private static bool TryGetShortcutBinding(MenuItem item, out ShortcutBinding binding)
     {
         if (item.ShortcutChord is UiKeyChord shortcutChord)
@@ -2358,6 +2481,27 @@ public sealed class UiMenuBar : UiElement
     private bool IsMenuItemInteractive(MenuItem item)
     {
         return !item.IsSeparator && item.Enabled && (!item.HasContent || !item.ContentCapturesInput);
+    }
+
+    private bool TryGetTrailingActionBounds(MenuItem item, UiRect itemRect, out UiRect bounds)
+    {
+        if (!item.TrailingActionEnabled || string.IsNullOrEmpty(item.TrailingText) || item.IsSeparator)
+        {
+            bounds = default;
+            return false;
+        }
+
+        UiFont font = ResolveFont(_lastDefaultFont);
+        int trailingWidth = GetMenuTextMetrics(item.TrailingText, font).ContentWidth;
+        int submenuSpace = item.HasChildren
+            ? GetSubmenuIndicatorWidth(item) + Math.Max(0, ItemPadding)
+            : 0;
+        int trailingPadding = Math.Max(1, TrailingTextTrailingPadding);
+        int actionPadding = Math.Max(0, TrailingTextPadding);
+        int right = itemRect.Right - submenuSpace;
+        int left = right - trailingPadding - trailingWidth - actionPadding;
+        bounds = new UiRect(left, itemRect.Y, Math.Max(1, right - left), itemRect.Height);
+        return true;
     }
 
     private bool IsMenuItemOpen(int level, int index)
