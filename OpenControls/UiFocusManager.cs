@@ -6,6 +6,8 @@ public sealed class UiFocusManager
     private bool _hasPendingFocusRequest;
     private UiElement? _pendingFocus;
 
+    internal long ChangeVersion { get; private set; }
+
     public static event Action<UiElement?, UiElement?, string>? DebugFocusChanged;
 
     public UiElement? Focused { get; private set; }
@@ -64,6 +66,7 @@ public sealed class UiFocusManager
         previous?.OnFocusLost();
         Focused = element;
         Focused?.OnFocusGained();
+        ChangeVersion = unchecked(ChangeVersion + 1);
 
         Action<UiElement?, UiElement?, string>? debugFocusChanged = DebugFocusChanged;
         if (debugFocusChanged != null)

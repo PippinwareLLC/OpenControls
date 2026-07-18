@@ -164,6 +164,67 @@ public sealed class UiModalFocusTests
     }
 
     [Fact]
+    public void DeferredMenuCommandModalRestoresFocusFromBeforeTheMenu()
+    {
+        UiModalHost host = new() { Bounds = new UiRect(0, 0, 640, 480) };
+        UiButton previous = new()
+        {
+            Bounds = new UiRect(20, 60, 120, 28),
+            Text = "Canvas"
+        };
+        UiMenuBar menu = new() { Bounds = new UiRect(0, 0, 640, 24) };
+        UiMenuBar.MenuItem command = new() { Text = "New Layer" };
+        UiMenuBar.MenuItem layerMenu = new() { Text = "Layer" };
+        layerMenu.Items.Add(command);
+        menu.Items.Add(layerMenu);
+        UiModal modal = CreateModal(new UiRect(100, 80, 260, 140), out UiTextField field);
+        bool openModalAfterUpdate = false;
+        command.Clicked += _ => openModalAfterUpdate = true;
+        host.AddChild(previous);
+        host.AddChild(menu);
+        host.AddChild(modal);
+
+        UiContext context = new(host);
+        context.Update(new UiInputState());
+        context.Focus.RequestFocus(previous);
+        context.Update(new UiInputState
+        {
+            MousePosition = new UiPoint(12, 12),
+            LeftClicked = true,
+            LeftDown = true
+        });
+        Assert.True(menu.HasOpenMenu);
+
+        UiRect commandBounds = Assert.Single(menu.GetDebugOpenItemBounds());
+        UiPoint commandPoint = new(
+            commandBounds.X + commandBounds.Width / 2,
+            commandBounds.Y + commandBounds.Height / 2);
+        context.Update(new UiInputState
+        {
+            MousePosition = commandPoint,
+            LeftClicked = true,
+            LeftDown = true
+        });
+
+        Assert.True(openModalAfterUpdate);
+        Assert.False(menu.HasOpenMenu);
+        Assert.Same(previous, context.Focus.Focused);
+
+        modal.QueueFocus(field);
+        modal.Open();
+        context.Update(new UiInputState());
+        Assert.Same(field, context.Focus.Focused);
+
+        context.Update(new UiInputState
+        {
+            Navigation = new UiNavigationInput { Escape = true }
+        });
+
+        Assert.False(modal.IsOpen);
+        Assert.Same(previous, context.Focus.Focused);
+    }
+
+    [Fact]
     public void PreviousFocusInsideATabThatBecomesInactiveIsNotRestored()
     {
         UiModalHost host = new() { Bounds = new UiRect(0, 0, 640, 480) };

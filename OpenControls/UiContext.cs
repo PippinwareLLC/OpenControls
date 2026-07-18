@@ -280,11 +280,12 @@ public sealed class UiContext
         // host between updates; reusing it would block the first input frame after
         // popup or native-peer dismissal.
         UiElement? activeInputLayer = resolvedActiveInputLayer;
+        long focusVersionBeforeTreeUpdate = Focus.ChangeVersion;
         DragDrop.BeginFrame(effectiveInput);
         Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont, Clipboard, activeInputLayer));
         DragDrop.EndFrame();
         RepairFocusedElement();
-        RefreshOutputs(effectiveInput);
+        RefreshOutputs(effectiveInput, focusVersionBeforeTreeUpdate);
     }
 
     public bool IsShortcutPressed(
@@ -1052,13 +1053,16 @@ public sealed class UiContext
         };
     }
 
-    private void RefreshOutputs(UiInputState input)
+    private void RefreshOutputs(UiInputState input, long focusVersionBeforeTreeUpdate)
     {
         UiElement? previousActiveInputLayer = _activeInputLayer;
         LastInput = input;
         _activeInputLayer = UiUpdateContext.ResolveActiveInputLayer(Root);
         Hovered = ResolveHoveredElement(input.MousePosition);
-        if (input.LeftClicked && _activeInputLayer == null && ResolveFocusTarget(Hovered) == null)
+        if (input.LeftClicked
+            && _activeInputLayer == null
+            && ResolveFocusTarget(Hovered) == null
+            && Focus.ChangeVersion == focusVersionBeforeTreeUpdate)
         {
             Focus.ClearFocus();
         }
