@@ -1057,7 +1057,9 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IDisposable
                         skyUv.y = 1.0 - skyUv.y;
                         vec3 sky = texture(uSkyTexture, skyUv).rgb;
                         float glow = clamp(vSkyKey - 1.0, 0.0, 1.0);
-                        vec3 litSky = mix(sky, vec3(1.0, 0.58, 0.24), glow * 0.58);
+                        // Additive lamplight (matches the Metal shader): the
+                        // replacement mix erased the night sky behind lit rooms.
+                        vec3 litSky = sky + vec3(1.0, 0.58, 0.24) * (glow * 0.30);
                         sampled.rgb = mix(sampled.rgb, litSky, keyCoverage);
                     }
                 }
