@@ -5,7 +5,7 @@ using Silk.NET.OpenGL;
 
 namespace OpenControls.SilkNet;
 
-public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer, IDisposable
+public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiTextureRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer, IDisposable
 {
     private enum MetricKind
     {
@@ -126,6 +126,7 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
     private readonly Dictionary<int, AtlasPageTexture> _atlasTextures = new();
     private readonly Dictionary<UiRasterizedGlyph, CachedGlyphDraw> _glyphDrawCache = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<UiTextLayout, CachedTextGlyphDraw[]> _textDrawCache = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<uint> _uploadedTextures = [];
     private readonly Queue<UiTextLayout> _textDrawCacheOrder = new();
     private readonly UiVertex[] _vertices = new UiVertex[MaxQuadsPerFlush * 4];
     private readonly UiVertex[] _triangleVertices = new UiVertex[MaxTriangleVerticesPerFlush];
@@ -713,6 +714,50 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
         EndMetric(MetricKind.DrawTexture, startTimestamp);
     }
 
+    public uint CreateRgbaTexture(int width, int height, ReadOnlySpan<byte> rgbaPixels)
+    {
+        ValidateRgbaTexture(width, height, rgbaPixels.Length);
+        uint textureId = _gl.GenTexture();
+        _uploadedTextures.Add(textureId);
+        UpdateRgbaTexture(textureId, width, height, rgbaPixels);
+        return textureId;
+    }
+
+    public void UpdateRgbaTexture(
+        uint textureId,
+        int width,
+        int height,
+        ReadOnlySpan<byte> rgbaPixels)
+    {
+        if (textureId == 0 || !_uploadedTextures.Contains(textureId))
+        {
+            throw new ArgumentOutOfRangeException(nameof(textureId), "Texture ID is not owned by this renderer.");
+        }
+
+        ValidateRgbaTexture(width, height, rgbaPixels.Length);
+        FlushPending(FlushReason.TextureSwitch);
+        _gl.BindTexture(TextureTarget.Texture2D, textureId);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+        fixed (byte* pixelPointer = rgbaPixels)
+        {
+            _gl.TexImage2D(
+                TextureTarget.Texture2D,
+                0,
+                InternalFormat.Rgba,
+                checked((uint)width),
+                checked((uint)height),
+                0,
+                PixelFormat.Rgba,
+                PixelType.UnsignedByte,
+                pixelPointer);
+        }
+
+        _boundTextureId = 0;
+    }
+
     public int MeasureTextWidth(string text, int scale = 1)
     {
         return MeasureTextWidth(text, scale, null);
@@ -791,6 +836,13 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
             }
         }
 
+        foreach (uint textureId in _uploadedTextures)
+        {
+            SafeDelete(() => _gl.DeleteTexture(textureId));
+        }
+
+        _uploadedTextures.Clear();
+
         SafeDelete(() => _gl.DeleteTexture(_whiteTexture));
         SafeDelete(() => _gl.DeleteBuffer(_ebo));
         SafeDelete(() => _gl.DeleteBuffer(_vbo));
@@ -811,6 +863,25 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiVectorRenderer, I
         catch (InvalidOperationException)
         {
             // Ignore teardown-time GL state failures when the context is no longer valid.
+        }
+    }
+
+    private static void ValidateRgbaTexture(int width, int height, int byteCount)
+    {
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), "Texture width must be positive.");
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height), "Texture height must be positive.");
+        }
+
+        int expectedByteCount = checked(width * height * 4);
+        if (byteCount != expectedByteCount)
+        {
+            throw new ArgumentException("RGBA pixel data does not match the texture dimensions.", nameof(byteCount));
         }
     }
 
