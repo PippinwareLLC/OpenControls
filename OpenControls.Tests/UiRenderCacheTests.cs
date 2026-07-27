@@ -535,6 +535,181 @@ public sealed class UiRenderCacheTests
         Assert.Equal(UiRenderCacheMissReason.Invalidation, stats.RootPass.LastMissReason);
     }
 
+    [Fact]
+    public void RenderSubtree_RendersOnlySelectedAttachedBranch()
+    {
+        CountingElement root = new()
+        {
+            Id = "root",
+            Bounds = new UiRect(0, 0, 160, 80)
+        };
+        CountingElement selected = new()
+        {
+            Id = "selected",
+            Bounds = new UiRect(0, 0, 70, 60)
+        };
+        CountingElement sibling = new()
+        {
+            Id = "sibling",
+            Bounds = new UiRect(80, 0, 70, 60)
+        };
+        root.AddChild(selected);
+        root.AddChild(sibling);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.RenderSubtree(renderer, selected);
+
+        Assert.Equal(0, root.RenderCount);
+        Assert.Equal(0, root.OverlayRenderCount);
+        Assert.Equal(1, selected.RenderCount);
+        Assert.Equal(1, selected.OverlayRenderCount);
+        Assert.Equal(0, sibling.RenderCount);
+        Assert.Equal(0, sibling.OverlayRenderCount);
+        Assert.Equal(1, renderer.FillRectCalls);
+        Assert.Equal(1, renderer.DrawRectCalls);
+    }
+
+    [Fact]
+    public void RenderSubtree_MaintainsIndependentCachesPerBranch()
+    {
+        CountingElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 160, 80)
+        };
+        CountingElement first = new()
+        {
+            Id = "first-channel",
+            Bounds = new UiRect(0, 0, 70, 60)
+        };
+        CountingElement second = new()
+        {
+            Id = "second-channel",
+            Bounds = new UiRect(80, 0, 70, 60)
+        };
+        root.AddChild(first);
+        root.AddChild(second);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.RenderSubtree(renderer, first);
+        context.RenderSubtree(renderer, first);
+        context.RenderSubtree(renderer, second);
+        context.RenderSubtree(renderer, second);
+
+        Assert.Equal(1, first.RenderCount);
+        Assert.Equal(1, first.OverlayRenderCount);
+        Assert.Equal(1, second.RenderCount);
+        Assert.Equal(1, second.OverlayRenderCount);
+
+        first.Bounds = new UiRect(0, 0, 72, 62);
+        context.RenderSubtree(renderer, first);
+        context.RenderSubtree(renderer, second);
+
+        Assert.Equal(2, first.RenderCount);
+        Assert.Equal(2, first.OverlayRenderCount);
+        Assert.Equal(1, second.RenderCount);
+        Assert.Equal(1, second.OverlayRenderCount);
+    }
+
+    [Fact]
+    public void RenderSubtree_DoesNotPoisonWholeContextCache()
+    {
+        CountingElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 160, 80)
+        };
+        CountingElement selected = new()
+        {
+            Id = "selected-channel",
+            Bounds = new UiRect(0, 0, 70, 60)
+        };
+        CountingElement sibling = new()
+        {
+            Id = "sibling-channel",
+            Bounds = new UiRect(80, 0, 70, 60)
+        };
+        root.AddChild(selected);
+        root.AddChild(sibling);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.RenderSubtree(renderer, selected);
+        context.Render(renderer);
+        context.Render(renderer);
+        context.RenderSubtree(renderer, selected);
+
+        Assert.Equal(1, root.RenderCount);
+        Assert.Equal(1, root.OverlayRenderCount);
+        Assert.Equal(2, selected.RenderCount);
+        Assert.Equal(2, selected.OverlayRenderCount);
+        Assert.Equal(1, sibling.RenderCount);
+        Assert.Equal(1, sibling.OverlayRenderCount);
+    }
+
+    [Fact]
+    public void RenderSubtree_IgnoresVolatileStateInSiblingBranches()
+    {
+        CountingElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 160, 80)
+        };
+        CountingElement stable = new()
+        {
+            Id = "stable-channel",
+            Bounds = new UiRect(0, 0, 70, 60)
+        };
+        VolatileElement volatileSibling = new()
+        {
+            Id = "volatile-channel",
+            Bounds = new UiRect(80, 0, 70, 60)
+        };
+        root.AddChild(stable);
+        root.AddChild(volatileSibling);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        context.RenderSubtree(renderer, stable);
+        context.RenderSubtree(renderer, stable);
+
+        Assert.Equal(1, stable.RenderCount);
+        Assert.Equal(1, stable.OverlayRenderCount);
+        Assert.Equal(0, volatileSibling.RenderCount);
+        Assert.Equal(0, volatileSibling.OverlayRenderCount);
+    }
+
+    [Fact]
+    public void RenderSubtree_RejectsDetachedOrForeignRoots()
+    {
+        CountingElement root = new()
+        {
+            Bounds = new UiRect(0, 0, 80, 80)
+        };
+        CountingElement attached = new()
+        {
+            Bounds = new UiRect(0, 0, 40, 40)
+        };
+        CountingElement foreign = new()
+        {
+            Bounds = new UiRect(40, 0, 40, 40)
+        };
+        root.AddChild(attached);
+
+        UiContext context = CreateContext(root);
+        CountingRenderer renderer = new();
+
+        Assert.Throws<ArgumentException>(
+            () => context.RenderSubtree(renderer, foreign));
+
+        Assert.True(root.RemoveChild(attached));
+        Assert.Throws<ArgumentException>(
+            () => context.RenderSubtree(renderer, attached));
+    }
+
     private static UiContext CreateContext(UiElement root)
     {
         UiContext context = new(root)

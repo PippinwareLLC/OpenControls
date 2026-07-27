@@ -5,7 +5,7 @@ using Silk.NET.OpenGL;
 
 namespace OpenControls.SilkNet;
 
-public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiTextureRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer, IDisposable
+public sealed unsafe class SilkNetUiRenderer : IUiRenderPassController, IUiTextureRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer, IDisposable
 {
     private enum MetricKind
     {
@@ -923,8 +923,42 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiTextureRenderer, 
 
     public void CompleteRenderPass()
     {
-        FlushPending(FlushReason.RenderPassEnd);
-        ResetRenderState();
+        try
+        {
+            FlushPending(FlushReason.RenderPassEnd);
+            ResetRenderState();
+        }
+        catch (Exception completionException)
+        {
+            try
+            {
+                AbortRenderPass();
+            }
+            catch (Exception abortException)
+            {
+                throw new AggregateException(
+                    "Silk OpenControls render completion and abort both failed.",
+                    completionException,
+                    abortException);
+            }
+            throw;
+        }
+        finally
+        {
+            ResetTransientRenderPassState();
+        }
+    }
+
+    /// <summary>
+    /// Discards a failed pass without submitting any queued geometry.
+    /// </summary>
+    public void AbortRenderPass()
+    {
+        ResetTransientRenderPassState();
+        _metricsActive = false;
+        LastMetricsSnapshot =
+            UiRenderMetricsSnapshot.Empty;
+        ResetRenderStateBestEffort();
     }
 
     private void QueueQuad(
@@ -1466,6 +1500,46 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderer, IUiTextureRenderer, 
         _gl.UseProgram(0);
         _renderStateBound = false;
         _boundTextureId = 0;
+    }
+
+    private void ResetRenderStateBestEffort()
+    {
+        _renderStateBound = false;
+        _boundTextureId = 0;
+        TryResetRenderState(
+            () => _gl.BindTexture(
+                TextureTarget.Texture2D,
+                0));
+        TryResetRenderState(
+            () => _gl.BindVertexArray(0));
+        TryResetRenderState(
+            () => _gl.UseProgram(0));
+    }
+
+    private void ResetTransientRenderPassState()
+    {
+        _batchedTextureId = 0;
+        _batchedQuadCount = 0;
+        _batchedTriangleVertexCount = 0;
+        _vectorPassDepth = 0;
+        _clipStack.Clear();
+    }
+
+    private static void TryResetRenderState(
+        Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (SymbolLoadingException)
+        {
+            // The owning GL context may already be unavailable during abort.
+        }
+        catch (InvalidOperationException)
+        {
+            // Abort remains idempotent when the GL context has been released.
+        }
     }
 
     private UiRect GetViewportRect()

@@ -641,22 +641,88 @@ public sealed class UiContext
 
     public void Render(IUiRenderer renderer)
     {
+        ArgumentNullException.ThrowIfNull(renderer);
+        RenderScope(
+            renderer,
+            Root,
+            _rootRenderCache,
+            _overlayRenderCache,
+            "Root");
+    }
+
+    /// <summary>
+    /// Renders one independently composited subtree that is attached to this
+    /// context's root without rendering its siblings.
+    /// </summary>
+    /// <remarks>
+    /// The subtree retains this context's focus, interaction, and render-cache
+    /// state. Ancestor visuals are intentionally not rendered, so callers
+    /// should use a self-contained surface/channel root whose bounds are
+    /// already expressed in the context coordinate space.
+    /// </remarks>
+    public void RenderSubtree(
+        IUiRenderer renderer,
+        UiElement subtreeRoot)
+    {
+        ArgumentNullException.ThrowIfNull(renderer);
+        ArgumentNullException.ThrowIfNull(subtreeRoot);
+        if (!IsElementOrAncestor(Root, subtreeRoot))
+        {
+            throw new ArgumentException(
+                "The render subtree must be attached to this UI context.",
+                nameof(subtreeRoot));
+        }
+
+        if (ReferenceEquals(subtreeRoot, Root))
+        {
+            Render(renderer);
+            return;
+        }
+
+        CacheRootRenderCacheSet cacheSet =
+            GetOrCreateCacheRootRenderCacheSet(subtreeRoot);
+        RenderScope(
+            renderer,
+            subtreeRoot,
+            cacheSet.MainPass,
+            cacheSet.OverlayPass,
+            $"Subtree.{BuildProfilerElementLabel(subtreeRoot)}");
+    }
+
+    private void RenderScope(
+        IUiRenderer renderer,
+        UiElement scopeRoot,
+        RenderCacheState mainCache,
+        RenderCacheState overlayCache,
+        string scopeName)
+    {
         renderer.DefaultFont = DefaultFont;
         PurgeDetachedCacheRoots();
 
-        UiElement? volatileElement = FindFirstVolatileRenderState(Root, Root);
+        UiElement? volatileElement =
+            FindFirstVolatileRenderState(scopeRoot, scopeRoot);
         _lastRenderHasVolatileState = volatileElement != null;
         _lastRenderVolatileElementLabel = BuildProfilerElementLabel(volatileElement);
-        using (UiProfiling.Scope("OpenControls.Context.Root"))
+        using (UiProfiling.Scope($"OpenControls.Context.{scopeName}.Main"))
         {
             UiRenderContext context = CreateRenderContext(renderer, UiRenderPassKind.Main);
-            RenderPass(Root, context, _rootRenderCache, "Root", UiRenderPassKind.Main);
+            RenderPass(
+                scopeRoot,
+                context,
+                mainCache,
+                $"{scopeName}.Main",
+                UiRenderPassKind.Main);
         }
 
-        using (UiProfiling.Scope("OpenControls.Context.Overlay"))
+        using (UiProfiling.Scope($"OpenControls.Context.{scopeName}.Overlay"))
         {
             UiRenderContext context = CreateRenderContext(renderer, UiRenderPassKind.Overlay);
-            RenderPass(Root, context, _overlayRenderCache, "Overlay", UiRenderPassKind.Overlay);
+            RenderPass(
+                scopeRoot,
+                context,
+                overlayCache,
+                $"{scopeName}.Overlay",
+                UiRenderPassKind.Overlay);
         }
     }
 
