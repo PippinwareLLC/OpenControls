@@ -202,8 +202,11 @@ public abstract class UiElement
 
     public bool RemoveChild(UiElement child)
     {
-        if (_children.Remove(child))
+        int childIndex = _children.IndexOf(child);
+        if (childIndex >= 0)
         {
+            child.OnDetachingFromParent();
+            _children.RemoveAt(childIndex);
             Invalidate(UiInvalidationReason.Children | UiInvalidationReason.Layout | UiInvalidationReason.Paint);
             child.Parent = null;
             child.MarkDetachedInvalidation(UiInvalidationReason.Parent);
@@ -322,6 +325,15 @@ public abstract class UiElement
     }
 
     protected internal virtual void OnFocusLost()
+    {
+    }
+
+    /// <summary>
+    /// Called before this element is removed from its parent. Stateful
+    /// projections can clear transient input while their hierarchy is still
+    /// coherent. Throwing aborts the detach without mutating the tree.
+    /// </summary>
+    protected internal virtual void OnDetachingFromParent()
     {
     }
 

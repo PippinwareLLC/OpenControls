@@ -8,6 +8,26 @@ public sealed class UiInvalidationTests
     {
     }
 
+    private sealed class DetachAwareElement : UiElement
+    {
+        public int DetachCount { get; private set; }
+
+        public UiElement? ParentDuringDetach { get; private set; }
+
+        public bool ThrowDuringDetach { get; set; }
+
+        protected override void OnDetachingFromParent()
+        {
+            DetachCount++;
+            ParentDuringDetach = Parent;
+            if (ThrowDuringDetach)
+            {
+                throw new InvalidOperationException(
+                    "Intentional detach failure.");
+            }
+        }
+    }
+
     [Fact]
     public void BasePropertySetters_TrackInvalidationReasonsAndAvoidSameValueChurn()
     {
@@ -114,6 +134,30 @@ public sealed class UiInvalidationTests
         Assert.True(parent.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Children));
         Assert.True(child.LocalInvalidationReasons.HasFlag(UiInvalidationReason.Parent));
         Assert.True(child.SubtreeInvalidationReasons.HasFlag(UiInvalidationReason.Parent));
+    }
+
+    [Fact]
+    public void RemoveChild_NotifiesBeforeMutationAndAbortsCleanlyOnFailure()
+    {
+        TestElement parent = new();
+        DetachAwareElement child = new();
+        parent.AddChild(child);
+
+        Assert.True(parent.RemoveChild(child));
+        Assert.Equal(1, child.DetachCount);
+        Assert.Same(parent, child.ParentDuringDetach);
+        Assert.Null(child.Parent);
+        Assert.Empty(parent.Children);
+
+        parent.AddChild(child);
+        child.ThrowDuringDetach = true;
+
+        Assert.Throws<InvalidOperationException>(
+            () => parent.RemoveChild(child));
+        Assert.Equal(2, child.DetachCount);
+        Assert.Same(parent, child.ParentDuringDetach);
+        Assert.Same(parent, child.Parent);
+        Assert.Same(child, Assert.Single(parent.Children));
     }
 
     [Fact]
