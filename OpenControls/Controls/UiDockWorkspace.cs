@@ -19,6 +19,23 @@ public sealed class UiDockWorkspace : UiElement
         UiRect PreviewWindowBounds,
         UiRect WorkspaceBounds);
 
+    public readonly record struct DockHostDebugState(
+        string HostId,
+        UiRect Bounds,
+        IReadOnlyList<UiRect> TabBounds,
+        int ActiveIndex);
+
+    public readonly record struct DockSplitterDebugState(
+        string SplitterId,
+        UiRect Bounds,
+        bool SplitHorizontal,
+        float SplitRatio);
+
+    public readonly record struct DockLayoutDebugState(
+        UiRect WorkspaceBounds,
+        IReadOnlyList<DockHostDebugState> Hosts,
+        IReadOnlyList<DockSplitterDebugState> Splitters);
+
     public enum DockTarget
     {
         None,
@@ -142,6 +159,90 @@ public sealed class UiDockWorkspace : UiElement
             $"split-host sourceHost={FormatHost(host)} newHost={FormatHost(newHost)} target='{target}'");
 
         return newHost;
+    }
+
+    /// <summary>
+    /// Resolves the current dock tree, host, splitter, and floating-window
+    /// geometry without advancing input state. Retained host integrations use
+    /// this after applying a durable workspace snapshot and before projecting
+    /// external content into the resulting panel bounds.
+    /// </summary>
+    public void PerformLayout()
+    {
+        if (Bounds.Width < 0 || Bounds.Height < 0)
+        {
+            throw new InvalidOperationException(
+                "Dock workspace bounds cannot have negative dimensions.");
+        }
+
+        LayoutNode(_rootNode, Bounds);
+        foreach (UiDockHost host in _hosts)
+        {
+            host.PerformLayout();
+        }
+        ClampFloatingWindows();
+    }
+
+    public DockLayoutDebugState InspectLayout()
+    {
+        PerformLayout();
+        List<DockHostDebugState> hosts = new();
+        foreach (UiDockHost host in _hosts)
+        {
+            UiRect[] tabBounds = new UiRect[host.Windows.Count];
+            for (int index = 0; index < host.Windows.Count; index++)
+            {
+                tabBounds[index] = host.GetTabBounds(index);
+            }
+            hosts.Add(new DockHostDebugState(
+                host.Id,
+                host.Bounds,
+                tabBounds,
+                host.ActiveIndex));
+        }
+
+        List<DockSplitterDebugState> splitters = new();
+        CollectSplitterDebugState(
+            _rootNode,
+            "root",
+            splitters);
+        return new DockLayoutDebugState(Bounds, hosts, splitters);
+    }
+
+    /// <summary>
+    /// Applies a bounded ratio to one stable dock-tree splitter. Splitter IDs
+    /// are the structural paths returned by <see cref="InspectLayout"/> and
+    /// remain stable while the dock topology is unchanged.
+    /// </summary>
+    public bool TrySetSplitRatio(
+        string splitterId,
+        float splitRatio)
+    {
+        if (string.IsNullOrWhiteSpace(splitterId))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(splitterId));
+        }
+        if (!float.IsFinite(splitRatio)
+            || splitRatio is <= 0f or >= 1f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(splitRatio),
+                "A dock split ratio must be between zero and one.");
+        }
+
+        DockNode? node =
+            FindSplitterNode(
+                _rootNode,
+                "root",
+                splitterId);
+        if (node is null)
+        {
+            return false;
+        }
+        node.SplitRatio = splitRatio;
+        PerformLayout();
+        return true;
     }
 
     public UiDockWorkspaceState CaptureState()
@@ -483,11 +584,11 @@ public sealed class UiDockWorkspace : UiElement
             return;
         }
 
-        LayoutNode(_rootNode, Bounds);
+        PerformLayout();
 
         UiInputState input = context.Input;
         UpdateSplitters(input, context.Focus);
-        LayoutNode(_rootNode, Bounds);
+        PerformLayout();
         UpdateTabDrag(input);
 
         base.Update(context);
@@ -1342,6 +1443,30 @@ public sealed class UiDockWorkspace : UiElement
         DrawSplitters(context, node.Second);
     }
 
+    private static void CollectSplitterDebugState(
+        DockNode? node,
+        string path,
+        ICollection<DockSplitterDebugState> output)
+    {
+        if (node == null || node.Host != null)
+        {
+            return;
+        }
+        output.Add(new DockSplitterDebugState(
+            path,
+            node.SplitterBounds,
+            node.SplitHorizontal,
+            node.SplitRatio));
+        CollectSplitterDebugState(
+            node.First,
+            $"{path}/first",
+            output);
+        CollectSplitterDebugState(
+            node.Second,
+            $"{path}/second",
+            output);
+    }
+
     private void RenderSplitter(UiRenderContext context, UiRect bounds, bool horizontal, UiColor splitterColor, UiColor trackColor)
     {
         if (trackColor.A > 0)
@@ -1529,6 +1654,39 @@ public sealed class UiDockWorkspace : UiElement
         }
 
         return null;
+    }
+
+    private static DockNode? FindSplitterNode(
+        DockNode node,
+        string path,
+        string requestedPath)
+    {
+        if (node.Host is not null)
+        {
+            return null;
+        }
+        if (string.Equals(
+                path,
+                requestedPath,
+                StringComparison.Ordinal))
+        {
+            return node;
+        }
+
+        DockNode? first =
+            node.First is null
+                ? null
+                : FindSplitterNode(
+                    node.First,
+                    $"{path}/first",
+                    requestedPath);
+        return first
+            ?? (node.Second is null
+                ? null
+                : FindSplitterNode(
+                    node.Second,
+                    $"{path}/second",
+                    requestedPath));
     }
 
     private DockNode? FindSplitterNode(DockNode node, UiPoint point)

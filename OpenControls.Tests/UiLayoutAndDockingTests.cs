@@ -169,6 +169,93 @@ public sealed class UiLayoutAndDockingTests
     }
 
     [Fact]
+    public void DockWorkspace_PerformLayoutAndInspectResolveNativeGeometryWithoutInput()
+    {
+        UiDockWorkspace workspace = CreateWorkspace();
+        workspace.RootHost.Id = "workspace-fill";
+        UiDockHost right = workspace.DockHosts[1];
+        right.Id = "workspace-right";
+        UiWindow fillWindow = new()
+        {
+            Id = "fill-panel",
+            Title = "Viewport"
+        };
+        UiWindow rightWindow = new()
+        {
+            Id = "right-panel",
+            Title = "Inspector"
+        };
+        workspace.RootHost.DockWindow(fillWindow);
+        right.DockWindow(rightWindow);
+
+        workspace.PerformLayout();
+        UiDockWorkspace.DockLayoutDebugState
+            inspection = workspace.InspectLayout();
+
+        Assert.Equal(workspace.Bounds, inspection.WorkspaceBounds);
+        Assert.Equal(2, inspection.Hosts.Count);
+        Assert.Single(inspection.Splitters);
+        Assert.All(
+            inspection.Hosts,
+            host =>
+            {
+                Assert.True(host.Bounds.Width > 0);
+                Assert.True(host.Bounds.Height > 0);
+                Assert.Single(host.TabBounds);
+                Assert.True(host.TabBounds[0].Width > 0);
+                Assert.True(host.TabBounds[0].Height > 0);
+            });
+        Assert.Equal(
+            workspace.RootHost.Bounds.X,
+            fillWindow.Bounds.X);
+        Assert.Equal(
+            workspace.RootHost.Bounds.Width,
+            fillWindow.Bounds.Width);
+        Assert.True(
+            fillWindow.Bounds.Y
+            > workspace.RootHost.Bounds.Y);
+        Assert.Equal(
+            workspace.RootHost.Bounds.Bottom,
+            fillWindow.Bounds.Bottom);
+        Assert.Equal(
+            right.Bounds.X,
+            rightWindow.Bounds.X);
+        Assert.Equal(
+            right.Bounds.Width,
+            rightWindow.Bounds.Width);
+        Assert.True(
+            rightWindow.Bounds.Y
+            > right.Bounds.Y);
+        Assert.Equal(
+            right.Bounds.Bottom,
+            rightWindow.Bounds.Bottom);
+        Assert.Equal(
+            workspace.SplitterThickness,
+            inspection.Splitters[0].Bounds.Width);
+        Assert.Equal(
+            "root",
+            inspection.Splitters[0].SplitterId);
+
+        Assert.True(
+            workspace.TrySetSplitRatio(
+                inspection.Splitters[0]
+                    .SplitterId,
+                0.65f));
+        UiDockWorkspace.DockLayoutDebugState
+            resized = workspace.InspectLayout();
+        Assert.Equal(
+            0.65f,
+            resized.Splitters[0].SplitRatio);
+        Assert.True(
+            resized.Hosts[0].Bounds.Width
+            > inspection.Hosts[0].Bounds.Width);
+        Assert.False(
+            workspace.TrySetSplitRatio(
+                "root/missing",
+                0.5f));
+    }
+
+    [Fact]
     public void DockHost_AutoFitContentChildrenResizesContentBeforeChildUpdate()
     {
         UiDockHost host = new()

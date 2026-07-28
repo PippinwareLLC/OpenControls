@@ -234,6 +234,16 @@ public sealed class UiDockHost : UiElement
         SetWindowVisibility();
     }
 
+    /// <summary>
+    /// Resolves this host's tab strip and active window bounds without
+    /// advancing pointer or keyboard input.
+    /// </summary>
+    public void PerformLayout()
+    {
+        UpdateDockedLayout();
+        UpdateTabLayout();
+    }
+
     public int GetTabIndexAt(UiPoint point)
     {
         UpdateTabLayout();
