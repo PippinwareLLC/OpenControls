@@ -134,7 +134,8 @@ public class UiPopup : UiElement
                 context.DeltaSeconds,
                 context.DefaultFont,
                 context.Clipboard,
-                context.ActiveInputLayer)
+                context.ActiveInputLayer,
+                context.InputRoot)
             : context;
 
         base.Update(childContext);

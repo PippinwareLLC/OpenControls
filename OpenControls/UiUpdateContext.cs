@@ -11,7 +11,8 @@ public readonly struct UiUpdateContext
         float deltaSeconds,
         UiFont defaultFont,
         IUiClipboard clipboard,
-        UiElement? activeInputLayer = null)
+        UiElement? activeInputLayer = null,
+        UiElement? inputRoot = null)
     {
         Input = input;
         Focus = focus;
@@ -20,6 +21,7 @@ public readonly struct UiUpdateContext
         DefaultFont = defaultFont;
         Clipboard = clipboard;
         ActiveInputLayer = activeInputLayer;
+        InputRoot = inputRoot;
     }
 
     public UiInputState Input { get; }
@@ -29,6 +31,7 @@ public readonly struct UiUpdateContext
     public UiFont DefaultFont { get; }
     public IUiClipboard Clipboard { get; }
     public UiElement? ActiveInputLayer { get; }
+    public UiElement? InputRoot { get; }
 
     public UiUpdateContext CreateChildContext(UiElement parent, UiElement child)
     {
@@ -42,7 +45,15 @@ public readonly struct UiUpdateContext
 
         UiElement? activeInputLayer = ResolveActiveInputLayer(parent) ?? ActiveInputLayer;
         UiInputState childInput = BlockInputFor(child, input, activeInputLayer);
-        return new UiUpdateContext(childInput, Focus, DragDrop, DeltaSeconds, DefaultFont, Clipboard, activeInputLayer);
+        return new UiUpdateContext(
+            childInput,
+            Focus,
+            DragDrop,
+            DeltaSeconds,
+            DefaultFont,
+            Clipboard,
+            activeInputLayer,
+            InputRoot);
     }
 
     public bool IsInputBlockedFor(UiElement element)

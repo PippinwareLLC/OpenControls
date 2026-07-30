@@ -274,7 +274,16 @@ public sealed class UiContext
 
         UiElement? activeInputLayer = UiUpdateContext.ResolveActiveInputLayer(Root) ?? _activeInputLayer;
         DragDrop.BeginFrame(effectiveInput);
-        Root.Update(new UiUpdateContext(effectiveInput, Focus, DragDrop, deltaSeconds, DefaultFont, Clipboard, activeInputLayer));
+        Root.Update(
+            new UiUpdateContext(
+                effectiveInput,
+                Focus,
+                DragDrop,
+                deltaSeconds,
+                DefaultFont,
+                Clipboard,
+                activeInputLayer,
+                Root));
         DragDrop.EndFrame();
         RefreshOutputs(effectiveInput);
     }
