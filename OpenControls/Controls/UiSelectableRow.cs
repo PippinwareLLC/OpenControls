@@ -338,7 +338,12 @@ public sealed class UiSelectableRow : UiElement, IUiDebugBoundsResolver
     private void RenderChildrenTranslated(UiRenderContext context, bool overlay)
     {
         UiRect content = ContentBounds;
-        UiOffsetRenderer offsetRenderer = new UiOffsetRenderer(context.Renderer, new UiPoint(content.X, content.Y));
+        IUiRenderer offsetRenderer =
+            UiOffsetRenderer.Create(
+                context.Renderer,
+                new UiPoint(
+                    content.X,
+                    content.Y));
         UiRenderContext childContext = context.WithRenderer(offsetRenderer);
 
         if (ClipChildren)

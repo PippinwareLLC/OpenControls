@@ -17,7 +17,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         Zoom
     }
 
-    private sealed class CanvasRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiShapeRenderer
+    private class CanvasRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiShapeRenderer
     {
         private readonly IUiRenderer _inner;
         private readonly UiPoint _origin;
@@ -35,6 +35,46 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
             _panY = panY;
             _textZoomStep = textZoomStep;
         }
+
+        internal static IUiRenderer Create(
+            IUiRenderer inner,
+            UiPoint origin,
+            float zoom,
+            float panX,
+            float panY,
+            float textZoomStep) =>
+            inner switch
+            {
+                IUiTextureRenderer textures
+                    when inner is
+                        IUiTextureSamplingRenderer
+                            sampling =>
+                    new TextureSamplingCanvasRenderer(
+                        inner,
+                        origin,
+                        zoom,
+                        panX,
+                        panY,
+                        textZoomStep,
+                        textures,
+                        sampling),
+                IUiTextureRenderer textures =>
+                    new TextureCanvasRenderer(
+                        inner,
+                        origin,
+                        zoom,
+                        panX,
+                        panY,
+                        textZoomStep,
+                        textures),
+                _ => new CanvasRenderer(
+                    inner,
+                    origin,
+                    zoom,
+                    panX,
+                    panY,
+                    textZoomStep)
+            };
 
         public UiFont DefaultFont
         {
@@ -244,7 +284,7 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
             _inner.PopClip();
         }
 
-        private UiRect Transform(UiRect rect)
+        protected UiRect Transform(UiRect rect)
         {
             int x = _origin.X + (int)Math.Round((rect.X - _panX) * _zoom);
             int y = _origin.Y + (int)Math.Round((rect.Y - _panY) * _zoom);
@@ -296,6 +336,128 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
 
             int scaled = (int)Math.Round(value * _zoom);
             return Math.Max(1, scaled);
+        }
+
+        private class TextureCanvasRenderer
+            : CanvasRenderer,
+              IUiTextureRenderer,
+              IUiTextureRendererResourceOwner
+        {
+            private readonly IUiTextureRenderer
+                _textures;
+
+            internal TextureCanvasRenderer(
+                IUiRenderer inner,
+                UiPoint origin,
+                float zoom,
+                float panX,
+                float panY,
+                float textZoomStep,
+                IUiTextureRenderer textures)
+                : base(
+                    inner,
+                    origin,
+                    zoom,
+                    panX,
+                    panY,
+                    textZoomStep)
+            {
+                _textures = textures;
+                TextureRendererResourceOwner =
+                    inner is
+                        IUiTextureRendererResourceOwner
+                            resourceOwner
+                        ? resourceOwner
+                            .TextureRendererResourceOwner
+                        : textures;
+            }
+
+            public IUiTextureRenderer
+                TextureRendererResourceOwner
+            {
+                get;
+            }
+
+            public uint CreateRgbaTexture(
+                int width,
+                int height,
+                ReadOnlySpan<byte> rgbaPixels) =>
+                _textures.CreateRgbaTexture(
+                    width,
+                    height,
+                    rgbaPixels);
+
+            public void UpdateRgbaTexture(
+                uint textureId,
+                int width,
+                int height,
+                ReadOnlySpan<byte>
+                    rgbaPixels) =>
+                _textures.UpdateRgbaTexture(
+                    textureId,
+                    width,
+                    height,
+                    rgbaPixels);
+
+            public void DrawTexture(
+                uint textureId,
+                UiRect rect,
+                float sourceX,
+                float sourceY,
+                float sourceWidth,
+                float sourceHeight,
+                bool flipVertical = false,
+                UiColor? tint = null) =>
+                _textures.DrawTexture(
+                    textureId,
+                    Transform(rect),
+                    sourceX,
+                    sourceY,
+                    sourceWidth,
+                    sourceHeight,
+                    flipVertical,
+                    tint);
+        }
+
+        private sealed class
+            TextureSamplingCanvasRenderer
+            : TextureCanvasRenderer,
+              IUiTextureSamplingRenderer
+        {
+            private readonly
+                IUiTextureSamplingRenderer
+                _sampling;
+
+            internal
+                TextureSamplingCanvasRenderer(
+                    IUiRenderer inner,
+                    UiPoint origin,
+                    float zoom,
+                    float panX,
+                    float panY,
+                    float textZoomStep,
+                    IUiTextureRenderer textures,
+                    IUiTextureSamplingRenderer
+                        sampling)
+                : base(
+                    inner,
+                    origin,
+                    zoom,
+                    panX,
+                    panY,
+                    textZoomStep,
+                    textures)
+            {
+                _sampling = sampling;
+            }
+
+            public void SetTextureSampling(
+                uint textureId,
+                UiTextureSampling
+                    sampling) =>
+                _sampling.SetTextureSampling(
+                    textureId,
+                    sampling);
         }
     }
 
@@ -472,7 +634,16 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
         DrawGrid(context);
         DrawOrigin(context);
 
-        CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY, TextZoomStep);
+        IUiRenderer renderer =
+            CanvasRenderer.Create(
+                context.Renderer,
+                new UiPoint(
+                    _viewportBounds.X,
+                    _viewportBounds.Y),
+                Zoom,
+                PanX,
+                PanY,
+                TextZoomStep);
         UiRenderContext childContext = context.WithRenderer(renderer);
         foreach (UiElement child in Children)
         {
@@ -502,7 +673,16 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
             context.Renderer.PushClip(_viewportBounds);
         }
 
-        CanvasRenderer renderer = new CanvasRenderer(context.Renderer, new UiPoint(_viewportBounds.X, _viewportBounds.Y), Zoom, PanX, PanY, TextZoomStep);
+        IUiRenderer renderer =
+            CanvasRenderer.Create(
+                context.Renderer,
+                new UiPoint(
+                    _viewportBounds.X,
+                    _viewportBounds.Y),
+                Zoom,
+                PanX,
+                PanY,
+                TextZoomStep);
         UiRenderContext childContext = context.WithRenderer(renderer);
         foreach (UiElement child in Children)
         {

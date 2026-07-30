@@ -1268,7 +1268,12 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
         {
             ContentPlacement placement = placements[i];
             context.Renderer.PushClip(placement.ClipBounds);
-            UiOffsetRenderer offsetRenderer = new(context.Renderer, new UiPoint(placement.Bounds.X, placement.Bounds.Y));
+            IUiRenderer offsetRenderer =
+                UiOffsetRenderer.Create(
+                    context.Renderer,
+                    new UiPoint(
+                        placement.Bounds.X,
+                        placement.Bounds.Y));
             UiRenderContext childContext = new(offsetRenderer, context.DefaultFont);
             if (overlay)
             {

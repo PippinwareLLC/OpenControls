@@ -5,7 +5,7 @@ using Silk.NET.OpenGL;
 
 namespace OpenControls.SilkNet;
 
-public sealed unsafe class SilkNetUiRenderer : IUiRenderPassController, IUiTextureRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer, IDisposable
+public sealed unsafe class SilkNetUiRenderer : IUiRenderPassController, IUiTextureRenderer, IUiTextureSamplingRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer, IDisposable
 {
     private enum MetricKind
     {
@@ -755,6 +755,46 @@ public sealed unsafe class SilkNetUiRenderer : IUiRenderPassController, IUiTextu
                 pixelPointer);
         }
 
+        _boundTextureId = 0;
+    }
+
+    public void SetTextureSampling(
+        uint textureId,
+        UiTextureSampling sampling)
+    {
+        if (textureId == 0
+            || !_uploadedTextures.Contains(textureId))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(textureId),
+                "Texture ID is not owned by this renderer.");
+        }
+        GLEnum filter =
+            sampling switch
+            {
+                UiTextureSampling.Linear =>
+                    GLEnum.Linear,
+                UiTextureSampling.Nearest =>
+                    GLEnum.Nearest,
+                _ => throw new
+                    ArgumentOutOfRangeException(
+                        nameof(sampling))
+            };
+        FlushPending(
+            FlushReason.TextureSwitch);
+        _gl.BindTexture(
+            TextureTarget.Texture2D,
+            textureId);
+        _gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName
+                .TextureMinFilter,
+            (int)filter);
+        _gl.TexParameter(
+            TextureTarget.Texture2D,
+            TextureParameterName
+                .TextureMagFilter,
+            (int)filter);
         _boundTextureId = 0;
     }
 

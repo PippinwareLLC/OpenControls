@@ -1,6 +1,6 @@
 namespace OpenControls;
 
-internal sealed class UiOffsetRenderer : IUiRenderer
+internal class UiOffsetRenderer : IUiRenderer
 {
     private readonly IUiRenderer _inner;
     private readonly UiPoint _offset;
@@ -10,6 +10,30 @@ internal sealed class UiOffsetRenderer : IUiRenderer
         _inner = inner;
         _offset = offset;
     }
+
+    internal static IUiRenderer Create(
+        IUiRenderer inner,
+        UiPoint offset) =>
+        inner switch
+        {
+            IUiTextureRenderer textureRenderer
+                when inner is
+                    IUiTextureSamplingRenderer
+                        samplingRenderer =>
+                new TextureSamplingOffsetRenderer(
+                    inner,
+                    offset,
+                    textureRenderer,
+                    samplingRenderer),
+            IUiTextureRenderer textureRenderer =>
+                new TextureOffsetRenderer(
+                    inner,
+                    offset,
+                    textureRenderer),
+            _ => new UiOffsetRenderer(
+                inner,
+                offset)
+        };
 
     public UiFont DefaultFont
     {
@@ -77,7 +101,7 @@ internal sealed class UiOffsetRenderer : IUiRenderer
         _inner.PopClip();
     }
 
-    private UiRect Offset(UiRect rect)
+    protected UiRect Offset(UiRect rect)
     {
         return new UiRect(rect.X + _offset.X, rect.Y + _offset.Y, rect.Width, rect.Height);
     }
@@ -85,5 +109,107 @@ internal sealed class UiOffsetRenderer : IUiRenderer
     private UiPoint Offset(UiPoint point)
     {
         return new UiPoint(point.X + _offset.X, point.Y + _offset.Y);
+    }
+
+    private class TextureOffsetRenderer
+        : UiOffsetRenderer,
+          IUiTextureRenderer,
+          IUiTextureRendererResourceOwner
+    {
+        private readonly IUiTextureRenderer
+            _textures;
+
+        internal TextureOffsetRenderer(
+            IUiRenderer inner,
+            UiPoint offset,
+            IUiTextureRenderer textures)
+            : base(inner, offset)
+        {
+            _textures = textures;
+            TextureRendererResourceOwner =
+                inner is
+                    IUiTextureRendererResourceOwner
+                        resourceOwner
+                    ? resourceOwner
+                        .TextureRendererResourceOwner
+                    : textures;
+        }
+
+        public IUiTextureRenderer
+            TextureRendererResourceOwner
+        {
+            get;
+        }
+
+        public uint CreateRgbaTexture(
+            int width,
+            int height,
+            ReadOnlySpan<byte> rgbaPixels) =>
+            _textures.CreateRgbaTexture(
+                width,
+                height,
+                rgbaPixels);
+
+        public void UpdateRgbaTexture(
+            uint textureId,
+            int width,
+            int height,
+            ReadOnlySpan<byte> rgbaPixels) =>
+            _textures.UpdateRgbaTexture(
+                textureId,
+                width,
+                height,
+                rgbaPixels);
+
+        public void DrawTexture(
+            uint textureId,
+            UiRect rect,
+            float sourceX,
+            float sourceY,
+            float sourceWidth,
+            float sourceHeight,
+            bool flipVertical = false,
+            UiColor? tint = null) =>
+            _textures.DrawTexture(
+                textureId,
+                Offset(rect),
+                sourceX,
+                sourceY,
+                sourceWidth,
+                sourceHeight,
+                flipVertical,
+                tint);
+    }
+
+    private sealed class
+        TextureSamplingOffsetRenderer
+        : TextureOffsetRenderer,
+          IUiTextureSamplingRenderer
+    {
+        private readonly
+            IUiTextureSamplingRenderer
+            _sampling;
+
+        internal
+            TextureSamplingOffsetRenderer(
+                IUiRenderer inner,
+                UiPoint offset,
+                IUiTextureRenderer textures,
+                IUiTextureSamplingRenderer
+                    sampling)
+            : base(
+                inner,
+                offset,
+                textures)
+        {
+            _sampling = sampling;
+        }
+
+        public void SetTextureSampling(
+            uint textureId,
+            UiTextureSampling sampling) =>
+            _sampling.SetTextureSampling(
+                textureId,
+                sampling);
     }
 }
