@@ -7,6 +7,14 @@ namespace OpenControls.SilkNet;
 
 public sealed unsafe class SilkNetUiRenderer : IUiRenderPassController, IUiTextureRenderer, IUiTextureSamplingRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer, IDisposable
 {
+    public object NativeTextureContext =>
+        _gl;
+
+    public bool IsNativeTexture(
+        uint textureId) =>
+        textureId != 0
+        && _gl.IsTexture(textureId);
+
     private enum MetricKind
     {
         FillRect,
