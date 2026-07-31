@@ -1,4 +1,5 @@
 using OpenControls.Controls;
+using OpenControls.State;
 using Xunit;
 
 namespace OpenControls.Tests;
@@ -85,5 +86,50 @@ public sealed class UiDockHostVisibilityTests
         Assert.True(first.Visible);
         Assert.False(second.Visible);
         Assert.Equal(first, host.ActiveWindow);
+    }
+
+    [Fact]
+    public void DockHost_CollapsedState_HidesContentAndRoundTripsThroughWorkspaceState()
+    {
+        UiDockWorkspace workspace = new()
+        {
+            Id = "workspace",
+            Bounds = new UiRect(0, 0, 900, 500),
+            MinPaneSize = 80,
+            SplitterThickness = 6
+        };
+        UiDockHost left = workspace.SplitHost(
+            workspace.RootHost,
+            UiDockWorkspace.DockTarget.Left);
+        left.Id = "left";
+        left.Collapsible = true;
+        left.CollapseEdge = UiDockCollapseEdge.Left;
+        left.CollapsedExtent = 30;
+        UiWindow leftWindow = new() { Id = "hierarchy", Title = "Hierarchy" };
+        UiWindow centerWindow = new() { Id = "scene", Title = "Scene" };
+        left.DockWindow(leftWindow);
+        workspace.RootHost.DockWindow(centerWindow);
+
+        UiDockWorkspaceState expanded = workspace.CaptureState();
+        left.Collapsed = true;
+        workspace.PerformLayout();
+
+        Assert.Equal(30, left.Bounds.Width);
+        Assert.False(leftWindow.Visible);
+        Assert.True(centerWindow.Visible);
+        Assert.True(workspace.CaptureState().Hosts.Single(host => host.HostId == "left").Collapsed);
+
+        workspace.ApplyState(
+            expanded,
+            new Dictionary<string, UiWindow>
+            {
+                [leftWindow.Id] = leftWindow,
+                [centerWindow.Id] = centerWindow
+            });
+        workspace.PerformLayout();
+
+        Assert.False(left.Collapsed);
+        Assert.True(leftWindow.Visible);
+        Assert.True(left.Bounds.Width > left.CollapsedExtent);
     }
 }

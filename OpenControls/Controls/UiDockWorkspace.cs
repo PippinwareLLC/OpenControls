@@ -265,7 +265,8 @@ public sealed class UiDockWorkspace : UiElement
             UiDockHostState hostState = new()
             {
                 HostId = host.Id,
-                ActiveIndex = host.ActiveIndex
+                ActiveIndex = host.ActiveIndex,
+                Collapsed = host.Collapsed
             };
 
             foreach (UiWindow window in host.Windows)
@@ -360,6 +361,7 @@ public sealed class UiDockWorkspace : UiElement
             }
 
             host.ActivateWindow(hostState.ActiveIndex);
+            host.Collapsed = hostState.Collapsed;
         }
 
         foreach (UiFloatingWindowState floatingState in state.FloatingWindows)
@@ -1035,6 +1037,9 @@ public sealed class UiDockWorkspace : UiElement
         destination.MenuBorderColor = source.MenuBorderColor;
         destination.MenuTextColor = source.MenuTextColor;
         destination.MenuDisabledTextColor = source.MenuDisabledTextColor;
+        destination.CollapseButtonColor = source.CollapseButtonColor;
+        destination.CollapseButtonHoverColor = source.CollapseButtonHoverColor;
+        destination.CollapseButtonGlyphColor = source.CollapseButtonGlyphColor;
         destination.PanelInset = source.PanelInset;
         destination.CornerRadius = source.CornerRadius;
         destination.ClipChildren = source.ClipChildren;
@@ -1060,6 +1065,10 @@ public sealed class UiDockWorkspace : UiElement
         destination.ScrollStep = source.ScrollStep;
         destination.ShowOverflowMenuButton = source.ShowOverflowMenuButton;
         destination.ShowTabContextMenu = source.ShowTabContextMenu;
+        destination.Collapsible = source.Collapsible;
+        destination.CollapseEdge = source.CollapseEdge;
+        destination.CollapsedExtent = source.CollapsedExtent;
+        destination.CollapseButtonExtent = source.CollapseButtonExtent;
         destination.HideDockedTitleBars = source.HideDockedTitleBars;
         destination.AllowReorder = source.AllowReorder;
         destination.DragThreshold = source.DragThreshold;
@@ -1550,7 +1559,10 @@ public sealed class UiDockWorkspace : UiElement
         if (node.SplitHorizontal)
         {
             int availableHeight = Math.Max(0, bounds.Height - splitterThickness);
-            int desiredFirstHeight = (int)Math.Round(availableHeight * node.SplitRatio);
+            int desiredFirstHeight = ResolveDesiredFirstSize(
+                node,
+                availableHeight,
+                splitHorizontal: true);
             int firstHeight = ClampSplitSize(desiredFirstHeight, availableHeight, firstMinSize.Y, secondMinSize.Y);
             int secondHeight = Math.Max(0, availableHeight - firstHeight);
 
@@ -1568,7 +1580,10 @@ public sealed class UiDockWorkspace : UiElement
         else
         {
             int availableWidth = Math.Max(0, bounds.Width - splitterThickness);
-            int desiredFirstWidth = (int)Math.Round(availableWidth * node.SplitRatio);
+            int desiredFirstWidth = ResolveDesiredFirstSize(
+                node,
+                availableWidth,
+                splitHorizontal: false);
             int firstWidth = ClampSplitSize(desiredFirstWidth, availableWidth, firstMinSize.X, secondMinSize.X);
             int secondWidth = Math.Max(0, availableWidth - firstWidth);
 
@@ -1594,6 +1609,13 @@ public sealed class UiDockWorkspace : UiElement
 
         if (node.Host != null)
         {
+            if (node.Host.Collapsed)
+            {
+                int extent = Math.Max(1, node.Host.CollapsedExtent);
+                return node.Host.CollapseEdge is UiDockCollapseEdge.Left or UiDockCollapseEdge.Right
+                    ? new UiPoint(extent, Math.Max(0, MinPaneSize))
+                    : new UiPoint(Math.Max(0, MinPaneSize), extent);
+            }
             int paneSize = Math.Max(0, MinPaneSize);
             return new UiPoint(paneSize, paneSize);
         }
@@ -1605,6 +1627,43 @@ public sealed class UiDockWorkspace : UiElement
         return node.SplitHorizontal
             ? new UiPoint(Math.Max(first.X, second.X), first.Y + splitterThickness + second.Y)
             : new UiPoint(first.X + splitterThickness + second.X, Math.Max(first.Y, second.Y));
+    }
+
+    private static int ResolveDesiredFirstSize(
+        DockNode node,
+        int available,
+        bool splitHorizontal)
+    {
+        if (IsCollapsedForAxis(node.First, splitHorizontal, out int firstExtent))
+        {
+            return Math.Min(available, firstExtent);
+        }
+        if (IsCollapsedForAxis(node.Second, splitHorizontal, out int secondExtent))
+        {
+            return Math.Max(0, available - Math.Min(available, secondExtent));
+        }
+        return (int)Math.Round(available * node.SplitRatio);
+    }
+
+    private static bool IsCollapsedForAxis(
+        DockNode? node,
+        bool splitHorizontal,
+        out int extent)
+    {
+        extent = 0;
+        if (node?.Host is not { Collapsed: true } host)
+        {
+            return false;
+        }
+        bool matchingAxis = splitHorizontal
+            ? host.CollapseEdge is UiDockCollapseEdge.Top or UiDockCollapseEdge.Bottom
+            : host.CollapseEdge is UiDockCollapseEdge.Left or UiDockCollapseEdge.Right;
+        if (!matchingAxis)
+        {
+            return false;
+        }
+        extent = Math.Max(1, host.CollapsedExtent);
+        return true;
     }
 
     private static int ClampSplitSize(int desired, int available, int minFirst, int minSecond)

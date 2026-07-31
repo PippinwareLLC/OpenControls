@@ -70,6 +70,7 @@ public sealed class UiDockHostState
     public string HostId { get; set; } = string.Empty;
     public List<string> WindowIds { get; set; } = new();
     public int ActiveIndex { get; set; }
+    public bool Collapsed { get; set; }
 }
 
 public sealed class UiFloatingWindowState
