@@ -55,7 +55,7 @@ public sealed class
 
     private sealed class RecordingRenderer
         : IUiRenderer,
-          IUiTextureRenderer,
+          IUiNativeTextureRenderer,
           IUiTextureSamplingRenderer
     {
         private uint _nextTextureId = 1;
@@ -71,6 +71,14 @@ public sealed class
 
         internal List<UiTextureSampling>
             Sampling { get; } = [];
+
+        public object NativeTextureContext =>
+            this;
+
+        public bool IsNativeTexture(
+            uint textureId) =>
+            textureId > 0
+            && textureId < _nextTextureId;
 
         public void FillRect(
             UiRect rect,
@@ -279,6 +287,17 @@ public sealed class
         Assert.Same(
             renderer,
             owner.TextureRendererResourceOwner);
+        var nativeOwner =
+            Assert.IsAssignableFrom<
+                IUiNativeTextureRenderer>(
+                owner
+                    .TextureRendererResourceOwner);
+        Assert.Same(
+            renderer,
+            nativeOwner.NativeTextureContext);
+        Assert.True(
+            nativeOwner.IsNativeTexture(
+                textureId));
         Assert.Contains(
             UiTextureSampling.Nearest,
             renderer.Sampling);
