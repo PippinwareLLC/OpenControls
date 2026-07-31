@@ -1052,6 +1052,7 @@ public sealed class UiContext
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            ScrollIsPrecise = input.ScrollIsPrecise,
             TextInput = textInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,

@@ -119,6 +119,7 @@ public sealed class UiModalHost : UiElement
             SuperDown = false,
             ScrollDeltaX = 0,
             ScrollDelta = 0,
+            ScrollIsPrecise = false,
             TextInput = Array.Empty<char>(),
             KeysDown = Array.Empty<UiKey>(),
             KeysPressed = Array.Empty<UiKey>(),

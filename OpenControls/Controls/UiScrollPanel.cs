@@ -778,6 +778,7 @@ public sealed class UiScrollPanel : UiElement, IUiStatefulElement, IUiDebugBound
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            ScrollIsPrecise = input.ScrollIsPrecise,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,

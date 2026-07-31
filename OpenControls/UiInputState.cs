@@ -26,6 +26,14 @@ public sealed class UiInputState
     public bool SuperDown { get; init; }
     public int ScrollDeltaX { get; init; }
     public int ScrollDelta { get; init; }
+    /// <summary>
+    /// True when the host knows the scroll sample came from a continuous,
+    /// high-resolution surface such as a trackpad. False denotes a discrete
+    /// wheel sample or an unknown source. Controls must not infer the device
+    /// class from delta magnitude because accelerated wheel deltas are not
+    /// guaranteed to be multiples of 120.
+    /// </summary>
+    public bool ScrollIsPrecise { get; init; }
     public IReadOnlyList<char> TextInput { get; init; } = Array.Empty<char>();
     public UiTextCompositionState Composition { get; init; }
     public IReadOnlyList<UiKey> KeysDown { get; init; } = Array.Empty<UiKey>();

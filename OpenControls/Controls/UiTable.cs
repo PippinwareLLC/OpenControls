@@ -1243,6 +1243,7 @@ public sealed class UiTable : UiElement, IUiStatefulElement, IUiDebugBoundsResol
             SuperDown = input.SuperDown,
             ScrollDeltaX = input.ScrollDeltaX,
             ScrollDelta = input.ScrollDelta,
+            ScrollIsPrecise = input.ScrollIsPrecise,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,

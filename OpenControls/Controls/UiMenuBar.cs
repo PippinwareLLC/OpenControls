@@ -1503,6 +1503,9 @@ public sealed class UiMenuBar : UiElement
                     SuperDown = input.SuperDown,
                     ScrollDeltaX = allowInput ? input.ScrollDeltaX : 0,
                     ScrollDelta = allowInput ? input.ScrollDelta : 0,
+                    ScrollIsPrecise =
+                        allowInput
+                        && input.ScrollIsPrecise,
                     TextInput = input.TextInput,
                     Composition = input.Composition,
                     KeysDown = input.KeysDown,

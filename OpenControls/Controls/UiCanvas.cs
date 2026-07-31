@@ -750,6 +750,8 @@ public sealed class UiCanvas : UiElement, IUiDebugBoundsResolver
             SuperDown = input.SuperDown,
             ScrollDeltaX = 0,
             ScrollDelta = allowMouse ? input.ScrollDelta : 0,
+            ScrollIsPrecise =
+                allowMouse && input.ScrollIsPrecise,
             TextInput = input.TextInput,
             Composition = input.Composition,
             KeysDown = input.KeysDown,

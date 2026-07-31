@@ -1,6 +1,6 @@
 namespace OpenControls;
 
-public sealed class UiScaledRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer
+public class UiScaledRenderer : IUiRenderPassController, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer
 {
     private readonly IUiRenderer _inner;
     private readonly UiDpiCompensation _dpi;
@@ -14,6 +14,33 @@ public sealed class UiScaledRenderer : IUiRenderer, IUiVectorRenderer, IUiVector
         _defaultFont = inner.DefaultFont;
         _inner.DefaultFont = ResolveScaledFont(_defaultFont);
     }
+
+    /// <summary>
+    /// Creates a DPI renderer while preserving optional texture capabilities
+    /// exposed by the wrapped renderer. Callers that render images should use
+    /// this factory instead of constructing the base wrapper directly.
+    /// </summary>
+    public static IUiRenderer Create(
+        IUiRenderer inner,
+        UiDpiCompensation dpiCompensation) =>
+        inner switch
+        {
+            IUiTextureRenderer textures
+                when inner is IUiTextureSamplingRenderer sampling =>
+                new TextureSamplingScaledRenderer(
+                    inner,
+                    dpiCompensation,
+                    textures,
+                    sampling),
+            IUiTextureRenderer textures =>
+                new TextureScaledRenderer(
+                    inner,
+                    dpiCompensation,
+                    textures),
+            _ => new UiScaledRenderer(
+                inner,
+                dpiCompensation)
+        };
 
     public UiDpiCompensation DpiCompensation => _dpi;
 
@@ -261,6 +288,22 @@ public sealed class UiScaledRenderer : IUiRenderer, IUiVectorRenderer, IUiVector
         _inner.PopClip();
     }
 
+    public void CompleteRenderPass()
+    {
+        if (_inner is IUiRenderPassController controller)
+        {
+            controller.CompleteRenderPass();
+        }
+    }
+
+    public void AbortRenderPass()
+    {
+        if (_inner is IUiRenderPassController controller)
+        {
+            controller.AbortRenderPass();
+        }
+    }
+
     private UiFont ResolveScaledFont(UiFont? font)
     {
         UiFont resolved = font ?? _defaultFont;
@@ -286,7 +329,7 @@ public sealed class UiScaledRenderer : IUiRenderer, IUiVectorRenderer, IUiVector
         return scaled;
     }
 
-    private UiRect ScaleRect(UiRect rect)
+    protected UiRect ScaleRect(UiRect rect)
     {
         return _dpi.ToPhysical(rect);
     }
@@ -299,5 +342,97 @@ public sealed class UiScaledRenderer : IUiRenderer, IUiVectorRenderer, IUiVector
     private int ScaleExtent(int value)
     {
         return _dpi.ToPhysicalExtent(value);
+    }
+
+    private class TextureScaledRenderer
+        : UiScaledRenderer,
+          IUiTextureRenderer,
+          IUiTextureRendererResourceOwner
+    {
+        private readonly IUiTextureRenderer _textures;
+
+        internal TextureScaledRenderer(
+            IUiRenderer inner,
+            UiDpiCompensation dpiCompensation,
+            IUiTextureRenderer textures)
+            : base(inner, dpiCompensation)
+        {
+            _textures = textures;
+            TextureRendererResourceOwner =
+                inner is IUiTextureRendererResourceOwner owner
+                    ? owner.TextureRendererResourceOwner
+                    : textures;
+        }
+
+        public IUiTextureRenderer TextureRendererResourceOwner
+        {
+            get;
+        }
+
+        public uint CreateRgbaTexture(
+            int width,
+            int height,
+            ReadOnlySpan<byte> rgbaPixels) =>
+            _textures.CreateRgbaTexture(
+                width,
+                height,
+                rgbaPixels);
+
+        public void UpdateRgbaTexture(
+            uint textureId,
+            int width,
+            int height,
+            ReadOnlySpan<byte> rgbaPixels) =>
+            _textures.UpdateRgbaTexture(
+                textureId,
+                width,
+                height,
+                rgbaPixels);
+
+        public void DrawTexture(
+            uint textureId,
+            UiRect rect,
+            float sourceX,
+            float sourceY,
+            float sourceWidth,
+            float sourceHeight,
+            bool flipVertical = false,
+            UiColor? tint = null) =>
+            _textures.DrawTexture(
+                textureId,
+                ScaleRect(rect),
+                sourceX,
+                sourceY,
+                sourceWidth,
+                sourceHeight,
+                flipVertical,
+                tint);
+    }
+
+    private sealed class TextureSamplingScaledRenderer
+        : TextureScaledRenderer,
+          IUiTextureSamplingRenderer
+    {
+        private readonly IUiTextureSamplingRenderer _sampling;
+
+        internal TextureSamplingScaledRenderer(
+            IUiRenderer inner,
+            UiDpiCompensation dpiCompensation,
+            IUiTextureRenderer textures,
+            IUiTextureSamplingRenderer sampling)
+            : base(
+                inner,
+                dpiCompensation,
+                textures)
+        {
+            _sampling = sampling;
+        }
+
+        public void SetTextureSampling(
+            uint textureId,
+            UiTextureSampling sampling) =>
+            _sampling.SetTextureSampling(
+                textureId,
+                sampling);
     }
 }

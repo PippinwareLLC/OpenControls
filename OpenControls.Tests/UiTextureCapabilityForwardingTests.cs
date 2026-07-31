@@ -238,4 +238,52 @@ public sealed class
                 9),
             renderer.DrawnTextures);
     }
+
+    [Fact]
+    public void DpiFactory_PreservesTextureCapabilitiesAndScalesDrawBounds()
+    {
+        var renderer = new RecordingRenderer();
+        var dpi = new UiDpiCompensation();
+        dpi.SetScaleFactor(2f);
+
+        IUiRenderer scaled =
+            UiScaledRenderer.Create(
+                renderer,
+                dpi);
+        var textures =
+            Assert.IsAssignableFrom<IUiTextureRenderer>(
+                scaled);
+        var owner =
+            Assert.IsAssignableFrom<IUiTextureRendererResourceOwner>(
+                scaled);
+        var sampling =
+            Assert.IsAssignableFrom<IUiTextureSamplingRenderer>(
+                scaled);
+
+        uint textureId =
+            textures.CreateRgbaTexture(
+                1,
+                1,
+                new byte[] { 255, 255, 255, 255 });
+        sampling.SetTextureSampling(
+            textureId,
+            UiTextureSampling.Nearest);
+        textures.DrawTexture(
+            textureId,
+            new UiRect(2, 3, 8, 9),
+            0,
+            0,
+            1,
+            1);
+
+        Assert.Same(
+            renderer,
+            owner.TextureRendererResourceOwner);
+        Assert.Contains(
+            UiTextureSampling.Nearest,
+            renderer.Sampling);
+        Assert.Contains(
+            new UiRect(4, 6, 16, 18),
+            renderer.DrawnTextures);
+    }
 }

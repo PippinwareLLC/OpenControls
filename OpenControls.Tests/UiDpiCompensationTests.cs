@@ -4,7 +4,7 @@ namespace OpenControls.Tests;
 
 public sealed class UiDpiCompensationTests
 {
-    private sealed class RecordingRenderer : IUiRenderer, IUiVectorRenderer
+    private sealed class RecordingRenderer : IUiRenderPassController, IUiVectorRenderer
     {
         public UiFont DefaultFont { get; set; } = UiFont.Default;
         public UiRect LastFillRect { get; private set; }
@@ -17,6 +17,8 @@ public sealed class UiDpiCompensationTests
         public int LastTextScale { get; private set; }
         public UiFont? LastTextFont { get; private set; }
         public UiFont? LastMeasureFont { get; private set; }
+        public int CompletedPasses { get; private set; }
+        public int AbortedPasses { get; private set; }
 
         public void FillRect(UiRect rect, UiColor color)
         {
@@ -87,6 +89,12 @@ public sealed class UiDpiCompensationTests
         public void PopClip()
         {
         }
+
+        public void CompleteRenderPass() =>
+            CompletedPasses++;
+
+        public void AbortRenderPass() =>
+            AbortedPasses++;
     }
 
     [Fact]
@@ -124,7 +132,8 @@ public sealed class UiDpiCompensationTests
             LeftDragOrigin = new UiPoint(200, 100),
             RightDragOrigin = new UiPoint(160, 80),
             MiddleDragOrigin = new UiPoint(80, 40),
-            DragThreshold = 6
+            DragThreshold = 6,
+            ScrollIsPrecise = true
         });
 
         Assert.Equal(new UiPoint(120, 60), logical.MousePosition);
@@ -133,6 +142,7 @@ public sealed class UiDpiCompensationTests
         Assert.Equal(new UiPoint(80, 40), logical.RightDragOrigin);
         Assert.Equal(new UiPoint(40, 20), logical.MiddleDragOrigin);
         Assert.Equal(6, logical.DragThreshold);
+        Assert.True(logical.ScrollIsPrecise);
     }
 
     [Fact]
@@ -204,6 +214,8 @@ public sealed class UiDpiCompensationTests
         renderer.DrawPolyline([new UiPoint(3, 4), new UiPoint(7, 9)], 3, UiColor.White);
         renderer.DrawText("Scaled", new UiPoint(12, 18), UiColor.White, scale: 2, font: baseFont);
         renderer.PushClip(new UiRect(4, 6, 20, 10));
+        renderer.CompleteRenderPass();
+        renderer.AbortRenderPass();
 
         Assert.Equal(baseFont.MeasureTextHeight(2), logicalHeight);
         Assert.Equal(baseFont.MeasureTextWidth("OpenControls", 2), logicalWidth);
@@ -218,6 +230,8 @@ public sealed class UiDpiCompensationTests
         Assert.Equal(baseFont.PixelSize * 2, inner.LastTextFont!.PixelSize);
         Assert.Equal(baseFont.PixelSize * 2, inner.LastMeasureFont!.PixelSize);
         Assert.Equal(new UiRect(8, 12, 40, 20), inner.LastClipRect);
+        Assert.Equal(1, inner.CompletedPasses);
+        Assert.Equal(1, inner.AbortedPasses);
     }
 
     [Fact]
