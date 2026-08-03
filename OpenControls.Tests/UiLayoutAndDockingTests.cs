@@ -741,6 +741,72 @@ public sealed class UiLayoutAndDockingTests
     }
 
     [Fact]
+    public void DockWorkspace_DockTargetsRenderAboveTabbedWindowOverlays()
+    {
+        UiColor tabOverlayColor = new(210, 40, 50, 255);
+        UiColor targetColor = new(17, 81, 149, 211);
+        UiColor activeTargetColor = new(43, 167, 231, 233);
+        UiDockWorkspace workspace = new()
+        {
+            Bounds = new UiRect(0, 0, 400, 240),
+            DropTargetColor = targetColor,
+            DropTargetActiveColor = activeTargetColor
+        };
+        UiWindow tab = new()
+        {
+            Id = "tab-with-overlay",
+            Title = "Tab with overlay"
+        };
+        tab.AddChild(new OverlayFillElement(tabOverlayColor)
+        {
+            Bounds = workspace.Bounds
+        });
+        workspace.RootHost.DockWindow(tab);
+        workspace.PerformLayout();
+
+        UiRect hostBounds = workspace.RootHost.Bounds;
+        UiPoint centerTarget = new(
+            hostBounds.X + hostBounds.Width / 2,
+            hostBounds.Y + hostBounds.Height / 2);
+        workspace.PreviewExternalDock(
+            new UiWindow
+            {
+                Id = "external-window",
+                Title = "External"
+            },
+            centerTarget,
+            new UiRect(30, 30, 120, 80));
+
+        UiPanel root = new();
+        root.AddChild(workspace);
+        UiContext context = new(root);
+        ScrollRecordingRenderer renderer = new();
+        context.Render(renderer);
+
+        static bool SameColor(UiColor left, UiColor right) =>
+            left.R == right.R
+            && left.G == right.G
+            && left.B == right.B
+            && left.A == right.A;
+        int tabOverlayIndex = renderer.FilledColors.FindIndex(color =>
+            SameColor(color, tabOverlayColor));
+        int firstTargetIndex = renderer.FilledColors.FindIndex(color =>
+            SameColor(color, targetColor)
+            || SameColor(color, activeTargetColor));
+        int lastTargetIndex = renderer.FilledColors.FindLastIndex(color =>
+            SameColor(color, targetColor)
+            || SameColor(color, activeTargetColor));
+        Assert.True(tabOverlayIndex >= 0);
+        Assert.True(firstTargetIndex > tabOverlayIndex);
+        Assert.Equal(renderer.FilledColors.Count - 1, lastTargetIndex);
+        Assert.Equal(
+            5,
+            renderer.FilledColors.Count(color =>
+                SameColor(color, targetColor)
+                || SameColor(color, activeTargetColor)));
+    }
+
+    [Fact]
     public void DockWorkspace_ExternalDockPreview_RequiresExplicitTargetInsteadOfDefaultingToCenter()
     {
         UiDockWorkspace workspace = CreateWorkspace();
@@ -1195,14 +1261,25 @@ public sealed class UiLayoutAndDockingTests
         }
     }
 
+    private sealed class OverlayFillElement(UiColor color) : UiElement
+    {
+        public override void RenderOverlay(UiRenderContext context)
+        {
+            context.Renderer.FillRect(Bounds, color);
+            base.RenderOverlay(context);
+        }
+    }
+
     private sealed class ScrollRecordingRenderer : IUiRenderer
     {
         public UiFont DefaultFont { get; set; } = UiFont.Default;
         public List<UiRect> FilledRects { get; } = new();
+        public List<UiColor> FilledColors { get; } = new();
 
         public void FillRect(UiRect rect, UiColor color)
         {
             FilledRects.Add(rect);
+            FilledColors.Add(color);
         }
 
         public void DrawRect(UiRect rect, UiColor color, int thickness = 1)

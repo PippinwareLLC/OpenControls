@@ -609,6 +609,19 @@ public sealed class UiDockWorkspace : UiElement
 
         base.Render(context);
         DrawSplitters(context);
+    }
+
+    public override void RenderOverlay(UiRenderContext context)
+    {
+        if (!Visible)
+        {
+            return;
+        }
+
+        // Dock adornments must be composited after every host/window overlay.
+        // Drawing them in the main pass lets full-surface tab overlays obscure
+        // the preview and targets while the drag is still active.
+        base.RenderOverlay(context);
 
         if ((_dragWindow != null && _dragMoved) || _externalPreviewWindow != null)
         {
