@@ -478,9 +478,26 @@ public sealed class UiTreeView : UiElement
                 UiArrow.DrawTriangle(context.Renderer, arrowBounds, direction, ArrowColor);
             }
 
-            int textX = arrowBounds.Right + Math.Max(0, ArrowPadding) + Math.Max(0, row.Item.ExtraTextOffset);
+            int contentX = arrowBounds.Right + Math.Max(0, ArrowPadding);
             int textY = y + (itemHeight - textHeight) / 2;
             UiColor textColor = row.Item.TextColor ?? (IsItemSelected(index) ? SelectedTextColor : TextColor);
+            if (!string.IsNullOrWhiteSpace(row.Item.LeadingIconText))
+            {
+                UiColor iconColor = row.Item.LeadingIconColor ?? textColor;
+                context.Renderer.DrawText(
+                    row.Item.LeadingIconText,
+                    new UiPoint(contentX, textY),
+                    iconColor,
+                    TextScale,
+                    font);
+                contentX += context.Renderer.MeasureTextWidth(
+                    row.Item.LeadingIconText,
+                    TextScale,
+                    font)
+                    + Math.Max(0, row.Item.LeadingIconGap);
+            }
+
+            int textX = contentX + Math.Max(0, row.Item.ExtraTextOffset);
             if (!string.IsNullOrWhiteSpace(row.Item.SecondaryText))
             {
                 int secondaryWidth = context.Renderer.MeasureTextWidth(row.Item.SecondaryText, TextScale, font);

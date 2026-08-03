@@ -119,4 +119,31 @@ public sealed class UiTreeViewAccessoryTests
         Assert.Contains("Rotation", renderer.DrawnTexts);
         Assert.Contains("61.716", renderer.DrawnTexts);
     }
+
+    [Fact]
+    public void TreeView_RenderWithLeadingIcon_DrawsIconSeparatelyFromSemanticText()
+    {
+        const string sceneIcon = "\uf1b3";
+        UiTreeView tree = new()
+        {
+            Bounds = new UiRect(0, 0, 220, 60),
+            ItemHeight = 22
+        };
+
+        UiTreeViewItem item = new("Main Scene")
+        {
+            LeadingIconText = sceneIcon,
+            LeadingIconColor = new UiColor(164, 196, 238),
+            LeadingIconGap = 4
+        };
+        tree.RootItems.Add(item);
+        tree.NotifyTreeStructureChanged();
+
+        TestRenderer renderer = new();
+        tree.Render(new UiRenderContext(renderer, renderer.DefaultFont));
+
+        Assert.Equal("Main Scene", item.Text);
+        Assert.Contains(sceneIcon, renderer.DrawnTexts);
+        Assert.Contains("Main Scene", renderer.DrawnTexts);
+    }
 }
