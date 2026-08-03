@@ -9,6 +9,11 @@ public enum UiDockCollapseEdge
     Bottom
 }
 
+public readonly record struct UiDockHostAddMenuItem(
+    string Id,
+    string Label,
+    bool Enabled = true);
+
 public sealed class UiDockHost : UiElement
 {
     private sealed class TabMetricsEntry
@@ -48,6 +53,7 @@ public sealed class UiDockHost : UiElement
     private UiRect _scrollLeftBounds;
     private UiRect _scrollRightBounds;
     private UiRect _overflowButtonBounds;
+    private UiRect _addButtonBounds;
     private bool _tabsOverflow;
     private int _closeHoverIndex = -1;
     private int _closePressedIndex = -1;
@@ -57,6 +63,11 @@ public sealed class UiDockHost : UiElement
     private bool _overflowMenuOpen;
     private UiRect _overflowMenuBounds;
     private int _overflowMenuHoverIndex = -1;
+    private readonly List<UiDockHostAddMenuItem> _addMenuItems = new();
+    private bool _addButtonHover;
+    private bool _addMenuOpen;
+    private UiRect _addMenuBounds;
+    private int _addMenuHoverIndex = -1;
     private bool _contextMenuOpen;
     private UiRect _contextMenuBounds;
     private int _contextMenuTabIndex = -1;
@@ -120,6 +131,8 @@ public sealed class UiDockHost : UiElement
     public string CloseButtonText { get; set; } = "X";
     public int ScrollButtonWidth { get; set; } = 18;
     public int OverflowButtonWidth { get; set; } = 18;
+    public int AddButtonWidth { get; set; } = 26;
+    public string AddButtonText { get; set; } = "+";
     public int ScrollStep { get; set; } = 80;
     public bool ShowOverflowMenuButton { get; set; } = true;
     public bool ShowTabContextMenu { get; set; } = true;
@@ -156,11 +169,63 @@ public sealed class UiDockHost : UiElement
     public event Action<UiWindow, UiPoint>? TabDetached;
     public event Action<UiWindow>? TabClosed;
     public event Action<UiDockHost>? CollapsedChanged;
+    public event Action<UiDockHost, UiDockHostAddMenuItem>? AddMenuItemInvoked;
 
     public IReadOnlyList<UiWindow> Windows => _windows;
     public UiWindow? ActiveWindow => _activeIndex >= 0 && _activeIndex < _windows.Count ? _windows[_activeIndex] : null;
     public int ActiveIndex => _activeIndex;
     public bool IsEmpty => _windows.Count == 0;
+    public IReadOnlyList<UiDockHostAddMenuItem> AddMenuItems => _addMenuItems;
+    public bool IsAddMenuOpen => _addMenuOpen;
+
+    public void SetAddMenuItems(IEnumerable<UiDockHostAddMenuItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        var next = new List<UiDockHostAddMenuItem>();
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (UiDockHostAddMenuItem item in items)
+        {
+            string id = item.Id?.Trim() ?? string.Empty;
+            string label = item.Label?.Trim() ?? string.Empty;
+            if (id.Length == 0 || label.Length == 0)
+            {
+                throw new ArgumentException(
+                    "Dock-host add-menu items require non-empty IDs and labels.",
+                    nameof(items));
+            }
+            if (!ids.Add(id))
+            {
+                throw new ArgumentException(
+                    $"Dock-host add-menu item ID '{id}' is duplicated.",
+                    nameof(items));
+            }
+
+            next.Add(new UiDockHostAddMenuItem(id, label, item.Enabled));
+        }
+
+        _addMenuItems.Clear();
+        _addMenuItems.AddRange(next);
+        if (_addMenuItems.Count == 0)
+        {
+            _addMenuOpen = false;
+            _addMenuBounds = default;
+        }
+
+        UpdateTabLayout();
+    }
+
+    public UiRect GetAddButtonBounds()
+    {
+        UpdateTabLayout();
+        return _addButtonBounds;
+    }
+
+    public UiRect GetAddMenuBounds()
+    {
+        UpdateTabLayout();
+        return _addMenuBounds;
+    }
 
     public void AddWindow(UiWindow window)
     {
@@ -325,7 +390,8 @@ public sealed class UiDockHost : UiElement
             return -1;
         }
 
-        if (_tabsOverflow && (_scrollLeftBounds.Contains(point) || _scrollRightBounds.Contains(point) || _overflowButtonBounds.Contains(point)))
+        if (_addButtonBounds.Contains(point)
+            || (_tabsOverflow && (_scrollLeftBounds.Contains(point) || _scrollRightBounds.Contains(point) || _overflowButtonBounds.Contains(point))))
         {
             return -1;
         }
@@ -482,18 +548,20 @@ public sealed class UiDockHost : UiElement
             SetWindowVisibility();
             return;
         }
-        bool menusWereOpen = _overflowMenuOpen || _contextMenuOpen;
+        bool menusWereOpen = _overflowMenuOpen || _addMenuOpen || _contextMenuOpen;
         _closeHoverIndex = GetCloseIndexAt(input.MousePosition);
         _scrollLeftHover = _tabsOverflow && _scrollLeftBounds.Contains(input.MousePosition);
         _scrollRightHover = _tabsOverflow && _scrollRightBounds.Contains(input.MousePosition);
         _overflowButtonHover = HasOverflowButton && _overflowButtonBounds.Contains(input.MousePosition);
         _overflowMenuHoverIndex = GetOverflowMenuIndexAt(input.MousePosition);
+        _addButtonHover = HasAddButton && _addButtonBounds.Contains(input.MousePosition);
+        _addMenuHoverIndex = GetAddMenuIndexAt(input.MousePosition);
         _contextMenuHoverIndex = GetContextMenuCommandIndexAt(input.MousePosition);
 
         int startingActive = _activeIndex;
         bool handledInteraction = false;
 
-        if (input.Navigation.Escape && (_overflowMenuOpen || _contextMenuOpen))
+        if (input.Navigation.Escape && (_overflowMenuOpen || _addMenuOpen || _contextMenuOpen))
         {
             CloseTransientMenus();
             ResetTabInteraction();
@@ -507,6 +575,7 @@ public sealed class UiDockHost : UiElement
                 _keepActiveTabVisible = false;
                 ScrollTabs(-1);
                 _overflowMenuOpen = false;
+                _addMenuOpen = false;
                 _contextMenuOpen = false;
                 _contextMenuTabIndex = -1;
                 handledInteraction = true;
@@ -516,6 +585,7 @@ public sealed class UiDockHost : UiElement
                 _keepActiveTabVisible = false;
                 ScrollTabs(1);
                 _overflowMenuOpen = false;
+                _addMenuOpen = false;
                 _contextMenuOpen = false;
                 _contextMenuTabIndex = -1;
                 handledInteraction = true;
@@ -531,6 +601,7 @@ public sealed class UiDockHost : UiElement
                 _keepActiveTabVisible = true;
                 OpenContextMenu(tabIndex, input.MousePosition);
                 _overflowMenuOpen = false;
+                _addMenuOpen = false;
                 ResetTabInteraction();
                 handledInteraction = true;
             }
@@ -550,6 +621,16 @@ public sealed class UiDockHost : UiElement
                 _overflowMenuOpen = false;
                 handledInteraction = true;
             }
+            else if (_addMenuOpen && _addMenuHoverIndex >= 0 && _addMenuHoverIndex < _addMenuItems.Count)
+            {
+                UiDockHostAddMenuItem item = _addMenuItems[_addMenuHoverIndex];
+                _addMenuOpen = false;
+                if (item.Enabled)
+                {
+                    AddMenuItemInvoked?.Invoke(this, item);
+                }
+                handledInteraction = true;
+            }
             else if (_contextMenuOpen && _contextMenuHoverIndex >= 0)
             {
                 ExecuteContextMenuCommand(_contextMenuHoverIndex, input.ScreenMousePosition);
@@ -562,8 +643,22 @@ public sealed class UiDockHost : UiElement
                 _overflowMenuOpen = !_overflowMenuOpen;
                 if (_overflowMenuOpen)
                 {
+                    _addMenuOpen = false;
                     _contextMenuOpen = false;
                     UpdateOverflowMenuBounds();
+                }
+
+                handledInteraction = true;
+            }
+            else if (_addButtonHover)
+            {
+                _addMenuOpen = !_addMenuOpen;
+                if (_addMenuOpen)
+                {
+                    _overflowMenuOpen = false;
+                    _contextMenuOpen = false;
+                    _contextMenuTabIndex = -1;
+                    UpdateAddMenuBounds();
                 }
 
                 handledInteraction = true;
@@ -574,6 +669,11 @@ public sealed class UiDockHost : UiElement
                 if (_overflowMenuOpen && !_overflowMenuBounds.Contains(input.MousePosition) && !_overflowButtonBounds.Contains(input.MousePosition))
                 {
                     _overflowMenuOpen = false;
+                }
+
+                if (_addMenuOpen && !_addMenuBounds.Contains(input.MousePosition) && !_addButtonBounds.Contains(input.MousePosition))
+                {
+                    _addMenuOpen = false;
                 }
 
                 if (_contextMenuOpen && !_contextMenuBounds.Contains(input.MousePosition))
@@ -613,7 +713,7 @@ public sealed class UiDockHost : UiElement
             }
 
             SetWindowVisibility();
-            UpdateChildren(context, BlockChildInput(input, menusWereOpen || handledInteraction || _overflowMenuOpen || _contextMenuOpen));
+            UpdateChildren(context, BlockChildInput(input, menusWereOpen || handledInteraction || _overflowMenuOpen || _addMenuOpen || _contextMenuOpen));
             return;
         }
 
@@ -691,7 +791,7 @@ public sealed class UiDockHost : UiElement
         }
 
         SetWindowVisibility();
-        UpdateChildren(context, BlockChildInput(input, menusWereOpen || handledInteraction || _overflowMenuOpen || _contextMenuOpen));
+        UpdateChildren(context, BlockChildInput(input, menusWereOpen || handledInteraction || _overflowMenuOpen || _addMenuOpen || _contextMenuOpen));
     }
 
     public override void Render(UiRenderContext context)
@@ -829,6 +929,11 @@ public sealed class UiDockHost : UiElement
             RenderButton(context, _scrollRightBounds, UiArrowDirection.Right, _scrollRightHover, canScrollRight);
         }
 
+        if (HasAddButton)
+        {
+            RenderAddButton(context);
+        }
+
         base.Render(context);
 
         if (ClipChildren && CornerRadius > 0 && Background.A > 0)
@@ -854,6 +959,12 @@ public sealed class UiDockHost : UiElement
             RenderOverflowMenu(context);
         }
 
+
+        if (_addMenuOpen)
+        {
+            RenderAddMenu(context);
+        }
+
         if (_contextMenuOpen)
         {
             RenderContextMenu(context);
@@ -867,6 +978,13 @@ public sealed class UiDockHost : UiElement
 
         UiRect panelBounds = GetPanelBounds();
         int tabHeight = GetEffectiveTabBarHeight(panelBounds);
+        int addButtonWidth = HasAddButton
+            ? Math.Min(Math.Max(0, AddButtonWidth), Math.Max(0, panelBounds.Width))
+            : 0;
+        _addButtonBounds = addButtonWidth > 0
+            ? new UiRect(panelBounds.Right - addButtonWidth, panelBounds.Y, addButtonWidth, tabHeight)
+            : default;
+        int availablePanelWidth = Math.Max(0, panelBounds.Width - addButtonWidth);
         if (_windows.Count == 0)
         {
             _activeIndex = -1;
@@ -874,10 +992,14 @@ public sealed class UiDockHost : UiElement
             _tabMaxScroll = 0;
             _tabsOverflow = false;
             _keepActiveTabVisible = true;
-            _tabAreaBounds = new UiRect(panelBounds.X, panelBounds.Y, panelBounds.Width, tabHeight);
+            _tabAreaBounds = new UiRect(panelBounds.X, panelBounds.Y, availablePanelWidth, tabHeight);
             _scrollLeftBounds = default;
             _scrollRightBounds = default;
             _overflowButtonBounds = default;
+            if (_addMenuOpen)
+            {
+                UpdateAddMenuBounds();
+            }
             return;
         }
 
@@ -888,28 +1010,28 @@ public sealed class UiDockHost : UiElement
         }
 
         int totalWidth = GetTotalTabWidth();
-        _tabsOverflow = totalWidth > panelBounds.Width;
+        _tabsOverflow = totalWidth > availablePanelWidth;
 
         int scrollButtonWidth = _tabsOverflow ? Math.Max(0, ScrollButtonWidth) : 0;
         int overflowButtonWidth = HasOverflowButton ? Math.Max(0, OverflowButtonWidth) : 0;
         if (_tabsOverflow)
         {
-            scrollButtonWidth = Math.Min(scrollButtonWidth, Math.Max(0, panelBounds.Width / 3));
-            overflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, panelBounds.Width - scrollButtonWidth));
+            scrollButtonWidth = Math.Min(scrollButtonWidth, Math.Max(0, availablePanelWidth / 3));
+            overflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, availablePanelWidth - scrollButtonWidth));
         }
 
         bool showScrollLeft = _tabsOverflow && _tabScrollOffset > 0 && scrollButtonWidth > 0;
         bool showScrollRight = _tabsOverflow && scrollButtonWidth > 0;
         int leftScrollWidth = 0;
         int rightScrollWidth = 0;
-        int tabAreaWidth = panelBounds.Width;
+        int tabAreaWidth = availablePanelWidth;
         int appliedOverflowButtonWidth = overflowButtonWidth;
         for (int pass = 0; pass < 4; pass++)
         {
             leftScrollWidth = showScrollLeft ? scrollButtonWidth : 0;
             rightScrollWidth = showScrollRight ? scrollButtonWidth : 0;
-            appliedOverflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, panelBounds.Width - leftScrollWidth - rightScrollWidth));
-            tabAreaWidth = Math.Max(0, panelBounds.Width - leftScrollWidth - rightScrollWidth - appliedOverflowButtonWidth);
+            appliedOverflowButtonWidth = Math.Min(overflowButtonWidth, Math.Max(0, availablePanelWidth - leftScrollWidth - rightScrollWidth));
+            tabAreaWidth = Math.Max(0, availablePanelWidth - leftScrollWidth - rightScrollWidth - appliedOverflowButtonWidth);
 
             _tabMaxScroll = Math.Max(0, totalWidth - tabAreaWidth);
             _tabScrollOffset = Math.Clamp(_tabScrollOffset, 0, _tabMaxScroll);
@@ -933,7 +1055,7 @@ public sealed class UiDockHost : UiElement
             ? new UiRect(_tabAreaBounds.Right, panelBounds.Y, appliedOverflowButtonWidth, tabHeight)
             : default;
         _scrollRightBounds = rightScrollWidth > 0
-            ? new UiRect(panelBounds.Right - rightScrollWidth, panelBounds.Y, rightScrollWidth, tabHeight)
+            ? new UiRect(panelBounds.Right - addButtonWidth - rightScrollWidth, panelBounds.Y, rightScrollWidth, tabHeight)
             : default;
 
         LayoutTabRects(_tabAreaBounds.X - _tabScrollOffset, tabHeight);
@@ -957,6 +1079,10 @@ public sealed class UiDockHost : UiElement
         else if (_overflowMenuOpen)
         {
             UpdateOverflowMenuBounds();
+        }
+        if (_addMenuOpen)
+        {
+            UpdateAddMenuBounds();
         }
     }
 
@@ -1311,6 +1437,33 @@ public sealed class UiDockHost : UiElement
         UiArrow.DrawTriangle(context.Renderer, GetTabButtonArrowBounds(renderRect), UiArrowDirection.Down, TabTextColor);
     }
 
+    private void RenderAddButton(UiRenderContext context)
+    {
+        if (_addButtonBounds.Width <= 0 || _addButtonBounds.Height <= 0)
+        {
+            return;
+        }
+
+        UiColor background = (_addButtonHover || _addMenuOpen) ? TabHoverColor : TabInactiveColor;
+        UiRect renderRect = GetRenderedButtonRect(_addButtonBounds);
+        if (TabCornerRadius > 0)
+        {
+            UiRenderHelpers.FillRectTopRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), background);
+            UiRenderHelpers.DrawRectTopRounded(context.Renderer, renderRect, Math.Max(0, TabCornerRadius - 1), TabBorderColor, 1);
+        }
+        else
+        {
+            context.Renderer.FillRect(renderRect, background);
+            context.Renderer.DrawRect(renderRect, TabBorderColor, 1);
+        }
+
+        string glyph = string.IsNullOrWhiteSpace(AddButtonText) ? "+" : AddButtonText;
+        int textWidth = MeasureTextWidth(glyph, TabTextScale, _layoutFont);
+        int textX = renderRect.X + (renderRect.Width - textWidth) / 2;
+        int textY = UiRenderHelpers.GetVerticallyCenteredTextY(renderRect, glyph, TabTextScale, _layoutFont);
+        context.Renderer.DrawText(glyph, new UiPoint(textX, textY), TabTextColor, TabTextScale, _layoutFont);
+    }
+
     private UiRect GetRenderedTabRect(UiRect tabRect)
     {
         int inset = Math.Max(0, TabInset);
@@ -1643,6 +1796,11 @@ public sealed class UiDockHost : UiElement
             _overflowMenuOpen = false;
         }
 
+        if (_addMenuItems.Count == 0)
+        {
+            _addMenuOpen = false;
+        }
+
         if (_contextMenuTabIndex < 0 || _contextMenuTabIndex >= _windows.Count)
         {
             _contextMenuOpen = false;
@@ -1661,6 +1819,7 @@ public sealed class UiDockHost : UiElement
     private void CloseTransientMenus()
     {
         _overflowMenuOpen = false;
+        _addMenuOpen = false;
         _contextMenuOpen = false;
         _contextMenuTabIndex = -1;
     }
@@ -1706,6 +1865,7 @@ public sealed class UiDockHost : UiElement
     }
 
     private bool HasOverflowButton => _tabsOverflow && ShowOverflowMenuButton && OverflowButtonWidth > 0;
+    private bool HasAddButton => _addMenuItems.Count > 0 && AddButtonWidth > 0;
 
     private void UpdateOverflowMenuBounds()
     {
@@ -1738,6 +1898,36 @@ public sealed class UiDockHost : UiElement
         _overflowMenuBounds = new UiRect(x, y, width, height);
     }
 
+    private void UpdateAddMenuBounds()
+    {
+        if (_addMenuItems.Count == 0 || _addButtonBounds.Width <= 0)
+        {
+            _addMenuBounds = default;
+            return;
+        }
+
+        int itemHeight = GetMenuItemHeight();
+        int width = GetAddMenuWidth();
+        int height = _addMenuItems.Count * itemHeight;
+        int x = _addButtonBounds.Right - width;
+        int y = GetPanelBounds().Y + GetEffectiveTabBarHeight(GetPanelBounds());
+        UiRect panelBounds = GetPanelBounds();
+        if (x < panelBounds.X)
+        {
+            x = panelBounds.X;
+        }
+        if (x + width > panelBounds.Right)
+        {
+            x = Math.Max(panelBounds.X, panelBounds.Right - width);
+        }
+        if (y + height > panelBounds.Bottom)
+        {
+            y = Math.Max(panelBounds.Y + GetEffectiveTabBarHeight(panelBounds), panelBounds.Bottom - height);
+        }
+
+        _addMenuBounds = new UiRect(x, y, width, height);
+    }
+
     private void OpenContextMenu(int tabIndex, UiPoint point)
     {
         if (!ShowTabContextMenu || tabIndex < 0 || tabIndex >= _windows.Count)
@@ -1748,6 +1938,7 @@ public sealed class UiDockHost : UiElement
         _contextMenuTabIndex = tabIndex;
         _contextMenuOpen = true;
         _overflowMenuOpen = false;
+        _addMenuOpen = false;
 
         int itemHeight = GetMenuItemHeight();
         int width = GetContextMenuWidth();
@@ -1785,6 +1976,21 @@ public sealed class UiDockHost : UiElement
         return index >= 0 && index < _overflowWindowIndices.Count ? index : -1;
     }
 
+    private int GetAddMenuIndexAt(UiPoint point)
+    {
+        if (!_addMenuOpen || !_addMenuBounds.Contains(point))
+        {
+            return -1;
+        }
+
+        int itemHeight = GetMenuItemHeight();
+        int relativeY = point.Y - _addMenuBounds.Y;
+        int index = itemHeight > 0 ? relativeY / itemHeight : -1;
+        return index >= 0 && index < _addMenuItems.Count && _addMenuItems[index].Enabled
+            ? index
+            : -1;
+    }
+
     private int GetContextMenuCommandIndexAt(UiPoint point)
     {
         if (!_contextMenuOpen || !_contextMenuBounds.Contains(point))
@@ -1819,6 +2025,20 @@ public sealed class UiDockHost : UiElement
         }
 
         return Math.Min(Math.Max(120, width), Math.Max(120, Bounds.Width));
+    }
+
+    private int GetAddMenuWidth()
+    {
+        int width = 140;
+        for (int i = 0; i < _addMenuItems.Count; i++)
+        {
+            width = Math.Max(
+                width,
+                MeasureTextWidth(_addMenuItems[i].Label, TabTextScale, _layoutFont)
+                    + Math.Max(0, TabPadding) * 2);
+        }
+
+        return Math.Min(Math.Max(140, width), Math.Max(140, Bounds.Width));
     }
 
     private int GetContextMenuWidth()
@@ -1971,6 +2191,44 @@ public sealed class UiDockHost : UiElement
             int availableWidth = Math.Max(0, itemBounds.Width - Math.Max(0, TabPadding) * 2);
             string renderText = UiTextHelpers.BuildElidedText(title, availableWidth, TabTextScale, _layoutFont);
             context.Renderer.DrawText(renderText, new UiPoint(itemBounds.X + Math.Max(0, TabPadding), textY), MenuTextColor, TabTextScale, _layoutFont);
+        }
+    }
+
+    private void RenderAddMenu(UiRenderContext context)
+    {
+        if (_addMenuBounds.Width <= 0 || _addMenuBounds.Height <= 0)
+        {
+            return;
+        }
+
+        context.Renderer.FillRect(_addMenuBounds, MenuBackground);
+        context.Renderer.DrawRect(_addMenuBounds, MenuBorderColor, 1);
+
+        int itemHeight = GetMenuItemHeight();
+        int textHeight = context.Renderer.MeasureTextHeight(TabTextScale, _layoutFont);
+        for (int i = 0; i < _addMenuItems.Count; i++)
+        {
+            UiDockHostAddMenuItem item = _addMenuItems[i];
+            UiRect itemBounds = new(
+                _addMenuBounds.X,
+                _addMenuBounds.Y + i * itemHeight,
+                _addMenuBounds.Width,
+                itemHeight);
+            if (i == _addMenuHoverIndex)
+            {
+                context.Renderer.FillRect(itemBounds, MenuHoverColor);
+            }
+
+            UiColor textColor = item.Enabled ? MenuTextColor : MenuDisabledTextColor;
+            int textY = itemBounds.Y + (itemBounds.Height - textHeight) / 2;
+            int availableWidth = Math.Max(0, itemBounds.Width - Math.Max(0, TabPadding) * 2);
+            string renderText = UiTextHelpers.BuildElidedText(item.Label, availableWidth, TabTextScale, _layoutFont);
+            context.Renderer.DrawText(
+                renderText,
+                new UiPoint(itemBounds.X + Math.Max(0, TabPadding), textY),
+                textColor,
+                TabTextScale,
+                _layoutFont);
         }
     }
 

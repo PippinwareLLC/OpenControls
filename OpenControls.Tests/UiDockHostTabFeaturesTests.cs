@@ -366,6 +366,59 @@ public sealed class UiDockHostTabFeaturesTests
         Assert.Single(host.Windows);
     }
 
+    [Fact]
+    public void DockHost_AddMenuReservesTopRightButtonAndInvokesTypedItem()
+    {
+        UiDockHost host = new()
+        {
+            Bounds = new UiRect(0, 0, 320, 160),
+            AddButtonWidth = 28
+        };
+        host.AddWindow(new UiWindow { Title = "Game" });
+        host.SetAddMenuItems(
+        [
+            new UiDockHostAddMenuItem("scene", "Scene"),
+            new UiDockHostAddMenuItem("hierarchy", "Hierarchy"),
+            new UiDockHostAddMenuItem("inspector", "Inspector")
+        ]);
+
+        UiDockHostAddMenuItem? invoked = null;
+        host.AddMenuItemInvoked += (_, item) => invoked = item;
+        Update(host, new UiInputState());
+
+        UiRect addBounds = host.GetAddButtonBounds();
+        Assert.Equal(host.Bounds.Right, addBounds.Right);
+        Assert.Equal(28, addBounds.Width);
+        Assert.True(host.GetTabBounds(0).Right <= addBounds.X);
+
+        UiPoint addPoint = new(addBounds.X + addBounds.Width / 2, addBounds.Y + addBounds.Height / 2);
+        Update(host, new UiInputState
+        {
+            MousePosition = addPoint,
+            ScreenMousePosition = addPoint,
+            LeftClicked = true
+        });
+
+        Assert.True(host.IsAddMenuOpen);
+        UiRect menuBounds = host.GetAddMenuBounds();
+        Assert.Equal(3 * Math.Max(20, host.TabBarHeight), menuBounds.Height);
+
+        int itemHeight = menuBounds.Height / 3;
+        UiPoint hierarchyPoint = new(
+            menuBounds.X + 8,
+            menuBounds.Y + itemHeight + itemHeight / 2);
+        Update(host, new UiInputState
+        {
+            MousePosition = hierarchyPoint,
+            ScreenMousePosition = hierarchyPoint,
+            LeftClicked = true
+        });
+
+        Assert.False(host.IsAddMenuOpen);
+        Assert.Equal("hierarchy", invoked?.Id);
+        Assert.Equal("Hierarchy", invoked?.Label);
+    }
+
     private static UiDockHost CreateHostWithFourWindows()
     {
         UiDockHost host = new()
