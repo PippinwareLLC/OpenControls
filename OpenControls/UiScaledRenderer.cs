@@ -1,6 +1,6 @@
 namespace OpenControls;
 
-public sealed class UiScaledRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer
+public sealed class UiScaledRenderer : IUiRenderer, IUiVectorRenderer, IUiVectorPassRenderer, IUiTransformedVectorRenderer, IUiShapeRenderer, IUiTextureRenderer
 {
     private readonly IUiRenderer _inner;
     private readonly UiDpiCompensation _dpi;
@@ -284,6 +284,40 @@ public sealed class UiScaledRenderer : IUiRenderer, IUiVectorRenderer, IUiVector
         UiFont scaled = resolved.WithPixelSize(scaledPixelSize);
         _fontCache[key] = scaled;
         return scaled;
+    }
+
+    /// <summary>
+    /// Texture pass-through: pixel uploads keep their native resolution while
+    /// destination rects scale, so canvases and viewports stay DPI-correct.
+    /// </summary>
+    public uint CreateRgbaTexture(int width, int height, ReadOnlySpan<byte> rgbaPixels) =>
+        _inner is IUiTextureRenderer textures
+            ? textures.CreateRgbaTexture(width, height, rgbaPixels)
+            : 0u;
+
+    public void UpdateRgbaTexture(uint textureId, int width, int height, ReadOnlySpan<byte> rgbaPixels)
+    {
+        if (_inner is IUiTextureRenderer textures)
+        {
+            textures.UpdateRgbaTexture(textureId, width, height, rgbaPixels);
+        }
+    }
+
+    public void DrawTexture(
+        uint textureId,
+        UiRect rect,
+        float sourceX,
+        float sourceY,
+        float sourceWidth,
+        float sourceHeight,
+        bool flipVertical = false,
+        UiColor? tint = null)
+    {
+        if (_inner is IUiTextureRenderer textures)
+        {
+            textures.DrawTexture(
+                textureId, ScaleRect(rect), sourceX, sourceY, sourceWidth, sourceHeight, flipVertical, tint);
+        }
     }
 
     private UiRect ScaleRect(UiRect rect)
