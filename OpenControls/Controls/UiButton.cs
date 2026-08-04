@@ -65,6 +65,9 @@ public sealed class UiButton : UiElement
 
     public event Action? Clicked;
 
+    /// <summary>Programmatic activation for keyboard routers and tests.</summary>
+    public void PerformClick() => Clicked?.Invoke();
+
     public override bool IsFocusable => true;
 
     public override void Update(UiUpdateContext context)
