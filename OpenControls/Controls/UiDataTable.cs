@@ -25,6 +25,9 @@ public sealed class UiDataTable : UiElement
 
     public event Action<int>? RowClicked;
 
+    /// <summary>Tables take keyboard focus: arrows move the selection, Enter activates.</summary>
+    public override bool IsFocusable => true;
+
     public event Action<int, bool>? SortChanged;
 
     public IReadOnlyList<UiDataTableColumn> Columns
@@ -138,8 +141,29 @@ public sealed class UiDataTable : UiElement
         }
 
         UiInputState input = context.Input;
+        if (context.Focus.Focused == this && _rows.Count > 0)
+        {
+            IReadOnlyList<int> order = SortedRowIndices;
+            int displayIndex = Math.Max(0, order.ToList().IndexOf(_selectedRowIndex));
+            if (input.KeysPressed.Contains(UiKey.Down) && displayIndex + 1 < order.Count)
+            {
+                SelectedRowIndex = order[displayIndex + 1];
+                RowClicked?.Invoke(SelectedRowIndex);
+            }
+            else if (input.KeysPressed.Contains(UiKey.Up) && displayIndex > 0)
+            {
+                SelectedRowIndex = order[displayIndex - 1];
+                RowClicked?.Invoke(SelectedRowIndex);
+            }
+            else if (input.KeysPressed.Contains(UiKey.Enter) && _selectedRowIndex >= 0)
+            {
+                RowClicked?.Invoke(_selectedRowIndex);
+            }
+        }
+
         if (input.LeftClicked && Bounds.Contains(input.MousePosition))
         {
+            context.Focus.RequestFocus(this);
             int localY = input.MousePosition.Y - Bounds.Y;
             int localX = input.MousePosition.X - Bounds.X;
             if (localY < RowHeight)

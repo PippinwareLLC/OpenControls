@@ -80,4 +80,42 @@ public sealed class UiDataTableTests
         table.SortBy(1);
         Assert.Equal([0, 1], table.SortedRowIndices); // "" before "extra"
     }
+
+    [Fact]
+    public void FocusedTablesNavigateWithArrowsInDisplayOrderAndActivateOnEnter()
+    {
+        UiDataTable table = BuildTable();
+        table.Bounds = new UiRect(0, 0, 200, 100);
+        table.SortBy(1); // display order by price: Astra, Velar, Korin
+        table.SelectedRowIndex = 1; // Astra (display position 0)
+        var clicks = new List<int>();
+        table.RowClicked += clicks.Add;
+
+        var focus = new UiFocusManager();
+        focus.RequestFocus(table);
+        UiUpdateContext Context(params UiKey[] pressed) => new(
+            new UiInputState { KeysPressed = pressed },
+            focus,
+            new UiDragDropContext(),
+            1f / 60f,
+            UiFont.Default,
+            new UiMemoryClipboard());
+
+        table.Update(Context(UiKey.Down));
+        Assert.Equal(0, table.SelectedRowIndex); // Velar is next by price
+        table.Update(Context(UiKey.Down));
+        Assert.Equal(2, table.SelectedRowIndex); // Korin
+        table.Update(Context(UiKey.Down));
+        Assert.Equal(2, table.SelectedRowIndex); // clamped at the end
+        table.Update(Context(UiKey.Up));
+        Assert.Equal(0, table.SelectedRowIndex);
+        table.Update(Context(UiKey.Enter));
+
+        Assert.Equal([0, 2, 0, 0], clicks);
+
+        // Without focus, keys do nothing.
+        focus.RequestFocus(null);
+        table.Update(Context(UiKey.Down));
+        Assert.Equal(0, table.SelectedRowIndex);
+    }
 }
